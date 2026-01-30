@@ -49,4 +49,41 @@ describe("memory", () => {
     const deleted = await forgetMemory("nonexistent");
     expect(deleted).toBe(false);
   });
+
+  it("should add global memory when global flag is true", async () => {
+    const memory = await addMemory("global preference", { global: true });
+    expect(memory.scope).toBe("global");
+    expect(memory.project_id).toBeNull();
+  });
+
+  it("should add project memory when projectId is provided", async () => {
+    const memory = await addMemory("project specific", {
+      projectId: "github.com/test/repo",
+    });
+    expect(memory.scope).toBe("project");
+    expect(memory.project_id).toBe("github.com/test/repo");
+  });
+
+  it("should filter memories by scope", async () => {
+    // Add global and project memories
+    await addMemory("scope-test global", { global: true, tags: ["scope-test"] });
+    await addMemory("scope-test project", { projectId: "github.com/scope/test", tags: ["scope-test"] });
+
+    // List with only project scope
+    const projectOnly = await listMemories({
+      projectId: "github.com/scope/test",
+      includeGlobal: false,
+      tags: ["scope-test"],
+    });
+    expect(projectOnly.every((m) => m.scope === "project")).toBe(true);
+
+    // List with both scopes
+    const both = await listMemories({
+      projectId: "github.com/scope/test",
+      includeGlobal: true,
+      tags: ["scope-test"],
+    });
+    expect(both.some((m) => m.scope === "global")).toBe(true);
+    expect(both.some((m) => m.scope === "project")).toBe(true);
+  });
 });

@@ -86,12 +86,27 @@ async function runMigrations(db: Client): Promise<void> {
       id TEXT PRIMARY KEY,
       content TEXT NOT NULL,
       tags TEXT,
-      project TEXT,
+      scope TEXT NOT NULL DEFAULT 'global',
+      project_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT
     )`
   );
+
+  // Add scope column if missing (migration for existing DBs)
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN scope TEXT NOT NULL DEFAULT 'global'`);
+  } catch {
+    // Column already exists
+  }
+
+  // Add project_id column if missing (migration for existing DBs)
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN project_id TEXT`);
+  } catch {
+    // Column already exists
+  }
 
   await db.execute(
     `CREATE TABLE IF NOT EXISTS configs (
