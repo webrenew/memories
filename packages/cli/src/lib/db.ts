@@ -4,12 +4,20 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
-const CONFIG_DIR = process.env.MEMORIES_DATA_DIR ?? join(homedir(), ".config", "memories");
-const DB_PATH = join(CONFIG_DIR, "local.db");
-const SYNC_CONFIG_PATH = join(CONFIG_DIR, "sync.json");
+function resolveConfigDir(): string {
+  return process.env.MEMORIES_DATA_DIR ?? join(homedir(), ".config", "memories");
+}
 
 export function getConfigDir(): string {
-  return CONFIG_DIR;
+  return resolveConfigDir();
+}
+
+function getDbPath(): string {
+  return join(resolveConfigDir(), "local.db");
+}
+
+function getSyncConfigPath(): string {
+  return join(resolveConfigDir(), "sync.json");
 }
 
 export interface SyncConfig {
@@ -24,20 +32,23 @@ let client: Client | undefined;
 export async function getDb(): Promise<Client> {
   if (client) return client;
 
-  await mkdir(CONFIG_DIR, { recursive: true });
+  const configDir = resolveConfigDir();
+  const dbPath = getDbPath();
+
+  await mkdir(configDir, { recursive: true });
 
   const sync = await readSyncConfig();
 
   if (sync) {
     client = createClient({
-      url: `file:${DB_PATH}`,
+      url: `file:${dbPath}`,
       syncUrl: sync.syncUrl,
       authToken: sync.syncToken,
     });
     await runMigrations(client);
     await client.sync();
   } else {
-    client = createClient({ url: `file:${DB_PATH}` });
+    client = createClient({ url: `file:${dbPath}` });
     await runMigrations(client);
   }
 
@@ -56,13 +67,15 @@ export async function syncDb(): Promise<void> {
 }
 
 export async function saveSyncConfig(config: SyncConfig): Promise<void> {
-  await mkdir(CONFIG_DIR, { recursive: true });
-  await writeFile(SYNC_CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
+  const configDir = resolveConfigDir();
+  await mkdir(configDir, { recursive: true });
+  await writeFile(getSyncConfigPath(), JSON.stringify(config, null, 2), "utf-8");
 }
 
 export async function readSyncConfig(): Promise<SyncConfig | null> {
-  if (!existsSync(SYNC_CONFIG_PATH)) return null;
-  const raw = await readFile(SYNC_CONFIG_PATH, "utf-8");
+  const syncPath = getSyncConfigPath();
+  if (!existsSync(syncPath)) return null;
+  const raw = await readFile(syncPath, "utf-8");
   return JSON.parse(raw) as SyncConfig;
 }
 
@@ -157,24 +170,39 @@ async function runMigrations(db: Client): Promise<void> {
   );
 
   // Triggers to keep FTS in sync with memories table
+  // Drop and recreate to ensure latest logic (fixes soft-delete FTS leak)
+  await db.execute(`DROP TRIGGER IF EXISTS memories_ai`);
+  await db.execute(`DROP TRIGGER IF EXISTS memories_ad`);
+  await db.execute(`DROP TRIGGER IF EXISTS memories_au`);
+
+  // Only index non-deleted memories
   await db.execute(`
-    CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+    CREATE TRIGGER memories_ai AFTER INSERT ON memories
+    WHEN NEW.deleted_at IS NULL
+    BEGIN
       INSERT INTO memories_fts(rowid, content, tags) VALUES (NEW.rowid, NEW.content, NEW.tags);
     END
   `);
 
   await db.execute(`
-    CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+    CREATE TRIGGER memories_ad AFTER DELETE ON memories BEGIN
       INSERT INTO memories_fts(memories_fts, rowid, content, tags) VALUES('delete', OLD.rowid, OLD.content, OLD.tags);
     END
   `);
 
+  // On update: always remove old entry, only re-insert if not soft-deleted
   await db.execute(`
-    CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+    CREATE TRIGGER memories_au AFTER UPDATE ON memories BEGIN
       INSERT INTO memories_fts(memories_fts, rowid, content, tags) VALUES('delete', OLD.rowid, OLD.content, OLD.tags);
-      INSERT INTO memories_fts(rowid, content, tags) VALUES (NEW.rowid, NEW.content, NEW.tags);
+      INSERT INTO memories_fts(rowid, content, tags)
+        SELECT NEW.rowid, NEW.content, NEW.tags WHERE NEW.deleted_at IS NULL;
     END
   `);
+
+  // Note: We do NOT run FTS 'rebuild' here because content-sync FTS5 rebuild
+  // re-indexes ALL rows from the source table (including soft-deleted ones).
+  // The triggers above ensure only active records enter the FTS index.
+  // Use 'memories doctor --fix' to rebuild if the index gets corrupted.
 
   // Index for faster type-based queries (rules are queried frequently)
   try {

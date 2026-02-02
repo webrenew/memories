@@ -56,21 +56,27 @@ export const doctorCommand = new Command("doctor")
           run: async () => {
             const db = await getDb();
             try {
-              const fts = await db.execute(
-                "SELECT COUNT(*) as count FROM memories_fts",
+              // Verify FTS table exists and is queryable
+              await db.execute(
+                "SELECT rowid FROM memories_fts LIMIT 1",
               );
-              const mem = await db.execute(
+              // Verify search excludes soft-deleted records
+              const leaked = await db.execute(`
+                SELECT COUNT(*) as count FROM memories m
+                JOIN memories_fts fts ON m.rowid = fts.rowid
+                WHERE memories_fts MATCH '"*"' AND m.deleted_at IS NOT NULL
+              `);
+              const leakedCount = Number(leaked.rows[0]?.count ?? 0);
+              if (leakedCount > 0) {
+                return {
+                  ok: false,
+                  message: `${leakedCount} soft-deleted records still searchable via FTS`,
+                };
+              }
+              const active = await db.execute(
                 "SELECT COUNT(*) as count FROM memories WHERE deleted_at IS NULL",
               );
-              const ftsCount = Number(fts.rows[0]?.count ?? 0);
-              const memCount = Number(mem.rows[0]?.count ?? 0);
-              if (ftsCount === memCount) {
-                return { ok: true, message: `${ftsCount} entries in sync` };
-              }
-              return {
-                ok: false,
-                message: `FTS has ${ftsCount} entries but ${memCount} active memories (out of sync)`,
-              };
+              return { ok: true, message: `FTS operational, ${Number(active.rows[0]?.count ?? 0)} active memories indexed` };
             } catch {
               return { ok: false, message: "FTS table missing or corrupted" };
             }
