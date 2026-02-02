@@ -11,6 +11,7 @@ import { importCommand } from "./commands/import.js";
 import { configCommand } from "./commands/config.js";
 import { serveCommand } from "./commands/serve.js";
 import { syncCommand } from "./commands/sync.js";
+import { generateCommand } from "./commands/generate.js";
 
 const program = new Command()
   .name("memories")
@@ -34,5 +35,6 @@ program.addCommand(importCommand);
 program.addCommand(configCommand);
 program.addCommand(serveCommand);
 program.addCommand(syncCommand);
+program.addCommand(generateCommand);
 
 program.parse();
