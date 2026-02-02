@@ -40,35 +40,55 @@ export const importCommand = new Command("import")
         }
       }
 
-      let data: ImportData;
+      let data: unknown;
       if (format === "yaml") {
         const yaml = await import("yaml");
-        data = yaml.parse(content) as ImportData;
+        data = yaml.parse(content);
       } else {
-        data = JSON.parse(content) as ImportData;
+        data = JSON.parse(content);
       }
 
-      if (!data.memories || !Array.isArray(data.memories)) {
+      if (!data || typeof data !== "object" || !("memories" in data) || !Array.isArray((data as ImportData).memories)) {
         console.error(chalk.red("✗") + " Invalid import file: missing 'memories' array");
         process.exit(1);
       }
 
+      const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
+      const importData = data as ImportData;
+
+      // Validate and filter entries
+      let skipped = 0;
+      const validMemories: ImportMemory[] = [];
+      for (const m of importData.memories) {
+        if (!m.content || typeof m.content !== "string" || m.content.trim().length === 0) {
+          skipped++;
+          continue;
+        }
+        if (m.type && !VALID_TYPES.includes(m.type)) {
+          console.error(chalk.yellow("⚠") + ` Skipping memory with invalid type "${m.type}": ${m.content.slice(0, 50)}`);
+          skipped++;
+          continue;
+        }
+        validMemories.push(m);
+      }
+
       if (opts.dryRun) {
         console.log(chalk.blue("Dry run - would import:"));
-        for (const m of data.memories) {
+        for (const m of validMemories) {
           const type = m.type || "note";
           const scope = opts.global ? "global" : (m.scope || "project");
           const tags = m.tags?.length ? ` [${m.tags.join(", ")}]` : "";
           console.log(`  ${type} (${scope}): ${m.content}${tags}`);
         }
-        console.log(chalk.dim(`\n${data.memories.length} memories would be imported`));
+        console.log(chalk.dim(`\n${validMemories.length} memories would be imported`));
+        if (skipped > 0) console.log(chalk.dim(`${skipped} entries skipped (invalid)`));
         return;
       }
 
       let imported = 0;
       let failed = 0;
 
-      for (const m of data.memories) {
+      for (const m of validMemories) {
         try {
           await addMemory(m.content, {
             type: m.type || "note",
@@ -85,6 +105,9 @@ export const importCommand = new Command("import")
       console.log(chalk.green("✓") + ` Imported ${imported} memories`);
       if (failed > 0) {
         console.log(chalk.yellow("⚠") + ` ${failed} memories failed to import`);
+      }
+      if (skipped > 0) {
+        console.log(chalk.dim(`${skipped} entries skipped (invalid content or type)`));
       }
     } catch (error) {
       console.error(chalk.red("✗") + " Failed to import:", error instanceof Error ? error.message : "Unknown error");
