@@ -1,7 +1,32 @@
 {
   "name": "memories.sh",
   "version": "0.1.0",
+  "description": "A local-first memory layer for AI coding agents — persistent context for Claude, Cursor, and more",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WebRenew/memories.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://memories.sh",
+  "keywords": [
+    "ai",
+    "memory",
+    "cli",
+    "claude",
+    "cursor",
+    "coding-agents",
+    "developer-tools",
+    "context",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist"
+  ],
   "bin": {
     "memories": "./dist/index.js"
   },
