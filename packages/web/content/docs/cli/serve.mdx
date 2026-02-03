@@ -1,0 +1,42 @@
+---
+title: memories serve
+description: Start the MCP server.
+---
+
+```bash
+memories serve
+```
+
+Start the Model Context Protocol (MCP) server using stdio transport. This allows MCP-compatible AI tools to read and write memories directly, without generating intermediate files.
+
+## Usage
+
+```bash
+memories serve
+```
+
+The server starts on stdio (standard input/output), which is the transport used by most MCP client integrations. Diagnostic messages are logged to stderr to avoid interfering with the protocol.
+
+## What It Provides
+
+The MCP server exposes 7 tools and 3 resources. See the [MCP Server](/docs/mcp-server) documentation for the complete reference.
+
+### Tools
+
+- `get_context` — Get rules and relevant memories (primary tool for AI agents)
+- `add_memory` — Store a new memory
+- `search_memories` — Full-text search
+- `get_rules` — Get all active rules
+- `list_memories` — List recent memories
+- `edit_memory` — Update a memory
+- `forget_memory` — Soft-delete a memory
+
+### Resources
+
+- `memories://rules` — All active rules
+- `memories://recent` — 20 most recent memories
+- `memories://project/{projectId}` — All memories for a specific project
+
+## Integration
+
+To connect the MCP server to your AI tool, add it to the tool's MCP configuration. See the [Integrations](/docs/integrations) guide for tool-specific setup instructions.

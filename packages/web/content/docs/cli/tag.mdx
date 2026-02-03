@@ -1,0 +1,59 @@
+---
+title: memories tag
+description: Bulk tag and untag operations on memories.
+---
+
+```bash
+memories tag <subcommand> [options]
+```
+
+Manage tags across memories in bulk. Tags are stored as comma-separated values and are used for filtering and organization.
+
+## Subcommands
+
+### `memories tag add <tag>`
+
+Add a tag to matching memories.
+
+| Option | Description |
+|--------|-------------|
+| `--type <type>` | Filter by memory type |
+| `--scope <scope>` | Filter by scope: `global` or `project` |
+| `--dry-run` | Preview without applying changes |
+
+```bash
+memories tag add "architecture" --type decision
+memories tag add "legacy" --scope project --dry-run
+```
+
+Skips memories that already have the tag.
+
+### `memories tag remove <tag>`
+
+Remove a tag from matching memories.
+
+| Option | Description |
+|--------|-------------|
+| `--type <type>` | Filter by memory type |
+| `--scope <scope>` | Filter by scope: `global` or `project` |
+| `--dry-run` | Preview without applying changes |
+
+```bash
+memories tag remove "deprecated" --type fact
+```
+
+### `memories tag list`
+
+List all tags in use with their counts.
+
+| Option | Description |
+|--------|-------------|
+| `--type <type>` | Filter by memory type |
+| `--scope <scope>` | Filter by scope: `global` or `project` |
+
+```bash
+memories tag list
+memories tag list --type rule
+```
+
+Tags are sorted by count (most used first).

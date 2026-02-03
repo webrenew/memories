@@ -1,0 +1,49 @@
+---
+title: MCP Server
+description: Connect memories directly to AI tools via the Model Context Protocol.
+---
+
+memories.sh includes a built-in MCP (Model Context Protocol) server that allows AI tools to read and write memories directly over stdio, without generating intermediate files.
+
+## Starting the Server
+
+```bash
+memories serve
+```
+
+The server communicates over stdio using the MCP protocol. It logs diagnostic information to stderr.
+
+## Why Use the MCP Server?
+
+While `memories generate` creates static files, the MCP server provides **live access** to your memories:
+
+- AI agents can **search** for relevant context based on the current task
+- Agents can **add new memories** as they learn about your project
+- No need to regenerate files when memories change
+- Works alongside generated files — use both approaches together
+
+## Connecting to AI Tools
+
+Add the MCP server to your AI tool's configuration. The exact setup varies by tool — see the [Integrations](/docs/integrations) guide for specific instructions.
+
+The general pattern is to add memories.sh as an MCP server with the command `memories serve` (or `npx @memories.sh/cli serve` if not installed globally):
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "memories",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+## Available Tools and Resources
+
+The MCP server exposes:
+
+- **7 tools** — for reading, writing, searching, and managing memories
+- **3 resources** — for accessing rules, recent memories, and project-specific data
+
+See the [Tools Reference](/docs/mcp-server/tools-reference) and [Resources Reference](/docs/mcp-server/resources-reference) for complete documentation.

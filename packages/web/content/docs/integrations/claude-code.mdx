@@ -1,0 +1,46 @@
+---
+title: Claude Code
+description: Integrate memories.sh with Claude Code.
+---
+
+Claude Code reads project instructions from `CLAUDE.md` in the project root and supports MCP servers.
+
+## Option 1: Generated File
+
+```bash
+memories generate claude
+```
+
+This creates a `CLAUDE.md` file in your project root with all your rules, decisions, and facts. Claude Code reads this automatically.
+
+## Option 2: MCP Server
+
+Add memories.sh to your Claude Code MCP configuration. Edit `~/.claude/claude_desktop_config.json` (or your project's `.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "memories",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+If memories.sh is not installed globally, use npx:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+## Using Both
+
+You can use both methods together. The generated `CLAUDE.md` provides a static baseline, while the MCP server gives Claude live access to search for specific context and add new memories.

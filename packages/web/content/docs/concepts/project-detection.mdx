@@ -1,0 +1,45 @@
+---
+title: Project Detection
+description: How memories.sh identifies and scopes to the current project using git.
+---
+
+memories.sh uses the git remote URL to identify the current project. This happens automatically — no configuration needed.
+
+## How It Works
+
+When you run a command inside a git repository, memories.sh:
+
+1. Reads the `origin` remote URL from git
+2. Normalizes the URL to a canonical project ID
+3. Uses this ID to scope memories to the project
+
+## URL Normalization
+
+Both SSH and HTTPS URLs are normalized to the same project ID:
+
+| Remote URL | Project ID |
+|-----------|------------|
+| `git@github.com:user/repo.git` | `github.com/user/repo` |
+| `https://github.com/user/repo.git` | `github.com/user/repo` |
+| `git@gitlab.com:org/project.git` | `gitlab.com/org/project` |
+
+The `.git` suffix is stripped, and the protocol/auth prefix is removed. This means the same repository always gets the same project ID regardless of how it was cloned.
+
+## When There's No Git Repo
+
+If you're not inside a git repository:
+- Memories default to **global** scope
+- The `--global` flag is implied
+- `memories doctor` will report that project detection is inactive
+
+## Checking Project Detection
+
+Use `memories doctor` to verify that project detection is working:
+
+```bash
+memories doctor
+```
+
+Look for the "Git project detection" check in the output. It will show the detected project ID or report that no git repo was found.
+
+You can also see the project ID in `memories stats` output.

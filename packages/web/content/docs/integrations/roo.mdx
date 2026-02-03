@@ -1,0 +1,35 @@
+---
+title: Roo
+description: Integrate memories.sh with Roo.
+---
+
+Roo reads rules from `.roo/rules/` and supports MCP servers.
+
+## Option 1: Generated File
+
+```bash
+memories generate roo
+```
+
+This creates `.roo/rules/memories.md` with your rules and context.
+
+## Option 2: MCP Server
+
+Add memories.sh to Roo's MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "memories",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+## Migrating Existing Rules
+
+```bash
+memories ingest roo
+```

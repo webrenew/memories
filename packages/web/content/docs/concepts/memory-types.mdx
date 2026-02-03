@@ -1,0 +1,65 @@
+---
+title: Memory Types
+description: Understanding the four memory types — rules, decisions, facts, and notes.
+---
+
+Every memory in memories.sh has a **type** that describes its purpose. The type affects how the memory is presented to AI agents and how it's prioritized in context.
+
+## Types
+
+### Rule
+
+Rules are always-active coding standards, preferences, and constraints. They are **always included** when context is requested, regardless of the query.
+
+```bash
+memories add --rule "Always use TypeScript strict mode"
+memories add --rule "Prefer named exports over default exports"
+memories add --rule "Use early returns to reduce nesting"
+```
+
+Rules are the most important memory type. They appear at the top of generated files and are always returned by `memories recall` and the MCP `get_context` tool.
+
+### Decision
+
+Decisions capture the reasoning behind architectural and technical choices. They help AI agents understand **why** something was done a certain way.
+
+```bash
+memories add --decision "Chose PostgreSQL over MySQL for JSONB support and better array handling"
+memories add --decision "Using Supabase for auth because of built-in RLS and generous free tier"
+```
+
+### Fact
+
+Facts store specific project knowledge — numbers, configurations, constraints, and other concrete information.
+
+```bash
+memories add --fact "API rate limit is 100 requests per minute per user"
+memories add --fact "The main database runs PostgreSQL 15 on Supabase"
+memories add --fact "Deploy target is Vercel with Edge Functions"
+```
+
+### Note
+
+Notes are the default type for general-purpose memories that don't fit the other categories.
+
+```bash
+memories add "Legacy API will be deprecated in Q3 2026"
+memories add "The billing module was written by the contractor team"
+```
+
+## How Types Affect Context
+
+When an AI agent requests context via `memories recall` or the MCP server:
+
+1. **All rules** are always included (both global and project-scoped)
+2. **Other types** are included based on search relevance or explicit request
+3. Generated files include rules by default, with decisions and facts optional via `--types`
+
+## Choosing the Right Type
+
+| If the memory... | Use |
+|-----------------|-----|
+| Should always be followed | `rule` |
+| Explains a past choice | `decision` |
+| States something concrete and specific | `fact` |
+| Is general context or temporary | `note` |

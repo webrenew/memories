@@ -1,0 +1,41 @@
+---
+title: Windsurf
+description: Integrate memories.sh with Windsurf.
+---
+
+Windsurf reads rules from `.windsurf/rules/` and supports MCP servers.
+
+## Option 1: Generated File
+
+```bash
+memories generate windsurf
+```
+
+This creates `.windsurf/rules/memories.md`. Note that Windsurf has a **6000 character limit** for rule files — content is automatically truncated if it exceeds this.
+
+## Option 2: MCP Server
+
+Add memories.sh to Windsurf's MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "memories",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+## Migrating Existing Rules
+
+Import from existing Windsurf rules (checks both `.windsurf/rules/` and legacy `.windsurfrules`):
+
+```bash
+memories ingest windsurf
+```
+
+## Character Limit
+
+Windsurf enforces a 6000 character limit on rule files. If your memories exceed this, the generated file is truncated. Rules are prioritized over other memory types. Consider using the MCP server for full access to all memories.

@@ -1,0 +1,45 @@
+---
+title: memories init
+description: Initialize memories for the current project or globally.
+---
+
+```bash
+memories init [options]
+```
+
+Initialize the memories database and optionally set up the current project. If run inside a git repository, the project is automatically detected from the `origin` remote URL.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `-g, --global` | Initialize global memories (user-wide, not project-specific) |
+| `-r, --rule <rule>` | Add an initial rule (can be repeated) |
+
+## Examples
+
+Initialize in the current project:
+
+```bash
+memories init
+```
+
+Initialize with starter rules:
+
+```bash
+memories init --rule "Use TypeScript strict mode" --rule "Prefer pnpm"
+```
+
+Initialize global memories:
+
+```bash
+memories init --global
+```
+
+## Behavior
+
+1. Creates the SQLite database at `~/.config/memories/local.db` if it doesn't exist
+2. Runs any pending schema migrations
+3. If inside a git repo, detects and registers the project identity
+4. Adds any initial rules provided via `--rule`
+5. Prints a quick-start guide with next steps

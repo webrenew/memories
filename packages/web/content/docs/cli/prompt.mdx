@@ -1,0 +1,78 @@
+---
+title: memories prompt
+description: Output memories formatted for AI system prompts.
+---
+
+```bash
+memories prompt [options]
+```
+
+Outputs memories in a format suitable for pasting directly into AI system prompts. Supports markdown, XML, and plain text output formats.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `-f, --format <format>` | Output format: `markdown`, `xml`, `plain` (default: `markdown`) |
+| `-i, --include <types>` | Include additional types: `decisions`, `facts`, `notes` (comma-separated) |
+| `-a, --all` | Include all memory types |
+| `-c, --copy` | Copy output to clipboard |
+| `-q, --quiet` | No stderr status messages |
+
+## Examples
+
+Output rules as markdown:
+
+```bash
+memories prompt
+```
+
+Include decisions and facts:
+
+```bash
+memories prompt --include decisions,facts
+```
+
+Copy all memories as XML to clipboard:
+
+```bash
+memories prompt --all --format xml --copy
+```
+
+Pipe to a file:
+
+```bash
+memories prompt --all --quiet > system-prompt.md
+```
+
+## Output Formats
+
+### Markdown (default)
+
+```markdown
+## Global Rules
+- Always use TypeScript strict mode
+- Use conventional commits
+
+## Project Rules
+- Use pnpm as the package manager
+
+## Key Decisions
+- Chose PostgreSQL for JSONB support
+```
+
+### XML
+
+```xml
+<global-rules>
+  <rule>Always use TypeScript strict mode</rule>
+  <rule>Use conventional commits</rule>
+</global-rules>
+<project-rules>
+  <rule>Use pnpm as the package manager</rule>
+</project-rules>
+```
+
+### Plain
+
+Outputs content as simple text with section headers, without any formatting markup.

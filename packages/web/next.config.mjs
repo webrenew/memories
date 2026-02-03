@@ -1,10 +1,15 @@
-import type { NextConfig } from "next";
-import path from "node:path";
+import { createMDX } from 'fumadocs-mdx/next';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-// Loader path from orchids-visual-edits - use direct resolve to get the actual file
+const require = createRequire(import.meta.url);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const loaderPath = require.resolve('orchids-visual-edits/loader.js');
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   images: {
     remotePatterns: [
       {
@@ -27,11 +32,13 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname, '../../'),
     rules: {
-      "*.{jsx,tsx}": {
-        loaders: [loaderPath]
-      }
-    }
-  }
-} as NextConfig;
+      '*.{jsx,tsx}': {
+        loaders: [loaderPath],
+      },
+    },
+  },
+};
 
-export default nextConfig;
+const withMDX = createMDX();
+
+export default withMDX(nextConfig);

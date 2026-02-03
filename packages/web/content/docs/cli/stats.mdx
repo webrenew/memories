@@ -1,0 +1,31 @@
+---
+title: memories stats
+description: Show memory statistics.
+---
+
+```bash
+memories stats [options]
+```
+
+Display statistics about your memory store, including counts by type and scope.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON |
+
+## Examples
+
+```bash
+memories stats
+memories stats --json
+```
+
+## Output
+
+Shows:
+- Total active and soft-deleted memory counts
+- Breakdown by type (`rule`, `decision`, `fact`, `note`)
+- Breakdown by scope (`global`, `project`)
+- Project-specific count if inside a git repository

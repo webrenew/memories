@@ -1,0 +1,50 @@
+---
+title: memories doctor
+description: Check memories health and diagnose issues.
+---
+
+```bash
+memories doctor [options]
+```
+
+Run diagnostic checks on your memories database and optionally fix issues.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--fix` | Attempt to fix issues found |
+
+## Checks Performed
+
+1. **Database file** — Verifies the database file exists at the expected path
+2. **Connection** — Tests that the database can be opened and queried
+3. **Schema integrity** — Runs `PRAGMA integrity_check` to verify data consistency
+4. **FTS index** — Checks the full-text search index is operational and that no soft-deleted records have leaked into the FTS index
+5. **Git detection** — Verifies project detection is working in the current directory
+6. **Orphaned memories** — Checks for project-scoped memories with no matching project
+7. **Soft-deleted records** — Reports the count of soft-deleted records
+
+## Fix Mode
+
+When `--fix` is passed, the doctor will:
+- Permanently purge (hard-delete) all soft-deleted records
+- Rebuild the FTS5 full-text search index
+
+```bash
+memories doctor --fix
+```
+
+## Examples
+
+Run diagnostics:
+
+```bash
+memories doctor
+```
+
+Diagnose and fix:
+
+```bash
+memories doctor --fix
+```

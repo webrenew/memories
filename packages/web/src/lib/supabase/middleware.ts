@@ -2,6 +2,11 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 export async function updateSession(request: NextRequest) {
+  // Skip auth for public docs routes
+  if (request.nextUrl.pathname.startsWith("/docs")) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

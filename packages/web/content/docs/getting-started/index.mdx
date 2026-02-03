@@ -1,0 +1,144 @@
+---
+title: Getting Started
+description: Install memories.sh, add your first memories, and generate config files for your AI coding tools.
+---
+
+## Installation
+
+Install the CLI globally using your preferred package manager:
+
+```bash
+npm install -g @memories.sh/cli
+```
+
+```bash
+pnpm add -g @memories.sh/cli
+```
+
+```bash
+yarn global add @memories.sh/cli
+```
+
+Verify the installation:
+
+```bash
+memories --version
+```
+
+## Initialize
+
+Navigate to a git repository and initialize memories for the project:
+
+```bash
+cd your-project
+memories init
+```
+
+This creates the local database at `~/.config/memories/local.db` (if it doesn't already exist) and detects your project from the git remote URL.
+
+To initialize with some starter rules:
+
+```bash
+memories init --rule "Use TypeScript strict mode" --rule "Prefer functional patterns"
+```
+
+For global memories that apply to all projects:
+
+```bash
+memories init --global
+```
+
+## Add Your First Memory
+
+Memories come in four types: **rules**, **decisions**, **facts**, and **notes**.
+
+### Rules
+
+Rules are always-active coding standards that should be followed:
+
+```bash
+memories add --rule "Always use early returns to reduce nesting"
+memories add --rule "Use pnpm as the package manager"
+memories add --rule "Prefer named exports over default exports"
+```
+
+### Decisions
+
+Decisions capture the "why" behind architectural choices:
+
+```bash
+memories add --decision "Chose Tailwind CSS over styled-components for utility-first approach and smaller bundle size"
+memories add --decision "Using Supabase for auth because it has built-in RLS and a generous free tier"
+```
+
+### Facts
+
+Facts store project-specific knowledge:
+
+```bash
+memories add --fact "API rate limit is 100 requests per minute per user"
+memories add --fact "The main database is PostgreSQL 15 hosted on Supabase"
+```
+
+### Notes
+
+Notes are general-purpose memories (the default type):
+
+```bash
+memories add "The legacy API will be deprecated in Q3 2026"
+```
+
+## Tag Your Memories
+
+Tags help organize and filter memories:
+
+```bash
+memories add --rule "Use React Server Components by default" --tags "react,architecture"
+memories add --fact "Stripe webhook secret is in STRIPE_WEBHOOK_SECRET env var" --tags "stripe,config"
+```
+
+## Generate Config Files
+
+Generate native rule files for your AI tools:
+
+```bash
+# Generate for a specific tool
+memories generate cursor
+memories generate claude
+memories generate copilot
+
+# Generate for all supported tools at once
+memories generate all
+```
+
+Supported targets: `cursor`, `claude`, `agents`, `copilot`, `windsurf`, `cline`, `roo`, `gemini`.
+
+Each target writes to its standard location:
+
+| Target | Output Path |
+|--------|-------------|
+| `cursor` | `.cursor/rules/memories.mdc` |
+| `claude` | `CLAUDE.md` |
+| `agents` | `AGENTS.md` |
+| `copilot` | `.github/copilot-instructions.md` |
+| `windsurf` | `.windsurf/rules/memories.md` |
+| `cline` | `.clinerules/memories.md` |
+| `roo` | `.roo/rules/memories.md` |
+| `gemini` | `GEMINI.md` |
+
+## Use the MCP Server
+
+Instead of (or in addition to) generating files, you can connect memories directly to your AI tool via the MCP protocol:
+
+```bash
+memories serve
+```
+
+This starts an MCP server on stdio that exposes your memories as tools and resources. See the [MCP Server](/docs/mcp-server) guide for integration details.
+
+## Next Steps
+
+- Read the [CLI Reference](/docs/cli) for complete command documentation
+- Learn about [Memory Types and Scopes](/docs/concepts/memory-types)
+- Set up [Git Hooks](/docs/git-hooks) to auto-generate files on commit
+- Configure [Cloud Sync](/docs/cloud-sync) for multi-device access

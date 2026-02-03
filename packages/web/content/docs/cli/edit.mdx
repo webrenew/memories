@@ -1,0 +1,57 @@
+---
+title: memories edit
+description: Edit an existing memory.
+---
+
+```bash
+memories edit [id] [options]
+```
+
+Edit a memory's content, type, or tags. Opens your default editor for interactive editing, or accepts inline changes via options.
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `id` | Memory ID to edit (interactive picker if omitted in a TTY) |
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `-c, --content <content>` | New content (skips editor) |
+| `-t, --tags <tags>` | New comma-separated tags |
+| `--type <type>` | New memory type: `rule`, `decision`, `fact`, `note` |
+
+## Examples
+
+Edit interactively (opens picker, then editor):
+
+```bash
+memories edit
+```
+
+Edit a specific memory by ID:
+
+```bash
+memories edit abc123def456
+```
+
+Update content inline:
+
+```bash
+memories edit abc123def456 --content "Updated rule text"
+```
+
+Change type and tags:
+
+```bash
+memories edit abc123def456 --type decision --tags "architecture,database"
+```
+
+## Behavior
+
+- If no ID is provided and the terminal is interactive, an arrow-key selection picker is shown
+- If no inline options are given, opens the memory in `$EDITOR` (falls back to `$VISUAL`, then `vi`)
+- Detects unchanged content and skips the update
+- The memory's `updated_at` timestamp is set on save

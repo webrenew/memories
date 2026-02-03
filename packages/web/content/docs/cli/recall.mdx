@@ -1,0 +1,58 @@
+---
+title: memories recall
+description: Recall context — get rules and relevant memories for AI agents.
+---
+
+```bash
+memories recall [query] [options]
+```
+
+The primary command for feeding context to AI agents. Returns all active rules plus memories relevant to an optional search query. This is the command most commonly used in AI tool integrations.
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `query` | Optional search query to find relevant memories |
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `-l, --limit <n>` | Max memories to return, excluding rules (default: 10) |
+| `-r, --rules-only` | Only return rules |
+| `-v, --verbose` | Show memory IDs and metadata |
+| `--json` | Output as JSON (for programmatic use) |
+
+## Examples
+
+Get all rules and context:
+
+```bash
+memories recall
+```
+
+Recall with a specific query:
+
+```bash
+memories recall "authentication flow"
+```
+
+Get only rules:
+
+```bash
+memories recall --rules-only
+```
+
+JSON output for scripting:
+
+```bash
+memories recall "database" --json
+```
+
+## Behavior
+
+1. Always returns **all active rules** (both global and project-scoped)
+2. If a query is provided, searches for relevant memories using FTS5 with BM25 ranking
+3. Rules are listed first, followed by search results
+4. The `--limit` option only limits search results, not rules

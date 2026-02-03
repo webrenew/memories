@@ -1,0 +1,109 @@
+---
+title: Tools Reference
+description: Complete reference for all MCP tools exposed by the memories.sh server.
+---
+
+The memories.sh MCP server exposes 7 tools that AI agents can call to interact with your memory store.
+
+## get_context
+
+The primary tool for AI agents. Returns all active rules plus memories relevant to an optional search query.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | `string` | No | Search query to find relevant memories |
+| `limit` | `number` | No | Max number of search results |
+
+```json
+{
+  "name": "get_context",
+  "arguments": {
+    "query": "authentication flow",
+    "limit": 5
+  }
+}
+```
+
+Returns all rules first, followed by relevant search results.
+
+## add_memory
+
+Store a new memory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `content` | `string` | Yes | Memory content |
+| `type` | `enum` | No | `rule`, `decision`, `fact`, `note` (default: `note`) |
+| `tags` | `string[]` | No | Array of tags |
+| `global` | `boolean` | No | Store as global (default: project-scoped) |
+
+```json
+{
+  "name": "add_memory",
+  "arguments": {
+    "content": "The API uses JWT tokens with 1h expiry",
+    "type": "fact",
+    "tags": ["auth", "api"]
+  }
+}
+```
+
+## search_memories
+
+Full-text search across memories with BM25 ranking.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | `string` | Yes | Search query |
+| `limit` | `number` | No | Max results |
+| `types` | `enum[]` | No | Filter by memory types |
+
+```json
+{
+  "name": "search_memories",
+  "arguments": {
+    "query": "database schema",
+    "types": ["decision", "fact"]
+  }
+}
+```
+
+## get_rules
+
+Get all active rules, split by global and project scope. Takes no parameters.
+
+```json
+{
+  "name": "get_rules",
+  "arguments": {}
+}
+```
+
+## list_memories
+
+List recent memories with optional filters.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `limit` | `number` | No | Max results |
+| `tags` | `string[]` | No | Filter by tags |
+| `types` | `enum[]` | No | Filter by types |
+
+## edit_memory
+
+Update an existing memory's content, type, or tags.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `string` | Yes | Memory ID |
+| `content` | `string` | No | New content |
+| `type` | `enum` | No | New type |
+| `tags` | `string[]` | No | New tags |
+
+## forget_memory
+
+Soft-delete a memory by ID.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `string` | Yes | Memory ID to forget |

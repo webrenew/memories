@@ -1,0 +1,75 @@
+---
+title: Git Hooks
+description: Auto-generate IDE rule files on every commit with git hooks.
+---
+
+Install a git hook to automatically regenerate IDE config files whenever you commit. This ensures your generated files always reflect the latest state of your memories.
+
+## Quick Setup
+
+```bash
+memories hook install
+```
+
+This installs a pre-commit hook that runs `memories generate all --force` and stages the generated files before each commit.
+
+## How It Works
+
+The hook:
+1. Runs `memories generate all --force` to regenerate all target files
+2. Stages the generated files with `git add`
+3. The commit proceeds with the updated files included
+
+## Hook Detection
+
+The installer automatically detects your git hooks setup:
+
+| Setup | Location |
+|-------|----------|
+| Husky v9+ | `.husky/pre-commit` |
+| Husky v4–8 | `.husky/pre-commit` |
+| Plain git | `.git/hooks/pre-commit` |
+
+If an existing hook file is found, the memories section is appended (not overwritten).
+
+## Uninstall
+
+```bash
+memories hook uninstall
+```
+
+This removes only the memories-specific section from the hook. If the hook file contained only the memories section, the file is deleted entirely.
+
+## Check Status
+
+```bash
+memories hook status
+```
+
+Reports whether the memories hook is installed and where.
+
+## lint-staged Integration
+
+If lint-staged is detected in your project, the installer suggests adding memories generation to your lint-staged config instead:
+
+```json
+{
+  "lint-staged": {
+    "*": "memories generate all --force"
+  }
+}
+```
+
+This approach integrates with your existing pre-commit workflow rather than adding a separate hook.
+
+## Custom Hook Name
+
+By default, memories uses the `pre-commit` hook. You can specify a different hook:
+
+```bash
+memories hook install --hook pre-push
+memories hook uninstall --hook pre-push
+memories hook status --hook pre-push
+```
+
+See [`memories hook`](/docs/cli/hook) for the full CLI reference.

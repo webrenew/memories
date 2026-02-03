@@ -1,0 +1,56 @@
+---
+title: Scopes
+description: How global and project scopes determine which memories apply where.
+---
+
+Every memory has a **scope** that determines where it applies: globally across all projects, or only within a specific project.
+
+## Global Scope
+
+Global memories apply to all projects. Use them for personal coding standards and preferences that you want enforced everywhere.
+
+```bash
+memories add --global --rule "Use conventional commits"
+memories add --global --rule "Prefer functional patterns over class-based"
+```
+
+Memories are stored as global when:
+- The `--global` flag is passed
+- You're not inside a git repository
+
+## Project Scope
+
+Project memories only apply to the current project. They're automatically scoped when you're inside a git repository.
+
+```bash
+# Inside a git repo — automatically project-scoped
+memories add --rule "Use pnpm as the package manager"
+memories add --decision "Chose Tailwind CSS for this project"
+```
+
+Project identity is derived from the `origin` git remote URL. See [Project Detection](/docs/concepts/project-detection) for details.
+
+## How Scopes Interact
+
+When you request context (via `recall`, `prompt`, `generate`, or the MCP server), memories.sh merges both scopes:
+
+1. **Global memories** are always included
+2. **Project memories** for the current project are included when inside a git repo
+
+In generated files and MCP responses, global and project memories are clearly labeled with their scope.
+
+## Scope in Commands
+
+Most commands that read memories include both scopes by default. You can filter:
+
+| Flag | Effect |
+|------|--------|
+| `--global` | Only global memories |
+| `--project-only` | Only project memories (exclude global) |
+| *(neither)* | Both scopes |
+
+```bash
+memories list --global            # Only global
+memories list --project-only      # Only current project
+memories search "auth"            # Both scopes
+```

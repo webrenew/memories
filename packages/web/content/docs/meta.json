@@ -1,0 +1,16 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "---Getting Started---",
+    "getting-started",
+    "---Reference---",
+    "cli",
+    "concepts",
+    "mcp-server",
+    "---Guides---",
+    "integrations",
+    "cloud-sync",
+    "import-export",
+    "git-hooks"
+  ]
+}

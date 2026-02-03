@@ -1,0 +1,48 @@
+---
+title: Resources Reference
+description: MCP resources exposed by the memories.sh server.
+---
+
+The memories.sh MCP server exposes 3 resources that AI tools can read to access your memories.
+
+## memories://rules
+
+All active rules formatted as markdown, split by global and project scope.
+
+```
+URI: memories://rules
+```
+
+Returns a markdown document with sections for global rules and project rules:
+
+```markdown
+## Global Rules
+- Always use TypeScript strict mode
+- Use conventional commits
+
+## Project Rules
+- Use pnpm as the package manager
+- Prefer Server Components by default
+```
+
+## memories://recent
+
+The 20 most recent memories across all types.
+
+```
+URI: memories://recent
+```
+
+Returns recent memories ordered by creation date, including their type, scope, and content.
+
+## memories://project/\{projectId\}
+
+All memories for a specific project. This is a template resource — replace `{projectId}` with the actual project identifier.
+
+```
+URI: memories://project/github.com/user/repo
+```
+
+Returns all active memories scoped to the specified project, including all types.
+
+The project ID format matches what `memories doctor` or `memories stats` reports — typically `github.com/user/repo` (see [Project Detection](/docs/concepts/project-detection)).

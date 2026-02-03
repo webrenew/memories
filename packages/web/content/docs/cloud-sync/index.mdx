@@ -1,0 +1,68 @@
+---
+title: Cloud Sync
+description: Sync memories across devices with cloud-backed storage.
+---
+
+Cloud sync lets you access your memories from any machine. It uses Turso embedded replicas — your local SQLite database is the primary copy, with changes syncing to a cloud database.
+
+## Setup
+
+### 1. Log In
+
+```bash
+memories login
+```
+
+This opens your browser to authenticate with memories.sh. Your credentials are saved to `~/.config/memories/auth.json`.
+
+### 2. Enable Sync
+
+```bash
+memories sync enable
+```
+
+This provisions a cloud database and reconfigures your local database as an embedded replica. Your existing memories are preserved.
+
+### 3. Push Changes
+
+```bash
+memories sync push
+```
+
+Push any local changes to the cloud. On other devices, enabling sync will pull down the latest state.
+
+## How It Works
+
+- **Local-first** — The local SQLite database is always the primary copy. You can work offline.
+- **Embedded replicas** — Uses Turso's embedded replica mode with WAL (Write-Ahead Logging) for efficient sync.
+- **Manual push** — Changes are pushed explicitly with `memories sync push`. There's no automatic background sync.
+
+## Check Status
+
+```bash
+memories sync status
+```
+
+Shows the remote database URL, organization, and database name.
+
+## Prerequisites
+
+- A memories.sh account (sign up at [memories.sh](https://memories.sh))
+- Active internet connection for the initial setup and push operations
+
+## Architecture
+
+```
+┌──────────────┐        ┌──────────────┐
+│  Machine A   │        │  Machine B   │
+│  local.db    │───────▶│  local.db    │
+│  (replica)   │   ▲    │  (replica)   │
+└──────────────┘   │    └──────────────┘
+                   │
+            ┌──────┴──────┐
+            │ Cloud (Turso)│
+            │  remote.db   │
+            └─────────────┘
+```
+
+Each machine maintains a local embedded replica that syncs with the cloud database. Push from any machine, pull from any other.

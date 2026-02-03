@@ -1,0 +1,70 @@
+---
+title: memories forget
+description: Soft-delete memories by ID or bulk filter.
+---
+
+```bash
+memories forget [id] [options]
+```
+
+Remove memories by ID or in bulk using filters. Memories are soft-deleted (marked with a `deleted_at` timestamp) and excluded from all queries. Use `memories doctor --fix` to permanently purge soft-deleted records.
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `id` | Memory ID to forget (omit for bulk operations) |
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--type <type>` | Forget all memories of this type |
+| `--tag <tag>` | Forget all memories with this tag |
+| `--older-than <days>` | Forget memories older than N days |
+| `--pattern <pattern>` | Forget memories matching pattern (use `*` as wildcard) |
+| `--all` | Forget ALL memories (requires `--force` or confirmation) |
+| `--project-only` | Only forget project-scoped memories |
+| `--dry-run` | Preview what would be deleted |
+| `--force` | Skip confirmation prompt |
+
+## Examples
+
+Forget a single memory:
+
+```bash
+memories forget abc123def456
+```
+
+Preview what would be deleted:
+
+```bash
+memories forget --type note --dry-run
+```
+
+Forget all notes older than 30 days:
+
+```bash
+memories forget --type note --older-than 30
+```
+
+Forget memories matching a pattern:
+
+```bash
+memories forget --pattern "TODO*"
+```
+
+Forget everything (with confirmation):
+
+```bash
+memories forget --all
+```
+
+## Behavior
+
+- Single-ID mode does a direct soft-delete without confirmation
+- Bulk mode requires at least one filter option
+- Previews up to 30 matching memories before asking for confirmation
+- `--all` cannot be combined with other filters
+- Large deletions are batched in chunks of 500
+- Soft-deleted memories can be permanently purged with `memories doctor --fix`

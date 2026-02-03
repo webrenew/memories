@@ -1,0 +1,37 @@
+---
+title: GitHub Copilot
+description: Integrate memories.sh with GitHub Copilot.
+---
+
+GitHub Copilot reads instructions from `.github/copilot-instructions.md` and supports MCP servers.
+
+## Option 1: Generated File
+
+```bash
+memories generate copilot
+```
+
+This creates `.github/copilot-instructions.md` with your rules and context. Copilot reads this automatically for all Copilot Chat interactions in the project.
+
+## Option 2: MCP Server
+
+Add memories.sh to your Copilot MCP configuration (available in VS Code with the Copilot extension):
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "memories",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+## Migrating Existing Instructions
+
+If you have an existing `.github/copilot-instructions.md`:
+
+```bash
+memories ingest copilot
+```

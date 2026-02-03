@@ -1,0 +1,35 @@
+---
+title: Cline
+description: Integrate memories.sh with Cline.
+---
+
+Cline reads rules from `.clinerules/` and supports MCP servers.
+
+## Option 1: Generated File
+
+```bash
+memories generate cline
+```
+
+This creates `.clinerules/memories.md` with your rules and context.
+
+## Option 2: MCP Server
+
+Add memories.sh to Cline's MCP configuration in your VS Code settings:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "memories",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+## Migrating Existing Rules
+
+```bash
+memories ingest cline
+```

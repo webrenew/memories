@@ -1,0 +1,55 @@
+---
+title: memories import
+description: Import memories from JSON or YAML file.
+---
+
+```bash
+memories import <file> [options]
+```
+
+Import memories from a JSON or YAML file previously exported with `memories export` or manually created.
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `file` | Input file path (required) |
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `-f, --format <format>` | Input format: `json`, `yaml` (auto-detected from extension) |
+| `-g, --global` | Import all as global memories (override file scope) |
+| `--dry-run` | Show what would be imported |
+
+## Examples
+
+```bash
+memories import backup.json
+memories import rules.yaml --global
+memories import shared-rules.json --dry-run
+```
+
+## File Format
+
+The import file must contain a `memories` array:
+
+```json
+{
+  "memories": [
+    {
+      "content": "Always use TypeScript strict mode",
+      "type": "rule",
+      "scope": "global",
+      "tags": "typescript"
+    }
+  ]
+}
+```
+
+Each memory must have:
+- `content` — Non-empty string, at least 10 characters
+- `type` — One of: `rule`, `decision`, `fact`, `note`
+
+Optional fields: `scope`, `tags`, `created_at`.

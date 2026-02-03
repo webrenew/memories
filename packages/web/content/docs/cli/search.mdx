@@ -1,0 +1,43 @@
+---
+title: memories search
+description: Search memories using full-text search.
+---
+
+```bash
+memories search <query> [options]
+```
+
+Search across all memories using SQLite FTS5 full-text search with BM25 ranking. Supports prefix matching and automatic fallback to LIKE search.
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `query` | Search query (required) |
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `-l, --limit <n>` | Max results (default: 20) |
+| `--type <type>` | Filter by type: `rule`, `decision`, `fact`, `note` |
+| `-g, --global` | Search only global memories |
+| `--project-only` | Search only project memories (exclude global) |
+| `--json` | Output as JSON |
+
+## Examples
+
+```bash
+memories search "authentication"
+memories search "database" --type decision
+memories search "react" --limit 5 --json
+memories search "config" --global
+```
+
+## Behavior
+
+- Uses FTS5 with BM25 ranking for relevance scoring
+- Supports prefix matching (e.g., "auth" matches "authentication")
+- Falls back to LIKE search if FTS query fails
+- Returns both global and project-scoped memories by default
+- Results are ordered by relevance score

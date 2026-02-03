@@ -1,0 +1,66 @@
+---
+title: memories add
+description: Add a new memory to the store.
+---
+
+```bash
+memories add <content> [options]
+```
+
+Store a new memory with optional type and tags. Memories are automatically scoped to the current project when inside a git repository.
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `content` | The memory content (required) |
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `-t, --tags <tags>` | Comma-separated tags |
+| `-g, --global` | Store as global memory (default: project-scoped if in git repo) |
+| `--type <type>` | Memory type: `rule`, `decision`, `fact`, `note` (default: `note`) |
+| `-r, --rule` | Shorthand for `--type rule` |
+| `-d, --decision` | Shorthand for `--type decision` |
+| `-f, --fact` | Shorthand for `--type fact` |
+
+## Examples
+
+Add a rule:
+
+```bash
+memories add --rule "Always use early returns to reduce nesting"
+```
+
+Add a decision with tags:
+
+```bash
+memories add --decision "Chose Tailwind over styled-components for utility-first approach" --tags "css,architecture"
+```
+
+Add a fact:
+
+```bash
+memories add --fact "API rate limit is 100 requests per minute"
+```
+
+Add a global memory:
+
+```bash
+memories add --global --rule "Use conventional commits in all projects"
+```
+
+Add a simple note (default type):
+
+```bash
+memories add "Legacy API deprecated in Q3 2026"
+```
+
+## Behavior
+
+- Each memory gets a unique 12-character nanoid
+- If authenticated, rate limits are checked against your plan
+- Project scope is automatically determined from the git remote URL
+- Pass `--global` to override automatic project scoping

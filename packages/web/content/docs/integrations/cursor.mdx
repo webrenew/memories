@@ -1,0 +1,39 @@
+---
+title: Cursor
+description: Integrate memories.sh with Cursor.
+---
+
+Cursor reads project rules from `.cursor/rules/` and supports MCP servers.
+
+## Option 1: Generated File
+
+```bash
+memories generate cursor
+```
+
+This creates `.cursor/rules/memories.mdc` — an MDC (Markdown Components) file with YAML frontmatter that Cursor reads as a project rule.
+
+## Option 2: MCP Server
+
+Add memories.sh to Cursor's MCP configuration. In Cursor, open Settings and navigate to the MCP section, then add:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "memories",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+## Migrating Existing Rules
+
+If you have existing rules in `.cursorrules` or `.cursor/rules/`, you can import them:
+
+```bash
+memories ingest cursor
+```
+
+This extracts individual rules from your existing Cursor config and stores them as memories. You can then manage them with memories.sh and generate updated files for all your tools.

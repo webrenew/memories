@@ -1,0 +1,59 @@
+---
+title: memories sync
+description: Manage remote cloud sync.
+---
+
+```bash
+memories sync <subcommand> [options]
+```
+
+Enable and manage cloud synchronization of your memories database. Sync uses Turso embedded replicas to keep a local copy of your database that syncs with a remote cloud database.
+
+## Subcommands
+
+### `memories sync enable`
+
+Provision a cloud database and enable sync.
+
+| Option | Description |
+|--------|-------------|
+| `-o, --org <org>` | Organization name (default: "webrenew") |
+
+```bash
+memories sync enable
+```
+
+This command:
+1. Authenticates with the memories.sh API (must be logged in)
+2. Provisions a cloud database
+3. Recreates the local database as an embedded replica with WAL mode
+4. Saves sync configuration to `~/.config/memories/sync.json`
+
+### `memories sync push`
+
+Push local changes to the remote database.
+
+```bash
+memories sync push
+```
+
+### `memories sync status`
+
+Show the current sync configuration.
+
+```bash
+memories sync status
+```
+
+Displays: remote URL, organization, and database name.
+
+## Prerequisites
+
+You must be logged in to enable sync:
+
+```bash
+memories login
+memories sync enable
+```
+
+See [Cloud Sync](/docs/cloud-sync) for a detailed setup guide.

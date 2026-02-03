@@ -1,0 +1,33 @@
+{
+  "title": "CLI Reference",
+  "pages": [
+    "index",
+    "---Core---",
+    "init",
+    "add",
+    "recall",
+    "prompt",
+    "---Query---",
+    "search",
+    "list",
+    "---Management---",
+    "edit",
+    "forget",
+    "tag",
+    "---Generation---",
+    "generate",
+    "diff",
+    "---Data---",
+    "export",
+    "import",
+    "ingest",
+    "---System---",
+    "config",
+    "serve",
+    "sync",
+    "stats",
+    "doctor",
+    "hook",
+    "login"
+  ]
+}

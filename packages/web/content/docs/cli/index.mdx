@@ -1,0 +1,66 @@
+---
+title: CLI Reference
+description: Complete reference for all memories.sh CLI commands.
+---
+
+The `memories` CLI is the primary interface for managing your AI agent memory store. All commands operate on a local SQLite database at `~/.config/memories/local.db`.
+
+## Command Overview
+
+### Core Commands
+
+| Command | Description |
+|---------|-------------|
+| [`init`](/docs/cli/init) | Initialize memories for a project or globally |
+| [`add`](/docs/cli/add) | Add a new memory |
+| [`recall`](/docs/cli/recall) | Get rules and relevant memories for AI agents |
+| [`prompt`](/docs/cli/prompt) | Output memories formatted for AI system prompts |
+
+### Query Commands
+
+| Command | Description |
+|---------|-------------|
+| [`search`](/docs/cli/search) | Full-text search across memories |
+| [`list`](/docs/cli/list) | List memories with optional filters |
+
+### Management Commands
+
+| Command | Description |
+|---------|-------------|
+| [`edit`](/docs/cli/edit) | Edit an existing memory |
+| [`forget`](/docs/cli/forget) | Soft-delete memories by ID or bulk filter |
+| [`tag`](/docs/cli/tag) | Bulk tag and untag operations |
+
+### Generation Commands
+
+| Command | Description |
+|---------|-------------|
+| [`generate`](/docs/cli/generate) | Generate IDE rule files from memories |
+| [`diff`](/docs/cli/diff) | Show what changed since last generate |
+
+### Data Commands
+
+| Command | Description |
+|---------|-------------|
+| [`export`](/docs/cli/export) | Export memories to JSON or YAML |
+| [`import`](/docs/cli/import) | Import memories from JSON or YAML |
+| [`ingest`](/docs/cli/ingest) | Import from existing IDE rule files |
+
+### System Commands
+
+| Command | Description |
+|---------|-------------|
+| [`config`](/docs/cli/config) | Manage agent configuration |
+| [`serve`](/docs/cli/serve) | Start the MCP server |
+| [`sync`](/docs/cli/sync) | Manage cloud sync |
+| [`stats`](/docs/cli/stats) | Show memory statistics |
+| [`doctor`](/docs/cli/doctor) | Check health and diagnose issues |
+| [`hook`](/docs/cli/hook) | Manage git hooks |
+| [`login`](/docs/cli/login) | Authenticate for cloud features |
+
+## Global Behavior
+
+- When inside a git repository, commands automatically scope to the current project (detected from the `origin` remote URL)
+- When outside a git repo, or when `--global` is passed, memories are stored with global scope
+- All memories are stored in a single SQLite database with FTS5 full-text search
+- Soft-deleted memories are retained in the database but excluded from all queries

@@ -1,0 +1,38 @@
+---
+title: memories diff
+description: Show what changed since the last generate.
+---
+
+```bash
+memories diff [target] [options]
+```
+
+Compare the current state of your memories against the content in generated IDE rule files. Shows added and removed memories to help you decide when to regenerate.
+
+## Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `target` | Target to check: `cursor`, `claude`, `agents`, `copilot`, `windsurf`, `cline`, `roo`, `gemini`, or `all` |
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--types <types>` | Comma-separated types to include (default: `rule,decision,fact`) |
+
+## Examples
+
+```bash
+memories diff cursor
+memories diff all
+memories diff claude --types rule,decision
+```
+
+## Output
+
+Shows a diff-like output with:
+- `+` prefix for memories that are in the store but not in the generated file
+- `-` prefix for content in the generated file that's no longer in the store
+- Relative timestamps (e.g., "2h ago") for each change
+- A warning if the file is not managed by memories.sh (missing marker comment)

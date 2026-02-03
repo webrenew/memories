@@ -1,0 +1,42 @@
+---
+title: memories list
+description: List memories with optional filters.
+---
+
+```bash
+memories list [options]
+```
+
+List memories with filtering by type, tags, and scope. Memories are displayed in a compact table format with truncated content.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `-l, --limit <n>` | Max results (default: 50) |
+| `-t, --tags <tags>` | Filter by comma-separated tags |
+| `--type <type>` | Filter by type: `rule`, `decision`, `fact`, `note` |
+| `-g, --global` | Show only global memories |
+| `--project-only` | Show only project memories (exclude global) |
+| `--json` | Output as JSON |
+
+## Examples
+
+```bash
+memories list
+memories list --type rule
+memories list --tags "react,architecture" --limit 10
+memories list --global --json
+memories list --project-only --type decision
+```
+
+## Output Format
+
+Each memory is displayed with:
+- **Scope indicator**: `G` for global, `P` for project
+- **Type label**: `rule`, `decision`, `fact`, or `note`
+- **ID**: 12-character unique identifier
+- **Content**: Truncated to 80 characters
+- **Tags**: If any are present
+
+Results are ordered by type, then scope, then creation date (newest first).

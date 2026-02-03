@@ -1,0 +1,13 @@
+{
+  "title": "Integrations",
+  "pages": [
+    "index",
+    "claude-code",
+    "cursor",
+    "copilot",
+    "windsurf",
+    "cline",
+    "roo",
+    "gemini"
+  ]
+}

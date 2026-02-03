@@ -1,0 +1,47 @@
+---
+title: memories.sh Documentation
+description: One memory store for all your AI coding tools. Store rules, decisions, and knowledge once — generate native config files for every AI editor.
+---
+
+## What is memories.sh?
+
+**memories.sh** is a local-first CLI tool that gives your AI coding agents persistent memory. Store your coding rules, architectural decisions, and project knowledge in a single local database, then generate native configuration files for Cursor, Claude Code, GitHub Copilot, Windsurf, and more.
+
+## Why memories.sh?
+
+If you use multiple AI coding tools, you know the pain of maintaining separate rule files for each one. Change a rule in `.cursorrules` and forget to update `CLAUDE.md`. Add a decision to one tool and it's invisible to the others.
+
+memories.sh solves this by being the **single source of truth** for all your AI agent context:
+
+- **One store, every tool** — Add a memory once, generate files for all your tools
+- **Local-first** — Your data stays on your machine in a SQLite database
+- **MCP server** — Connect directly to any MCP-compatible AI tool
+- **Git-aware** — Memories automatically scope to the current project
+- **Type system** — Categorize memories as rules, decisions, facts, or notes
+
+## Quick Start
+
+```bash
+# Install
+npm install -g @memories.sh/cli
+
+# Add your first rule
+memories add --rule "Always use TypeScript strict mode"
+
+# Add a decision
+memories add --decision "Chose PostgreSQL over MySQL for JSONB support"
+
+# Generate config files for all your tools
+memories generate all
+
+# Or start the MCP server
+memories serve
+```
+
+## Next Steps
+
+- [Getting Started](/docs/getting-started) — Full installation and setup guide
+- [CLI Reference](/docs/cli) — Complete command documentation
+- [Concepts](/docs/concepts) — Understanding memory types, scopes, and project detection
+- [MCP Server](/docs/mcp-server) — Connect memories to any MCP-compatible tool
+- [Integrations](/docs/integrations) — Setup guides for specific AI editors

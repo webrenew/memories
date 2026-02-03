@@ -1,0 +1,9 @@
+{
+  "title": "Concepts",
+  "pages": [
+    "memory-types",
+    "scopes",
+    "project-detection",
+    "generation-targets"
+  ]
+}

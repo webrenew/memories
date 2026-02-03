@@ -1,0 +1,26 @@
+---
+title: Gemini
+description: Integrate memories.sh with Gemini.
+---
+
+Gemini reads instructions from `GEMINI.md` in the project root.
+
+## Generated File
+
+```bash
+memories generate gemini
+```
+
+This creates a `GEMINI.md` file in your project root with your rules, decisions, and facts. Gemini reads this automatically.
+
+## Migrating Existing Instructions
+
+If you have an existing `GEMINI.md`:
+
+```bash
+memories ingest gemini
+```
+
+## Note on MCP
+
+Gemini does not currently support MCP servers. Use the generated file approach for Gemini integration.

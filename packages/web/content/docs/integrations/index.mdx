@@ -1,0 +1,52 @@
+---
+title: Integrations
+description: Setup guides for connecting memories.sh to your AI coding tools.
+---
+
+memories.sh works with every major AI coding tool. There are two ways to integrate:
+
+1. **Generated files** — Run `memories generate <target>` to create a native config file the tool reads automatically
+2. **MCP server** — Connect the tool to the memories.sh MCP server for live, bidirectional access
+
+Most tools support both methods. Use generated files for simplicity, MCP for live access, or both together.
+
+## Supported Tools
+
+| Tool | Generated File | MCP Support |
+|------|---------------|-------------|
+| [Claude Code](/docs/integrations/claude-code) | `CLAUDE.md` | Yes |
+| [Cursor](/docs/integrations/cursor) | `.cursor/rules/memories.mdc` | Yes |
+| [GitHub Copilot](/docs/integrations/copilot) | `.github/copilot-instructions.md` | Yes |
+| [Windsurf](/docs/integrations/windsurf) | `.windsurf/rules/memories.md` | Yes |
+| [Cline](/docs/integrations/cline) | `.clinerules/memories.md` | Yes |
+| [Roo](/docs/integrations/roo) | `.roo/rules/memories.md` | Yes |
+| [Gemini](/docs/integrations/gemini) | `GEMINI.md` | No |
+
+The `agents` target (`AGENTS.md`) works with Amp, Codex, Goose, Kilo, Kiro, and OpenCode.
+
+## Quick Setup
+
+For any tool, the fastest path is:
+
+```bash
+# Generate the config file
+memories generate <target>
+
+# Or generate for all tools at once
+memories generate all
+```
+
+For MCP integration, add to the tool's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "memories",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+See each tool's page for specific instructions.

@@ -1,0 +1,49 @@
+---
+title: memories config
+description: Manage agent configuration.
+---
+
+```bash
+memories config <subcommand>
+```
+
+Manage the agent configuration file (`.agents/config.yaml`) for the current project.
+
+## Subcommands
+
+### `memories config init`
+
+Create a `.agents/config.yaml` configuration file in the current directory with default settings.
+
+```bash
+memories config init
+```
+
+### `memories config show`
+
+Display the current agent configuration as JSON.
+
+```bash
+memories config show
+```
+
+## Configuration File
+
+The configuration file at `.agents/config.yaml` supports the following fields:
+
+```yaml
+name: my-project
+description: A brief description of the project
+version: "1.0"
+memory:
+  provider: local
+  store: sqlite
+```
+
+| Field | Description |
+|-------|-------------|
+| `name` | Project name |
+| `description` | Brief project description |
+| `version` | Configuration version |
+| `memory.provider` | Memory provider (`local`) |
+| `memory.store` | Storage backend (`sqlite`) |

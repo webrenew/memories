@@ -1,0 +1,43 @@
+---
+title: memories login
+description: Authenticate with memories.sh for cloud features.
+---
+
+```bash
+memories login [options]
+```
+
+Log in to your memories.sh account to enable cloud sync and other premium features.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--api-url <url>` | API base URL (default: `https://memories.sh`) |
+
+## Login Flow
+
+```bash
+memories login
+```
+
+1. Generates a random authentication code
+2. Opens your browser to the memories.sh login page
+3. Polls the API until authentication completes (up to 5 minutes)
+4. Saves the token and email to `~/.config/memories/auth.json`
+
+The auth file is stored with restricted permissions (mode `0600`).
+
+## Logout
+
+```bash
+memories logout
+```
+
+Removes the stored authentication credentials.
+
+## What Login Enables
+
+- [Cloud sync](/docs/cloud-sync) — Sync memories across devices
+- Rate limit enforcement for plan-based usage
+- Future premium features

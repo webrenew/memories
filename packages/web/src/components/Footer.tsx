@@ -23,9 +23,9 @@ export function Footer() {
             <div className="flex flex-col gap-6">
               <h5 className="text-[10px] uppercase tracking-[0.3em] font-bold text-foreground">Product</h5>
               <div className="flex flex-col gap-4 text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.15em]">
-                <Link href="#quickstart" className="hover:text-primary transition-colors">Documentation</Link>
-                <Link href="#quickstart" className="hover:text-primary transition-colors">CLI Reference</Link>
-                <Link href="#features" className="hover:text-primary transition-colors">MCP Server</Link>
+                <Link href="/docs" className="hover:text-primary transition-colors">Documentation</Link>
+                <Link href="/docs/cli" className="hover:text-primary transition-colors">CLI Reference</Link>
+                <Link href="/docs/mcp-server" className="hover:text-primary transition-colors">MCP Server</Link>
               </div>
             </div>
             <div className="flex flex-col gap-6">
