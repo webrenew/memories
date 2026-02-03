@@ -28,6 +28,21 @@ export async function POST(request: Request) {
     })
   }
 
+  // Ensure user row exists (trigger may not have fired yet)
+  if (!profile) {
+    const { error: insertError } = await admin
+      .from("users")
+      .upsert({ id: auth.userId, email: auth.email }, { onConflict: "id" })
+
+    if (insertError) {
+      console.error("Failed to create user row:", insertError)
+      return NextResponse.json(
+        { error: "Failed to initialize user" },
+        { status: 500 }
+      )
+    }
+  }
+
   try {
     // Create a new Turso database
     const db = await createDatabase(TURSO_ORG)
