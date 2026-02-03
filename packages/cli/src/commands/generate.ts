@@ -32,17 +32,21 @@ function groupByType(memories: Memory[]): { title: string; memories: Memory[] }[
 
 const AGENT_INSTRUCTIONS = `## Memory Management
 
-When you learn something important about this project, save it using the memories CLI:
+When you learn something important about this project, save it for future sessions.
 
-- **Architectural decisions**: \`memories add "<decision>" --type decision\`
-- **Coding conventions**: \`memories add "<convention>" --type rule\`  
-- **Project facts**: \`memories add "<fact>" --type fact\`
+**Via CLI:**
+- \`memories add "<decision>" --type decision\` — Architectural decisions
+- \`memories add "<convention>" --type rule\` — Coding conventions
+- \`memories add "<fact>" --type fact\` — Project facts
 
-Save memories when you:
-- Make or discover architectural decisions
-- Learn project-specific patterns or conventions
-- Encounter non-obvious setup or configuration
-- Resolve tricky bugs worth remembering`;
+**Via MCP (if connected):**
+Use the \`add_memory\` tool with content and type parameters.
+
+**When to save:**
+- Architectural decisions and their rationale
+- Project-specific patterns or conventions
+- Non-obvious setup, configuration, or gotchas
+- Tricky bugs and how they were resolved`;
 
 function formatMemoriesAsMarkdown(memories: Memory[], includeAgentInstructions = true): string {
   const sections = groupByType(memories);
