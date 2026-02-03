@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
-import { Database, BarChart3, Settings, Sparkles, LogOut, AlertTriangle } from "lucide-react"
+import { Database, BarChart3, Settings, Sparkles, LogOut, AlertTriangle } from "@/components/icons/app"
 
 interface Profile {
   id: string

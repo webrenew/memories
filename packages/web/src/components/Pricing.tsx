@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check } from "lucide-react";
+import { Check } from "@/components/icons/ui";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 

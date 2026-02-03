@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unicon.webrenew.com/schema/uniconrc.json",
+  "bundles": [
+    {
+      "name": "ui",
+      "query": "check chevron arrow circle x search minus grip loader sidebar info triangle octagon",
+      "format": "react",
+      "output": "./src/components/icons/ui"
+    },
+    {
+      "name": "app",
+      "query": "database chart gear sparkle sign-out warning",
+      "format": "react",
+      "output": "./src/components/icons/app"
+    }
+  ]
+}

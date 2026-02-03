@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createTurso } from "@libsql/client"
 import Link from "next/link"
-import { Database, Settings } from "lucide-react"
+import { Database, Settings } from "@/components/icons/app"
 
 export default async function MemoriesPage() {
   const supabase = await createClient()
@@ -89,12 +89,12 @@ export default async function MemoriesPage() {
             >
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="flex items-center gap-2">
-                  {memory.agent && (
+                  {memory.agent ? (
                     <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-[10px] uppercase tracking-wider font-bold text-primary">
                       {String(memory.agent)}
                     </span>
-                  )}
-                  {memory.tags &&
+                  ) : null}
+                  {memory.tags ? (
                     String(memory.tags)
                       .split(",")
                       .map((tag: string) => (
@@ -104,7 +104,8 @@ export default async function MemoriesPage() {
                         >
                           {tag.trim()}
                         </span>
-                      ))}
+                      ))
+                  ) : null}
                 </div>
                 <span className="text-[10px] text-muted-foreground/60 shrink-0">
                   {new Date(String(memory.created_at)).toLocaleDateString()}

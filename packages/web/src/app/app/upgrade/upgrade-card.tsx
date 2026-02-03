@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check } from "lucide-react"
+import { Check } from "@/components/icons/ui"
 import { toast } from "sonner"
 
 const features = [

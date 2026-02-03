@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import type { JSX } from "react";
 
 const AdapterIcon = ({ name }: { name: string }) => {
   const icons: Record<string, JSX.Element> = {

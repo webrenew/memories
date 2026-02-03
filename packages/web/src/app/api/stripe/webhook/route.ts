@@ -6,7 +6,7 @@ const PRO_PRICE_IDS = new Set(
   [process.env.STRIPE_PRO_PRICE_ID, process.env.STRIPE_PRO_PRICE_ID_ANNUAL].filter(Boolean)
 )
 
-function hasProPrice(items: { price?: { id: string } }[]): boolean {
+function hasProPrice(items: { price?: { id: string } | null }[]): boolean {
   return items.some((item) => item.price?.id && PRO_PRICE_IDS.has(item.price.id))
 }
 
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
       const customerId = invoice.customer as string
 
       // Only act on invoices for our Pro prices
-      if (!invoice.lines?.data || !hasProPrice(invoice.lines.data)) break
+      if (!invoice.lines?.data || !hasProPrice(invoice.lines.data as { price?: { id: string } | null }[])) break
 
       ok = await updatePlan(supabase, { stripe_customer_id: customerId }, { plan: "past_due" })
       break
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
       const customerId = invoice.customer as string
 
       // Only act on invoices for our Pro prices
-      if (!invoice.lines?.data || !hasProPrice(invoice.lines.data)) break
+      if (!invoice.lines?.data || !hasProPrice(invoice.lines.data as { price?: { id: string } | null }[])) break
 
       ok = await updatePlan(supabase, { stripe_customer_id: customerId }, { plan: "free" })
       break
