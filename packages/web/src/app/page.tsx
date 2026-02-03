@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { TopNav } from "@/components/TopNav";
 import { Hero } from "@/components/Hero";
+import { TrustedBy } from "@/components/TrustedBy";
 import { HowItWorks } from "@/components/HowItWorks";
 import { FeaturesGrid } from "@/components/FeaturesGrid";
 import { Integrations } from "@/components/Integrations";
@@ -22,6 +23,7 @@ export default async function Home() {
       
       <main>
         <Hero />
+        <TrustedBy />
         <HowItWorks />
         <WhyItMatters />
         <FeaturesGrid />
