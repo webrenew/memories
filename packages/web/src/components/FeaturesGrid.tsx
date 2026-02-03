@@ -78,7 +78,7 @@ export function FeaturesGrid() {
                 transition={{ duration: 0.4 }}
                 className="group p-10 bg-card/10 border border-border hover:bg-card/20 transition-all duration-500 relative overflow-hidden"
               >
-                <div className="text-primary/40 group-hover:text-primary transition-colors duration-500 mb-10">
+                <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
                   <FeatureIcon index={idx} />
                 </div>
                 
@@ -88,8 +88,8 @@ export function FeaturesGrid() {
                 </p>
                 
                 <div className="flex items-center gap-2 pt-6 border-t border-border">
-                  <div className="w-1 h-1 rounded-full bg-primary/40" />
-                  <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-muted-foreground/60">{f.metric}</span>
+                  <div className="w-1 h-1 rounded-full bg-primary/60" />
+                  <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-muted-foreground">{f.metric}</span>
                 </div>
   
                 {/* Technical Hover Decor */}
@@ -99,9 +99,9 @@ export function FeaturesGrid() {
               </motion.div>
             ))}
             
-            <div className="p-10 bg-primary/5 border border-primary/10 flex flex-col justify-between group">
+            <div className="p-10 bg-primary/10 border border-primary/20 flex flex-col justify-between group">
               <div>
-                <div className="w-6 h-6 border border-primary/40 rounded-full flex items-center justify-center mb-10">
+                <div className="w-6 h-6 border border-primary/60 rounded-full flex items-center justify-center mb-10">
                   <div className="w-1 h-1 bg-primary animate-pulse" />
                 </div>
                 <h4 className="text-lg font-bold tracking-tight text-foreground mb-2">MCP Server</h4>

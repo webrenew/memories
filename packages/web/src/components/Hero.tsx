@@ -62,9 +62,9 @@ const MemoryStream = () => {
             }}
             className="flex justify-between overflow-hidden whitespace-nowrap border-b border-border/10 pb-1"
           >
-            <span className="text-primary/40">{m.hash}</span>
-            <span className="text-foreground/10">{m.addr}</span>
-            <span className={m.status === "RECALL_OK" ? "text-primary/60" : "text-muted-foreground/30"}>
+            <span className="text-primary/60">{m.hash}</span>
+            <span className="text-foreground/20">{m.addr}</span>
+            <span className={m.status === "RECALL_OK" ? "text-primary/80" : "text-muted-foreground/50"}>
               {m.status}
             </span>
           </motion.div>
@@ -159,7 +159,7 @@ export function Hero() {
             transition={{ duration: 1.2, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="mt-24 pt-12 border-t border-border w-full"
           >
-            <p className="text-xs uppercase tracking-[0.3em] font-bold text-muted-foreground/50 mb-8">
+            <p className="text-xs uppercase tracking-[0.3em] font-bold text-muted-foreground mb-8">
               Works with
             </p>
             <div className="relative w-full overflow-hidden">
@@ -171,7 +171,7 @@ export function Hero() {
                   {marqueeTools.map((tool, index) => (
                     <div
                       key={`${tool.name}-${index}`}
-                      className="flex shrink-0 items-center gap-4 px-10 opacity-60 hover:opacity-100 transition-opacity duration-300"
+                      className="flex shrink-0 items-center gap-4 px-10 opacity-70 hover:opacity-100 transition-opacity duration-300"
                     >
                       <Image
                         src={tool.logo}

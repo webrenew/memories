@@ -109,12 +109,12 @@ export function Pricing({ user }: { user?: User | null }) {
               </div>
 
               <div className="flex-grow mb-10">
-                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground/60 mb-6">
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-6">
                   Included Features
                 </div>
                 <ul className="space-y-4">
                   {tier.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-3 text-sm text-muted-foreground/80">
+                    <li key={feature} className="flex items-start gap-3 text-sm text-muted-foreground">
                       <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                       <span>{feature}</span>
                     </li>

@@ -28,19 +28,19 @@ export function Quickstart() {
         </div>
 
         <div className="bg-card/5 border border-border overflow-hidden relative group mb-16">
-          <div className="flex items-center gap-2 px-6 py-4 bg-muted/30 border-b border-border">
+          <div className="flex items-center gap-2 px-6 py-4 bg-muted/50 border-b border-border">
             <div className="flex gap-1.5">
-              <div className="w-1.5 h-1.5 bg-primary/40" />
-              <div className="w-1.5 h-1.5 bg-primary/40" />
-              <div className="w-1.5 h-1.5 bg-primary/40" />
+              <div className="w-1.5 h-1.5 bg-primary/60" />
+              <div className="w-1.5 h-1.5 bg-primary/60" />
+              <div className="w-1.5 h-1.5 bg-primary/60" />
             </div>
-            <span className="text-[9px] text-muted-foreground/40 font-mono uppercase tracking-[0.2em] ml-4 font-bold">memories-sh // bash</span>
+            <span className="text-[9px] text-muted-foreground font-mono uppercase tracking-[0.2em] ml-4 font-bold">memories-sh // bash</span>
           </div>
           <div className="p-6 md:p-10 font-mono text-sm space-y-6 md:space-y-10 relative z-10">
             {steps.map((step, idx) => (
               <div key={idx} className="group/item relative">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-primary/40 text-[9px] uppercase tracking-[0.2em] font-bold">{step.label}</span>
+                  <span className="text-primary text-[9px] uppercase tracking-[0.2em] font-bold">{step.label}</span>
                   <button 
                     onClick={() => copyToClipboard(step.cmd, idx)}
                     className="opacity-0 group-hover/item:opacity-100 transition-opacity p-1 hover:text-primary"
@@ -58,16 +58,16 @@ export function Quickstart() {
                   </button>
                 </div>
                 <div className="flex gap-6 overflow-x-auto">
-                  <span className="text-primary/40 selection:bg-transparent">→</span>
-                  <span className="text-foreground/80 font-light whitespace-nowrap">{step.cmd}</span>
+                  <span className="text-primary/70 selection:bg-transparent">→</span>
+                  <span className="text-foreground font-light whitespace-nowrap">{step.cmd}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="p-6 md:p-10 bg-card/5 border border-border relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-px h-full bg-primary/20" />
+        <div className="p-6 md:p-10 bg-card/10 border border-border relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-px h-full bg-primary/40" />
           <div className="flex items-start gap-6">
             <div className="mt-1 w-1.5 h-1.5 rounded-full bg-primary" />
             <div>

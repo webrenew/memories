@@ -93,10 +93,10 @@ export function Integrations() {
                 className="p-10 border border-border bg-card/10 flex flex-col items-start group hover:bg-card/20 transition-all"
               >
                 <div className="flex items-center justify-between w-full mb-12">
-                  <div className="text-primary/40 group-hover:text-primary transition-colors duration-500">
+                  <div className="text-primary/60 group-hover:text-primary transition-colors duration-500">
                     <AdapterIcon name={a.name} />
                   </div>
-                  <span className="text-[8px] font-bold uppercase tracking-[0.2em] px-2 py-0.5 border border-border text-muted-foreground/60">
+                  <span className="text-[8px] font-bold uppercase tracking-[0.2em] px-2 py-0.5 border border-border text-muted-foreground">
                     {a.status}
                   </span>
                 </div>

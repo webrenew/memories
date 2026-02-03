@@ -74,7 +74,7 @@ function StepCard({ step, idx }: { step: { title: string; desc: string; cmd: str
       />
 
       <div className="relative z-20">
-        <div className="text-primary/40 group-hover:text-primary transition-colors duration-500 mb-10">
+        <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
           <StepIcon index={idx} />
         </div>
         
@@ -83,11 +83,11 @@ function StepCard({ step, idx }: { step: { title: string; desc: string; cmd: str
           {step.desc}
         </p>
         
-        <div className="font-mono text-[10px] bg-muted/30 p-4 border border-border text-primary/60 flex items-center justify-between">
+        <div className="font-mono text-[10px] bg-muted/50 p-4 border border-border text-primary flex items-center justify-between">
           <span>$ {step.cmd}</span>
           <div className="flex gap-1">
-            <div className="w-1 h-1 rounded-full bg-primary/20" />
-            <div className="w-1 h-1 rounded-full bg-primary/20" />
+            <div className="w-1 h-1 rounded-full bg-primary/40" />
+            <div className="w-1 h-1 rounded-full bg-primary/40" />
           </div>
         </div>
       </div>
