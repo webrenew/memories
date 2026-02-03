@@ -145,8 +145,7 @@ export function Hero() {
                 <div className="absolute inset-0 bg-primary translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
               </a>
               
-              <a href="#pricing" className="group flex items-center gap-4 text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors">
-                <span className="w-12 h-px bg-border group-hover:w-16 group-hover:bg-primary transition-all duration-500" />
+              <a href="#pricing" className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors">
                 View Pricing
               </a>
             </motion.div>
