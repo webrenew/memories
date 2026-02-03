@@ -1,5 +1,5 @@
 {
-  "name": "memories.sh",
+  "name": "@memories.sh/cli",
   "version": "0.1.0",
   "description": "A local-first memory layer for AI coding agents — persistent context for Claude, Cursor, and more",
   "type": "module",
@@ -10,6 +10,10 @@
     "directory": "packages/cli"
   },
   "homepage": "https://memories.sh",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "keywords": [
     "ai",
     "memory",
