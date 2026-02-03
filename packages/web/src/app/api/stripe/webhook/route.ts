@@ -2,6 +2,14 @@ import { getStripe } from "@/lib/stripe"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 
+const PRO_PRICE_IDS = new Set(
+  [process.env.STRIPE_PRO_PRICE_ID, process.env.STRIPE_PRO_PRICE_ID_ANNUAL].filter(Boolean)
+)
+
+function hasProPrice(items: { price?: { id: string } }[]): boolean {
+  return items.some((item) => item.price?.id && PRO_PRICE_IDS.has(item.price.id))
+}
+
 async function updatePlan(
   supabase: ReturnType<typeof createAdminClient>,
   filter: { id?: string; stripe_customer_id?: string },
@@ -41,18 +49,25 @@ export async function POST(request: Request) {
     case "checkout.session.completed": {
       const session = event.data.object
       const userId = session.metadata?.supabase_user_id
-      if (userId) {
-        ok = await updatePlan(supabase, { id: userId }, {
-          plan: "pro",
-          stripe_customer_id: session.customer as string,
-        })
-      }
+      if (!userId) break
+
+      // Verify the checkout contains one of our Pro price IDs
+      const lineItems = await getStripe().checkout.sessions.listLineItems(session.id, { limit: 5 })
+      if (!hasProPrice(lineItems.data)) break
+
+      ok = await updatePlan(supabase, { id: userId }, {
+        plan: "pro",
+        stripe_customer_id: session.customer as string,
+      })
       break
     }
 
     case "customer.subscription.updated": {
       const subscription = event.data.object
       const customerId = subscription.customer as string
+
+      // Only act on subscriptions for our Pro prices
+      if (!hasProPrice(subscription.items.data)) break
 
       const planMap: Record<string, string> = {
         active: "pro",
@@ -71,19 +86,34 @@ export async function POST(request: Request) {
     }
 
     case "customer.subscription.deleted": {
-      const customerId = event.data.object.customer as string
+      const subscription = event.data.object
+      const customerId = subscription.customer as string
+
+      // Only act on subscriptions for our Pro prices
+      if (!hasProPrice(subscription.items.data)) break
+
       ok = await updatePlan(supabase, { stripe_customer_id: customerId }, { plan: "free" })
       break
     }
 
     case "invoice.payment_failed": {
-      const customerId = event.data.object.customer as string
+      const invoice = event.data.object
+      const customerId = invoice.customer as string
+
+      // Only act on invoices for our Pro prices
+      if (!invoice.lines?.data || !hasProPrice(invoice.lines.data)) break
+
       ok = await updatePlan(supabase, { stripe_customer_id: customerId }, { plan: "past_due" })
       break
     }
 
     case "invoice.marked_uncollectible": {
-      const customerId = event.data.object.customer as string
+      const invoice = event.data.object
+      const customerId = invoice.customer as string
+
+      // Only act on invoices for our Pro prices
+      if (!invoice.lines?.data || !hasProPrice(invoice.lines.data)) break
+
       ok = await updatePlan(supabase, { stripe_customer_id: customerId }, { plan: "free" })
       break
     }
