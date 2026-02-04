@@ -2,6 +2,36 @@ import { nanoid } from "nanoid";
 import { getDb } from "./db.js";
 import { getProjectId } from "./git.js";
 
+/**
+ * Record a history entry for a memory change.
+ * Used for version tracking.
+ */
+export async function recordMemoryHistory(
+  memory: Memory,
+  changeType: "created" | "updated" | "deleted"
+): Promise<void> {
+  const db = await getDb();
+  
+  // Ensure history table exists
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS memory_history (
+      id TEXT PRIMARY KEY,
+      memory_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      tags TEXT,
+      type TEXT NOT NULL,
+      changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      change_type TEXT NOT NULL
+    )
+  `);
+  
+  const historyId = `${memory.id}-${Date.now()}`;
+  await db.execute({
+    sql: `INSERT INTO memory_history (id, memory_id, content, tags, type, change_type) VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [historyId, memory.id, memory.content, memory.tags, memory.type, changeType],
+  });
+}
+
 export type Scope = "global" | "project";
 
 /**
@@ -76,6 +106,18 @@ export async function addMemory(
   });
 
   return result.rows[0] as unknown as Memory;
+}
+
+/**
+ * Get a single memory by ID.
+ */
+export async function getMemoryById(id: string): Promise<Memory | null> {
+  const db = await getDb();
+  const result = await db.execute({
+    sql: `SELECT * FROM memories WHERE id = ? AND deleted_at IS NULL`,
+    args: [id],
+  });
+  return result.rows.length > 0 ? (result.rows[0] as unknown as Memory) : null;
 }
 
 /**
@@ -309,10 +351,12 @@ export async function getContext(
 
 /**
  * Update a memory's content or metadata.
+ * Records history before making changes.
  */
 export async function updateMemory(
   id: string,
-  updates: { content?: string; tags?: string[]; type?: MemoryType }
+  updates: { content?: string; tags?: string[]; type?: MemoryType },
+  options?: { skipHistory?: boolean }
 ): Promise<Memory | null> {
   const db = await getDb();
 
@@ -323,6 +367,12 @@ export async function updateMemory(
   });
 
   if (existing.rows.length === 0) return null;
+  
+  // Record history before update (unless skipped)
+  if (!options?.skipHistory) {
+    const old = existing.rows[0] as unknown as Memory;
+    await recordMemoryHistory(old, "updated");
+  }
 
   const setClauses: string[] = ["updated_at = datetime('now')"];
   const args: (string | null)[] = [];

@@ -19,6 +19,11 @@ import { hookCommand } from "./commands/hook.js";
 import { ingestCommand } from "./commands/ingest.js";
 import { diffCommand } from "./commands/diff.js";
 import { tagCommand } from "./commands/tag.js";
+import { validateCommand } from "./commands/validate.js";
+import { staleCommand, reviewCommand } from "./commands/stale.js";
+import { linkCommand, unlinkCommand, showCommand } from "./commands/link.js";
+import { templateCommand } from "./commands/template.js";
+import { historyCommand, revertCommand } from "./commands/history.js";
 import { loginCommand, logoutCommand } from "./commands/login.js";
 
 const program = new Command()
@@ -51,6 +56,15 @@ program.addCommand(hookCommand);
 program.addCommand(ingestCommand);
 program.addCommand(diffCommand);
 program.addCommand(tagCommand);
+program.addCommand(validateCommand);
+program.addCommand(staleCommand);
+program.addCommand(reviewCommand);
+program.addCommand(linkCommand);
+program.addCommand(unlinkCommand);
+program.addCommand(showCommand);
+program.addCommand(templateCommand);
+program.addCommand(historyCommand);
+program.addCommand(revertCommand);
 
 // Auth commands
 program.addCommand(loginCommand);

@@ -2,28 +2,57 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { addMemory, type MemoryType } from "../lib/memory.js";
 import { readAuth, getApiClient } from "../lib/auth.js";
+import { getTemplate, fillTemplate } from "../lib/templates.js";
 import * as ui from "../lib/ui.js";
 
 const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
 
 export const addCommand = new Command("add")
   .description("Add a new memory")
-  .argument("<content>", "Memory content")
+  .argument("[content]", "Memory content (optional if using --template)")
   .option("-t, --tags <tags>", "Comma-separated tags")
   .option("-g, --global", "Store as global memory (default: project-scoped if in git repo)")
   .option("--type <type>", "Memory type: rule, decision, fact, note (default: note)")
   .option("-r, --rule", "Shorthand for --type rule")
   .option("-d, --decision", "Shorthand for --type decision")
   .option("-f, --fact", "Shorthand for --type fact")
-  .action(async (content: string, opts: { 
+  .option("--template <name>", "Use a template (run 'memories template list' to see options)")
+  .action(async (contentArg: string | undefined, opts: { 
     tags?: string; 
     global?: boolean;
     type?: string;
     rule?: boolean;
     decision?: boolean;
     fact?: boolean;
+    template?: string;
   }) => {
     try {
+      // Handle template mode
+      let content = contentArg;
+      let typeFromTemplate: MemoryType | undefined;
+      
+      if (opts.template) {
+        const template = getTemplate(opts.template);
+        if (!template) {
+          ui.error(`Template "${opts.template}" not found`);
+          ui.dim("Run 'memories template list' to see available templates");
+          process.exit(1);
+        }
+        
+        console.log("");
+        ui.info(`Using template: ${template.name}`);
+        ui.dim(template.description);
+        console.log("");
+        
+        content = await fillTemplate(template);
+        typeFromTemplate = template.type;
+      }
+      
+      if (!content) {
+        ui.error("Content is required. Provide content or use --template");
+        process.exit(1);
+      }
+
       // Check rate limits if logged in
       const auth = await readAuth();
       if (auth) {
@@ -49,8 +78,8 @@ export const addCommand = new Command("add")
 
       const tags = opts.tags?.split(",").map((t) => t.trim());
       
-      // Determine type from flags
-      let type: MemoryType = "note";
+      // Determine type from flags (template type is default if used)
+      let type: MemoryType = typeFromTemplate ?? "note";
       if (opts.rule) type = "rule";
       else if (opts.decision) type = "decision";
       else if (opts.fact) type = "fact";
