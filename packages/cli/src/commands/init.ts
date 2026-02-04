@@ -22,21 +22,25 @@ export const initCommand = new Command("init")
 
       // Step 2: Scope
       ui.step(2, 3, "Detecting scope...");
-      if (opts.global) {
-        ui.success("Using global scope (applies to all projects)");
-      } else {
+      let useGlobal = opts.global;
+      
+      if (!useGlobal) {
         const projectId = getProjectId();
         const gitRoot = getGitRoot();
 
         if (!projectId) {
-          ui.warn("Not in a git repository");
-          ui.dim("Run from a git repo for project-scoped memories, or use --global");
-          return;
+          ui.warn("Not in a git repository - using global scope");
+          ui.dim("Global memories apply to all projects");
+          useGlobal = true;
+        } else {
+          ui.success("Using project scope");
+          ui.dim(`Project: ${projectId}`);
+          ui.dim(`Root: ${gitRoot}`);
         }
-
-        ui.success("Using project scope");
-        ui.dim(`Project: ${projectId}`);
-        ui.dim(`Root: ${gitRoot}`);
+      }
+      
+      if (useGlobal) {
+        ui.success("Using global scope (applies to all projects)");
       }
 
       // Step 3: Auth status
@@ -56,7 +60,7 @@ export const initCommand = new Command("init")
         for (const rule of opts.rule) {
           const memory = await addMemory(rule, { 
             type: "rule", 
-            global: opts.global 
+            global: useGlobal 
           });
           ui.dim(`${memory.id}: ${rule}`);
         }
