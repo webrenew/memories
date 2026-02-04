@@ -32,11 +32,11 @@ export function FAQ() {
   ];
 
     return (
-      <section id="faq" className="py-24 px-6  border-t border-border">
-        <div className="max-w-3xl mx-auto">
-          <div className="mb-24 flex flex-col items-center text-center">
-            <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-primary mb-4">Support</div>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tighter text-foreground">Questions & Answers</h2>
+      <section id="faq" className="py-24 px-6 lg:px-10 border-t border-white/10">
+        <div className="max-w-[1000px] mx-auto">
+          <div className="mb-16 flex flex-col items-center text-center">
+            <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Support</div>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tighter text-foreground text-gradient">Questions & Answers</h2>
           </div>
           <div className="space-y-1">
             {faqs.map((faq, idx) => (
@@ -52,7 +52,7 @@ export function FAQ() {
     const [isOpen, setIsOpen] = useState(false);
   
     return (
-      <div className={`border border-border bg-card/10 transition-all duration-500 ${isOpen ? 'bg-card/20' : 'hover:bg-card/15'}`}>
+      <div className={`bg-card/20 transition-all duration-500 ${isOpen ? 'bg-card/30' : 'hover:bg-card/25'} glass-panel-soft`}>
         <button 
           onClick={() => setIsOpen(!isOpen)}
           className="w-full flex items-center justify-between p-10 text-left transition-colors"

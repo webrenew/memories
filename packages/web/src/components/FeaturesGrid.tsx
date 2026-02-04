@@ -61,11 +61,11 @@ export function FeaturesGrid() {
   ];
 
     return (
-      <section id="features" className="py-32 px-6 ">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-24 flex flex-col items-center text-center">
-            <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-primary mb-4">Core Features</div>
-            <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground">Built for durable state</h2>
+      <section id="features" className="py-28 px-6 lg:px-10">
+        <div className="max-w-[1400px] mx-auto">
+          <div className="mb-20 flex flex-col items-center text-center">
+            <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Core Features</div>
+            <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground text-gradient">Built for durable state</h2>
           </div>
   
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-1">
@@ -76,7 +76,7 @@ export function FeaturesGrid() {
                 whileInView={{ opacity: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
-                className="group p-10 bg-card/10 border border-border hover:bg-card/20 transition-all duration-500 relative overflow-hidden"
+                className="group p-8 lg:p-10 glass-panel hover:border-primary/30 transition-all duration-500 relative overflow-hidden"
               >
                 <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
                   <FeatureIcon index={idx} />
@@ -87,9 +87,9 @@ export function FeaturesGrid() {
                   {f.detail}
                 </p>
                 
-                <div className="flex items-center gap-2 pt-6 border-t border-border">
+                <div className="flex items-center gap-2 pt-6 border-t border-white/10">
                   <div className="w-1 h-1 rounded-full bg-primary/60" />
-                  <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-muted-foreground">{f.metric}</span>
+                  <span className="text-[9px] uppercase tracking-[0.25em] font-bold text-muted-foreground">{f.metric}</span>
                 </div>
   
                 {/* Technical Hover Decor */}
@@ -99,7 +99,7 @@ export function FeaturesGrid() {
               </motion.div>
             ))}
             
-            <div className="p-10 bg-primary/10 border border-primary/20 flex flex-col justify-between group">
+            <div className="p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col justify-between group glass-panel-soft">
               <div>
                 <div className="w-6 h-6 border border-primary/60 rounded-full flex items-center justify-center mb-10">
                   <div className="w-1 h-1 bg-primary animate-pulse" />

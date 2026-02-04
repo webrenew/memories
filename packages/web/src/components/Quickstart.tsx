@@ -20,15 +20,15 @@ export function Quickstart() {
   };
 
   return (
-    <section id="quickstart" className="py-32 px-6 bg-muted/10">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-24 flex flex-col items-center text-center">
-          <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-primary mb-4">Quick Start</div>
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tighter text-foreground">Get Started</h2>
+    <section id="quickstart" className="py-28 px-6 lg:px-10">
+      <div className="max-w-[1200px] mx-auto">
+        <div className="mb-20 flex flex-col items-center text-center">
+          <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Quick Start</div>
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tighter text-foreground text-gradient">Get Started</h2>
         </div>
 
-        <div className="bg-card/5 border border-border overflow-hidden relative group mb-16">
-          <div className="flex items-center justify-between px-6 py-4 bg-muted/50 border-b border-border">
+        <div className="glass-panel overflow-hidden relative group mb-12">
+          <div className="flex items-center justify-between px-6 py-4 bg-white/5 border-b border-white/10">
             <div className="flex items-center gap-2">
               <div className="flex gap-1.5">
                 <div className="w-1.5 h-1.5 bg-primary/60" />
@@ -68,7 +68,7 @@ export function Quickstart() {
           </div>
         </div>
 
-        <div className="p-6 md:p-10 bg-card/10 border border-border relative overflow-hidden">
+        <div className="p-6 md:p-10 glass-panel-soft relative overflow-hidden">
           <div className="absolute top-0 left-0 w-px h-full bg-primary/40" />
           <div className="flex items-start gap-6">
             <div className="mt-1 w-1.5 h-1.5 rounded-full bg-primary" />

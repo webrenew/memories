@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     .single()
 
   // Add seat to org's subscription (or create one)
-  let subscriptionId = org.stripe_subscription_id
+  const subscriptionId = org.stripe_subscription_id
   try {
     const result = await addTeamSeat({
       orgId: org.id,

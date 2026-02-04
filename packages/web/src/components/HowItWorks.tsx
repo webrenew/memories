@@ -44,7 +44,7 @@ function StepCard({ step, idx }: { step: { title: string; desc: string; cmd: str
       viewport={{ once: true }}
       transition={{ duration: 0.4 }}
       onMouseMove={handleMouseMove}
-      className="p-10 bg-card/10 border border-border group relative overflow-hidden md:cursor-none"
+      className="p-8 lg:p-10 glass-panel group relative overflow-hidden md:cursor-none"
     >
       {/* Accent Circle (The "Mouse") */}
       <motion.div
@@ -83,7 +83,7 @@ function StepCard({ step, idx }: { step: { title: string; desc: string; cmd: str
           {step.desc}
         </p>
         
-        <div className="font-mono text-[10px] bg-muted/50 p-4 border border-border text-primary flex items-center justify-between">
+        <div className="font-mono text-[10px] bg-white/5 p-4 border border-white/10 text-primary flex items-center justify-between">
           <span>$ {step.cmd}</span>
           <div className="flex gap-1">
             <div className="w-1 h-1 rounded-full bg-primary/40" />
@@ -115,13 +115,13 @@ export function HowItWorks() {
   ];
 
   return (
-    <section id="how-it-works" className="py-32 px-6 border-y border-border bg-muted/20">
-      <div className="max-w-6xl mx-auto">
+    <section id="how-it-works" className="py-28 px-6 lg:px-10 border-y border-white/10">
+      <div className="max-w-[1400px] mx-auto">
         {/* Social Proof / Momentum Bar */}
-        <div className="mb-40 grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="mb-32 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-1">
             <h3 className="text-xl font-bold tracking-tight text-foreground mb-2 leading-tight">Why state beats re-teaching</h3>
-            <div className="w-12 h-1 bg-primary/20" />
+            <div className="w-12 h-px bg-primary/60" />
           </div>
           <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-12">
             {[
@@ -130,16 +130,16 @@ export function HowItWorks() {
               { label: "Sync When Needed", detail: "Pro mirrors state across machines so you can pick up anywhere." },
             ].map((item, i) => (
               <div key={i}>
-                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-2">{item.label}</div>
-                <div className="text-sm text-muted-foreground font-light leading-relaxed">{item.detail}</div>
+                <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-primary mb-2">{item.label}</div>
+                <div className="text-sm text-muted-foreground/80 font-light leading-relaxed">{item.detail}</div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="mb-24 flex flex-col items-center text-center">
-          <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-primary mb-4">How It Works</div>
-          <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground">Capture. Recall. Generate.</h2>
+        <div className="mb-20 flex flex-col items-center text-center">
+          <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">How It Works</div>
+          <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground text-gradient">Capture. Recall. Generate.</h2>
         </div>
 
         <div className="grid md:grid-cols-3 gap-3 md:gap-1">

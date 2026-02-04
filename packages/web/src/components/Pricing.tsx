@@ -55,19 +55,19 @@ const tiers = [
 
 export function Pricing({ user }: { user?: User | null }) {
   return (
-    <section id="pricing" className="py-24 px-6 relative overflow-hidden">
-      <div className="max-w-7xl mx-auto relative z-10">
+    <section id="pricing" className="py-28 px-6 lg:px-10 relative overflow-hidden">
+      <div className="max-w-[1400px] mx-auto relative z-10">
         <div className="text-center mb-20">
           <motion.div 
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 border border-primary/20 text-[10px] uppercase tracking-[0.2em] font-bold mb-6 text-primary"
+            className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/30 text-[10px] uppercase tracking-[0.25em] font-bold mb-6 text-primary"
           >
             <span className="w-1.5 h-1.5 bg-primary animate-pulse" />
             Pricing
           </motion.div>
-          <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
+          <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-gradient">
             Simple, Transparent <br />
             <span className="text-muted-foreground italic font-light">Pricing</span>
           </h2>
@@ -84,11 +84,11 @@ export function Pricing({ user }: { user?: User | null }) {
                 whileInView={{ opacity: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
-                className={`relative flex flex-col p-8 border ${
+                className={`relative flex flex-col p-8 ${
                   tier.highlighted 
-                    ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20" 
-                    : "border-border bg-card/20"
-                } transition-all duration-500 hover:border-primary/30`}
+                    ? "bg-primary/10 ring-1 ring-primary/40 shadow-[0_0_40px_rgba(99,102,241,0.25)]" 
+                    : "bg-card/20"
+                } transition-all duration-500 hover:border-primary/40 glass-panel-soft`}
               >
               {tier.highlighted && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest">
@@ -128,7 +128,7 @@ export function Pricing({ user }: { user?: User | null }) {
                   className={`block w-full py-4 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-300 text-center ${
                     tier.highlighted
                       ? "bg-primary text-primary-foreground hover:opacity-90 shadow-[0_0_20px_rgba(var(--primary),0.3)]"
-                      : "bg-muted/50 text-foreground border border-border hover:bg-muted"
+                      : "bg-white/5 text-foreground border border-white/10 hover:bg-white/10"
                   }`}
                 >
                   {tier.cta}

@@ -26,13 +26,13 @@ export function TopNav({ user }: { user?: User | null }) {
       <motion.nav 
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="fixed top-0 left-0 w-full z-[100] border-b border-border bg-background/40 backdrop-blur-2xl"
+        className="fixed top-0 left-0 w-full z-[100] border-b border-white/10 bg-background/60 backdrop-blur-2xl"
       >
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
           {/* Logo */}
             <Link href="/" className="flex items-center gap-3 group">
               <Image src="/memories.svg" alt="memories.sh logo" width={32} height={32} className="w-8 h-8 dark:invert group-hover:scale-110 transition-transform duration-500" />
-              <span className="font-mono text-sm font-bold tracking-tighter uppercase hidden sm:block text-foreground">
+              <span className="font-mono text-sm font-bold tracking-[0.2em] uppercase hidden sm:block text-foreground">
                 memories.sh
               </span>
             </Link>
@@ -46,12 +46,12 @@ export function TopNav({ user }: { user?: User | null }) {
                   href={item.href} 
                   className="group relative px-6 py-2 flex items-center gap-2"
                 >
-                  <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground/60 group-hover:text-primary transition-colors">
+                  <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground/70 group-hover:text-foreground transition-colors">
                     {item.label}
                   </span>
                   
                   {/* Hover Indicator */}
-                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-px bg-primary group-hover:w-1/2 transition-all duration-500" />
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-px bg-primary/80 group-hover:w-1/2 transition-all duration-500" />
                 </Link>
               ))}
             </div>
@@ -60,7 +60,7 @@ export function TopNav({ user }: { user?: User | null }) {
               {user ? (
                 <Link 
                   href="/app" 
-                  className="group hidden sm:flex items-center gap-3 px-6 py-2 bg-primary text-primary-foreground hover:opacity-90 transition-all duration-300"
+                  className="group hidden sm:flex items-center gap-3 px-6 py-2 bg-primary/90 text-primary-foreground shadow-[0_0_30px_rgba(99,102,241,0.25)] hover:opacity-90 transition-all duration-300"
                 >
                   <span className="text-[10px] uppercase tracking-[0.2em] font-bold">Dashboard</span>
                   <div className="w-6 h-6 rounded-sm bg-primary-foreground/20 flex items-center justify-center">
@@ -72,7 +72,7 @@ export function TopNav({ user }: { user?: User | null }) {
               ) : (
                 <Link 
                   href="/login" 
-                  className="group hidden sm:flex items-center gap-3 px-6 py-2 border border-border bg-muted/50 hover:border-primary/50 transition-all duration-300"
+                  className="group hidden sm:flex items-center gap-3 px-6 py-2 border border-white/10 bg-muted/30 hover:border-primary/40 transition-all duration-300"
                 >
                   <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground group-hover:text-foreground">Sign In</span>
                   <div className="w-6 h-6 rounded-sm bg-foreground text-background flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
@@ -123,7 +123,7 @@ export function TopNav({ user }: { user?: User | null }) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="fixed top-20 left-0 right-0 z-[95] bg-background border-b border-border md:hidden"
+              className="fixed top-20 left-0 right-0 z-[95] bg-background border-b border-white/10 md:hidden"
             >
               <div className="max-w-7xl mx-auto px-6 py-6">
                 <div className="flex flex-col gap-2">
