@@ -21,6 +21,11 @@ interface SyncedFile {
   deleted_at: string | null;
 }
 
+type ListedFile = Pick<SyncedFile, "id" | "path" | "hash" | "scope" | "source" | "updated_at">;
+type ExistingFile = Pick<SyncedFile, "id" | "hash">;
+type ApplyFile = Pick<SyncedFile, "id" | "path" | "content" | "scope" | "source">;
+type ShowFile = Pick<SyncedFile, "content" | "scope" | "source" | "updated_at">;
+
 function hashContent(content: string): string {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
@@ -181,7 +186,7 @@ filesCommand
     sql += " ORDER BY scope, path";
     
     const result = await db.execute({ sql, args });
-    const files = result.rows as SyncedFile[];
+    const files = result.rows as unknown as ListedFile[];
     
     if (files.length === 0) {
       console.log(chalk.dim("No synced files yet."));
@@ -190,7 +195,7 @@ filesCommand
     }
     
     // Group by scope
-    const byScope = new Map<string, SyncedFile[]>();
+    const byScope = new Map<string, ListedFile[]>();
     for (const file of files) {
       const scope = file.scope;
       if (!byScope.has(scope)) byScope.set(scope, []);
@@ -282,7 +287,7 @@ filesCommand
         });
         
         if (existing.rows.length > 0) {
-          const existingFile = existing.rows[0] as { id: string; hash: string };
+          const existingFile = existing.rows[0] as unknown as ExistingFile;
           if (existingFile.hash === hash) {
             skipped++;
             continue;
@@ -341,7 +346,7 @@ filesCommand
     }
     
     const result = await db.execute({ sql, args });
-    const files = result.rows as SyncedFile[];
+    const files = result.rows as unknown as ApplyFile[];
     
     if (files.length === 0) {
       console.log(chalk.dim("No files to apply."));
@@ -413,7 +418,7 @@ filesCommand
       return;
     }
     
-    const file = result.rows[0] as SyncedFile;
+    const file = result.rows[0] as unknown as ShowFile;
     
     console.log(chalk.dim(`# ${path}`));
     console.log(chalk.dim(`# Scope: ${file.scope} | Source: ${file.source || "unknown"}`));
