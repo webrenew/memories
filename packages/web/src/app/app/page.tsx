@@ -27,10 +27,11 @@ export default async function MemoriesPage() {
   try {
     const turso = createTurso({ url: profile.turso_db_url!, authToken: profile.turso_db_token! })
     const result = await turso.execute(
-      "SELECT id, content, tags, agent, created_at FROM memories ORDER BY created_at DESC LIMIT 50"
+      "SELECT id, content, tags, type, scope, created_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 50"
     )
     memories = result.rows as Array<Record<string, unknown>>
-  } catch {
+  } catch (err) {
+    console.error("Turso connection error:", err)
     connectError = true
   }
 
@@ -66,9 +67,14 @@ export default async function MemoriesPage() {
             >
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="flex items-center gap-2">
-                  {memory.agent ? (
+                  {memory.type ? (
                     <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 text-[10px] uppercase tracking-wider font-bold text-primary">
-                      {String(memory.agent)}
+                      {String(memory.type)}
+                    </span>
+                  ) : null}
+                  {memory.scope ? (
+                    <span className="px-2 py-0.5 bg-muted/50 border border-border text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+                      {String(memory.scope)}
                     </span>
                   ) : null}
                   {memory.tags ? (
