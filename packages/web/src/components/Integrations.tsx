@@ -52,7 +52,7 @@ export function Integrations() {
 
     return (
       <section id="integrations" className="py-28 px-6 lg:px-10">
-        <div className="max-w-[1400px] mx-auto">
+        <div className="w-full px-6 lg:px-16 xl:px-24">
           <div className="mb-20 flex flex-col items-center text-center">
             <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Integrations</div>
             <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground text-gradient">Works With Your Tools</h2>
@@ -66,7 +66,7 @@ export function Integrations() {
                   whileInView={{ opacity: 1 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.4 }}
-                  className="p-8 lg:p-10 bg-card/20 flex flex-col items-start group hover:border-primary/40 transition-all h-full cursor-pointer glass-panel-soft"
+                  className="p-8 lg:p-10 bg-card/20 flex flex-col items-start group hover:border-primary/40 transition-all h-full cursor-pointer glass-panel-soft rounded-lg"
                 >
                   <div className="flex items-center justify-between w-full mb-12">
                     <div className="w-8 h-8 flex items-center justify-center opacity-60 group-hover:opacity-100 transition-opacity duration-500">
@@ -78,7 +78,7 @@ export function Integrations() {
                         </svg>
                       )}
                     </div>
-                    <span className="text-[8px] font-bold uppercase tracking-[0.25em] px-2 py-0.5 border border-white/10 text-muted-foreground">
+                    <span className="text-[8px] font-bold uppercase tracking-[0.25em] px-2 py-0.5 border border-white/10 text-muted-foreground rounded-md">
                       {a.status}
                     </span>
                   </div>

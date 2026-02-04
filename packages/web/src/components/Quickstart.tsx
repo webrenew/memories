@@ -27,7 +27,7 @@ export function Quickstart() {
           <h2 className="text-3xl md:text-4xl font-bold tracking-tighter text-foreground text-gradient">Get Started</h2>
         </div>
 
-        <div className="glass-panel overflow-hidden relative group mb-12">
+        <div className="glass-panel overflow-hidden relative group mb-12 rounded-lg">
           <div className="flex items-center justify-between px-6 py-4 bg-white/5 border-b border-white/10">
             <div className="flex items-center gap-2">
               <div className="flex gap-1.5">
@@ -68,7 +68,7 @@ export function Quickstart() {
           </div>
         </div>
 
-        <div className="p-6 md:p-10 glass-panel-soft relative overflow-hidden">
+        <div className="p-6 md:p-10 glass-panel-soft relative overflow-hidden rounded-lg">
           <div className="absolute top-0 left-0 w-px h-full bg-primary/40" />
           <div className="flex items-start gap-6">
             <div className="mt-1 w-1.5 h-1.5 rounded-full bg-primary" />

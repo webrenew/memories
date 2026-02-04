@@ -2,8 +2,13 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
-import type { RefObject } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
+
+const ShaderBackground = dynamic(
+  () => import("./ShaderBackground").then((mod) => mod.ShaderBackground),
+  { ssr: false }
+);
 
 const tools = [
   { name: "Cursor", logo: "/logos/cursor.svg" },
@@ -84,86 +89,49 @@ const GeometricPattern = ({ className = "" }: { className?: string }) => (
   </svg>
 );
 
-function NoiseTexture({ parentRef }: { parentRef: RefObject<HTMLElement> }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [opacity, setOpacity] = useState(0);
+// NoiseTexture moved to ./NoiseTexture.tsx
 
-  useEffect(() => {
-    const draw = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      const dpr = window.devicePixelRatio || 1;
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, width, height);
-
-      const grid = 12;
-      for (let y = 0; y <= height; y += grid) {
-        for (let x = 0; x <= width; x += grid) {
-          const i = x / grid;
-          const j = y / grid;
-          const noise =
-            Math.sin(i * 0.2) * Math.cos(j * 0.2) +
-            Math.sin((i + j) * 0.1);
-
-          if (noise <= -0.3) continue;
-
-          const alpha = Math.max(0, Math.min(0.25, (noise + 1.5) * 0.1));
-          const size = 2 + noise * 1.5;
-          ctx.fillStyle = `rgba(99, 102, 241, ${alpha})`;
-          ctx.fillRect(x - size / 2, y - size / 2, size, size);
-        }
-      }
-    };
-
-    const updateOpacity = () => {
-      const parent = parentRef.current;
-      if (!parent) return;
-      const rect = parent.getBoundingClientRect();
-      const viewportHeight = window.innerHeight || 1;
-      const progress = Math.max(0, Math.min(1, 1 - rect.top / viewportHeight));
-      setOpacity(progress);
-    };
-
-    const timeout = window.setTimeout(() => {
-      draw();
-      updateOpacity();
-    }, 100);
-
-    const handleResize = () => {
-      draw();
-      updateOpacity();
-    };
-
-    const handleScroll = () => {
-      updateOpacity();
-    };
-
-    window.addEventListener("resize", handleResize);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => {
-      window.clearTimeout(timeout);
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, [parentRef]);
+function CopyCommand() {
+  const [copied, setCopied] = useState(false);
+  
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText("pnpm add -g memories");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy to clipboard:", err);
+    }
+  };
 
   return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0 transition-opacity duration-500 z-0 mix-blend-screen"
-      style={{ opacity }}
-    />
+    <motion.div 
+      initial={{ y: 20, opacity: 0, filter: "blur(8px)" }}
+      animate={{ y: 0, opacity: 1, filter: "blur(0px)" }}
+      transition={{ duration: 1, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      className="flex flex-col gap-3"
+    >
+      <div className="flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/10 rounded-md font-mono text-sm">
+        <span className="text-muted-foreground select-none">$</span>
+        <code className="text-foreground">pnpm add -g memories</code>
+        <button 
+          onClick={handleCopy}
+          className="ml-auto transition-colors"
+          title={copied ? "Copied!" : "Copy to clipboard"}
+        >
+          {copied ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent-secondary">
+              <path d="M20 6 9 17l-5-5"/>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground hover:text-foreground">
+              <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+            </svg>
+          )}
+        </button>
+      </div>
+    </motion.div>
   );
 }
 
@@ -195,9 +163,17 @@ export function Hero() {
 
   return (
     <section ref={sectionRef} className="relative min-h-screen flex items-center overflow-hidden pt-24 pb-16">
-      <NoiseTexture parentRef={sectionRef} />
-      <div className="pointer-events-none absolute inset-0 home-ambient opacity-70" />
-      <div className="pointer-events-none absolute inset-0 home-vignette" />
+      <ShaderBackground 
+        className="opacity-40 z-0" 
+        color="#b855f7" 
+        backgroundColor="#0a0a0f" 
+      />
+      {/* Gradient overlay: bg bottom-left, transparent top-right */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-[1] bg-gradient-to-tr from-background from-50% to-transparent"
+      />
+      {/* NoiseTexture kept for reuse elsewhere */}
+      {/* <NoiseTexture parentRef={sectionRef} /> */}
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -206,7 +182,7 @@ export function Hero() {
         <GeometricPattern className="opacity-10 text-primary/40" />
       </motion.div>
 
-      <div className="relative z-10 w-full max-w-[1400px] mx-auto px-6 lg:px-10 flex flex-col min-h-[calc(100vh-160px)]">
+      <div className="relative z-10 w-full px-6 lg:px-16 xl:px-24 flex flex-col min-h-[calc(100vh-160px)]">
         <div className="flex-1 flex items-center">
           <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-12 lg:gap-16 items-center w-full">
             <motion.div
@@ -215,42 +191,38 @@ export function Hero() {
               animate="visible"
               className="flex flex-col items-start text-left"
             >
-            <motion.div variants={itemVariants} className="inline-flex items-center gap-3 px-3 py-1 bg-white/5 border border-white/10 text-[10px] uppercase tracking-[0.25em] font-bold mb-8 text-foreground/90">
+            <motion.div variants={itemVariants} className="inline-flex items-center gap-3 px-3 py-1 bg-white/5 border border-white/10 text-[10px] uppercase tracking-[0.25em] font-bold mb-8 text-foreground/90 rounded-md">
               <span className="w-1.5 h-1.5 bg-primary animate-pulse" />
               Stop Re-Teaching Agents
             </motion.div>
 
-            <motion.h1 variants={itemVariants} className="text-4xl sm:text-6xl lg:text-[88px] font-bold tracking-[-0.04em] mb-8 leading-[0.92] text-foreground">
-              Agents Forget. <br />
-              <span className="text-primary/85 italic font-light">Durable State Fixes It.</span>
+            <motion.h1 
+              variants={itemVariants} 
+              className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.04em] mb-8 leading-[0.95] text-foreground"
+              style={{ fontFamily: "var(--font-departure-mono), var(--font-geist-mono), monospace" }}
+            >
+              <span className="text-accent-secondary">The agnostic memory layer</span> <br />
+              for any agent.
             </motion.h1>
 
             <motion.p variants={itemVariants} className="text-lg md:text-xl text-muted-foreground mb-10 max-w-xl leading-relaxed font-light">
               Durable, local-first state for coding agents. Store rules once, recall context, and generate native configs for every tool; offline by default, sync when you need it.
             </motion.p>
 
-            <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-4">
-              <a href="#quickstart" className="relative px-8 py-4 bg-primary text-primary-foreground font-bold uppercase tracking-[0.2em] text-[11px] shadow-[0_0_40px_rgba(99,102,241,0.35)] transition-all hover:translate-y-[-1px]">
-                Get Started
-              </a>
-
-              <a href="#pricing" className="px-6 py-4 border border-white/15 bg-white/5 text-[11px] font-bold uppercase tracking-[0.2em] text-foreground/80 hover:text-foreground transition-colors">
-                View Pricing
-              </a>
-            </motion.div>
+            <CopyCommand />
             </motion.div>
 
             <motion.div
               variants={itemVariants}
               initial="hidden"
               animate="visible"
-              className="glass-panel p-6 md:p-8 lg:p-10 relative overflow-hidden"
+              className="glass-panel p-6 md:p-8 lg:p-10 relative overflow-hidden rounded-lg"
             >
               <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-white/5 via-transparent to-transparent" />
               <div className="relative z-10 space-y-6">
                 <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">
                   <span>Live State</span>
-                  <span className="px-2 py-0.5 rounded-full border border-white/10 text-primary/80">Local</span>
+                  <span className="px-2 py-0.5 rounded-full border border-white/10 text-accent-secondary">Local</span>
                 </div>
 
                 <div className="rounded-lg border border-white/10 bg-black/40">
@@ -270,16 +242,26 @@ export function Hero() {
                     "Use Tailwind for all UI components",
                     "Prefer zod over joi for validation",
                     "Keep auth logic in /lib/auth.ts",
-                  ].map((item) => (
-                    <div key={item} className="flex items-center justify-between gap-4 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-foreground/80">
+                  ].map((item, index) => (
+                    <motion.div 
+                      key={item} 
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ 
+                        duration: 0.6, 
+                        delay: 1.2 + index * 0.15,
+                        ease: [0.16, 1, 0.3, 1]
+                      }}
+                      className="flex items-center justify-between gap-4 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-foreground/80"
+                    >
                       <span>{item}</span>
-                      <span className="text-[9px] uppercase tracking-[0.2em] text-primary/70">Stored</span>
-                    </div>
+                      <span className="text-[9px] uppercase tracking-[0.2em] text-accent-secondary">Stored</span>
+                    </motion.div>
                   ))}
                 </div>
 
                 <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">
-                  <span className="h-1 w-1 rounded-full bg-primary/80" />
+                  <span className="h-1 w-1 rounded-full bg-accent-secondary" />
                   Recall and generate configs in one command
                 </div>
               </div>
@@ -291,36 +273,36 @@ export function Hero() {
           initial={{ opacity: 0, y: 30, filter: "blur(10px)" }}
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
           transition={{ duration: 1.1, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-10 flex flex-col lg:flex-row items-start lg:items-center gap-6 lg:gap-10 border-t border-white/10 pt-8"
+          className="mt-10 grid lg:grid-cols-[1.1fr_0.9fr] gap-12 lg:gap-16 items-center pt-8"
         >
-          <p className="shrink-0 text-[10px] uppercase tracking-[0.3em] font-bold text-muted-foreground/70">
+          <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-muted-foreground/70">
             Works with
           </p>
-          <div className="relative w-full overflow-hidden">
+          <div className="relative overflow-hidden">
             <div className="flex overflow-hidden">
               <div
                 className="flex w-fit items-center whitespace-nowrap"
-                style={{ animation: "marquee 50s linear infinite" }}
+                style={{ animation: "marquee 30s linear infinite" }}
                 data-marquee
               >
                 {marqueeTools.map((tool, index) => (
                   <div
                     key={`${tool.name}-${index}`}
-                    className="flex shrink-0 items-center px-5 opacity-70 hover:opacity-100 transition-opacity duration-300"
+                    className="flex shrink-0 items-center px-6 opacity-70 hover:opacity-100 transition-opacity duration-300"
                   >
                     <Image
                       src={tool.logo}
                       alt={tool.name}
-                      width={32}
-                      height={32}
-                      className="w-8 h-8 opacity-90"
+                      width={56}
+                      height={56}
+                      className="w-14 h-14 opacity-90"
                     />
                   </div>
                 ))}
               </div>
             </div>
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-background to-transparent z-10" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-background to-transparent z-10" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-background to-transparent z-10" />
+            <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-background to-transparent z-10" />
           </div>
         </motion.div>
       </div>

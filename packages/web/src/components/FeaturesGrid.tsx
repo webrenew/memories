@@ -62,7 +62,7 @@ export function FeaturesGrid() {
 
     return (
       <section id="features" className="py-28 px-6 lg:px-10">
-        <div className="max-w-[1400px] mx-auto">
+        <div className="w-full px-6 lg:px-16 xl:px-24">
           <div className="mb-20 flex flex-col items-center text-center">
             <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Core Features</div>
             <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground text-gradient">Built for durable state</h2>
@@ -76,7 +76,7 @@ export function FeaturesGrid() {
                 whileInView={{ opacity: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
-                className="group p-8 lg:p-10 glass-panel hover:border-primary/30 transition-all duration-500 relative overflow-hidden"
+                className="group p-8 lg:p-10 glass-panel hover:border-primary/30 transition-all duration-500 relative overflow-hidden rounded-lg"
               >
                 <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
                   <FeatureIcon index={idx} />
@@ -99,7 +99,7 @@ export function FeaturesGrid() {
               </motion.div>
             ))}
             
-            <div className="p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col justify-between group glass-panel-soft">
+            <div className="p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col justify-between group glass-panel-soft rounded-lg">
               <div>
                 <div className="w-6 h-6 border border-primary/60 rounded-full flex items-center justify-center mb-10">
                   <div className="w-1 h-1 bg-primary animate-pulse" />

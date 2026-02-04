@@ -28,25 +28,28 @@ export function TopNav({ user }: { user?: User | null }) {
         animate={{ y: 0, opacity: 1 }}
         className="fixed top-0 left-0 w-full z-[100] border-b border-white/10 bg-background/60 backdrop-blur-2xl"
       >
-        <div className="max-w-[1400px] mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
+        <div className="w-full px-6 lg:px-16 xl:px-24 h-20 flex items-center justify-between">
           {/* Logo */}
             <Link href="/" className="flex items-center gap-3 group">
               <Image src="/memories.svg" alt="memories.sh logo" width={32} height={32} className="w-8 h-8 dark:invert group-hover:scale-110 transition-transform duration-500" />
-              <span className="font-mono text-sm font-bold tracking-[0.2em] uppercase hidden sm:block text-foreground">
+              <span 
+                className="text-sm font-bold tracking-[0.2em] uppercase hidden sm:block text-foreground"
+                style={{ fontFamily: "var(--font-departure-mono), var(--font-geist-mono), monospace" }}
+              >
                 memories.sh
               </span>
             </Link>
 
           {/* Right side: Links + CTA */}
           <div className="flex items-center gap-8">
-            <div className="hidden md:flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-0">
               {navItems.map((item) => (
                 <Link 
                   key={item.href}
                   href={item.href} 
-                  className="group relative px-6 py-2 flex items-center gap-2"
+                  className="group relative px-4 py-2 flex items-center gap-2"
                 >
-                  <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground/70 group-hover:text-foreground transition-colors">
+                  <span className="text-[11px] uppercase tracking-[0.12em] font-medium text-muted-foreground/80 group-hover:text-foreground transition-colors">
                     {item.label}
                   </span>
                   
@@ -60,7 +63,7 @@ export function TopNav({ user }: { user?: User | null }) {
               {user ? (
                 <Link 
                   href="/app" 
-                  className="group hidden sm:flex items-center gap-3 px-6 py-2 bg-primary/90 text-primary-foreground shadow-[0_0_30px_rgba(99,102,241,0.25)] hover:opacity-90 transition-all duration-300"
+                  className="group hidden sm:flex items-center gap-3 px-6 py-2 bg-primary/90 text-primary-foreground shadow-[0_0_30px_rgba(99,102,241,0.25)] hover:opacity-90 transition-all duration-300 rounded-md"
                 >
                   <span className="text-[10px] uppercase tracking-[0.2em] font-bold">Dashboard</span>
                   <div className="w-6 h-6 rounded-sm bg-primary-foreground/20 flex items-center justify-center">
@@ -72,14 +75,9 @@ export function TopNav({ user }: { user?: User | null }) {
               ) : (
                 <Link 
                   href="/login" 
-                  className="group hidden sm:flex items-center gap-3 px-6 py-2 border border-white/10 bg-muted/30 hover:border-primary/40 transition-all duration-300"
+                  className="group hidden sm:flex items-center px-5 py-2 border border-white/10 bg-muted/30 hover:border-primary/40 transition-all duration-300 rounded-md"
                 >
                   <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground group-hover:text-foreground">Sign In</span>
-                  <div className="w-6 h-6 rounded-sm bg-foreground text-background flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M5 12h14m-7-7 7 7-7 7" />
-                    </svg>
-                  </div>
                 </Link>
               )}
 
@@ -168,7 +166,7 @@ export function TopNav({ user }: { user?: User | null }) {
                   <Link 
                     href={user ? "/app" : "/login"}
                     onClick={handleLinkClick}
-                    className="group flex items-center justify-center gap-3 w-full px-6 py-4 bg-foreground text-background hover:bg-primary hover:text-primary-foreground transition-all duration-300"
+                    className="group flex items-center justify-center gap-3 w-full px-6 py-4 bg-foreground text-background hover:bg-primary hover:text-primary-foreground transition-all duration-300 rounded-md"
                   >
                     <span className="text-sm uppercase tracking-[0.15em] font-bold">
                       {user ? "Dashboard" : "Sign In"}

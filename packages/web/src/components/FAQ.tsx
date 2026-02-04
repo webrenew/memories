@@ -52,7 +52,7 @@ export function FAQ() {
     const [isOpen, setIsOpen] = useState(false);
   
     return (
-      <div className={`bg-card/20 transition-all duration-500 ${isOpen ? 'bg-card/30' : 'hover:bg-card/25'} glass-panel-soft`}>
+      <div className={`bg-card/20 transition-all duration-500 ${isOpen ? 'bg-card/30' : 'hover:bg-card/25'} glass-panel-soft rounded-lg`}>
         <button 
           onClick={() => setIsOpen(!isOpen)}
           className="w-full flex items-center justify-between p-10 text-left transition-colors"

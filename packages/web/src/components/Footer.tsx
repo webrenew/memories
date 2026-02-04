@@ -7,7 +7,7 @@ import { ThemeSwitcher } from "./ThemeSwitcher";
 export function Footer() {
   return (
     <footer className="py-24 px-6 lg:px-10 border-t border-white/10 bg-background">
-      <div className="max-w-[1400px] mx-auto">
+      <div className="w-full px-6 lg:px-16 xl:px-24">
         <div className="flex flex-col md:flex-row items-start justify-between gap-16 mb-24">
             <div>
               <div className="flex items-center gap-3 mb-8 group">

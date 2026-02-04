@@ -1,35 +1,18 @@
 "use client";
 
-import { motion, useMotionValue, useSpring, useMotionTemplate } from "framer-motion";
-import React from "react";
+import { motion, useMotionValue, useMotionTemplate } from "framer-motion";
+import { useRef } from "react";
+import { NoiseTexture } from "./NoiseTexture";
 
-const StepIcon = ({ index }: { index: number }) => {
-  const icons = [
-    // Define
-    <svg key="define" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3v18M3 12h18" />
-      <circle cx="12" cy="12" r="9" strokeDasharray="4 4" />
-    </svg>,
-    // Scope
-    <svg key="scope" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" />
-      <path d="M10 7V13M7 10H13" />
-    </svg>,
-    // Recall
-    <svg key="recall" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 12h20M12 2L2 12l10 10M22 12l-10-10" />
-    </svg>
-  ];
-  return icons[index % icons.length];
-};
+interface ProblemItem {
+  pain: string;
+  resolution: string;
+  detail: string;
+}
 
-function StepCard({ step, idx }: { step: { title: string; desc: string; cmd: string }; idx: number }) {
+function ProblemCard({ item, idx }: { item: ProblemItem; idx: number }) {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-
-  // Smooth springs for the accent follower
-  const springX = useSpring(mouseX, { stiffness: 500, damping: 50 });
-  const springY = useSpring(mouseY, { stiffness: 500, damping: 50 });
 
   function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
     const { left, top } = currentTarget.getBoundingClientRect();
@@ -39,114 +22,122 @@ function StepCard({ step, idx }: { step: { title: string; desc: string; cmd: str
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      whileInView={{ opacity: 1 }}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.4 }}
+      transition={{ duration: 0.5, delay: idx * 0.1 }}
       onMouseMove={handleMouseMove}
-      className="p-8 lg:p-10 glass-panel group relative overflow-hidden md:cursor-none"
+      className="p-8 lg:p-10 border border-white/10 bg-white/[0.02] group relative overflow-hidden rounded-lg flex flex-col hover:border-white/20 transition-colors duration-300"
     >
-      {/* Accent Circle (The "Mouse") */}
-      <motion.div
-        className="pointer-events-none absolute w-12 h-12 rounded-full border border-primary/50 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30 flex items-center justify-center"
-        style={{
-          x: springX,
-          y: springY,
-          translateX: "-50%",
-          translateY: "-50%",
-        }}
-      >
-        <div className="w-1 h-1 rounded-full bg-primary" />
-      </motion.div>
-
       {/* Background Spotlight Glow */}
       <motion.div
         className="pointer-events-none absolute -inset-px opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-0"
         style={{
           background: useMotionTemplate`
             radial-gradient(
-              250px circle at ${mouseX}px ${mouseY}px,
-              var(--primary) 0.08,
-              transparent 80%
+              300px circle at ${mouseX}px ${mouseY}px,
+              var(--primary) 0.06,
+              transparent 70%
             )
           `,
         }}
       />
 
-      <div className="relative z-20">
-        <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
-          <StepIcon index={idx} />
-        </div>
-        
-        <h4 className="text-lg font-bold mb-4 tracking-tight text-foreground uppercase tracking-wider">{step.title}</h4>
-        <p className="text-[13px] text-muted-foreground leading-relaxed font-light mb-12">
-          {step.desc}
+      <div className="relative z-20 flex flex-col h-full">
+        {/* Pain as italic quote */}
+        <p className="text-muted-foreground/70 text-sm italic mb-8 leading-relaxed">
+          &ldquo;{item.pain}&rdquo;
         </p>
+
+        {/* Resolution headline */}
+        <h4 className="text-2xl font-bold tracking-tight text-foreground mb-4 mt-auto">{item.resolution}</h4>
         
-        <div className="font-mono text-[10px] bg-white/5 p-4 border border-white/10 text-primary flex items-center justify-between">
-          <span>$ {step.cmd}</span>
-          <div className="flex gap-1">
-            <div className="w-1 h-1 rounded-full bg-primary/40" />
-            <div className="w-1 h-1 rounded-full bg-primary/40" />
-          </div>
-        </div>
+        {/* Detail */}
+        <p className="text-sm text-muted-foreground font-light leading-relaxed">
+          {item.detail}
+        </p>
       </div>
     </motion.div>
   );
 }
 
 export function HowItWorks() {
-  const steps = [
+  const sectionRef = useRef<HTMLElement>(null);
+  
+  const problems: ProblemItem[] = [
     {
-      title: "Capture durable state",
-      desc: "Store rules, decisions, and project context once in a local memory store.",
-      cmd: "memories add --rule 'Use Tailwind for all styling'"
+      pain: "You explain the same rules every session",
+      resolution: "Store once, recall forever",
+      detail: "Your preferences persist across every conversation. No more repeating yourself.",
     },
     {
-      title: "Recall what matters",
-      desc: "Pull the right context on demand so agents behave consistently.",
-      cmd: "memories recall 'styling preferences'"
+      pain: "Agents lose track mid-project",
+      resolution: "Context that never dies",
+      detail: "Durable state survives restarts, updates, and even tool switches.",
     },
     {
-      title: "Generate native configs",
-      desc: "Output tool-native files for Cursor, Claude Code, Copilot, and more. Switch without re-teaching.",
-      cmd: "memories generate all"
-    }
+      pain: "Switching tools means starting over",
+      resolution: "Your rules travel with you",
+      detail: "Generate native configs for Cursor, Claude Code, Copilot, and more. Zero lock-in.",
+    },
   ];
 
   return (
-    <section id="how-it-works" className="py-28 px-6 lg:px-10 border-y border-white/10">
-      <div className="max-w-[1400px] mx-auto">
-        {/* Social Proof / Momentum Bar */}
-        <div className="mb-32 grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="md:col-span-1">
-            <h3 className="text-xl font-bold tracking-tight text-foreground mb-2 leading-tight">Why state beats re-teaching</h3>
-            <div className="w-12 h-px bg-primary/60" />
-          </div>
-          <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-12">
-            {[
-              { label: "Local-First State", detail: "Durable state lives on your machine so agents keep context offline." },
-              { label: "Portable Rules", detail: "Export and generate native configs anytime. No lock-in." },
-              { label: "Sync When Needed", detail: "Pro mirrors state across machines so you can pick up anywhere." },
-            ].map((item, i) => (
-              <div key={i}>
-                <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-primary mb-2">{item.label}</div>
-                <div className="text-sm text-muted-foreground/80 font-light leading-relaxed">{item.detail}</div>
-              </div>
-            ))}
-          </div>
+    <section 
+      ref={sectionRef}
+      id="how-it-works" 
+      className="relative min-h-screen py-28 border-y border-white/10 flex flex-col overflow-hidden"
+    >
+      {/* 2D Noise Background - muted */}
+      <div className="absolute inset-0 opacity-25">
+        <NoiseTexture parentRef={sectionRef} />
+      </div>
+      
+      {/* Gradient overlay: bg top-right, transparent bottom-left */}
+      <div className="absolute inset-0 pointer-events-none z-[1] bg-gradient-to-bl from-background from-50% to-transparent" />
+
+      <div className="relative z-10 w-full px-6 lg:px-16 xl:px-24 flex-1 flex flex-col">
+        {/* Section Header */}
+        <div className="mb-20 max-w-3xl">
+          <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-6">The Problem</div>
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-[1.1]">
+            Agents forget.<br />
+            <span className="text-primary">Memories remembers.</span>
+          </h2>
+          <p className="mt-6 text-lg text-muted-foreground font-light max-w-xl leading-relaxed">
+            Every coding agent starts fresh. Your rules, preferences, and project context—gone. 
+            Until now.
+          </p>
         </div>
 
-        <div className="mb-20 flex flex-col items-center text-center">
-          <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">How It Works</div>
-          <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground text-gradient">Capture. Recall. Generate.</h2>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-3 md:gap-1">
-          {steps.map((step, idx) => (
-            <StepCard key={idx} step={step} idx={idx} />
+        {/* Problem → Solution Cards */}
+        <div className="grid md:grid-cols-3 gap-4">
+          {problems.map((item, idx) => (
+            <ProblemCard key={idx} item={item} idx={idx} />
           ))}
         </div>
+
+        {/* CTA */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="mt-auto pt-20 flex flex-col items-center text-center"
+        >
+          <p className="text-muted-foreground mb-6 text-lg font-light">
+            Ready to stop repeating yourself?
+          </p>
+          <a 
+            href="#quickstart" 
+            className="inline-flex items-center gap-3 px-8 py-4 bg-primary text-primary-foreground font-bold uppercase tracking-[0.2em] text-[11px] rounded-md hover:translate-y-[-1px] transition-transform"
+          >
+            Get Started
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
+        </motion.div>
       </div>
     </section>
   );

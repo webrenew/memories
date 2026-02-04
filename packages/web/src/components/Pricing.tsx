@@ -56,13 +56,13 @@ const tiers = [
 export function Pricing({ user }: { user?: User | null }) {
   return (
     <section id="pricing" className="py-28 px-6 lg:px-10 relative overflow-hidden">
-      <div className="max-w-[1400px] mx-auto relative z-10">
+      <div className="w-full px-6 lg:px-16 xl:px-24 relative z-10">
         <div className="text-center mb-20">
           <motion.div 
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/30 text-[10px] uppercase tracking-[0.25em] font-bold mb-6 text-primary"
+            className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/30 text-[10px] uppercase tracking-[0.25em] font-bold mb-6 text-primary rounded-md"
           >
             <span className="w-1.5 h-1.5 bg-primary animate-pulse" />
             Pricing
@@ -88,10 +88,10 @@ export function Pricing({ user }: { user?: User | null }) {
                   tier.highlighted 
                     ? "bg-primary/10 ring-1 ring-primary/40 shadow-[0_0_40px_rgba(99,102,241,0.25)]" 
                     : "bg-card/20"
-                } transition-all duration-500 hover:border-primary/40 glass-panel-soft`}
+                } transition-all duration-500 hover:border-primary/40 glass-panel-soft rounded-lg`}
               >
               {tier.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest rounded-md">
                   Recommended
                 </div>
               )}
@@ -125,7 +125,7 @@ export function Pricing({ user }: { user?: User | null }) {
 
                 <Link 
                   href={tier.name === "Enterprise" ? "mailto:hello@memories.sh" : user ? "/app/upgrade" : "/login"}
-                  className={`block w-full py-4 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-300 text-center ${
+                  className={`block w-full py-4 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-300 text-center rounded-md ${
                     tier.highlighted
                       ? "bg-primary text-primary-foreground hover:opacity-90 shadow-[0_0_20px_rgba(var(--primary),0.3)]"
                       : "bg-white/5 text-foreground border border-white/10 hover:bg-white/10"
