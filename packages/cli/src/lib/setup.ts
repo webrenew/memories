@@ -69,6 +69,13 @@ export interface DetectedTool {
 }
 
 /**
+ * Get all supported tools
+ */
+export function getAllTools(): Tool[] {
+  return [...TOOLS];
+}
+
+/**
  * Detect which AI coding tools are installed/configured
  */
 export function detectTools(cwd: string = process.cwd()): DetectedTool[] {

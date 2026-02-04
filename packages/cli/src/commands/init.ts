@@ -1,11 +1,11 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { confirm } from "@inquirer/prompts";
+import { confirm, checkbox } from "@inquirer/prompts";
 import { getDb, getConfigDir } from "../lib/db.js";
 import { getProjectId, getGitRoot } from "../lib/git.js";
 import { addMemory, listMemories } from "../lib/memory.js";
 import { readAuth } from "../lib/auth.js";
-import { detectTools, setupMcp, type DetectedTool } from "../lib/setup.js";
+import { detectTools, getAllTools, setupMcp, type DetectedTool } from "../lib/setup.js";
 import * as ui from "../lib/ui.js";
 import { execSync } from "node:child_process";
 
@@ -51,11 +51,36 @@ export const initCommand = new Command("init")
 
       // Step 3: Detect and configure tools
       ui.step(3, 4, "Detecting AI coding tools...");
-      const detected = detectTools(cwd);
+      let detected = detectTools(cwd);
       
       if (detected.length === 0) {
-        ui.dim("No AI coding tools detected (.cursor/, .claude/, .windsurf/, .vscode/)");
-        ui.dim("MCP will work with any tool that supports it.");
+        ui.dim("No AI coding tools auto-detected.");
+        
+        if (!opts.skipMcp) {
+          const allTools = getAllTools();
+          const selected = await checkbox({
+            message: "Which tools do you want to configure?",
+            choices: allTools.map(t => ({
+              name: t.name,
+              value: t,
+              checked: false,
+            })),
+          });
+
+          if (selected.length > 0) {
+            detected = selected.map(tool => ({
+              tool,
+              hasConfig: false,
+              hasMcp: false,
+              hasInstructions: false,
+              globalConfig: false,
+            }));
+          }
+        }
+      }
+
+      if (detected.length === 0) {
+        ui.dim("No tools selected. MCP will work with any tool that supports it.");
       } else {
         for (const d of detected) {
           const scope = d.globalConfig ? chalk.dim(" [global]") : "";
