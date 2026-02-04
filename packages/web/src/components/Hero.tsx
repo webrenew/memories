@@ -191,21 +191,19 @@ export function Hero() {
               animate="visible"
               className="flex flex-col items-start text-left"
             >
-            <motion.div variants={itemVariants} className="inline-flex items-center gap-3 px-3 py-1 bg-white/5 border border-white/10 text-[10px] uppercase tracking-[0.25em] font-bold mb-8 text-foreground/90 rounded-md">
+            <motion.div variants={itemVariants} className="inline-flex items-center gap-3 px-3 py-1.5 bg-white/8 border border-white/12 text-[11px] uppercase tracking-[0.2em] font-bold mb-6 text-foreground/90 rounded-md">
               <span className="w-1.5 h-1.5 bg-primary animate-pulse" />
               Stop Re-Teaching Agents
             </motion.div>
 
             <motion.h1 
               variants={itemVariants} 
-              className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.04em] mb-8 leading-[0.95] text-foreground"
-              style={{ fontFamily: "var(--font-departure-mono), var(--font-geist-mono), monospace" }}
+              className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.03em] mb-6 leading-[1.05] text-foreground"
             >
-              <span className="text-accent-secondary">The agnostic memory layer</span> <br />
-              for any agent.
+              The <span className="text-accent-secondary">agnostic</span> memory layer for any agent.
             </motion.h1>
 
-            <motion.p variants={itemVariants} className="text-lg md:text-xl text-muted-foreground mb-10 max-w-xl leading-relaxed font-light">
+            <motion.p variants={itemVariants} className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl leading-relaxed font-light">
               Durable, local-first state for coding agents. Store rules once, recall context, and generate native configs for every tool; offline by default, sync when you need it.
             </motion.p>
 
@@ -220,7 +218,7 @@ export function Hero() {
             >
               <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-white/5 via-transparent to-transparent" />
               <div className="relative z-10 space-y-6">
-                <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">
+                <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.25em] font-bold text-muted-foreground">
                   <span>Live State</span>
                   <span className="px-2 py-0.5 rounded-full border border-white/10 text-accent-secondary">Local</span>
                 </div>
@@ -235,7 +233,7 @@ export function Hero() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">
+                  <div className="text-[11px] uppercase tracking-[0.25em] font-bold text-muted-foreground">
                     Recent Context
                   </div>
                   {[
@@ -255,12 +253,12 @@ export function Hero() {
                       className="flex items-center justify-between gap-4 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-foreground/80"
                     >
                       <span>{item}</span>
-                      <span className="text-[9px] uppercase tracking-[0.2em] text-accent-secondary">Stored</span>
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-accent-secondary">Stored</span>
                     </motion.div>
                   ))}
                 </div>
 
-                <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">
+                <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.25em] font-bold text-muted-foreground">
                   <span className="h-1 w-1 rounded-full bg-accent-secondary" />
                   Recall and generate configs in one command
                 </div>
@@ -275,7 +273,7 @@ export function Hero() {
           transition={{ duration: 1.1, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
           className="mt-10 grid lg:grid-cols-[1.1fr_0.9fr] gap-12 lg:gap-16 items-center pt-8"
         >
-          <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-muted-foreground/70">
+          <p className="text-[11px] uppercase tracking-[0.3em] font-bold text-muted-foreground/70">
             Works with
           </p>
           <div className="relative overflow-hidden">

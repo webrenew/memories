@@ -86,7 +86,7 @@ export function HowItWorks() {
     <section 
       ref={sectionRef}
       id="how-it-works" 
-      className="relative min-h-screen py-28 border-y border-white/10 flex flex-col overflow-hidden"
+      className="relative py-28 border-y border-white/10 flex flex-col overflow-hidden"
     >
       {/* 2D Noise Background - muted */}
       <div className="absolute inset-0 opacity-25">
@@ -98,8 +98,8 @@ export function HowItWorks() {
 
       <div className="relative z-10 w-full px-6 lg:px-16 xl:px-24 flex-1 flex flex-col">
         {/* Section Header */}
-        <div className="mb-20 max-w-3xl">
-          <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-6">The Problem</div>
+        <div className="mb-16 max-w-3xl">
+          <div className="text-[11px] uppercase tracking-[0.35em] font-bold text-primary mb-6">The Problem</div>
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-[1.1]">
             Agents forget.<br />
             <span className="text-primary">Memories remembers.</span>
@@ -123,7 +123,7 @@ export function HowItWorks() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mt-auto pt-20 flex flex-col items-center text-center"
+          className="pt-16 flex flex-col items-center text-center"
         >
           <p className="text-muted-foreground mb-6 text-lg font-light">
             Ready to stop repeating yourself?

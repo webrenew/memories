@@ -55,21 +55,20 @@ const tiers = [
 
 export function Pricing({ user }: { user?: User | null }) {
   return (
-    <section id="pricing" className="py-28 px-6 lg:px-10 relative overflow-hidden">
+    <section id="pricing" className="py-28 border-t border-white/5 relative overflow-hidden">
       <div className="w-full px-6 lg:px-16 xl:px-24 relative z-10">
         <div className="text-center mb-20">
           <motion.div 
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 border border-primary/30 text-[10px] uppercase tracking-[0.25em] font-bold mb-6 text-primary rounded-md"
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/30 text-[11px] uppercase tracking-[0.25em] font-bold mb-6 text-primary rounded-md"
           >
             <span className="w-1.5 h-1.5 bg-primary animate-pulse" />
             Pricing
           </motion.div>
           <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-gradient">
-            Simple, Transparent <br />
-            <span className="text-muted-foreground italic font-light">Pricing</span>
+            Simple, Transparent Pricing
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-lg font-light leading-relaxed">
             Free gives you durable local state and recall on your machine. Pro adds sync and backup for that state across every device you work on.
@@ -97,7 +96,7 @@ export function Pricing({ user }: { user?: User | null }) {
               )}
 
               <div className="mb-8">
-                <h3 className="text-xl font-bold mb-2 uppercase tracking-tight">{tier.name}</h3>
+                <h3 className="text-xl font-bold mb-2 uppercase tracking-wider">{tier.name}</h3>
                 <div className="flex items-baseline gap-1 mb-4">
                   <span className="text-4xl font-mono font-bold">{tier.price}</span>
                   {tier.price !== "Custom" && (
@@ -110,7 +109,7 @@ export function Pricing({ user }: { user?: User | null }) {
               </div>
 
               <div className="flex-grow mb-10">
-                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-6">
+                <div className="text-[11px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-6">
                   Included Features
                 </div>
                 <ul className="space-y-4">

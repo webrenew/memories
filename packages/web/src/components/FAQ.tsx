@@ -32,11 +32,11 @@ export function FAQ() {
   ];
 
     return (
-      <section id="faq" className="py-24 px-6 lg:px-10 border-t border-white/10">
+      <section id="faq" className="py-28 px-6 lg:px-10 border-t border-white/10">
         <div className="max-w-[1000px] mx-auto">
           <div className="mb-16 flex flex-col items-center text-center">
-            <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Support</div>
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tighter text-foreground text-gradient">Questions & Answers</h2>
+            <div className="text-[11px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Support</div>
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">Questions & Answers</h2>
           </div>
           <div className="space-y-1">
             {faqs.map((faq, idx) => (

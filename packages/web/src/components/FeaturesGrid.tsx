@@ -61,14 +61,14 @@ export function FeaturesGrid() {
   ];
 
     return (
-      <section id="features" className="py-28 px-6 lg:px-10">
+      <section id="features" className="py-28 border-t border-white/5">
         <div className="w-full px-6 lg:px-16 xl:px-24">
           <div className="mb-20 flex flex-col items-center text-center">
-            <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Core Features</div>
-            <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground text-gradient">Built for durable state</h2>
+            <div className="text-[11px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Core Features</div>
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">Built for durable state</h2>
           </div>
   
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-1">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {features.map((f, idx) => (
               <motion.div 
                 key={idx}
@@ -89,7 +89,7 @@ export function FeaturesGrid() {
                 
                 <div className="flex items-center gap-2 pt-6 border-t border-white/10">
                   <div className="w-1 h-1 rounded-full bg-primary/60" />
-                  <span className="text-[9px] uppercase tracking-[0.25em] font-bold text-muted-foreground">{f.metric}</span>
+                  <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">{f.metric}</span>
                 </div>
   
                 {/* Technical Hover Decor */}
@@ -99,19 +99,22 @@ export function FeaturesGrid() {
               </motion.div>
             ))}
             
-            <div className="p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col justify-between group glass-panel-soft rounded-lg">
-              <div>
-                <div className="w-6 h-6 border border-primary/60 rounded-full flex items-center justify-center mb-10">
+            <div className="group p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col glass-panel-soft rounded-lg hover:border-primary/40 transition-all duration-500 relative overflow-hidden">
+              <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
+                <div className="w-6 h-6 border border-primary/60 rounded-full flex items-center justify-center">
                   <div className="w-1 h-1 bg-primary animate-pulse" />
                 </div>
-                <h4 className="text-lg font-bold tracking-tight text-foreground mb-2">MCP Server</h4>
-                <p className="text-[13px] text-muted-foreground leading-relaxed font-light">
-                  Built-in Model Context Protocol server with 7 tools so agents can access state directly.
-                </p>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary inline-flex items-center gap-2 mt-10">
-                memories serve
-              </span>
+              
+              <h4 className="text-lg font-bold tracking-tight text-foreground mb-4">MCP Server</h4>
+              <p className="text-[13px] text-muted-foreground leading-relaxed font-light mb-8">
+                Built-in Model Context Protocol server with 7 tools so agents can access state directly.
+              </p>
+              
+              <div className="flex items-center gap-2 pt-6 border-t border-white/10">
+                <div className="w-1 h-1 rounded-full bg-primary/60" />
+                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">memories serve</span>
+              </div>
             </div>
           </div>
         </div>

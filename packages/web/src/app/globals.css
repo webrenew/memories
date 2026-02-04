@@ -205,11 +205,11 @@
   }
 
   .glass-panel {
-    @apply bg-card/30 backdrop-blur-xl border border-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.45)];
+    @apply bg-card/30 backdrop-blur-xl border border-white/12 shadow-[0_20px_80px_rgba(0,0,0,0.45)];
   }
 
   .glass-panel-soft {
-    @apply bg-card/20 backdrop-blur-lg border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.35)];
+    @apply bg-card/30 backdrop-blur-lg border border-white/12 shadow-[0_16px_50px_rgba(0,0,0,0.35)];
   }
 
   .neon-outline {

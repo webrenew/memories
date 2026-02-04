@@ -51,14 +51,14 @@ export function Integrations() {
   ];
 
     return (
-      <section id="integrations" className="py-28 px-6 lg:px-10">
+      <section id="integrations" className="py-28 border-t border-white/5">
         <div className="w-full px-6 lg:px-16 xl:px-24">
           <div className="mb-20 flex flex-col items-center text-center">
-            <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Integrations</div>
-            <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground text-gradient">Works With Your Tools</h2>
+            <div className="text-[11px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Integrations</div>
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">Works With Your Tools</h2>
           </div>
   
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-1">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {adapters.map((a, idx) => (
               <Link href={a.docsUrl} key={idx}>
                 <motion.div 
@@ -69,7 +69,7 @@ export function Integrations() {
                   className="p-8 lg:p-10 bg-card/20 flex flex-col items-start group hover:border-primary/40 transition-all h-full cursor-pointer glass-panel-soft rounded-lg"
                 >
                   <div className="flex items-center justify-between w-full mb-12">
-                    <div className="w-8 h-8 flex items-center justify-center opacity-60 group-hover:opacity-100 transition-opacity duration-500">
+                    <div className="w-8 h-8 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity duration-500">
                       {a.logo ? (
                         <Image src={a.logo} alt={a.name} width={32} height={32} />
                       ) : (
@@ -78,7 +78,7 @@ export function Integrations() {
                         </svg>
                       )}
                     </div>
-                    <span className="text-[8px] font-bold uppercase tracking-[0.25em] px-2 py-0.5 border border-white/10 text-muted-foreground rounded-md">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.25em] px-2 py-0.5 border border-white/10 text-muted-foreground rounded-md">
                       {a.status}
                     </span>
                   </div>
@@ -86,7 +86,7 @@ export function Integrations() {
                   <h4 className="text-lg font-bold mb-3 tracking-tight text-foreground">{a.name}</h4>
                   <p className="text-[13px] text-muted-foreground leading-relaxed mb-10 font-light">{a.desc}</p>
                   
-                  <span className="mt-auto text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-2">
+                  <span className="mt-auto text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-2">
                     View Docs <span className="text-lg opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">→</span>
                   </span>
                 </motion.div>

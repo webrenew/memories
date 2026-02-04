@@ -22,7 +22,7 @@ export function WhyItMatters() {
   ];
 
   return (
-    <section className="py-24 px-6 lg:px-10">
+    <section className="py-28 border-t border-white/5">
       <div className="w-full px-6 lg:px-16 xl:px-24">
         <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
           {cases.map((c, idx) => (
@@ -35,7 +35,7 @@ export function WhyItMatters() {
               className="flex flex-col group glass-panel-soft p-8 lg:p-10 rounded-lg"
             >
               <div className="h-px w-12 bg-primary/70 mb-8 group-hover:w-full transition-all duration-700" />
-              <h4 className="text-xl font-bold mb-4 tracking-tight text-foreground uppercase tracking-wider">{c.title}</h4>
+              <h4 className="text-xl font-bold mb-4 text-foreground uppercase tracking-wider">{c.title}</h4>
               <p className="text-[14px] text-muted-foreground leading-relaxed mb-8 font-light">
                 {c.desc}
               </p>

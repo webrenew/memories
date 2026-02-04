@@ -20,11 +20,11 @@ export function Quickstart() {
   };
 
   return (
-    <section id="quickstart" className="py-28 px-6 lg:px-10">
+    <section id="quickstart" className="py-28 border-t border-white/5 px-6 lg:px-10">
       <div className="max-w-[1200px] mx-auto">
         <div className="mb-20 flex flex-col items-center text-center">
-          <div className="text-[10px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Quick Start</div>
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tighter text-foreground text-gradient">Get Started</h2>
+          <div className="text-[11px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Quick Start</div>
+          <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">Get Started</h2>
         </div>
 
         <div className="glass-panel overflow-hidden relative group mb-12 rounded-lg">
@@ -35,14 +35,14 @@ export function Quickstart() {
                 <div className="w-1.5 h-1.5 bg-primary/60" />
                 <div className="w-1.5 h-1.5 bg-primary/60" />
               </div>
-              <span className="text-[9px] text-muted-foreground font-mono uppercase tracking-[0.2em] ml-4 font-bold">memories-sh // bash</span>
+              <span className="text-[11px] text-muted-foreground font-mono uppercase tracking-[0.2em] ml-4 font-bold">memories-sh // bash</span>
             </div>
           </div>
           <div className="p-6 md:p-10 font-mono text-sm space-y-6 md:space-y-10 relative z-10">
             {steps.map((step, idx) => (
               <div key={idx} className="group/item relative">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-primary text-[9px] uppercase tracking-[0.2em] font-bold">{step.label}</span>
+                  <span className="text-primary text-[11px] uppercase tracking-[0.2em] font-bold">{step.label}</span>
                   <button 
                     onClick={() => copyToClipboard(step.cmd, idx)}
                     className="opacity-0 group-hover/item:opacity-100 transition-opacity p-1 hover:text-primary"
