@@ -1,0 +1,167 @@
+---
+title: files
+description: Sync config files (.agents, .cursor, .claude, etc.) across machines
+---
+
+The `files` command syncs your AI tool config directories across machines. This includes skills, commands, rules, and other config files from `.agents/`, `.cursor/`, `.claude/`, and other tool-specific directories.
+
+## Why sync files?
+
+When you switch between machines or set up a new environment, you lose all your carefully curated:
+
+- Custom skills and commands
+- Tool-specific rules and preferences  
+- MCP server configurations
+- Project templates
+
+The `files` command stores these in your Turso database alongside your memories, so they sync automatically.
+
+## Supported directories
+
+The following config directories are scanned:
+
+| Directory | Tool |
+|-----------|------|
+| `.agents/` | Universal (Agents.md ecosystem) |
+| `.claude/` | Claude Code |
+| `.cursor/` | Cursor |
+| `.github/copilot/` | GitHub Copilot |
+| `.windsurf/` | Windsurf |
+| `.cline/` | Cline |
+| `.codex/` | Codex |
+| `.gemini/` | Gemini |
+| `.roo/` | Roo |
+| `.amp/` | Amp |
+
+## Commands
+
+### List synced files
+
+```bash
+memories files list
+```
+
+Filter by scope:
+
+```bash
+memories files list --scope global
+memories files list --scope project
+```
+
+### Import files from local directories
+
+Import your global config files (from home directory):
+
+```bash
+memories files ingest
+```
+
+Preview what would be imported:
+
+```bash
+memories files ingest --dry-run
+```
+
+Import project-specific configs (from current directory):
+
+```bash
+memories files ingest --project
+```
+
+Import both global and project configs:
+
+```bash
+memories files ingest --global --project
+```
+
+### Apply synced files to disk
+
+Restore files from the cloud to your local machine:
+
+```bash
+memories files apply --global
+```
+
+Apply project files:
+
+```bash
+memories files apply --project
+```
+
+Force overwrite existing files:
+
+```bash
+memories files apply --global --force
+```
+
+Preview without writing:
+
+```bash
+memories files apply --global --dry-run
+```
+
+### View file content
+
+```bash
+memories files show .agents/skills/supabase.md
+```
+
+### Remove a file from sync
+
+```bash
+memories files forget .agents/skills/old-skill.md
+```
+
+## File filtering
+
+The following file types are synced:
+
+- `.md`, `.txt` (documentation, rules)
+- `.json`, `.yaml`, `.yml`, `.toml` (configs)
+- Files named `rules` or `config`
+
+The following are excluded:
+
+- `node_modules/`, `.git/`
+- Cache, history, session, debug directories
+- Log files, lock files
+- Telemetry and stats files
+
+## Workflow
+
+### Initial setup (existing machine)
+
+```bash
+# Import your existing configs
+memories files ingest
+
+# Enable cloud sync
+memories login
+memories sync enable
+
+# Push to cloud
+memories sync push
+```
+
+### New machine setup
+
+```bash
+# Install CLI
+npm install -g @memories.sh/cli
+
+# Login and sync
+memories login
+memories sync enable
+
+# Apply files to disk
+memories files apply --global --force
+```
+
+### Ongoing sync
+
+Files are synced automatically when you run `memories sync push` or when the embedded replica syncs. To manually ingest new/changed files:
+
+```bash
+memories files ingest
+memories sync push
+```
