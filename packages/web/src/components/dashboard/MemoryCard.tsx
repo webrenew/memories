@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Trash2 } from "lucide-react"
+import { Trash2, Pencil, Check, X } from "lucide-react"
 
 interface Memory {
   id: string
@@ -12,9 +12,20 @@ interface Memory {
   created_at: string
 }
 
-export function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: (id: string) => void }) {
+export function MemoryCard({ 
+  memory, 
+  onDelete,
+  onUpdate 
+}: { 
+  memory: Memory
+  onDelete: (id: string) => void
+  onUpdate: (id: string, content: string) => void
+}) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState(memory.content)
+  const [isSaving, setIsSaving] = useState(false)
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -30,6 +41,29 @@ export function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: (id
     } finally {
       setIsDeleting(false)
       setShowConfirm(false)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!editContent.trim() || editContent === memory.content) {
+      setIsEditing(false)
+      setEditContent(memory.content)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const res = await fetch("/api/memories", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: memory.id, content: editContent.trim() }),
+      })
+      if (res.ok) {
+        onUpdate(memory.id, editContent.trim())
+        setIsEditing(false)
+      }
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -62,7 +96,28 @@ export function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: (id
           <span className="text-[10px] text-muted-foreground/60 shrink-0">
             {new Date(memory.created_at).toLocaleDateString()}
           </span>
-          {showConfirm ? (
+          {isEditing ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="p-1.5 text-green-400 hover:bg-green-500/10 transition-all"
+                title="Save"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => {
+                  setIsEditing(false)
+                  setEditContent(memory.content)
+                }}
+                className="p-1.5 text-muted-foreground hover:text-foreground transition-all"
+                title="Cancel"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : showConfirm ? (
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDelete}
@@ -79,19 +134,38 @@ export function MemoryCard({ memory, onDelete }: { memory: Memory; onDelete: (id
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setShowConfirm(true)}
-              className="opacity-0 group-hover:opacity-100 p-1.5 text-muted-foreground/60 hover:text-red-400 hover:bg-red-500/10 transition-all"
-              title="Delete memory"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              <button
+                onClick={() => setIsEditing(true)}
+                className="p-1.5 text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-all"
+                title="Edit"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="p-1.5 text-muted-foreground/60 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                title="Delete"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </div>
       </div>
-      <p className="text-sm text-foreground/80 leading-relaxed line-clamp-3">
-        {memory.content}
-      </p>
+      {isEditing ? (
+        <textarea
+          value={editContent}
+          onChange={(e) => setEditContent(e.target.value)}
+          className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary/50 resize-none"
+          rows={3}
+          autoFocus
+        />
+      ) : (
+        <p className="text-sm text-foreground/80 leading-relaxed">
+          {memory.content}
+        </p>
+      )}
     </div>
   )
 }

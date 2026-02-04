@@ -36,6 +36,98 @@ export async function GET() {
   }
 }
 
+export async function POST(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { content, type = "rule", scope = "global", tags } = await request.json()
+  if (!content) {
+    return NextResponse.json({ error: "Content required" }, { status: 400 })
+  }
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("turso_db_url, turso_db_token")
+    .eq("id", user.id)
+    .single()
+
+  if (!profile?.turso_db_url || !profile?.turso_db_token) {
+    return NextResponse.json({ error: "Turso not configured" }, { status: 400 })
+  }
+
+  try {
+    const turso = createTurso({
+      url: profile.turso_db_url,
+      authToken: profile.turso_db_token,
+    })
+
+    const id = crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+    const now = new Date().toISOString()
+
+    await turso.execute({
+      sql: `INSERT INTO memories (id, content, type, scope, tags, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [id, content, type, scope, tags || null, now, now],
+    })
+
+    return NextResponse.json({ 
+      id, 
+      content, 
+      type, 
+      scope, 
+      tags, 
+      created_at: now 
+    })
+  } catch (err) {
+    console.error("Failed to add memory:", err)
+    return NextResponse.json({ error: "Failed to add memory" }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const { id, content, tags } = await request.json()
+  if (!id || !content) {
+    return NextResponse.json({ error: "ID and content required" }, { status: 400 })
+  }
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("turso_db_url, turso_db_token")
+    .eq("id", user.id)
+    .single()
+
+  if (!profile?.turso_db_url || !profile?.turso_db_token) {
+    return NextResponse.json({ error: "Turso not configured" }, { status: 400 })
+  }
+
+  try {
+    const turso = createTurso({
+      url: profile.turso_db_url,
+      authToken: profile.turso_db_token,
+    })
+
+    await turso.execute({
+      sql: `UPDATE memories SET content = ?, tags = ?, updated_at = datetime('now') WHERE id = ?`,
+      args: [content, tags || null, id],
+    })
+
+    return NextResponse.json({ success: true })
+  } catch {
+    return NextResponse.json({ error: "Failed to update memory" }, { status: 500 })
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

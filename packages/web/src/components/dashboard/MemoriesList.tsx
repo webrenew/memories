@@ -12,27 +12,42 @@ interface Memory {
   created_at: string
 }
 
-export function MemoriesList({ initialMemories }: { initialMemories: Memory[] }) {
+export function MemoriesList({ 
+  initialMemories,
+  onMemoriesChange
+}: { 
+  initialMemories: Memory[]
+  onMemoriesChange?: (memories: Memory[]) => void
+}) {
   const [memories, setMemories] = useState(initialMemories)
 
   const handleDelete = (id: string) => {
-    setMemories((prev) => prev.filter((m) => m.id !== id))
+    const updated = memories.filter((m) => m.id !== id)
+    setMemories(updated)
+    onMemoriesChange?.(updated)
+  }
+
+  const handleUpdate = (id: string, content: string) => {
+    const updated = memories.map((m) => 
+      m.id === id ? { ...m, content } : m
+    )
+    setMemories(updated)
+    onMemoriesChange?.(updated)
   }
 
   if (memories.length === 0) {
-    return (
-      <div className="border border-border bg-card/20 p-8 text-center">
-        <p className="text-muted-foreground text-sm">
-          No memories found. Start using the CLI to create memories.
-        </p>
-      </div>
-    )
+    return null
   }
 
   return (
     <div className="space-y-3">
       {memories.map((memory) => (
-        <MemoryCard key={memory.id} memory={memory} onDelete={handleDelete} />
+        <MemoryCard 
+          key={memory.id} 
+          memory={memory} 
+          onDelete={handleDelete}
+          onUpdate={handleUpdate}
+        />
       ))}
     </div>
   )
