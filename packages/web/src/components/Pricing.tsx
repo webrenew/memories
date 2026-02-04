@@ -9,13 +9,14 @@ const tiers = [
   {
     name: "Free",
     price: "$0",
-    description: "Full power locally. Switch tools without limits.",
+    description: "Full power on your machine. No account required.",
     features: [
-      "Unlimited memories",
+      "Unlimited local memories",
+      "Local AI-powered semantic search",
       "13+ coding agent targets",
-      "Full-text search",
-      "MCP server for direct agent access",
-      "JSON/YAML export & import",
+      "MCP server built-in",
+      "Works completely offline",
+      "Export to JSON/YAML anytime",
     ],
     cta: "Get Started",
     highlighted: false,
@@ -23,14 +24,14 @@ const tiers = [
   {
     name: "Professional",
     price: "$15",
-    description: "Sync across machines. Access memories anywhere.",
+    description: "Sync across all your machines. Never lose context.",
     features: [
       "Everything in Free",
-      "Cloud sync & backup",
+      "Cloud backup & sync",
+      "Access from any device",
       "Web dashboard",
-      "Cross-device access",
+      "Server-side semantic search",
       "Priority support",
-      "Usage analytics",
     ],
     cta: "Go Pro",
     highlighted: true,
@@ -41,9 +42,9 @@ const tiers = [
     description: "For teams with compliance and support needs.",
     features: [
       "Everything in Professional",
-      "Dedicated support",
-      "SLA guarantees",
-      "Team management",
+      "Team rule sharing",
+      "Dedicated support & SLA",
+      "SSO & team management",
       "Custom integrations",
       "Volume licensing",
     ],
@@ -71,7 +72,7 @@ export function Pricing({ user }: { user?: User | null }) {
             <span className="text-muted-foreground italic font-light">Pricing</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-lg font-light leading-relaxed">
-            Free tier includes everything you need locally. Pro adds cloud sync and cross-device access.
+            Free runs entirely on your machine — no limits, no account. Pro syncs your rules across every device you work on.
           </p>
         </div>
 

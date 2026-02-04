@@ -136,7 +136,7 @@ export function Hero() {
             </motion.h1>
             
             <motion.p variants={itemVariants} className="text-xl md:text-2xl text-muted-foreground mb-16 max-w-2xl leading-relaxed font-light tracking-tight">
-              Stop re-teaching every coding agent. Store your rules once, generate native configs for Cursor, Claude Code, Copilot, and 10+ more.
+              Local-first memory for AI coding agents. Store rules once, generate configs for every tool. Works offline — sync across machines when you need it.
             </motion.p>
             
             <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-center gap-8">

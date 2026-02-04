@@ -34,28 +34,28 @@ const FeatureIcon = ({ index }: { index: number }) => {
 export function FeaturesGrid() {
   const features = [
     {
-      title: "13+ coding agents",
-      detail: "Generate native configs for Cursor, Claude Code, Copilot, Windsurf, Cline, Roo, Gemini, Amp, Codex, and more.",
+      title: "100% Local-First",
+      detail: "Everything runs on your machine. SQLite database, local embeddings, no server required. Works offline.",
+      metric: "Your data"
+    },
+    {
+      title: "AI-Powered Search",
+      detail: "Semantic search finds related concepts, not just keywords. 'auth issues' finds JWT validation errors.",
+      metric: "Smart recall"
+    },
+    {
+      title: "13+ Coding Agents",
+      detail: "Generate native configs for Cursor, Claude Code, Copilot, Windsurf, Cline, Roo, Gemini, and more.",
       metric: "One command"
     },
     {
-      title: "Instant search",
-      detail: "Full-text search with BM25 ranking finds the right context in milliseconds.",
-      metric: "Fast recall"
-    },
-    {
-      title: "Project isolation",
+      title: "Project Isolation",
       detail: "Keep project-specific rules separate from your global preferences. Auto-detected via git remote.",
       metric: "Auto-scoped"
     },
     {
-      title: "Structured context",
-      detail: "Organize as rules, decisions, facts, or notes — agents retrieve exactly what they need.",
-      metric: "4 types"
-    },
-    {
-      title: "No lock-in",
-      detail: "Export everything to JSON or YAML anytime. Your data, your choice.",
+      title: "No Lock-in",
+      detail: "Export everything to JSON or YAML anytime. Switch tools or leave entirely — your data is yours.",
       metric: "Portable"
     }
   ];

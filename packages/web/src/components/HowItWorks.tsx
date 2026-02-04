@@ -125,9 +125,9 @@ export function HowItWorks() {
           </div>
           <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-12">
             {[
-              { label: "Freedom", detail: "Try any agent, keep your context" },
-              { label: "No Lock-in", detail: "Export to JSON, YAML, or native files" },
-              { label: "Zero Rework", detail: "Switch tools in one command" },
+              { label: "Local-First", detail: "Runs on your machine. Works offline." },
+              { label: "No Lock-in", detail: "Export anytime. Your data, your choice." },
+              { label: "Sync Optional", detail: "Pro adds cloud backup across devices." },
             ].map((item, i) => (
               <div key={i}>
                 <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-2">{item.label}</div>

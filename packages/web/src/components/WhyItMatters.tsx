@@ -5,19 +5,19 @@ import { motion } from "framer-motion";
 export function WhyItMatters() {
   const cases = [
     {
-      title: "No Vendor Lock-in",
-      desc: "Switch between Claude Code, Cursor, Copilot, and Windsurf whenever you want. Your rules and context come with you.",
-      example: "memories generate windsurf"
+      title: "Works Offline",
+      desc: "Everything runs locally — your rules, the database, even semantic search. No internet required.",
+      example: "memories search -s 'auth'"
     },
     {
-      title: "Same Rules, Every Agent",
-      desc: "Define your coding standards once. Every tool — new or old — gets the same context automatically.",
+      title: "Switch Tools Anytime",
+      desc: "Try Cursor today, Claude Code tomorrow. Your rules generate native configs for 13+ tools.",
       example: "memories generate all"
     },
     {
-      title: "Pick Up Where You Left Off",
-      desc: "Return to a project after months. Your agent already knows the stack, the decisions, and the why.",
-      example: "memories recall 'architecture'"
+      title: "Sync When You Need It",
+      desc: "Work on multiple machines? Pro syncs your context to the cloud. Everything stays backed up.",
+      example: "memories sync enable"
     }
   ];
 
