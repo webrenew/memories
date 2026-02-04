@@ -24,6 +24,7 @@ import { staleCommand, reviewCommand } from "./commands/stale.js";
 import { linkCommand, unlinkCommand, showCommand } from "./commands/link.js";
 import { templateCommand } from "./commands/template.js";
 import { historyCommand, revertCommand } from "./commands/history.js";
+import { embedCommand } from "./commands/embed.js";
 import { loginCommand, logoutCommand } from "./commands/login.js";
 
 const program = new Command()
@@ -65,6 +66,7 @@ program.addCommand(showCommand);
 program.addCommand(templateCommand);
 program.addCommand(historyCommand);
 program.addCommand(revertCommand);
+program.addCommand(embedCommand);
 
 // Auth commands
 program.addCommand(loginCommand);

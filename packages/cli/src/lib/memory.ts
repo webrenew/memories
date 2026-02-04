@@ -100,12 +100,30 @@ export async function addMemory(
     args: [id, content, tags, scope, projectId, type],
   });
 
+  // Generate embedding in background (don't block on it)
+  generateEmbeddingAsync(id, content);
+
   const result = await db.execute({
     sql: `SELECT * FROM memories WHERE id = ?`,
     args: [id],
   });
 
   return result.rows[0] as unknown as Memory;
+}
+
+/**
+ * Generate embedding for a memory asynchronously.
+ * Failures are logged but don't block the operation.
+ */
+async function generateEmbeddingAsync(memoryId: string, content: string): Promise<void> {
+  try {
+    const { getEmbedding, storeEmbedding, ensureEmbeddingsSchema } = await import("./embeddings.js");
+    await ensureEmbeddingsSchema();
+    const embedding = await getEmbedding(content);
+    await storeEmbedding(memoryId, embedding);
+  } catch {
+    // Silently fail - embeddings are optional enhancement
+  }
 }
 
 /**
