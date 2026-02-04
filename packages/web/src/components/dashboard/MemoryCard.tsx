@@ -76,9 +76,13 @@ export function MemoryCard({
               {memory.type}
             </span>
           ) : null}
-          {memory.scope ? (
-            <span className="px-2 py-0.5 bg-muted/50 border border-border text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
-              {memory.scope}
+          {memory.scope === "global" ? (
+            <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-[10px] uppercase tracking-wider font-bold text-blue-400">
+              Global
+            </span>
+          ) : memory.scope ? (
+            <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-[10px] tracking-wider font-bold text-amber-400" title={memory.scope}>
+              {memory.scope.replace(/^github\.com\//, "").split("/").pop()}
             </span>
           ) : null}
           {memory.tags
