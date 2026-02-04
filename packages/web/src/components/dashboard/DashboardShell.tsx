@@ -120,7 +120,7 @@ export function DashboardShell({
       {/* Content area with sidebar */}
       <div className={`max-w-7xl mx-auto flex ${plan === "past_due" ? "pt-[6.25rem]" : "pt-16"}`}>
         {/* Sidebar */}
-        <aside className="hidden md:flex flex-col w-56 shrink-0 border-r border-border min-h-[calc(100vh-4rem)] p-4 gap-1">
+        <aside className="hidden md:flex flex-col w-56 shrink-0 border-r border-border h-[calc(100vh-4rem)] sticky top-16 p-4 gap-1 overflow-hidden">
           {navItems.map((item) => {
             const isActive =
               item.href === "/app"
