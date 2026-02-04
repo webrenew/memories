@@ -1,0 +1,112 @@
+---
+title: Factory (Droid)
+description: Integrate memories.sh with Factory's Droid CLI.
+---
+
+[Factory](https://factory.ai/) provides Droid, an AI coding agent that runs in your terminal and IDE. Droid reads instructions from `.factory/` configuration and supports MCP servers.
+
+## Quick Setup
+
+```bash
+cd your-project
+memories init
+```
+
+This automatically:
+1. Detects Factory/Droid (looks for `.factory/` directory)
+2. Configures MCP in `.factory/mcp.json`
+3. Generates instruction files with your existing memories
+
+## Manual Setup
+
+### Option 1: Generated File
+
+Generate instructions for Droid:
+
+```bash
+memories generate agents -o .factory/instructions.md
+```
+
+Droid will read this file and incorporate your rules, decisions, and facts into its context.
+
+### Option 2: MCP Server
+
+Add memories.sh to Factory's MCP configuration. Create or edit `.factory/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+For global configuration (applies to all projects), add to `~/.factory/mcp.json`.
+
+### Recommended: Use Both
+
+1. **Generated file** — Provides instructions Droid always sees
+2. **MCP server** — Gives Droid live access to search, recall, and add memories
+
+## Syncing Factory Config
+
+To sync your Factory/Droid configuration across machines:
+
+```bash
+# On your main machine
+memories files ingest
+
+# On a new machine
+memories files apply --global --force
+```
+
+This syncs:
+- `.factory/config.json` — Droid configuration
+- `.factory/instructions.md` — Custom instructions
+- `.factory/droids/*.md` — Custom droid definitions
+- `.factory/tasks/*.md` — Task definitions
+- `.factory/skills/**/*` — Skills and references
+
+## Factory-Specific Features
+
+### Custom Droids
+
+Factory allows creating custom droids with specialized behaviors. These are stored in `.factory/droids/` and synced automatically:
+
+```bash
+# Import your custom droids
+memories files ingest
+
+# Apply on another machine
+memories files apply --global
+```
+
+### Tasks
+
+Project task files (`.factory/tasks/*.md`) help Droid understand ongoing work:
+
+```bash
+# Import project tasks
+memories files ingest --project
+
+# Apply on another machine
+cd your-project
+memories files apply --project
+```
+
+### Skills
+
+Factory skills (`.factory/skills/**/*`) provide reusable agent capabilities. These are synced with `memories files` just like other configuration.
+
+## Using with Factory Cloud
+
+If you use Factory's cloud features alongside memories.sh:
+
+1. **Local memories** — Use memories.sh for rules and decisions you want across all tools
+2. **Factory cloud** — Use Factory's built-in features for Droid-specific context
+3. **Sync both** — Run `memories files ingest` to capture Factory configs in memories.sh
+
+This gives you portability while still using Factory's native features.

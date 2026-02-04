@@ -1,0 +1,94 @@
+---
+title: OpenCode
+description: Integrate memories.sh with OpenCode CLI.
+---
+
+[OpenCode](https://opencode.ai/) is an open-source AI coding assistant that runs in your terminal. It reads instructions from `instructions.md` and supports MCP servers.
+
+## Quick Setup
+
+```bash
+cd your-project
+memories init
+```
+
+This automatically:
+1. Detects OpenCode (looks for `.opencode/` directory)
+2. Configures MCP in `.opencode/mcp.json`
+3. Generates instruction files with your existing memories
+
+## Manual Setup
+
+### Option 1: Generated File
+
+```bash
+memories generate agents
+```
+
+This creates an `AGENTS.md` file that OpenCode reads automatically. You can also create a dedicated OpenCode instructions file:
+
+```bash
+memories generate agents -o .opencode/instructions.md
+```
+
+### Option 2: MCP Server
+
+Add memories.sh to OpenCode's MCP configuration. Create or edit `.opencode/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+Or for global configuration, add to `~/.opencode/mcp.json`.
+
+### Recommended: Use Both
+
+Using both methods together gives the best experience:
+
+1. **Generated file** — Provides a static baseline always available to OpenCode
+2. **MCP server** — Gives OpenCode live access to search and add memories
+
+## Syncing OpenCode Config
+
+To sync your OpenCode configuration across machines:
+
+```bash
+# On your main machine
+memories files ingest
+
+# On a new machine  
+memories files apply --global --force
+```
+
+This syncs:
+- `.opencode/instructions.md` — Your instruction files
+- `.opencode/skills/**/*` — Any skills you've created
+
+## OpenCode-Specific Features
+
+### Custom Instructions
+
+OpenCode reads from `.opencode/instructions.md` at the project level. Generate this file with:
+
+```bash
+memories generate agents -o .opencode/instructions.md
+```
+
+### Skills
+
+If you've created OpenCode skills, they're synced with `memories files`:
+
+```bash
+# Import your skills
+memories files ingest
+
+# Apply on another machine
+memories files apply --global
+```

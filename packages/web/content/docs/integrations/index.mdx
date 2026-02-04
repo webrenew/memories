@@ -10,43 +10,87 @@ memories.sh works with every major AI coding tool. There are two ways to integra
 
 Most tools support both methods. Use generated files for simplicity, MCP for live access, or both together.
 
-## Supported Tools
-
-| Tool | Generated File | MCP Support |
-|------|---------------|-------------|
-| [Claude Code](/docs/integrations/claude-code) | `CLAUDE.md` | Yes |
-| [Cursor](/docs/integrations/cursor) | `.cursor/rules/memories.mdc` | Yes |
-| [GitHub Copilot](/docs/integrations/copilot) | `.github/copilot-instructions.md` | Yes |
-| [Windsurf](/docs/integrations/windsurf) | `.windsurf/rules/memories.md` | Yes |
-| [Cline](/docs/integrations/cline) | `.clinerules/memories.md` | Yes |
-| [Roo](/docs/integrations/roo) | `.roo/rules/memories.md` | Yes |
-| [Gemini](/docs/integrations/gemini) | `GEMINI.md` | No |
-
-The `agents` target (`AGENTS.md`) works with Amp, Codex, Goose, Kilo, Kiro, and OpenCode.
-
 ## Quick Setup
 
-For any tool, the fastest path is:
+The fastest way to set up all your tools at once:
 
 ```bash
-# Generate the config file
-memories generate <target>
-
-# Or generate for all tools at once
-memories generate all
+memories init
 ```
 
-For MCP integration, add to the tool's MCP config:
+This automatically detects installed tools and configures MCP for each one.
+
+## Supported Tools
+
+### Desktop/Terminal Tools
+
+| Tool | Generated File | MCP Support | Auto-detected |
+|------|---------------|-------------|---------------|
+| [Claude Code](/docs/integrations/claude-code) | `CLAUDE.md` | Yes | Yes |
+| [Cursor](/docs/integrations/cursor) | `.cursor/rules/memories.mdc` | Yes | Yes |
+| [Windsurf](/docs/integrations/windsurf) | `.windsurf/rules/memories.md` | Yes | Yes |
+| [VS Code / Copilot](/docs/integrations/copilot) | `.github/copilot-instructions.md` | Yes | Yes |
+| [OpenCode](/docs/integrations/opencode) | `AGENTS.md` / `.opencode/instructions.md` | Yes | Yes |
+| [Factory (Droid)](/docs/integrations/factory) | `.factory/instructions.md` | Yes | Yes |
+| [Cline](/docs/integrations/cline) | `.clinerules/memories.md` | Yes | No |
+| [Roo](/docs/integrations/roo) | `.roo/rules/memories.md` | Yes | No |
+| [Gemini](/docs/integrations/gemini) | `GEMINI.md` | No | No |
+
+### Web-Based Tools
+
+| Tool | Integration Method |
+|------|-------------------|
+| [v0 by Vercel](/docs/integrations/v0) | MCP via SSE (Server-Sent Events) |
+
+### Universal Target
+
+The `agents` target (`AGENTS.md`) works with multiple tools that read the AGENTS.md convention:
+- Amp
+- Codex  
+- Goose
+- Kilo
+- Kiro
+- OpenCode
+
+```bash
+memories generate agents
+```
+
+## Manual MCP Setup
+
+For tools that aren't auto-detected, add to the tool's MCP config:
 
 ```json
 {
   "mcpServers": {
     "memories": {
-      "command": "memories",
-      "args": ["serve"]
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
     }
   }
 }
 ```
 
-See each tool's page for specific instructions.
+## Remote/Web Tools (SSE)
+
+For web-based tools like v0 that can't spawn local processes, use SSE transport:
+
+```bash
+memories serve --sse --port 3030
+```
+
+Then configure the tool to connect to `http://localhost:3030/sse`. See the [v0 integration guide](/docs/integrations/v0) for details.
+
+## Config File Locations
+
+| Tool | MCP Config Location |
+|------|---------------------|
+| Cursor | `.cursor/mcp.json` or `~/.cursor/mcp.json` |
+| Claude Code | `.mcp.json` (project) or `~/.mcp.json` (global) |
+| Windsurf | `.windsurf/mcp.json` |
+| VS Code | `.vscode/mcp.json` |
+| OpenCode | `.opencode/mcp.json` |
+| Factory | `.factory/mcp.json` |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+
+See each tool's page for detailed setup instructions.

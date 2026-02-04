@@ -1,0 +1,124 @@
+---
+title: v0 by Vercel
+description: Integrate memories.sh with v0's AI coding assistant.
+---
+
+[v0](https://v0.dev/) is Vercel's AI-powered coding assistant for building React components. Since v0 runs in a web browser, it can't use the standard stdio MCP transport. Instead, you can use the HTTP/SSE transport or export your memories as context.
+
+## Current Options
+
+### Option 1: Export Context (Available Now)
+
+The simplest approach is to export your memories and paste them into v0:
+
+```bash
+# Generate a context prompt
+memories prompt > context.md
+
+# Or export as structured data
+memories export --format yaml > memories.yaml
+```
+
+Then paste the contents into v0's chat as context:
+
+```
+Here are my coding rules and project context:
+
+[paste contents of context.md]
+
+Now, please build a...
+```
+
+### Option 2: Use with v0's CLI
+
+If you're using v0's CLI locally, you can generate a context file that v0 reads:
+
+```bash
+# Generate context for v0
+memories generate agents -o v0-context.md
+```
+
+Then reference this file when working with v0.
+
+## SSE Transport (Coming Soon)
+
+<Callout type="info">
+**Coming in a future release**: Native SSE transport for web-based MCP clients.
+</Callout>
+
+We're working on adding SSE (Server-Sent Events) transport to the memories MCP server. This will allow web-based tools like v0 to connect directly:
+
+```bash
+# Future command
+memories serve --sse --port 3030
+```
+
+Once available, you'll be able to configure v0's MCP settings to connect to your local server, enabling live access to search and add memories.
+
+### Why SSE?
+
+Web-based AI tools can't spawn local processes, so the standard stdio MCP transport doesn't work. SSE provides an HTTP-based transport that works from anywhere:
+
+- **stdio** — Standard for desktop apps (Cursor, Claude Code, etc.)
+- **SSE** — Required for web apps (v0, web-based IDEs)
+
+## Workaround: mcp-proxy
+
+Until native SSE support is added, you can use [mcp-proxy](https://github.com/anthropics/mcp-proxy) to bridge stdio to SSE:
+
+```bash
+# Install mcp-proxy
+npm install -g @anthropic/mcp-proxy
+
+# Run memories via the proxy
+mcp-proxy --port 3030 -- memories serve
+```
+
+Then configure v0 to connect to `http://localhost:3030`.
+
+<Callout type="warn">
+**Security Note**: Exposing MCP over HTTP makes your memories accessible to anything that can reach that port. Only run on trusted networks.
+</Callout>
+
+## Best Practices for v0
+
+### 1. Keep context focused
+
+v0 works best with focused context. Instead of dumping all memories:
+
+```bash
+# Search for relevant memories
+memories search "react component" --json | head -10
+```
+
+### 2. Use the prompt command
+
+The `prompt` command formats memories specifically for AI consumption:
+
+```bash
+memories prompt --types rule,decision
+```
+
+This outputs a clean, structured prompt ready to paste.
+
+### 3. Save v0's learnings
+
+After v0 helps you build something, save any conventions it established:
+
+```bash
+memories add --rule "Use Tailwind's cn() helper for conditional classes"
+memories add --decision "Chose shadcn/ui Button component for all buttons"
+```
+
+These will be available for future v0 sessions.
+
+## Integration Roadmap
+
+| Feature | Status |
+|---------|--------|
+| Export context (`memories prompt`) | ✅ Available |
+| Generate files (`memories generate`) | ✅ Available |
+| SSE transport | 🚧 Planned |
+| v0-specific MCP config | 🚧 Planned |
+
+Follow the [memories.sh changelog](https://memories.sh/changelog) for updates.
