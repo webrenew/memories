@@ -7,27 +7,27 @@ export function FAQ() {
   const faqs = [
     {
       q: "What problem does memories.sh solve?",
-      a: "Every AI coding tool has its own config format — CLAUDE.md, .cursor/rules/, copilot-instructions.md, etc. When you switch tools or use multiple, you're maintaining the same rules in different places. memories.sh stores your context once and generates native configs for 13+ tools instantly."
+      a: "Agents forget and switching tools resets context. memories.sh gives you a durable, local-first state layer so rules and decisions persist, plus recall and native config generation for 13+ tools."
     },
     {
       q: "Can I switch between coding agents easily?",
-      a: "Yes — that's the point. Run 'memories generate cursor' today, 'memories generate claude' tomorrow. Your rules, decisions, and project context travel with you. No copy-pasting, no re-teaching."
+      a: "Yes. Store state once and generate native configs for each tool. Your context stays consistent, so you do not re-teach every time you switch."
     },
     {
       q: "What's the difference between global and project memory?",
-      a: "Global memory stores your personal coding preferences that apply everywhere. Project memory is repository-specific — automatically scoped via git remote — containing your codebase rules and architectural decisions."
+      a: "Global memory is your persistent state across tools and projects. Project memory is repo-specific and auto-scoped via git remote, keeping context aligned with the current codebase."
     },
     {
       q: "Am I locked into memories.sh?",
-      a: "No. Export everything to JSON or YAML anytime with 'memories export'. Generate native config files for any supported tool. Your data is always portable."
+      a: "No. Export state to JSON or YAML anytime with 'memories export'. Generate native config files for supported tools. Your data stays portable."
     },
     {
       q: "Where is my data stored?",
-      a: "All data is stored locally at ~/.config/memories/ on your machine. Cloud sync (Pro) is optional — you keep full control of your data regardless of plan."
+      a: "All data is stored locally at ~/.config/memories/ on your machine. Cloud sync (Pro) is optional for backup and multi-machine continuity."
     },
     {
       q: "Which coding agents are supported?",
-      a: "Cursor, Claude Code, GitHub Copilot, Windsurf, Cline, Roo, Gemini, Amp, Codex, OpenCode, Kilo, Trae, Goose — and any MCP-compatible client via the built-in server."
+      a: "Cursor, Claude Code, GitHub Copilot, Windsurf, Cline, Roo, Gemini, Amp, Codex, OpenCode, Kilo, Trae, Goose, plus any MCP-compatible client via the built-in server."
     }
   ];
 

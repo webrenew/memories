@@ -127,16 +127,16 @@ export function Hero() {
         >
             <motion.div variants={itemVariants} className="inline-flex items-center gap-3 px-3 py-1 bg-muted/50 border border-border text-[10px] uppercase tracking-[0.2em] font-bold mb-10 text-foreground">
               <span className="w-1.5 h-1.5 bg-primary animate-pulse" />
-              Switch Tools Freely
+              Stop Re-Teaching Agents
             </motion.div>
             
             <motion.h1 variants={itemVariants} className="text-5xl sm:text-7xl md:text-[120px] font-bold tracking-[-0.04em] mb-10 leading-[0.85] text-foreground">
-              One Memory <br />
-              <span className="text-primary/80 italic font-light">Every AI Tool</span>
+              Agents Forget. <br />
+              <span className="text-primary/80 italic font-light">Durable State Fixes It.</span>
             </motion.h1>
             
             <motion.p variants={itemVariants} className="text-xl md:text-2xl text-muted-foreground mb-16 max-w-2xl leading-relaxed font-light tracking-tight">
-              Local-first memory for AI coding agents. Store rules once, generate configs for every tool. Works offline — sync across machines when you need it.
+              Durable, local-first state for coding agents. Store rules once, recall context, and generate native configs for every tool; offline by default, sync when you need it.
             </motion.p>
             
             <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-center gap-8">

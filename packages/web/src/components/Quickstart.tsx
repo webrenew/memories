@@ -8,8 +8,8 @@ export function Quickstart() {
   const steps = [
     { label: "Install", cmd: "npm install -g @memories.sh/cli" },
     { label: "Init", cmd: "memories init" },
-    { label: "Add memory", cmd: "memories add --rule 'Use Tailwind for all UI components'" },
-    { label: "Recall", cmd: "memories recall 'styling preferences'" }
+    { label: "Add state", cmd: "memories add --rule 'Use Tailwind for all UI components'" },
+    { label: "Recall state", cmd: "memories recall 'styling preferences'" }
   ];
 
   const copyToClipboard = (text: string, idx: number) => {
@@ -75,7 +75,7 @@ export function Quickstart() {
             <div>
               <h4 className="text-sm font-bold mb-4 tracking-[0.1em] text-foreground uppercase">Two Memory Layers</h4>
               <p className="text-[13px] text-muted-foreground leading-relaxed font-light">
-                Memories are stored in two distinct layers. <span className="text-primary/90">Global Scope</span> persists your personal preferences and cross-project knowledge across all tools. <span className="text-primary/90">Project Scope</span> is bound to your current repository, ensuring that agent context remains relevant to the specific codebase and team rules.
+                Memories are stored in two layers of state. <span className="text-primary/90">Global Scope</span> is your persistent state across tools and projects. <span className="text-primary/90">Project Scope</span> is repo-specific, keeping agent context aligned with the current codebase and team rules.
               </p>
             </div>
           </div>

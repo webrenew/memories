@@ -9,13 +9,13 @@ const tiers = [
   {
     name: "Free",
     price: "$0",
-    description: "Full power on your machine. No account required.",
+    description: "Durable state on your machine. No account required.",
     features: [
       "Unlimited local memories",
-      "Local AI-powered semantic search",
-      "13+ coding agent targets",
-      "MCP server built-in",
-      "Works completely offline",
+      "Local semantic recall",
+      "13+ tool configs",
+      "Built-in MCP server",
+      "Works offline by default",
       "Export to JSON/YAML anytime",
     ],
     cta: "Get Started",
@@ -24,13 +24,13 @@ const tiers = [
   {
     name: "Professional",
     price: "$15",
-    description: "Sync across all your machines. Never lose context.",
+    description: "Sync and back up state across machines.",
     features: [
       "Everything in Free",
-      "Cloud backup & sync",
+      "Cloud backup and sync",
       "Access from any device",
       "Web dashboard",
-      "Server-side semantic search",
+      "Server-side semantic recall",
       "Priority support",
     ],
     cta: "Go Pro",
@@ -39,12 +39,12 @@ const tiers = [
   {
     name: "Enterprise",
     price: "Custom",
-    description: "For teams with compliance and support needs.",
+    description: "For teams that need shared state and compliance.",
     features: [
       "Everything in Professional",
       "Team rule sharing",
-      "Dedicated support & SLA",
-      "SSO & team management",
+      "Dedicated support and SLA",
+      "SSO and team management",
       "Custom integrations",
       "Volume licensing",
     ],
@@ -72,7 +72,7 @@ export function Pricing({ user }: { user?: User | null }) {
             <span className="text-muted-foreground italic font-light">Pricing</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-lg font-light leading-relaxed">
-            Free runs entirely on your machine — no limits, no account. Pro syncs your rules across every device you work on.
+            Free gives you durable local state and recall on your machine. Pro adds sync and backup for that state across every device you work on.
           </p>
         </div>
 

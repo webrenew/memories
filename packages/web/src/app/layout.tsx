@@ -20,11 +20,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://memories.sh"),
   title: {
-    default: "Memories – One Memory, Every AI Coding Tool",
+    default: "Memories – Durable State for Coding Agents",
     template: "%s | Memories",
   },
   description:
-    "Store your coding rules once, generate native rule files for Cursor, Claude Code, Copilot, and more. An open source CLI for developers who use multiple AI tools.",
+    "Store rules once, recall context, and generate native configs for Cursor, Claude Code, Copilot, and more. A local-first state layer for coding agents.",
   keywords: [
     "AI memory",
     "coding agents",
@@ -36,9 +36,9 @@ export const metadata: Metadata = {
     "AI developer experience",
   ],
   openGraph: {
-    title: "Memories – One Memory, Every AI Coding Tool",
+    title: "Memories – Durable State for Coding Agents",
     description:
-      "Store your coding rules once, generate native rule files for Cursor, Claude Code, Copilot, and more. A CLI for developers who use multiple AI tools.",
+      "Store rules once, recall context, and generate native configs for Cursor, Claude Code, Copilot, and more. A local-first state layer for coding agents.",
     url: "https://memories.sh",
     siteName: "Memories",
     type: "website",
@@ -48,15 +48,15 @@ export const metadata: Metadata = {
         url: "/opengraph.png",
         width: 1200,
         height: 630,
-        alt: "Memories – One Memory, Every AI Coding Tool",
+        alt: "Memories – Durable State for Coding Agents",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Memories – One Memory, Every AI Coding Tool",
+    title: "Memories – Durable State for Coding Agents",
     description:
-      "Store your coding rules once, generate native rule files for Cursor, Claude Code, Copilot, and more.",
+      "Store rules once, recall context, and generate native configs for Cursor, Claude Code, Copilot, and more.",
     images: ["/opengraph.png"],
   },
   robots: {

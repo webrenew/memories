@@ -5,18 +5,18 @@ import { motion } from "framer-motion";
 export function WhyItMatters() {
   const cases = [
     {
-      title: "Works Offline",
-      desc: "Everything runs locally — your rules, the database, even semantic search. No internet required.",
-      example: "memories search -s 'auth'"
+      title: "State stays local",
+      desc: "Your durable state lives on your machine with rules, database, and recall. Agents keep context even offline.",
+      example: "memories recall 'auth'"
     },
     {
-      title: "Switch Tools Anytime",
-      desc: "Try Cursor today, Claude Code tomorrow. Your rules generate native configs for 13+ tools.",
+      title: "Switch without re-teaching",
+      desc: "Generate native configs for 13+ tools so behavior stays consistent when you swap agents.",
       example: "memories generate all"
     },
     {
-      title: "Sync When You Need It",
-      desc: "Work on multiple machines? Pro syncs your context to the cloud. Everything stays backed up.",
+      title: "Sync state when needed",
+      desc: "Pro backs up and syncs state across machines so you can pick up anywhere.",
       example: "memories sync enable"
     }
   ];

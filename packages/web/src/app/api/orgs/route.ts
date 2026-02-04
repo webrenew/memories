@@ -110,7 +110,10 @@ export async function POST(request: Request) {
       hint: memberError.hint,
     })
     // Rollback org creation
-    await supabase.from("organizations").delete().eq("id", org.id)
+    const { error: deleteError } = await supabase.from("organizations").delete().eq("id", org.id)
+    if (deleteError) {
+      console.error("Failed to rollback org creation:", deleteError)
+    }
     return NextResponse.json({ 
       error: memberError.message || "Failed to add you as organization owner. This may be a permissions issue." 
     }, { status: 500 })

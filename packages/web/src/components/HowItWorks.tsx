@@ -98,19 +98,19 @@ function StepCard({ step, idx }: { step: { title: string; desc: string; cmd: str
 export function HowItWorks() {
   const steps = [
     {
-      title: "Capture your rules",
-      desc: "Store coding standards, decisions, and project context in one place.",
+      title: "Capture durable state",
+      desc: "Store rules, decisions, and project context once in a local memory store.",
       cmd: "memories add --rule 'Use Tailwind for all styling'"
     },
     {
-      title: "Generate for any tool",
-      desc: "One command outputs native configs for Cursor, Claude Code, Copilot, and 10+ more.",
-      cmd: "memories generate all"
+      title: "Recall what matters",
+      desc: "Pull the right context on demand so agents behave consistently.",
+      cmd: "memories recall 'styling preferences'"
     },
     {
-      title: "Switch agents freely",
-      desc: "Try a new tool tomorrow. Your context travels with you — no re-teaching required.",
-      cmd: "memories generate cursor"
+      title: "Generate native configs",
+      desc: "Output tool-native files for Cursor, Claude Code, Copilot, and more. Switch without re-teaching.",
+      cmd: "memories generate all"
     }
   ];
 
@@ -120,14 +120,14 @@ export function HowItWorks() {
         {/* Social Proof / Momentum Bar */}
         <div className="mb-40 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-1">
-            <h3 className="text-xl font-bold tracking-tight text-foreground mb-2 leading-tight">Why developers switch to Memories</h3>
+            <h3 className="text-xl font-bold tracking-tight text-foreground mb-2 leading-tight">Why state beats re-teaching</h3>
             <div className="w-12 h-1 bg-primary/20" />
           </div>
           <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-12">
             {[
-              { label: "Local-First", detail: "Runs on your machine. Works offline." },
-              { label: "No Lock-in", detail: "Export anytime. Your data, your choice." },
-              { label: "Sync Optional", detail: "Pro adds cloud backup across devices." },
+              { label: "Local-First State", detail: "Durable state lives on your machine so agents keep context offline." },
+              { label: "Portable Rules", detail: "Export and generate native configs anytime. No lock-in." },
+              { label: "Sync When Needed", detail: "Pro mirrors state across machines so you can pick up anywhere." },
             ].map((item, i) => (
               <div key={i}>
                 <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-primary mb-2">{item.label}</div>
@@ -139,7 +139,7 @@ export function HowItWorks() {
 
         <div className="mb-24 flex flex-col items-center text-center">
           <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-primary mb-4">How It Works</div>
-          <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground">Start in under a minute</h2>
+          <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground">Capture. Recall. Generate.</h2>
         </div>
 
         <div className="grid md:grid-cols-3 gap-3 md:gap-1">

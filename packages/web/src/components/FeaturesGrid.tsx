@@ -34,29 +34,29 @@ const FeatureIcon = ({ index }: { index: number }) => {
 export function FeaturesGrid() {
   const features = [
     {
-      title: "100% Local-First",
-      detail: "Everything runs on your machine. SQLite database, local embeddings, no server required. Works offline.",
-      metric: "Your data"
+      title: "Durable Local State",
+      detail: "Rules and context live in a local SQLite store with embeddings, so agent state persists even offline.",
+      metric: "Always available"
     },
     {
-      title: "AI-Powered Search",
-      detail: "Semantic search finds related concepts, not just keywords. 'auth issues' finds JWT validation errors.",
-      metric: "Smart recall"
+      title: "Semantic Recall",
+      detail: "Recall related decisions, not just keywords. 'auth issues' finds JWT validation errors.",
+      metric: "Consistent behavior"
     },
     {
-      title: "13+ Coding Agents",
+      title: "Tool-Native Output",
       detail: "Generate native configs for Cursor, Claude Code, Copilot, Windsurf, Cline, Roo, Gemini, and more.",
       metric: "One command"
     },
     {
-      title: "Project Isolation",
-      detail: "Keep project-specific rules separate from your global preferences. Auto-detected via git remote.",
-      metric: "Auto-scoped"
+      title: "Scoped Memory",
+      detail: "Keep global preferences separate from repo rules, auto-scoped via git remote.",
+      metric: "Right context"
     },
     {
-      title: "No Lock-in",
-      detail: "Export everything to JSON or YAML anytime. Switch tools or leave entirely — your data is yours.",
-      metric: "Portable"
+      title: "Portable State",
+      detail: "Export everything to JSON or YAML anytime. Switch tools or leave entirely. Your data is yours.",
+      metric: "No lock-in"
     }
   ];
 
@@ -65,7 +65,7 @@ export function FeaturesGrid() {
         <div className="max-w-6xl mx-auto">
           <div className="mb-24 flex flex-col items-center text-center">
             <div className="text-[10px] uppercase tracking-[0.3em] font-bold text-primary mb-4">Core Features</div>
-            <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground">Built for tool freedom</h2>
+            <h2 className="text-4xl md:text-6xl font-bold tracking-tighter text-foreground">Built for durable state</h2>
           </div>
   
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-1">
@@ -106,7 +106,7 @@ export function FeaturesGrid() {
                 </div>
                 <h4 className="text-lg font-bold tracking-tight text-foreground mb-2">MCP Server</h4>
                 <p className="text-[13px] text-muted-foreground leading-relaxed font-light">
-                  Built-in Model Context Protocol server with 7 tools for direct agent integration.
+                  Built-in Model Context Protocol server with 7 tools so agents can access state directly.
                 </p>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary inline-flex items-center gap-2 mt-10">
