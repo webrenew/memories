@@ -25,24 +25,24 @@ export default async function StatsPage() {
   }
 
   // Fetch stats from Turso
-  let stats = { total: 0, byAgent: [] as Array<{ agent: string; count: number }>, byDay: [] as Array<{ date: string; count: number }> }
+  let stats = { total: 0, byType: [] as Array<{ type: string; count: number }>, byDay: [] as Array<{ date: string; count: number }> }
 
   try {
     const { createClient: createTurso } = await import("@libsql/client")
     const turso = createTurso({ url: profile.turso_db_url!, authToken: profile.turso_db_token! })
 
-    const [totalResult, agentResult, dailyResult] = await Promise.all([
-      turso.execute("SELECT COUNT(*) as count FROM memories"),
-      turso.execute("SELECT agent, COUNT(*) as count FROM memories GROUP BY agent ORDER BY count DESC"),
+    const [totalResult, typeResult, dailyResult] = await Promise.all([
+      turso.execute("SELECT COUNT(*) as count FROM memories WHERE deleted_at IS NULL"),
+      turso.execute("SELECT type, COUNT(*) as count FROM memories WHERE deleted_at IS NULL GROUP BY type ORDER BY count DESC"),
       turso.execute(
-        "SELECT DATE(created_at) as date, COUNT(*) as count FROM memories GROUP BY DATE(created_at) ORDER BY date DESC LIMIT 30"
+        "SELECT DATE(created_at) as date, COUNT(*) as count FROM memories WHERE deleted_at IS NULL GROUP BY DATE(created_at) ORDER BY date DESC LIMIT 30"
       ),
     ])
 
     stats = {
       total: Number(totalResult.rows[0]?.count ?? 0),
-      byAgent: agentResult.rows.map((r) => ({
-        agent: String(r.agent ?? "unknown"),
+      byType: typeResult.rows.map((r) => ({
+        type: String(r.type ?? "note"),
         count: Number(r.count),
       })),
       byDay: dailyResult.rows
@@ -52,7 +52,8 @@ export default async function StatsPage() {
         }))
         .reverse(),
     }
-  } catch {
+  } catch (err) {
+    console.error("Stats query error:", err)
     return (
       <div className="border border-border bg-card/20 p-8 text-center">
         <p className="text-muted-foreground text-sm">
@@ -81,9 +82,9 @@ export default async function StatsPage() {
         </div>
         <div className="border border-border bg-card/20 p-6">
           <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground/60 mb-2">
-            Active Agents
+            Memory Types
           </p>
-          <p className="text-3xl font-mono font-bold">{stats.byAgent.length}</p>
+          <p className="text-3xl font-mono font-bold">{stats.byType.length}</p>
         </div>
         <div className="border border-border bg-card/20 p-6">
           <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground/60 mb-2">
@@ -95,7 +96,7 @@ export default async function StatsPage() {
         </div>
       </div>
 
-      <StatsCharts byDay={stats.byDay} byAgent={stats.byAgent} />
+      <StatsCharts byDay={stats.byDay} byType={stats.byType} />
     </div>
   )
 }
