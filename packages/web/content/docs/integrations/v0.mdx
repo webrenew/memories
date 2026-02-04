@@ -1,117 +1,176 @@
 ---
 title: v0 by Vercel
-description: Use memories.sh context with v0's AI coding assistant.
+description: Connect memories.sh to v0 via MCP SSE transport.
 ---
 
-[v0](https://v0.dev/) is Vercel's AI-powered tool for generating React components and UI. Since v0 is a web app focused on UI generation (not a full coding agent), it doesn't have MCP client support. However, you can still use your memories.sh context with v0.
+[v0](https://v0.dev/) is Vercel's AI-powered tool for generating React components and UI. v0 supports MCP via SSE (Server-Sent Events) transport, allowing it to connect to your memories.sh server.
 
-## Using Memories with v0
+## Quick Setup
 
-### Export Context and Paste
-
-The recommended approach is to export your relevant memories and include them in your v0 prompt:
+### 1. Start the SSE Server
 
 ```bash
-# Generate a context prompt with your rules
-memories prompt > context.md
-
-# Or search for specific relevant memories
-memories search "react components" 
-memories search "tailwind" --type rule
-```
-
-Then include the context in your v0 prompt:
-
-```
-My coding standards:
-- Use TypeScript strict mode
-- Use Tailwind CSS with cn() helper for conditional classes  
-- Prefer shadcn/ui components
-- Use React Server Components by default
-
-Build me a dashboard card component that shows user stats...
-```
-
-### Generate a Context File
-
-Create a dedicated context file you can reference:
-
-```bash
-memories prompt --types rule,decision > v0-context.md
-```
-
-Keep this file open alongside v0 and copy relevant sections as needed.
-
-## Best Practices
-
-### 1. Keep context focused
-
-v0 works best with concise, focused context. Don't dump all your memories — pick the relevant ones:
-
-```bash
-# Search for UI-related rules
-memories search "component" --type rule
-memories search "styling" --type rule
-memories search "tailwind"
-```
-
-### 2. Include your design system rules
-
-If you have rules about your design system, include them:
-
-```bash
-memories search "design" --type rule
-memories search "shadcn" 
-```
-
-### 3. Save v0's patterns back to memories
-
-After v0 generates something you like, save the patterns:
-
-```bash
-memories add --rule "Use Tailwind's cn() helper for conditional classes"
-memories add --rule "Card components use rounded-lg shadow-sm border"
-memories add --decision "Chose shadcn/ui Card for all card-style containers"
-```
-
-These will be available for your next v0 session and all your other AI tools.
-
-## Why No Direct MCP?
-
-v0 is different from coding agents like Cursor or Claude Code:
-
-| Tool | Type | MCP Support |
-|------|------|-------------|
-| Cursor, Claude Code | Full coding agents | Yes (stdio) |
-| v0 | UI generation tool | No |
-
-v0 runs entirely in your browser and is optimized for quick UI generation, not long-running agent sessions with tool access.
-
-## Future: Web-Based MCP
-
-For web-based AI tools that *do* support MCP (like future coding agents), memories.sh will support SSE (Server-Sent Events) transport:
-
-```bash
-# Planned feature
 memories serve --sse --port 3030
 ```
 
-This would require:
-1. **Exposing the server** via tunnel (ngrok, Cloudflare Tunnel)
-2. **Authentication** to protect your memories (API key or token)
+This starts an HTTP server that v0 can connect to:
 
-For now, the copy-paste workflow is the most practical approach for v0.
+```
+[memories] Starting MCP server with SSE transport
+[memories] Listening on http://127.0.0.1:3030
+[memories] Connect v0 or other clients to: http://127.0.0.1:3030/mcp
+```
 
-## Quick Reference
+### 2. Expose the Server (for remote access)
+
+If v0 is running remotely, expose your local server:
+
+**Option A: ngrok (quick testing)**
+```bash
+ngrok http 3030
+```
+
+**Option B: Cloudflare Tunnel**
+```bash
+cloudflared tunnel --url http://localhost:3030
+```
+
+### 3. Configure v0
+
+In v0's MCP settings, add:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "url": "http://localhost:3030/mcp"
+    }
+  }
+}
+```
+
+Or with a tunnel URL:
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "url": "https://your-tunnel-url.ngrok.io/mcp"
+    }
+  }
+}
+```
+
+## Server Options
 
 ```bash
-# Export all rules for v0
-memories prompt --types rule > v0-rules.md
+memories serve --sse [options]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-p, --port <port>` | HTTP port | 3030 |
+| `--host <host>` | Host to bind | 127.0.0.1 |
+| `--cors` | Enable CORS | false |
+
+### Examples
+
+```bash
+# Local only (default)
+memories serve --sse
+
+# Allow external connections (use with tunnel)
+memories serve --sse --host 0.0.0.0
+
+# Custom port with CORS
+memories serve --sse --port 8080 --cors
+```
+
+## Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET/POST /mcp` | MCP Streamable HTTP endpoint |
+| `GET /health` | Health check |
+
+## Using with v0
+
+Once connected, v0 can access your memories:
+
+**Get context for a task:**
+```
+Search my memories for React component patterns
+```
+
+**Save new learnings:**
+```
+Save this as a rule: "Use Tailwind's cn() helper for conditional classes"
+```
+
+**Recall decisions:**
+```
+What decisions have I made about design system components?
+```
+
+## Security
+
+<Callout type="warn">
+The SSE server exposes your memories over HTTP. For remote access:
+- Use HTTPS via a reverse proxy
+- Consider IP allowlisting
+- Don't expose sensitive memories
+</Callout>
+
+### Localhost Only (Recommended)
+
+For local v0 CLI or desktop access, bind to localhost only (default):
+
+```bash
+memories serve --sse
+# Only accessible from your machine
+```
+
+### With Tunnel
+
+When using ngrok or Cloudflare Tunnel, anyone with the URL can access your memories. Use for temporary testing only, or add authentication via a reverse proxy.
+
+## Alternative: Context Export
+
+If you don't want to run a server, export context manually:
+
+```bash
+# Export rules for v0
+memories prompt --types rule > v0-context.md
 
 # Search for specific context
 memories search "react" --type rule
-memories search "component patterns" --semantic
-
-# Save patterns from v0
-memories add --rule "Your new rule from v0"
 ```
+
+Then paste into v0's chat.
+
+## Troubleshooting
+
+### Connection refused
+
+Ensure the server is running:
+```bash
+memories serve --sse --port 3030
+```
+
+Test the health endpoint:
+```bash
+curl http://localhost:3030/health
+# Should return: {"status":"ok"}
+```
+
+### CORS errors
+
+Enable CORS for cross-origin requests:
+```bash
+memories serve --sse --cors
+```
+
+### v0 can't find memories
+
+1. Check your memories exist: `memories list`
+2. Verify the MCP connection in v0's settings
+3. Try the `/health` endpoint to confirm server is reachable

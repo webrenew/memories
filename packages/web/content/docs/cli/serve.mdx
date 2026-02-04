@@ -1,59 +1,49 @@
 ---
 title: memories serve
-description: Start the MCP server.
+description: Start the MCP server (stdio or SSE transport).
 ---
+
+```bash
+memories serve [options]
+```
+
+Start the Model Context Protocol (MCP) server. Supports two transport modes:
+
+- **stdio** (default) — For desktop apps like Cursor, Claude Code
+- **SSE/HTTP** — For web-based tools like v0
+
+## Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--sse` | Use SSE/HTTP transport instead of stdio | false |
+| `-p, --port <port>` | Port for SSE server | 3030 |
+| `--host <host>` | Host to bind to | 127.0.0.1 |
+| `--cors` | Enable CORS for cross-origin requests | false |
+
+## Stdio Transport (Default)
+
+For desktop apps that spawn the server as a subprocess:
 
 ```bash
 memories serve
 ```
 
-Start the Model Context Protocol (MCP) server using stdio transport. This allows MCP-compatible AI tools to read and write memories directly, without generating intermediate files.
+The server communicates via stdin/stdout using the MCP protocol. Diagnostic messages go to stderr.
 
-## Automatic Setup
+### Auto-Configuration
 
-The easiest way to configure the MCP server is to run:
+Run `memories init` to automatically configure MCP for detected tools:
 
 ```bash
 memories init
 ```
 
-This automatically detects your installed AI tools and configures MCP for each one.
+This adds the appropriate config to each tool's MCP settings.
 
-## Manual Usage
+### Manual Configuration
 
-```bash
-memories serve
-```
-
-The server starts on stdio (standard input/output), which is the transport used by most MCP client integrations. Diagnostic messages are logged to stderr to avoid interfering with the protocol.
-
-## What It Provides
-
-The MCP server exposes 7 tools and 3 resources. See the [MCP Server](/docs/mcp-server) documentation for the complete reference.
-
-### Tools
-
-| Tool | Description |
-|------|-------------|
-| `get_context` | Get rules and relevant memories (primary tool for AI agents) |
-| `add_memory` | Store a new memory with type and tags |
-| `search_memories` | Full-text or semantic search |
-| `get_rules` | Get all active rules |
-| `list_memories` | List recent memories |
-| `edit_memory` | Update a memory |
-| `forget_memory` | Soft-delete a memory |
-
-### Resources
-
-| Resource | Description |
-|----------|-------------|
-| `memories://rules` | All active rules |
-| `memories://recent` | 20 most recent memories |
-| `memories://project/{projectId}` | All memories for a specific project |
-
-## MCP Configuration
-
-When `memories init` configures MCP, it adds this to each tool's config:
+Add to your tool's MCP config:
 
 ```json
 {
@@ -66,18 +56,96 @@ When `memories init` configures MCP, it adds this to each tool's config:
 }
 ```
 
-This ensures the MCP server uses the latest version of memories.sh.
+## SSE Transport (Web Clients)
 
-### Config locations by tool
+For web-based tools like v0 that connect over HTTP:
 
-| Tool | Config Location |
-|------|-----------------|
-| Cursor | `.cursor/mcp.json` or `~/.cursor/mcp.json` |
-| Claude Code | `.mcp.json` (project) or `~/.mcp.json` (global) |
-| Windsurf | `.windsurf/mcp.json` |
-| VS Code | `.vscode/mcp.json` (uses `servers` key) |
-| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+```bash
+memories serve --sse
+```
 
-## Integration
+Output:
+```
+[memories] Starting MCP server with SSE transport
+[memories] Listening on http://127.0.0.1:3030
+[memories] Connect v0 or other clients to: http://127.0.0.1:3030/mcp
+```
 
-See the [MCP Server](/docs/mcp-server) documentation for complete integration guides, or check tool-specific pages under [Integrations](/docs/integrations).
+### Examples
+
+```bash
+# Local development
+memories serve --sse
+
+# Custom port
+memories serve --sse --port 8080
+
+# Allow external connections (use with tunnel)
+memories serve --sse --host 0.0.0.0
+
+# Enable CORS for browser clients
+memories serve --sse --cors
+```
+
+### Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET/POST /mcp` | MCP Streamable HTTP endpoint |
+| `GET /health` | Health check (returns `{"status":"ok"}`) |
+
+### Exposing for Remote Access
+
+For remote tools, expose your local server:
+
+**ngrok:**
+```bash
+ngrok http 3030
+```
+
+**Cloudflare Tunnel:**
+```bash
+cloudflared tunnel --url http://localhost:3030
+```
+
+Then configure the remote tool to connect to the tunnel URL.
+
+## Available Tools
+
+The MCP server exposes these tools:
+
+| Tool | Description |
+|------|-------------|
+| `get_context` | Get rules and relevant memories (primary tool) |
+| `add_memory` | Store a new memory with type and tags |
+| `search_memories` | Full-text or semantic search |
+| `get_rules` | Get all active rules |
+| `list_memories` | List recent memories |
+| `edit_memory` | Update a memory |
+| `forget_memory` | Soft-delete a memory |
+
+## Available Resources
+
+| Resource | Description |
+|----------|-------------|
+| `memories://rules` | All active rules |
+| `memories://recent` | 20 most recent memories |
+| `memories://project/{projectId}` | All memories for a specific project |
+
+## Config Locations by Tool
+
+| Tool | Config Location | Transport |
+|------|-----------------|-----------|
+| Cursor | `.cursor/mcp.json` | stdio |
+| Claude Code | `.mcp.json` | stdio |
+| Windsurf | `.windsurf/mcp.json` | stdio |
+| VS Code | `.vscode/mcp.json` | stdio |
+| v0 | MCP settings | SSE |
+
+## Security Note
+
+<Callout type="warn">
+The SSE server exposes your memories over HTTP. Only bind to `127.0.0.1` (default) unless using a tunnel with authentication.
+</Callout>
+
+See the [v0 integration guide](/docs/integrations/v0) for security best practices when exposing the server remotely.
