@@ -216,4 +216,32 @@ async function runMigrations(db: Client): Promise<void> {
   } catch {
     // Index might already exist
   }
+
+  // Files table for syncing config files (.agents/, .cursor/, .claude/, etc.)
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS files (
+      id TEXT PRIMARY KEY,
+      path TEXT NOT NULL,
+      content TEXT NOT NULL,
+      hash TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'global',
+      source TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      deleted_at TEXT,
+      UNIQUE(path, scope)
+    )`
+  );
+
+  try {
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_files_scope ON files(scope)`);
+  } catch {
+    // Index might already exist
+  }
+
+  try {
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_files_path ON files(path)`);
+  } catch {
+    // Index might already exist
+  }
 }
