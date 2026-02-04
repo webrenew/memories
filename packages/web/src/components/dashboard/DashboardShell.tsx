@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
-import { Database, BarChart3, Settings, Sparkles, LogOut, AlertTriangle, CreditCard } from "@/components/icons/app"
+import { Database, BarChart3, Settings, Sparkles, LogOut, AlertTriangle, CreditCard, Users } from "@/components/icons/app"
 
 interface Profile {
   id: string
@@ -18,6 +18,7 @@ interface Profile {
 const navItems = [
   { href: "/app", label: "Memories", icon: Database },
   { href: "/app/stats", label: "Stats", icon: BarChart3 },
+  { href: "/app/team", label: "Team", icon: Users },
   { href: "/app/billing", label: "Billing", icon: CreditCard },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ]
