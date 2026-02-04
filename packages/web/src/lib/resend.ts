@@ -27,8 +27,10 @@ export async function sendTeamInviteEmail({
 }) {
   const resend = getResend()
 
+  const fromEmail = process.env.RESEND_FROM_EMAIL || "memories.sh <team@memories.sh>"
+  
   await resend.emails.send({
-    from: "memories.sh <team@memories.sh>",
+    from: fromEmail,
     to,
     subject: `You've been invited to join ${orgName} on memories.sh`,
     html: `
