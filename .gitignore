@@ -7,3 +7,5 @@ dist/
 *.local.db-*
 sync.json
 supabase/.temp/
+.vercel
+.env*.local

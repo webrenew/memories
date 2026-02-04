@@ -30,7 +30,7 @@ import { loginCommand, logoutCommand } from "./commands/login.js";
 const program = new Command()
   .name("memories")
   .description("A local-first memory layer for AI agents")
-  .version("0.2.1");
+  .version("0.2.2");
 
 // Core commands (most used)
 program.addCommand(initCommand);
