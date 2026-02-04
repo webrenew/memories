@@ -18,29 +18,60 @@ memories --version
 ```
 
 <Callout>
-**Why npm?** The CLI uses native modules for AI-powered semantic search. npm handles native module builds more reliably than pnpm/bun for global installs. The semantic search model (~30MB) downloads on first use and runs entirely locally.
+**Why npm?** The CLI uses native modules for AI-powered semantic search. npm handles native module builds more reliably than pnpm/bun for global installs. The semantic search model (~100MB) downloads on first use and runs entirely locally.
 </Callout>
 
 ## Initialize
 
-Navigate to a git repository and initialize memories for the project:
+Navigate to a git repository and initialize memories:
 
 ```bash
 cd your-project
 memories init
 ```
 
-This creates the local database at `~/.config/memories/local.db` (if it doesn't already exist) and detects your project from the git remote URL.
+The `init` command does several things automatically:
 
-To initialize with some starter rules:
+1. **Creates the local database** at `~/.config/memories/local.db`
+2. **Detects installed AI tools** (Cursor, Claude Code, Windsurf, VS Code)
+3. **Configures MCP** for each detected tool
+4. **Generates instruction files** with your existing memories
 
-```bash
-memories init --rule "Use TypeScript strict mode" --rule "Prefer functional patterns"
+Example output:
+
+```
+[1/4] Setting up local storage...
+  Database: ~/.config/memories/local.db
+[2/4] Detecting scope...
+✓ Project scope detected
+  Project: github.com/your-org/your-project
+[3/4] Detecting AI coding tools...
+  Cursor ✓ MCP ○ Rules
+  Claude Code ○ MCP ✓ Rules
+  
+✓ Cursor: MCP already configured
+✓ Claude Code: MCP configured → .mcp.json
+
+✓ Cursor: Generated .cursor/rules/memories.mdc
+[4/4] Finalizing...
 ```
 
-For global memories that apply to all projects:
+### Init Options
 
 ```bash
+# Skip automatic MCP configuration
+memories init --skip-mcp
+
+# Skip generating instruction files  
+memories init --skip-generate
+
+# Auto-confirm all prompts
+memories init -y
+
+# Initialize with starter rules
+memories init --rule "Use TypeScript strict mode" --rule "Prefer pnpm"
+
+# Initialize global memories (apply to all projects)
 memories init --global
 ```
 
@@ -122,19 +153,66 @@ Each target writes to its standard location:
 | `roo` | `.roo/rules/memories.md` |
 | `gemini` | `GEMINI.md` |
 
+## Search Your Memories
+
+memories.sh supports both keyword and semantic search:
+
+```bash
+# Keyword search (FTS5 with BM25 ranking)
+memories search "authentication"
+
+# Semantic search (AI-powered, finds related concepts)
+memories search "how to handle user login" --semantic
+```
+
+<Callout>
+**First-time semantic search** downloads the embedding model (~100MB) to `~/.cache/memories/models/`. This happens once and runs entirely locally — no API calls, no data leaves your machine.
+</Callout>
+
+To generate embeddings for existing memories:
+
+```bash
+memories embed
+```
+
 ## Use the MCP Server
 
-Instead of (or in addition to) generating files, you can connect memories directly to your AI tool via the MCP protocol:
+The MCP server exposes your memories directly to AI tools. If you ran `memories init`, MCP is already configured for your detected tools.
+
+To start the server manually:
 
 ```bash
 memories serve
 ```
 
-This starts an MCP server on stdio that exposes your memories as tools and resources. See the [MCP Server](/docs/mcp-server) guide for integration details.
+MCP gives your AI tools live access to:
+- Search and recall memories
+- Add new memories during conversations
+- Access project-specific context
+
+See the [MCP Server](/docs/mcp-server) guide for details.
+
+## Sync Config Files Across Machines
+
+Beyond memories, you can sync your AI tool configuration files:
+
+```bash
+# Import global configs (skills, commands, rules)
+memories files ingest
+
+# See what would be imported
+memories files ingest --dry-run
+
+# Apply synced files to a new machine
+memories files apply --global --force
+```
+
+This syncs files from `.agents/`, `.claude/`, `.cursor/`, `.codex/`, `.windsurf/`, and other tool directories. See [Files Sync](/docs/cli/files) for details.
 
 ## Next Steps
 
-- Read the [CLI Reference](/docs/cli) for complete command documentation
-- Learn about [Memory Types and Scopes](/docs/concepts/memory-types)
-- Set up [Git Hooks](/docs/git-hooks) to auto-generate files on commit
-- Configure [Cloud Sync](/docs/cloud-sync) for multi-device access
+- [CLI Reference](/docs/cli) — Complete command documentation
+- [Memory Types and Scopes](/docs/concepts/memory-types) — Understanding the type system
+- [MCP Server](/docs/mcp-server) — Connect memories to any MCP-compatible tool
+- [Files Sync](/docs/cli/files) — Sync config files across machines
+- [Cloud Sync](/docs/cloud-sync) — Multi-device sync with Pro

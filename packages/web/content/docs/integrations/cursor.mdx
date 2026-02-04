@@ -3,9 +3,25 @@ title: Cursor
 description: Integrate memories.sh with Cursor.
 ---
 
-Cursor reads project rules from `.cursor/rules/` and supports MCP servers.
+Cursor reads project rules from `.cursor/rules/` and supports MCP servers. memories.sh integrates with both.
 
-## Option 1: Generated File
+## Quick Setup
+
+The fastest way to set up memories.sh with Cursor:
+
+```bash
+cd your-project
+memories init
+```
+
+This automatically:
+1. Detects Cursor (looks for `.cursor/` directory)
+2. Configures MCP in `.cursor/mcp.json`
+3. Generates `.cursor/rules/memories.mdc` with your existing memories
+
+## Manual Setup
+
+### Option 1: Generated File
 
 ```bash
 memories generate cursor
@@ -13,20 +29,44 @@ memories generate cursor
 
 This creates `.cursor/rules/memories.mdc` — an MDC (Markdown Components) file with YAML frontmatter that Cursor reads as a project rule.
 
-## Option 2: MCP Server
+The generated file includes:
+- All your rules, decisions, and facts
+- Instructions for Cursor to save new memories via MCP
 
-Add memories.sh to Cursor's MCP configuration. In Cursor, open Settings and navigate to the MCP section, then add:
+### Option 2: MCP Server
 
+Add memories.sh to Cursor's MCP configuration.
+
+**Project-level** (`.cursor/mcp.json`):
 ```json
 {
   "mcpServers": {
     "memories": {
-      "command": "memories",
-      "args": ["serve"]
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
     }
   }
 }
 ```
+
+**Global** (`~/.cursor/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+### Recommended: Use Both
+
+Using both methods together gives the best experience:
+
+1. **Generated file** — Provides a static baseline that's always available
+2. **MCP server** — Gives Cursor live access to search and add memories
 
 ## Migrating Existing Rules
 
@@ -37,3 +77,20 @@ memories ingest cursor
 ```
 
 This extracts individual rules from your existing Cursor config and stores them as memories. You can then manage them with memories.sh and generate updated files for all your tools.
+
+## Syncing Cursor Config
+
+To sync your Cursor configuration (MCP config, rules) across machines:
+
+```bash
+# On your main machine
+memories files ingest
+
+# On a new machine
+memories files apply --global --force
+```
+
+This syncs:
+- `.cursor/mcp.json` — Your MCP server configurations
+- `.cursor/rules/*.md` — Your rule files
+- `.cursor/skills/**/*` — Any skills you've created

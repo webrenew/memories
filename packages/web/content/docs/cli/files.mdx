@@ -3,35 +3,57 @@ title: files
 description: Sync config files (.agents, .cursor, .claude, etc.) across machines
 ---
 
-The `files` command syncs your AI tool config directories across machines. This includes skills, commands, rules, and other config files from `.agents/`, `.cursor/`, `.claude/`, and other tool-specific directories.
+The `files` command syncs your AI tool config directories across machines. This includes instruction files, commands, skills, rules, tasks, and essential configs — everything you need to recreate your AI coding environment.
 
 ## Why sync files?
 
 When you switch between machines or set up a new environment, you lose all your carefully curated:
 
-- Custom skills and commands
-- Tool-specific rules and preferences  
-- MCP server configurations
-- Project templates
+- **Instruction files** (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`)
+- **Custom commands** (slash commands for Claude Code, etc.)
+- **Skills** (reusable agent capabilities)
+- **Rules** (tool-specific coding rules)
+- **Tasks** (project task definitions)
+- **MCP configs** (`mcp.json`)
 
-The `files` command stores these in your Turso database alongside your memories, so they sync automatically.
+The `files` command stores these in your local database (and optionally syncs to cloud), so they're available everywhere.
 
-## Supported directories
+## What gets synced
 
-The following config directories are scanned:
+The command intelligently syncs only meaningful configuration files, not cache or temp data.
 
-| Directory | Tool |
-|-----------|------|
-| `.agents/` | Universal (Agents.md ecosystem) |
-| `.claude/` | Claude Code |
-| `.cursor/` | Cursor |
-| `.github/copilot/` | GitHub Copilot |
-| `.windsurf/` | Windsurf |
-| `.cline/` | Cline |
-| `.codex/` | Codex |
-| `.gemini/` | Gemini |
-| `.roo/` | Roo |
-| `.amp/` | Amp |
+### Per-tool sync targets
+
+| Tool | Files Synced |
+|------|--------------|
+| `.agents/` | `AGENTS.md`, `commands/*.md`, `tasks/*.md`, `skills/**/*` |
+| `.claude/` | `CLAUDE.md`, `settings.json`, `commands/*.md`, `rules/*.md`, `hooks/*`, `tasks/*.md`, `skills/**/*` |
+| `.cursor/` | `mcp.json`, `rules.md`, `rules/*.md`, `skills/**/*` |
+| `.codex/` | `config.toml`, `AGENTS.md`, `instructions.md`, `rules/*`, `tasks/*.md`, `skills/**/*` |
+| `.windsurf/` | `rules.md`, `cascade.json`, `rules/*.md`, `skills/**/*` |
+| `.cline/` | `rules.md`, `CLINE.md`, `cline_rules.md`, `rules/*.md`, `skills/**/*` |
+| `.github/copilot/` | `instructions.md` |
+| `.gemini/` | `GEMINI.md`, `settings.json`, `skills/**/*` |
+| `.roo/` | `config.json`, `rules.md`, `rules/*.md`, `skills/**/*` |
+| `.amp/` | `AGENTS.md`, `rules.md`, `rules/*.md`, `skills/**/*` |
+| `.opencode/` | `instructions.md`, `skills/**/*` |
+| `.factory/` | `config.json`, `instructions.md`, `droids/*.md`, `tasks/*.md`, `skills/**/*` |
+
+### File types included
+
+- `.md`, `.txt` — Instructions, rules, documentation
+- `.json`, `.yaml`, `.yml`, `.toml` — Configs
+- `.sh` — Hook scripts
+- `.rules`, `.mdc` — Tool-specific rule formats
+
+### What's excluded
+
+The command automatically excludes:
+
+- Session data, history, cache directories
+- Telemetry, debug logs, lock files
+- UUID-named directories (Claude session folders)
+- Temp files, `.DS_Store`, `node_modules`
 
 ## Commands
 
@@ -39,18 +61,20 @@ The following config directories are scanned:
 
 ```bash
 memories files list
+# or
+memories files ls
 ```
 
 Filter by scope:
 
 ```bash
 memories files list --scope global
-memories files list --scope project
+memories files list --scope github.com/your-org/your-project
 ```
 
-### Import files from local directories
+### Import files (ingest)
 
-Import your global config files (from home directory):
+Import global config files from your home directory:
 
 ```bash
 memories files ingest
@@ -60,6 +84,21 @@ Preview what would be imported:
 
 ```bash
 memories files ingest --dry-run
+```
+
+Example output:
+```
+Would import 317 files:
+
+  G .agents/AGENTS.md [Agents]
+  G .agents/commands/review.md [Agents]
+  G .agents/commands/deploy.md [Agents]
+  G .agents/skills/frontend-design/SKILL.md [Agents]
+  G .claude/CLAUDE.md [Claude]
+  G .claude/commands/review.md [Claude]
+  G .claude/hooks/session-context.sh [Claude]
+  G .cursor/mcp.json [Cursor]
+  ...
 ```
 
 Import project-specific configs (from current directory):
@@ -74,72 +113,59 @@ Import both global and project configs:
 memories files ingest --global --project
 ```
 
-### Apply synced files to disk
+### Apply files to disk
 
-Restore files from the cloud to your local machine:
+Restore synced files to your local machine:
 
 ```bash
+# Apply global files to home directory
 memories files apply --global
-```
 
-Apply project files:
-
-```bash
+# Apply project files to current directory
 memories files apply --project
-```
 
-Force overwrite existing files:
-
-```bash
-memories files apply --global --force
-```
-
-Preview without writing:
-
-```bash
+# Preview without writing
 memories files apply --global --dry-run
+
+# Force overwrite existing files
+memories files apply --global --force
 ```
 
 ### View file content
 
 ```bash
-memories files show .agents/skills/supabase.md
+memories files show .agents/AGENTS.md
+```
+
+Output:
+```
+# .agents/AGENTS.md
+# Scope: global | Source: Agents
+# Updated: 2026-02-04T14:30:00.000Z
+──────────────────────────────────────────────────
+# AGENTS.md
+
+You are an AI coding assistant...
 ```
 
 ### Remove a file from sync
 
 ```bash
-memories files forget .agents/skills/old-skill.md
+memories files forget .agents/skills/old-skill/SKILL.md
 ```
 
-## File filtering
+## Workflows
 
-The following file types are synced:
-
-- `.md`, `.txt` (documentation, rules)
-- `.json`, `.yaml`, `.yml`, `.toml` (configs)
-- Files named `rules` or `config`
-
-The following are excluded:
-
-- `node_modules/`, `.git/`
-- Cache, history, session, debug directories
-- Log files, lock files
-- Telemetry and stats files
-
-## Workflow
-
-### Initial setup (existing machine)
+### Initial setup (on your main machine)
 
 ```bash
-# Import your existing configs
-memories files ingest
+# Import all your existing configs
+memories files ingest --dry-run   # preview first
+memories files ingest             # then import
 
-# Enable cloud sync
+# Enable cloud sync (Pro feature)
 memories login
 memories sync enable
-
-# Push to cloud
 memories sync push
 ```
 
@@ -149,19 +175,53 @@ memories sync push
 # Install CLI
 npm install -g @memories.sh/cli
 
-# Login and sync
+# Login to sync
 memories login
 memories sync enable
 
-# Apply files to disk
+# Apply all your configs
 memories files apply --global --force
+memories files apply --project --force
+
+# Verify
+memories files list
 ```
 
-### Ongoing sync
+### Keep configs in sync
 
-Files are synced automatically when you run `memories sync push` or when the embedded replica syncs. To manually ingest new/changed files:
+After making changes to your config files:
 
 ```bash
+# Re-import changed files
 memories files ingest
+
+# Push to cloud (if syncing)
 memories sync push
 ```
+
+### Project-specific workflow
+
+When working on a project with shared task definitions:
+
+```bash
+cd your-project
+
+# Import project configs (including tasks)
+memories files ingest --project
+
+# Later, on another machine
+memories files apply --project
+```
+
+## Global vs Project scope
+
+- **Global files** (`~/.agents/`, `~/.claude/`, etc.): Your personal configs that apply everywhere. These are stored with `scope: "global"`.
+
+- **Project files** (`./.agents/`, `./.claude/` in a repo): Project-specific configs shared with your team or tied to a specific codebase. These are stored with the project's git remote URL as the scope.
+
+## Tips
+
+1. **Start with dry-run**: Always use `--dry-run` first to see what will be imported
+2. **Check file counts**: The ingest command shows how many files will be imported — if you see thousands, something might be wrong
+3. **Use with cloud sync**: Files sync works best when combined with `memories sync` for multi-device access
+4. **Don't sync secrets**: MCP configs may contain API keys — consider using environment variables instead

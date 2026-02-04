@@ -5,7 +5,19 @@ description: Use memories.sh with any MCP-compatible client.
 
 memories.sh includes a built-in MCP (Model Context Protocol) server that exposes your memories directly to any compatible AI agent or client.
 
-## Starting the Server
+## Automatic Setup
+
+The easiest way to configure MCP is to run:
+
+```bash
+memories init
+```
+
+This automatically detects your installed AI tools and offers to configure MCP for each one.
+
+## Manual Setup
+
+### Starting the Server
 
 ```bash
 memories serve
@@ -13,19 +25,73 @@ memories serve
 
 This starts an MCP server that provides tools for reading, writing, and searching memories.
 
-## Available Tools
+### Client Configuration
 
-The MCP server exposes these tools to connected clients:
+#### Cursor
 
-- **memories_add** - Add a new memory with optional tags and type
-- **memories_list** - List all memories, optionally filtered by tags or type
-- **memories_search** - Full-text search across memory content
-- **memories_recall** - Get contextually relevant memories for a given prompt
-- **memories_delete** - Remove a memory by ID
+Add to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
 
-## Client Configuration
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
 
-### Claude Desktop
+#### Claude Code
+
+Add to `.mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+Or for global config, add to `~/.mcp.json`.
+
+#### Windsurf
+
+Add to `.windsurf/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+#### VS Code / GitHub Copilot
+
+Add to `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+Note: VS Code uses `servers` instead of `mcpServers`.
+
+#### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -33,36 +99,78 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "memories": {
-      "command": "memories",
-      "args": ["serve"]
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
     }
   }
 }
 ```
 
-### Cursor
-
-In Cursor Settings → MCP, add:
-
-```json
-{
-  "mcpServers": {
-    "memories": {
-      "command": "memories",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-### Other Clients
+#### Other Clients
 
 Any MCP-compatible client can connect by running `memories serve` as a subprocess. The server communicates over stdio using the MCP protocol.
+
+## Available Tools
+
+The MCP server exposes these tools to connected clients:
+
+| Tool | Description |
+|------|-------------|
+| `memories_add` | Add a new memory with optional tags and type |
+| `memories_list` | List all memories, optionally filtered by tags or type |
+| `memories_search` | Full-text or semantic search across memory content |
+| `memories_recall` | Get contextually relevant memories for a given prompt |
+| `memories_delete` | Remove a memory by ID |
+
+### Example: Adding a memory via MCP
+
+When your AI agent learns something important, it can save it:
+
+```
+Tool: memories_add
+Arguments: {
+  "content": "The API rate limit is 100 requests per minute",
+  "type": "fact",
+  "tags": ["api", "limits"]
+}
+```
+
+### Example: Searching memories
+
+```
+Tool: memories_search
+Arguments: {
+  "query": "rate limit",
+  "semantic": true
+}
+```
+
+## Generated Instruction Files
+
+When you generate instruction files with `memories generate`, they include instructions for the AI to use MCP:
+
+```markdown
+## Memory Management
+
+When you learn something important about this project, save it for future sessions.
+
+**Via MCP (if connected):**
+Use the `memories_add` tool with content and type parameters.
+
+**When to save:**
+- Architectural decisions and their rationale
+- Project-specific patterns or conventions
+- Non-obvious setup, configuration, or gotchas
+- Tricky bugs and how they were resolved
+```
+
+This teaches the AI how to use the MCP tools to maintain project context.
 
 ## Pro Features
 
 With a Pro subscription, the MCP server gains access to:
 
-- **Cloud sync** - Memories sync across all your machines
+- **Cloud sync** - Memories sync across all your machines automatically
 - **Unlimited memories** - No storage limits
+- **Server-side semantic search** - Faster embedding generation
 - **Priority support** - Get help when you need it

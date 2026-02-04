@@ -9,7 +9,17 @@ memories serve
 
 Start the Model Context Protocol (MCP) server using stdio transport. This allows MCP-compatible AI tools to read and write memories directly, without generating intermediate files.
 
-## Usage
+## Automatic Setup
+
+The easiest way to configure the MCP server is to run:
+
+```bash
+memories init
+```
+
+This automatically detects your installed AI tools and configures MCP for each one.
+
+## Manual Usage
 
 ```bash
 memories serve
@@ -23,20 +33,51 @@ The MCP server exposes 7 tools and 3 resources. See the [MCP Server](/docs/mcp-s
 
 ### Tools
 
-- `get_context` — Get rules and relevant memories (primary tool for AI agents)
-- `add_memory` — Store a new memory
-- `search_memories` — Full-text search
-- `get_rules` — Get all active rules
-- `list_memories` — List recent memories
-- `edit_memory` — Update a memory
-- `forget_memory` — Soft-delete a memory
+| Tool | Description |
+|------|-------------|
+| `get_context` | Get rules and relevant memories (primary tool for AI agents) |
+| `add_memory` | Store a new memory with type and tags |
+| `search_memories` | Full-text or semantic search |
+| `get_rules` | Get all active rules |
+| `list_memories` | List recent memories |
+| `edit_memory` | Update a memory |
+| `forget_memory` | Soft-delete a memory |
 
 ### Resources
 
-- `memories://rules` — All active rules
-- `memories://recent` — 20 most recent memories
-- `memories://project/{projectId}` — All memories for a specific project
+| Resource | Description |
+|----------|-------------|
+| `memories://rules` | All active rules |
+| `memories://recent` | 20 most recent memories |
+| `memories://project/{projectId}` | All memories for a specific project |
+
+## MCP Configuration
+
+When `memories init` configures MCP, it adds this to each tool's config:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+This ensures the MCP server uses the latest version of memories.sh.
+
+### Config locations by tool
+
+| Tool | Config Location |
+|------|-----------------|
+| Cursor | `.cursor/mcp.json` or `~/.cursor/mcp.json` |
+| Claude Code | `.mcp.json` (project) or `~/.mcp.json` (global) |
+| Windsurf | `.windsurf/mcp.json` |
+| VS Code | `.vscode/mcp.json` (uses `servers` key) |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 
 ## Integration
 
-To connect the MCP server to your AI tool, add it to the tool's MCP configuration. See the [Integrations](/docs/integrations) guide for tool-specific setup instructions.
+See the [MCP Server](/docs/mcp-server) documentation for complete integration guides, or check tool-specific pages under [Integrations](/docs/integrations).

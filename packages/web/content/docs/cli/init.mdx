@@ -1,45 +1,143 @@
 ---
 title: memories init
-description: Initialize memories for the current project or globally.
+description: Initialize memories and auto-configure MCP for your AI coding tools.
 ---
 
 ```bash
 memories init [options]
 ```
 
-Initialize the memories database and optionally set up the current project. If run inside a git repository, the project is automatically detected from the `origin` remote URL.
+Initialize the memories database and automatically set up MCP integration for detected AI coding tools. This is the recommended first command after installing memories.sh.
+
+## What it does
+
+1. **Creates the local database** at `~/.config/memories/local.db`
+2. **Detects your project** from the git remote URL (or sets global scope if not in a git repo)
+3. **Detects installed AI tools** by checking for their config directories
+4. **Configures MCP** for each detected tool (with your permission)
+5. **Generates instruction files** if you have existing memories
+6. **Shows sync status** if you're logged in
 
 ## Options
 
 | Option | Description |
 |--------|-------------|
-| `-g, --global` | Initialize global memories (user-wide, not project-specific) |
+| `-g, --global` | Initialize global memories (apply to all projects) |
 | `-r, --rule <rule>` | Add an initial rule (can be repeated) |
+| `--skip-mcp` | Skip automatic MCP configuration |
+| `--skip-generate` | Skip generating instruction files |
+| `-y, --yes` | Auto-confirm all prompts |
+
+## Detected Tools
+
+The init command looks for these AI coding tools:
+
+| Tool | Config Directory | MCP Config Location |
+|------|------------------|---------------------|
+| Cursor | `.cursor/` | `.cursor/mcp.json` |
+| Claude Code | `.claude/` | `.mcp.json` (project root) |
+| Windsurf | `.windsurf/` | `.windsurf/mcp.json` |
+| VS Code / Copilot | `.vscode/` | `.vscode/mcp.json` |
+
+For each detected tool, init will:
+1. Check if MCP is already configured
+2. Offer to add the memories MCP server if not
+3. Generate instruction files if you have memories
 
 ## Examples
 
-Initialize in the current project:
+### Basic initialization
 
 ```bash
+cd your-project
 memories init
 ```
 
-Initialize with starter rules:
+Output:
+```
+[1/4] Setting up local storage...
+  Database: ~/.config/memories/local.db
+[2/4] Detecting scope...
+✓ Project scope detected
+  Project: github.com/your-org/your-project
+[3/4] Detecting AI coding tools...
+  Cursor ✓ MCP ○ Rules
+  Claude Code ○ MCP ✓ Rules
+  Windsurf [global] ○ MCP ○ Rules
 
-```bash
-memories init --rule "Use TypeScript strict mode" --rule "Prefer pnpm"
+? Configure MCP for Claude Code, Windsurf? (Y/n)
+✓ Claude Code: MCP configured → .mcp.json
+✓ Windsurf: MCP configured → ~/.windsurf/mcp.json
+
+? Generate instruction files for Cursor? (Y/n)
+✓ Cursor: Generated .cursor/rules/memories.mdc
+[4/4] Finalizing...
+✓ Syncing as you@example.com
 ```
 
-Initialize global memories:
+### Non-interactive mode
+
+```bash
+memories init -y
+```
+
+Auto-confirms all prompts — useful for scripts or CI.
+
+### Skip automatic setup
+
+```bash
+# Only create database, don't configure tools
+memories init --skip-mcp --skip-generate
+```
+
+### Initialize with starter rules
+
+```bash
+memories init \
+  --rule "Use TypeScript strict mode" \
+  --rule "Prefer functional components" \
+  --rule "Use pnpm as package manager"
+```
+
+### Global initialization
 
 ```bash
 memories init --global
 ```
 
-## Behavior
+Useful when not in a git repository, or when you want to set up memories that apply to all projects.
 
-1. Creates the SQLite database at `~/.config/memories/local.db` if it doesn't exist
-2. Runs any pending schema migrations
-3. If inside a git repo, detects and registers the project identity
-4. Adds any initial rules provided via `--rule`
-5. Prints a quick-start guide with next steps
+## MCP Configuration
+
+When init configures MCP, it adds this to each tool's config:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+Using `npx` ensures the latest version is always used. If you installed memories globally, the tool will use your global installation.
+
+## After Init
+
+Once initialized, you can:
+
+```bash
+# Add your first memory
+memories add --rule "Always use early returns"
+
+# Regenerate instruction files
+memories generate all
+
+# Search your memories
+memories search "authentication"
+
+# Start syncing to cloud
+memories login
+```

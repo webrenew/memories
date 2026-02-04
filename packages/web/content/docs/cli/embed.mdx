@@ -1,0 +1,113 @@
+---
+title: memories embed
+description: Generate embeddings for semantic search.
+---
+
+```bash
+memories embed [options]
+```
+
+Generate vector embeddings for memories that don't have them yet. These embeddings power semantic search (`memories search --semantic`).
+
+## How it works
+
+The command:
+1. Finds all memories without embeddings
+2. Downloads the embedding model if needed (~100MB, one-time)
+3. Generates 768-dimensional vectors for each memory
+4. Stores embeddings in the local database
+
+Everything runs locally — no API calls, no data leaves your machine.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--force` | Regenerate embeddings for all memories, not just missing ones |
+
+## Examples
+
+Generate embeddings for memories without them:
+
+```bash
+memories embed
+```
+
+Output:
+```
+Generating embeddings for 42 memories...
+✓ Generated embeddings for 42 memories
+```
+
+Regenerate all embeddings (useful if the model was updated):
+
+```bash
+memories embed --force
+```
+
+## When to run
+
+### Automatic
+
+Memories added with `memories add` automatically get embeddings. You don't need to run `memories embed` for new memories.
+
+### Manual
+
+Run `memories embed` when:
+
+1. **After importing memories** — If you used `memories import` or `memories ingest`
+2. **After syncing from cloud** — If memories were synced without embeddings
+3. **First-time semantic search** — If you have existing memories and want to use `--semantic`
+
+## The embedding model
+
+memories.sh uses [gte-base](https://huggingface.co/Xenova/gte-base), a high-quality general-purpose embedding model:
+
+- **Size**: ~100MB download
+- **Dimensions**: 768-dimensional vectors
+- **Location**: `~/.cache/memories/models/`
+- **Runtime**: ONNX Runtime (runs on CPU)
+
+The model downloads once on first use (either `memories embed` or `memories search --semantic`).
+
+## Performance
+
+Embedding generation is CPU-bound but fast:
+
+| Memories | Approximate time |
+|----------|------------------|
+| 10 | ~2 seconds |
+| 100 | ~15 seconds |
+| 1000 | ~2 minutes |
+
+Times vary based on memory length and CPU.
+
+## Storage
+
+Embeddings add approximately 3KB per memory to the database (768 floats × 4 bytes).
+
+## Troubleshooting
+
+### Model download fails
+
+If the model download fails, check your internet connection and try again:
+
+```bash
+memories embed
+```
+
+The model is cached, so partial downloads will resume.
+
+### Embeddings not working
+
+If semantic search isn't returning results:
+
+1. Check that embeddings exist: `memories stats`
+2. Regenerate if needed: `memories embed --force`
+
+### Large database
+
+If you have many memories and the database is getting large, embeddings are the main contributor. Consider:
+
+1. Using keyword search for simple queries
+2. Only generating embeddings for important memories

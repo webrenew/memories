@@ -3,9 +3,25 @@ title: Claude Code
 description: Integrate memories.sh with Claude Code.
 ---
 
-Claude Code reads project instructions from `CLAUDE.md` in the project root and supports MCP servers.
+Claude Code reads project instructions from `CLAUDE.md` in the project root and supports MCP servers via `.mcp.json`.
 
-## Option 1: Generated File
+## Quick Setup
+
+The fastest way to set up memories.sh with Claude Code:
+
+```bash
+cd your-project
+memories init
+```
+
+This automatically:
+1. Detects Claude Code (looks for `.claude/` directory)
+2. Configures MCP in `.mcp.json` (project root)
+3. Generates `CLAUDE.md` with your existing memories
+
+## Manual Setup
+
+### Option 1: Generated File
 
 ```bash
 memories generate claude
@@ -13,34 +29,102 @@ memories generate claude
 
 This creates a `CLAUDE.md` file in your project root with all your rules, decisions, and facts. Claude Code reads this automatically.
 
-## Option 2: MCP Server
+The generated file includes:
+- All your rules, decisions, and facts
+- Instructions for Claude to save new memories via MCP
 
-Add memories.sh to your Claude Code MCP configuration. Edit `~/.claude/claude_desktop_config.json` (or your project's `.claude/settings.json`):
+### Option 2: MCP Server
 
-```json
-{
-  "mcpServers": {
-    "memories": {
-      "command": "memories",
-      "args": ["serve"]
-    }
-  }
-}
-```
+Add memories.sh to your Claude Code MCP configuration.
 
-If memories.sh is not installed globally, use npx:
-
+**Project-level** (`.mcp.json` in project root):
 ```json
 {
   "mcpServers": {
     "memories": {
       "command": "npx",
-      "args": ["@memories.sh/cli", "serve"]
+      "args": ["-y", "@memories.sh/cli", "serve"]
     }
   }
 }
 ```
 
-## Using Both
+**Global** (`~/.mcp.json`):
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
 
-You can use both methods together. The generated `CLAUDE.md` provides a static baseline, while the MCP server gives Claude live access to search for specific context and add new memories.
+### Recommended: Use Both
+
+Using both methods together gives the best experience:
+
+1. **Generated file** — Provides a static baseline that's always available
+2. **MCP server** — Gives Claude live access to search and add memories
+
+## Migrating Existing Rules
+
+If you have an existing `CLAUDE.md`, you can import it:
+
+```bash
+memories ingest claude
+```
+
+This extracts individual rules from your existing file and stores them as memories.
+
+## Syncing Claude Code Config
+
+To sync your Claude Code configuration across machines:
+
+```bash
+# On your main machine
+memories files ingest
+
+# On a new machine
+memories files apply --global --force
+```
+
+This syncs:
+- `.claude/CLAUDE.md` — Your global instructions
+- `.claude/commands/*.md` — Custom slash commands
+- `.claude/rules/*.md` — Rule files
+- `.claude/hooks/*` — Session hooks
+- `.claude/tasks/*.md` — Task definitions
+- `.claude/skills/**/*` — Skills and their references
+
+## Claude Code-Specific Features
+
+### Slash Commands
+
+If you've created custom slash commands in `.claude/commands/`, these are synced with `memories files`:
+
+```bash
+# Import your commands
+memories files ingest
+
+# On another machine
+memories files apply --global
+```
+
+### Tasks
+
+Project task files (`.claude/tasks/*.md`) are also synced:
+
+```bash
+# Import project tasks
+memories files ingest --project
+
+# Apply on another machine
+cd your-project
+memories files apply --project
+```
+
+### Hooks
+
+Hook scripts (`.claude/hooks/*.sh`) for session management are synced too, so your custom automation follows you everywhere.

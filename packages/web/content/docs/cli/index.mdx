@@ -5,23 +5,53 @@ description: Complete reference for all memories.sh CLI commands.
 
 The `memories` CLI is the primary interface for managing your AI agent memory store. All commands operate on a local SQLite database at `~/.config/memories/local.db`.
 
+## Quick Reference
+
+```bash
+# First-time setup (auto-configures MCP for detected tools)
+memories init
+
+# Add memories
+memories add --rule "Always use TypeScript strict mode"
+memories add --decision "Chose Tailwind for utility-first CSS"
+memories add --fact "API rate limit is 100/min"
+
+# Search
+memories search "authentication"
+memories search "how to handle login" --semantic
+
+# Generate instruction files
+memories generate all
+
+# Sync config files
+memories files ingest
+memories files apply --global
+```
+
 ## Command Overview
+
+### Setup Commands
+
+| Command | Description |
+|---------|-------------|
+| [`init`](/docs/cli/init) | Initialize memories and auto-configure MCP for detected tools |
+| [`login`](/docs/cli/login) | Authenticate for cloud sync features |
 
 ### Core Commands
 
 | Command | Description |
 |---------|-------------|
-| [`init`](/docs/cli/init) | Initialize memories for a project or globally |
-| [`add`](/docs/cli/add) | Add a new memory |
+| [`add`](/docs/cli/add) | Add a new memory (rule, decision, fact, or note) |
 | [`recall`](/docs/cli/recall) | Get rules and relevant memories for AI agents |
 | [`prompt`](/docs/cli/prompt) | Output memories formatted for AI system prompts |
 
-### Query Commands
+### Search Commands
 
 | Command | Description |
 |---------|-------------|
-| [`search`](/docs/cli/search) | Full-text search across memories |
+| [`search`](/docs/cli/search) | Keyword or semantic search across memories |
 | [`list`](/docs/cli/list) | List memories with optional filters |
+| [`embed`](/docs/cli/embed) | Generate embeddings for semantic search |
 
 ### Management Commands
 
@@ -52,7 +82,6 @@ The `memories` CLI is the primary interface for managing your AI agent memory st
 |---------|-------------|
 | [`sync`](/docs/cli/sync) | Manage cloud sync |
 | [`files`](/docs/cli/files) | Sync config files (.agents, .cursor, .claude, etc.) |
-| [`login`](/docs/cli/login) | Authenticate for cloud features |
 
 ### System Commands
 
@@ -66,7 +95,24 @@ The `memories` CLI is the primary interface for managing your AI agent memory st
 
 ## Global Behavior
 
+### Project Detection
+
 - When inside a git repository, commands automatically scope to the current project (detected from the `origin` remote URL)
 - When outside a git repo, or when `--global` is passed, memories are stored with global scope
-- All memories are stored in a single SQLite database with FTS5 full-text search
-- Soft-deleted memories are retained in the database but excluded from all queries
+- Global memories are included in all project queries
+
+### Database
+
+- All memories are stored in a single SQLite database at `~/.config/memories/local.db`
+- FTS5 full-text search with BM25 ranking
+- Vector embeddings for semantic search (768 dimensions)
+- Soft-deleted memories are retained but excluded from queries
+
+### MCP Integration
+
+When you run `memories init`, it automatically:
+1. Detects installed AI tools (Cursor, Claude Code, Windsurf, VS Code)
+2. Configures MCP for each detected tool
+3. Generates instruction files with your existing memories
+
+This means your memories are immediately available to your AI tools via MCP.

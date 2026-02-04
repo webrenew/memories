@@ -1,13 +1,13 @@
 ---
 title: memories search
-description: Search memories using full-text search.
+description: Search memories using keyword or semantic search.
 ---
 
 ```bash
 memories search <query> [options]
 ```
 
-Search across all memories using SQLite FTS5 full-text search with BM25 ranking. Supports prefix matching and automatic fallback to LIKE search.
+Search across all memories using either keyword search (FTS5) or AI-powered semantic search.
 
 ## Arguments
 
@@ -23,21 +23,117 @@ Search across all memories using SQLite FTS5 full-text search with BM25 ranking.
 | `--type <type>` | Filter by type: `rule`, `decision`, `fact`, `note` |
 | `-g, --global` | Search only global memories |
 | `--project-only` | Search only project memories (exclude global) |
+| `-s, --semantic` | Use AI-powered semantic search |
 | `--json` | Output as JSON |
 
-## Examples
+## Keyword Search (default)
 
 ```bash
 memories search "authentication"
 memories search "database" --type decision
-memories search "react" --limit 5 --json
-memories search "config" --global
+memories search "react" --limit 5
 ```
 
-## Behavior
+Keyword search uses SQLite FTS5 with BM25 ranking:
+- Prefix matching (e.g., "auth" matches "authentication")
+- Automatic fallback to LIKE search if FTS query fails
+- Fast, no external dependencies
 
-- Uses FTS5 with BM25 ranking for relevance scoring
-- Supports prefix matching (e.g., "auth" matches "authentication")
-- Falls back to LIKE search if FTS query fails
-- Returns both global and project-scoped memories by default
-- Results are ordered by relevance score
+## Semantic Search
+
+```bash
+memories search "how to handle user sessions" --semantic
+memories search "best practices for error handling" --semantic
+```
+
+Semantic search uses AI embeddings to find conceptually related memories:
+- Finds memories even when keywords don't match
+- Understands intent and meaning
+- Great for natural language queries
+
+### How it works
+
+1. Your query is converted to a 768-dimensional vector using the [gte-base](https://huggingface.co/Xenova/gte-base) model
+2. The vector is compared against pre-computed embeddings for all memories
+3. Results are ranked by cosine similarity
+
+### First-time setup
+
+On first semantic search, the embedding model (~100MB) downloads to `~/.cache/memories/models/`. This happens once and runs entirely locally — no API calls, no data leaves your machine.
+
+### Generating embeddings
+
+Memories added with `memories add` automatically get embeddings. For existing memories:
+
+```bash
+memories embed
+```
+
+This generates embeddings for all memories that don't have them yet:
+
+```
+Generating embeddings for 42 memories...
+✓ Generated embeddings for 42 memories
+```
+
+## Examples
+
+```bash
+# Keyword: exact match
+memories search "TypeScript strict mode"
+
+# Semantic: finds related concepts
+memories search "type safety settings" --semantic
+
+# Keyword: filter by type
+memories search "postgres" --type fact
+
+# Semantic: natural language query
+memories search "why did we choose this database" --semantic --type decision
+
+# Output as JSON for scripting
+memories search "auth" --json
+```
+
+## Output
+
+Keyword search shows matches with highlights:
+
+```
+Found 3 memories:
+
+rule  Always use TypeScript strict mode
+      project: github.com/your-org/app
+
+decision  Chose PostgreSQL for JSONB support and Supabase integration
+          project: github.com/your-org/app
+
+fact  Database connection pool is limited to 20 connections
+      global
+```
+
+Semantic search shows similarity scores:
+
+```
+Found 3 memories (semantic):
+
+[0.89] rule  Always use TypeScript strict mode
+             project: github.com/your-org/app
+
+[0.76] decision  Chose strong typing to catch errors at compile time
+                 project: github.com/your-org/app
+
+[0.71] fact  ESLint is configured with strict TypeScript rules
+             global
+```
+
+## When to use which
+
+| Use case | Recommended |
+|----------|-------------|
+| Known keyword | Keyword (default) |
+| Natural language question | `--semantic` |
+| Exact phrase | Keyword |
+| "Find memories about X" | `--semantic` |
+| Fast lookup | Keyword |
+| Exploring related concepts | `--semantic` |
