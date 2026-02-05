@@ -13,8 +13,8 @@ Generate vector embeddings for memories that don't have them yet. These embeddin
 
 The command:
 1. Finds all memories without embeddings
-2. Downloads the embedding model if needed (~100MB, one-time)
-3. Generates 768-dimensional vectors for each memory
+2. Downloads the embedding model if needed (~50MB for default model)
+3. Generates vector embeddings for each memory
 4. Stores embeddings in the local database
 
 Everything runs locally — no API calls, no data leaves your machine.
@@ -23,7 +23,8 @@ Everything runs locally — no API calls, no data leaves your machine.
 
 | Option | Description |
 |--------|-------------|
-| `--force` | Regenerate embeddings for all memories, not just missing ones |
+| `--all` | Regenerate embeddings for all memories, not just missing ones |
+| `--dry-run` | Show what would be embedded without doing it |
 
 ## Examples
 
@@ -35,14 +36,24 @@ memories embed
 
 Output:
 ```
-Generating embeddings for 42 memories...
-✓ Generated embeddings for 42 memories
+Embedding 42 memories...
+
+Model: all-MiniLM-L6-v2 (384d, fast)
+First run downloads the model. Subsequent runs are faster.
+
+✓ Embedded 42 memories
 ```
 
-Regenerate all embeddings (useful if the model was updated):
+Preview what would be embedded:
 
 ```bash
-memories embed --force
+memories embed --dry-run
+```
+
+Regenerate all embeddings (after switching models):
+
+```bash
+memories embed --all
 ```
 
 ## When to run
@@ -57,34 +68,40 @@ Run `memories embed` when:
 
 1. **After importing memories** — If you used `memories import` or `memories ingest`
 2. **After syncing from cloud** — If memories were synced without embeddings
-3. **First-time semantic search** — If you have existing memories and want to use `--semantic`
+3. **After switching models** — Run `memories embed --all` to regenerate
+4. **First-time semantic search** — If you have existing memories and want to use `--semantic`
 
-## The embedding model
+## Embedding models
 
-memories.sh uses [gte-base](https://huggingface.co/Xenova/gte-base), a high-quality general-purpose embedding model:
+The default model is `all-MiniLM-L6-v2`:
 
-- **Size**: ~100MB download
-- **Dimensions**: 768-dimensional vectors
-- **Location**: `~/.cache/memories/models/`
-- **Runtime**: ONNX Runtime (runs on CPU)
+- **Size**: ~50MB download
+- **Dimensions**: 384-dimensional vectors
+- **Speed**: Fast (~10 seconds for 100 memories)
+- **Quality**: Good for most use cases
 
-The model downloads once on first use (either `memories embed` or `memories search --semantic`).
+You can switch to higher-quality models for better semantic accuracy:
 
-## Performance
+```bash
+# View available models
+memories config model
 
-Embedding generation is CPU-bound but fast:
+# Switch to a better model
+memories config model gte-base
+memories embed --all
+```
 
-| Memories | Approximate time |
-|----------|------------------|
-| 10 | ~2 seconds |
-| 100 | ~15 seconds |
-| 1000 | ~2 minutes |
-
-Times vary based on memory length and CPU.
+See [Embedding Models](/docs/concepts/embedding-models) for detailed comparison and recommendations.
 
 ## Storage
 
-Embeddings add approximately 3KB per memory to the database (768 floats × 4 bytes).
+Embedding storage depends on the model:
+
+| Model | Dimensions | Storage per memory |
+|-------|------------|-------------------|
+| `all-MiniLM-L6-v2` | 384 | ~1.5 KB |
+| `gte-base` | 768 | ~3 KB |
+| `gte-large` | 1024 | ~4 KB |
 
 ## Troubleshooting
 
@@ -96,18 +113,20 @@ If the model download fails, check your internet connection and try again:
 memories embed
 ```
 
-The model is cached, so partial downloads will resume.
+The model is cached at `~/.cache/memories/models/`, so partial downloads will resume.
 
 ### Embeddings not working
 
 If semantic search isn't returning results:
 
 1. Check that embeddings exist: `memories stats`
-2. Regenerate if needed: `memories embed --force`
+2. Regenerate if needed: `memories embed --all`
+3. Try a different model: `memories config model gte-base`
 
 ### Large database
 
-If you have many memories and the database is getting large, embeddings are the main contributor. Consider:
+If your database is getting large, embeddings are the main contributor. Consider:
 
-1. Using keyword search for simple queries
-2. Only generating embeddings for important memories
+1. Using a smaller model (`all-MiniLM-L6-v2` vs `gte-large`)
+2. Using keyword search for simple queries
+3. Only generating embeddings for important memories

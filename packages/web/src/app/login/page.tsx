@@ -3,7 +3,7 @@ import Image from "next/image"
 import { OAuthButtons } from "./oauth-buttons"
 
 export const metadata = {
-  title: "Sign In",
+  title: "Sign In or Sign Up",
 }
 
 export default function LoginPage() {
@@ -29,7 +29,7 @@ export default function LoginPage() {
         {/* Card */}
         <div className="border border-border bg-card/20 p-8">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold tracking-tight mb-2">Sign In</h1>
+            <h1 className="text-2xl font-bold tracking-tight mb-2">Sign in or create account</h1>
             <p className="text-sm text-muted-foreground italic">
               Access your memory dashboard
             </p>
@@ -37,8 +37,16 @@ export default function LoginPage() {
 
           <OAuthButtons />
 
-          <p className="text-[10px] text-muted-foreground/60 text-center mt-8 leading-relaxed">
-            By signing in, you agree to our Terms of Service and Privacy Policy.
+          <p className="text-xs text-muted-foreground text-center mt-8 leading-relaxed">
+            By continuing, you agree to our{" "}
+            <Link href="/terms" className="underline hover:text-foreground transition-colors">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="underline hover:text-foreground transition-colors">
+              Privacy Policy
+            </Link>
+            .
           </p>
         </div>
 

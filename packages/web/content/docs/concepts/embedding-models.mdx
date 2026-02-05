@@ -1,0 +1,210 @@
+---
+title: Embedding Models
+description: Understanding embedding models and when to use each one.
+---
+
+memories.sh uses local embedding models to power semantic search. All models run entirely on your machine — no API calls, no data leaves your device.
+
+## Available Models
+
+| Model | Dimensions | Speed | Quality | Best For |
+|-------|------------|-------|---------|----------|
+| `all-MiniLM-L6-v2` | 384 | Fast | Good | Default choice, most use cases |
+| `gte-small` | 384 | Fast | Good | Alternative fast model |
+| `gte-base` | 768 | Medium | Better | Balanced speed/quality |
+| `gte-large` | 1024 | Slow | Best | Maximum accuracy |
+| `mxbai-embed-large-v1` | 1024 | Slow | Best | High-quality alternative |
+
+## Choosing a Model
+
+### Default: `all-MiniLM-L6-v2`
+
+The default model is a good choice for most users:
+
+- **~50MB download** — smallest model, fastest to download
+- **384 dimensions** — compact embeddings, smaller database
+- **Sub-second embedding** — fast enough for interactive use
+- **Good accuracy** — handles most semantic queries well
+
+Stick with the default unless you have a specific reason to change.
+
+### When to use `gte-base`
+
+Choose `gte-base` if:
+
+- You have **many similar memories** that need finer distinction
+- Semantic search **isn't finding relevant results** with the default
+- You're okay with **~2x slower embedding** for better quality
+- Database size isn't a concern (~3KB vs ~1.5KB per memory)
+
+```bash
+memories config model gte-base
+memories embed --all  # Regenerate embeddings
+```
+
+### When to use `gte-large` or `mxbai-embed-large-v1`
+
+Choose a large model if:
+
+- You have **hundreds of memories** and need precise retrieval
+- You're building a **knowledge base** where accuracy matters most
+- You run embedding **once** and search many times
+- You have a **powerful CPU** (embedding is ~3-4x slower)
+
+```bash
+memories config model gte-large
+memories embed --all
+```
+
+### Speed vs Quality Trade-offs
+
+| Model | Embed 100 memories | Search latency | Storage per memory |
+|-------|-------------------|----------------|-------------------|
+| `all-MiniLM-L6-v2` | ~10 seconds | ~50ms | ~1.5 KB |
+| `gte-small` | ~10 seconds | ~50ms | ~1.5 KB |
+| `gte-base` | ~20 seconds | ~100ms | ~3 KB |
+| `gte-large` | ~40 seconds | ~150ms | ~4 KB |
+| `mxbai-embed-large-v1` | ~45 seconds | ~150ms | ~4 KB |
+
+*Times are approximate and vary by CPU and memory content length.*
+
+## Managing Models
+
+### View current model
+
+```bash
+memories config model
+```
+
+Output:
+```
+Embedding Models
+
+  ID                      Dim   Speed   Quality  Description
+  ────────────────────────────────────────────────────────────
+→ all-MiniLM-L6-v2        384   fast    good     Fastest model, good for most use cases
+  gte-small               384   fast    good     Small GTE model, fast with good quality
+  gte-base                768   medium  better   Balanced speed and quality
+  gte-large              1024   slow    best     Highest quality, slower
+  mxbai-embed-large-v1   1024   slow    best     High quality mixedbread model
+
+Current: all-MiniLM-L6-v2 (384 dimensions)
+```
+
+### Switch models
+
+```bash
+memories config model gte-base
+```
+
+When switching to a model with different dimensions, you'll be prompted to clear existing embeddings:
+
+```
+✓ Switched to gte-base
+  Balanced speed and quality
+  Dimensions: 768, Speed: medium, Quality: better
+
+⚠ Dimension change detected
+  Previous: 384d → New: 768d
+  Existing embeddings are incompatible and should be regenerated.
+
+? Clear existing embeddings? Yes
+✓ Cleared 42 embeddings
+  Run `memories embed` to regenerate embeddings with the new model.
+```
+
+### Regenerate embeddings
+
+After switching models, regenerate embeddings:
+
+```bash
+memories embed --all
+```
+
+## Technical Details
+
+### How embeddings work
+
+1. **Text → Vector**: Each memory's content is converted to a fixed-size vector (array of numbers)
+2. **Semantic meaning**: Similar concepts produce similar vectors, even with different words
+3. **Cosine similarity**: Search compares query vector to stored vectors
+4. **Threshold filtering**: Results below 0.3 similarity are excluded
+
+### Model storage
+
+Models are downloaded once and cached:
+
+```
+~/.cache/memories/models/
+├── Xenova--all-MiniLM-L6-v2/
+├── Xenova--gte-base/
+└── ...
+```
+
+Delete this folder to re-download models.
+
+### Embedding storage
+
+Embeddings are stored in the `embedding` column of the `memories` table as BLOBs:
+
+- **384d model**: 1,536 bytes per memory (384 × 4 bytes)
+- **768d model**: 3,072 bytes per memory
+- **1024d model**: 4,096 bytes per memory
+
+### ONNX Runtime
+
+All models use [ONNX Runtime](https://onnxruntime.ai/) for inference:
+
+- Runs on CPU (no GPU required)
+- Quantized models for smaller size and faster inference
+- Cross-platform (macOS, Linux, Windows)
+
+## Recommendations by Use Case
+
+### Personal notes (< 100 memories)
+
+**Use default** (`all-MiniLM-L6-v2`)
+
+Small collections don't benefit from larger models. Fast embedding and search matter more.
+
+### Project knowledge base (100-500 memories)
+
+**Consider `gte-base`**
+
+More memories means more potential for false positives. The better quality helps distinguish similar content.
+
+### Team documentation (500+ memories)
+
+**Consider `gte-large`**
+
+Large collections with many related topics benefit from the highest accuracy. The slower speed is offset by running `embed` once and searching many times.
+
+### Quick lookups vs deep research
+
+| Use case | Recommended model |
+|----------|------------------|
+| "What's our DB password location?" | `all-MiniLM-L6-v2` |
+| "How did we decide on the auth architecture?" | `gte-base` |
+| "Find all decisions related to performance" | `gte-large` |
+
+## Troubleshooting
+
+### Semantic search returns wrong results
+
+1. Check you have embeddings: `memories stats`
+2. Try a different model: `memories config model gte-base`
+3. Regenerate: `memories embed --all`
+
+### Embedding is slow
+
+- Large models are slower by design
+- First run downloads the model (~50-200MB)
+- Consider using `all-MiniLM-L6-v2` for faster embedding
+
+### Database is large
+
+Embeddings are the main storage cost. Options:
+
+1. Use a smaller model (384d vs 1024d)
+2. Only embed important memories
+3. Use keyword search (`memories search` without `--semantic`)

@@ -8,6 +8,7 @@ import {
 import defaultMdxComponents from 'fumadocs-ui/mdx';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { CopyMarkdownButton } from '@/components/CopyMarkdownButton';
 
 interface PageProps {
   params: Promise<{ slug?: string[] }>;
@@ -21,7 +22,12 @@ export default async function Page({ params }: PageProps) {
   const MDX = page.data.body;
 
   return (
-    <DocsPage toc={page.data.toc}>
+    <DocsPage 
+      toc={page.data.toc}
+      tableOfContent={{
+        footer: <CopyMarkdownButton slug={slug} />,
+      }}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>

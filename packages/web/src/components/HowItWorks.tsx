@@ -48,6 +48,7 @@ const mcpSteps = [
 export function HowItWorks() {
   const [activeTab, setActiveTab] = useState<"cli" | "mcp">("cli");
   const [copied, setCopied] = useState(false);
+  const [endpointCopied, setEndpointCopied] = useState(false);
 
   const tabs = [{ id: "cli" as const, number: "01", label: "CLI", sublabel: "Command Line" }, { id: "mcp" as const, number: "02", label: "MCP", sublabel: "Agent Server" }];
   const installCommands = { cli: "pnpm add -g @memories.sh/cli", mcp: "memories serve" };
@@ -75,6 +76,16 @@ export function HowItWorks() {
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error("Failed to copy:", error);
+    }
+  };
+
+  const handleEndpointCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(tabContent.mcp.endpoint);
+      setEndpointCopied(true);
+      setTimeout(() => setEndpointCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy endpoint:", error);
     }
   };
 
@@ -249,7 +260,23 @@ export function HowItWorks() {
                 {activeTab === "mcp" && (
                   <div className="mb-4 p-3 bg-muted/50 border border-border rounded-lg">
                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground block mb-1">Endpoint</span>
-                    <code className="text-sm text-primary font-mono">https://memories.sh/api/mcp</code>
+                    <div className="flex items-center justify-between gap-2">
+                      <code className="text-sm font-mono">
+                        <span className="text-muted-foreground">https://</span>
+                        <span className="text-foreground">memories.sh/api/mcp</span>
+                      </code>
+                      <button
+                        onClick={handleEndpointCopy}
+                        className="p-1.5 hover:bg-foreground/10 rounded-md transition-colors text-muted-foreground hover:text-foreground flex-shrink-0"
+                        aria-label="Copy endpoint"
+                      >
+                        {endpointCopied ? (
+                          <Check className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
                 

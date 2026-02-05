@@ -4,6 +4,7 @@
     "memory-types",
     "scopes",
     "project-detection",
-    "generation-targets"
+    "generation-targets",
+    "embedding-models"
   ]
 }

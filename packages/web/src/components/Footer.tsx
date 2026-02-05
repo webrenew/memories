@@ -26,6 +26,7 @@ export function Footer() {
                 <Link href="/docs" className="hover:text-primary transition-colors">Documentation</Link>
                 <Link href="/docs/cli" className="hover:text-primary transition-colors">CLI Reference</Link>
                 <Link href="/docs/mcp-server" className="hover:text-primary transition-colors">MCP Server</Link>
+                <Link href="/llms.txt" className="hover:text-primary transition-colors">llms.txt</Link>
               </div>
             </div>
             <div className="flex flex-col gap-6">
