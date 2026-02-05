@@ -35,6 +35,7 @@ const tiers = [
       "Cloud backup and sync",
       "Access from any device",
       "Web dashboard",
+      "Create teams and invite members",
       "Server-side semantic recall",
       "Priority support",
     ],
