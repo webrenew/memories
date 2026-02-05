@@ -1,85 +1,166 @@
 ---
 name: memories-dev
-description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
+description: "Developer guide for contributing to and extending the memories.sh codebase. Use when: (1) Understanding the memories.sh architecture and how packages connect, (2) Adding new CLI commands or MCP tools, (3) Modifying the memory storage layer (SQLite/libSQL), (4) Working on the web dashboard (Next.js/Supabase), (5) Adding new generation targets for AI tools, (6) Extending cloud sync or embeddings functionality, (7) Debugging build, test, or deployment issues in the monorepo."
 ---
 
-# Memories Dev
+# memories-dev
 
-## Overview
+Developer guide for contributing to the memories.sh monorepo.
 
-[TODO: 1-2 sentences explaining what this skill enables]
+## Project Structure
 
-## Structuring This Skill
+```
+memories/
+├── packages/
+│   ├── cli/                  # @memories.sh/cli (npm package)
+│   │   ├── src/
+│   │   │   ├── commands/     # CLI commands (Commander.js)
+│   │   │   ├── lib/          # Core: db, memory, auth, embeddings, git
+│   │   │   └── mcp/          # MCP server (stdio + HTTP)
+│   │   ├── tsup.config.ts    # Build config
+│   │   └── package.json
+│   └── web/                  # Next.js marketing + dashboard
+│       ├── src/app/          # App Router pages + API routes
+│       ├── src/components/   # UI components (shadcn/ui)
+│       ├── src/lib/          # Auth, Stripe, Supabase, Turso
+│       └── content/docs/     # Fumadocs documentation
+├── supabase/                 # Database migrations
+├── skills/                   # Distributable skills (this directory)
+└── pnpm-workspace.yaml
+```
 
-[TODO: Choose the structure that best fits this skill's purpose. Common patterns:
+## Architecture Overview
 
-**1. Workflow-Based** (best for sequential processes)
-- Works well when there are clear step-by-step procedures
-- Example: DOCX skill with "Workflow Decision Tree" → "Reading" → "Creating" → "Editing"
-- Structure: ## Overview → ## Workflow Decision Tree → ## Step 1 → ## Step 2...
+### Dependency Graph
 
-**2. Task-Based** (best for tool collections)
-- Works well when the skill offers different operations/capabilities
-- Example: PDF skill with "Quick Start" → "Merge PDFs" → "Split PDFs" → "Extract Text"
-- Structure: ## Overview → ## Quick Start → ## Task Category 1 → ## Task Category 2...
+```
+db.ts (SQLite/libSQL, migrations, FTS5)
+  ↓
+memory.ts (CRUD, search, context, streaming)
+  ↑          ↑
+git.ts    embeddings.ts (Xenova/Transformers, cosine similarity)
+  ↓
+Commands ← auth.ts, turso.ts, config.ts, setup.ts
+  ↓
+MCP Server (stdio + StreamableHTTP transports)
+```
 
-**3. Reference/Guidelines** (best for standards or specifications)
-- Works well for brand guidelines, coding standards, or requirements
-- Example: Brand styling with "Brand Guidelines" → "Colors" → "Typography" → "Features"
-- Structure: ## Overview → ## Guidelines → ## Specifications → ## Usage...
+### Key Lib Files
 
-**4. Capabilities-Based** (best for integrated systems)
-- Works well when the skill provides multiple interrelated features
-- Example: Product Management with "Core Capabilities" → numbered capability list
-- Structure: ## Overview → ## Core Capabilities → ### 1. Feature → ### 2. Feature...
+| File | Purpose |
+|------|---------|
+| `db.ts` | SQLite via libSQL. Schema migrations, FTS5 triggers, `getDb()` singleton |
+| `memory.ts` | All memory operations: add, search, list, forget, update, getContext, getRules, streaming |
+| `embeddings.ts` | Local embeddings via Xenova/Transformers. `generateEmbedding()`, cosine similarity |
+| `git.ts` | `getProjectId()` — derives project ID from git remote URL |
+| `auth.ts` | Cloud auth token storage, device code flow helpers |
+| `turso.ts` | Turso embedded replica sync (cloud ↔ local) |
+| `config.ts` | YAML config read/write (`~/.config/memories/`) |
+| `setup.ts` | Tool detection (Cursor, Claude, Windsurf, VS Code), MCP config setup |
+| `templates.ts` | Built-in memory templates (decision, error-fix, api-endpoint, etc.) |
+| `ui.ts` | Terminal styling: chalk, figlet, gradient, boxen |
 
-Patterns can be mixed and matched as needed. Most skills combine patterns (e.g., start with task-based, add workflow for complex operations).
+### Database Schema
 
-Delete this entire "Structuring This Skill" section when done - it's just guidance.]
+SQLite with FTS5 full-text search:
 
-## [TODO: Replace with the first main section based on chosen structure]
+- **memories** — Main table: id, content, type, tags, scope, project_id, created_at, updated_at, deleted_at
+- **memories_fts** — FTS5 virtual table, synced via triggers
+- **memory_embeddings** — Vector storage: memory_id, embedding (JSON float array), model
+- **memory_links** — Bidirectional links: id1, id2, link_type
+- **memory_history** — Version tracking: memory_id, version, content, tags, change_type
 
-[TODO: Add content here. See examples in existing skills:
-- Code samples for technical skills
-- Decision trees for complex workflows
-- Concrete examples with realistic user requests
-- References to scripts/templates/references as needed]
+## Adding a New CLI Command
 
-## Resources
+1. Create `packages/cli/src/commands/mycommand.ts`:
 
-This skill includes example resource directories that demonstrate how to organize different types of bundled resources:
+```typescript
+import { Command } from "commander";
 
-### scripts/
-Executable code (Python/Bash/etc.) that can be run directly to perform specific operations.
+export const myCommand = new Command("mycommand")
+  .description("What it does")
+  .argument("<required>", "Description")
+  .option("-f, --flag <value>", "Description", "default")
+  .action(async (required, opts) => {
+    // Use lib functions from ../lib/
+    // Use ui.ts for styled output
+  });
+```
 
-**Examples from other skills:**
-- PDF skill: `fill_fillable_fields.py`, `extract_form_field_info.py` - utilities for PDF manipulation
-- DOCX skill: `document.py`, `utilities.py` - Python modules for document processing
+2. Register in `packages/cli/src/index.ts`:
 
-**Appropriate for:** Python scripts, shell scripts, or any executable code that performs automation, data processing, or specific operations.
+```typescript
+import { myCommand } from "./commands/mycommand.js";
+program.addCommand(myCommand);
+```
 
-**Note:** Scripts may be executed without loading into context, but can still be read by Claude for patching or environment adjustments.
+3. Add tests in `packages/cli/src/commands/mycommand.test.ts`.
 
-### references/
-Documentation and reference material intended to be loaded into context to inform Claude's process and thinking.
+## Adding a New MCP Tool
 
-**Examples from other skills:**
-- Product management: `communication.md`, `context_building.md` - detailed workflow guides
-- BigQuery: API reference documentation and query examples
-- Finance: Schema documentation, company policies
+Edit `packages/cli/src/mcp/index.ts`:
 
-**Appropriate for:** In-depth documentation, API references, database schemas, comprehensive guides, or any detailed information that Claude should reference while working.
+```typescript
+server.tool(
+  "tool_name",
+  "Description of what the tool does",
+  {
+    param: z.string().describe("Parameter description"),
+  },
+  async ({ param }) => {
+    // Implementation
+    return {
+      content: [{ type: "text", text: "Result" }],
+    };
+  }
+);
+```
 
-### assets/
-Files not intended to be loaded into context, but rather used within the output Claude produces.
+Parameters use Zod schemas. Return `{ isError: true }` for errors.
 
-**Examples from other skills:**
-- Brand styling: PowerPoint template files (.pptx), logo files
-- Frontend builder: HTML/React boilerplate project directories
-- Typography: Font files (.ttf, .woff2)
+## Adding a New Generation Target
 
-**Appropriate for:** Templates, boilerplate code, document templates, images, icons, fonts, or any files meant to be copied or used in the final output.
+1. Add template to `packages/cli/src/lib/templates.ts`
+2. Register in the generation targets map
+3. Add detection in `packages/cli/src/lib/setup.ts`
+4. Add docs page in `packages/web/content/docs/integrations/`
 
----
+## Build & Test
 
-**Any unneeded directories can be deleted.** Not every skill requires all three types of resources.
+```bash
+pnpm build          # Build all packages
+pnpm typecheck      # TypeScript checks
+pnpm test           # Run all tests (vitest)
+
+# CLI-specific
+cd packages/cli
+pnpm dev            # Watch mode (tsup)
+pnpm test           # CLI tests only
+
+# Web-specific
+cd packages/web
+pnpm dev            # Next.js dev server
+pnpm build          # Production build
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| CLI framework | Commander.js |
+| Database | libSQL (SQLite-compatible) |
+| Full-text search | FTS5 |
+| Embeddings | Xenova/Transformers (local) |
+| MCP SDK | @modelcontextprotocol/sdk |
+| Build | tsup (CLI), Next.js (web) |
+| Web framework | Next.js 15 (App Router) |
+| Auth | Supabase Auth |
+| Cloud sync | Turso embedded replicas |
+| Payments | Stripe |
+| Docs | Fumadocs |
+| UI | shadcn/ui, Tailwind CSS v4 |
+| Testing | Vitest |
+
+## Reference Files
+
+- **Architecture deep-dive**: See [references/architecture.md](references/architecture.md) for detailed module descriptions and data flow
