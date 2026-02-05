@@ -67,3 +67,8 @@ CREATE TRIGGER on_users_updated
 
 -- 6. Index for Stripe customer lookups
 CREATE INDEX idx_users_stripe_customer_id ON public.users(stripe_customer_id);
+
+-- =============================================
+-- MIGRATION: Add embedding_model column (run separately if users table exists)
+-- =============================================
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2';

@@ -32,6 +32,7 @@ export default async function SettingsPage() {
           email: profile?.email ?? user.email ?? "",
           avatar_url: profile?.avatar_url ?? "",
           plan: profile?.plan ?? "free",
+          embedding_model: profile?.embedding_model ?? null,
         }}
       />
     </div>
