@@ -37,7 +37,7 @@ const CURSOR_MANUAL_CONFIG = `{
   }
 }`;
 
-const CLAUDE_CODE_COMMAND = `claude mcp add memories -- npx -y @memories.sh/cli serve --api-key ${API_KEY_PLACEHOLDER}`;
+const CLAUDE_CODE_COMMAND = `claude mcp add memories --url "https://memories.sh/api/mcp?api_key=${API_KEY_PLACEHOLDER}"`;
 
 interface CopyButtonProps {
   value: string;
