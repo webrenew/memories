@@ -191,9 +191,9 @@ export function Hero() {
               animate="visible"
               className="flex flex-col items-start text-left"
             >
-            <motion.div variants={itemVariants} className="inline-flex items-center gap-3 px-3 py-1.5 bg-foreground/8 border border-foreground/12 text-[11px] uppercase tracking-[0.2em] font-bold mb-6 text-foreground/90 rounded-md">
-              <span className="w-1.5 h-1.5 bg-primary animate-pulse" />
-              Stop Re-Teaching Agents
+            <motion.div variants={itemVariants} className="inline-flex items-center gap-2 mb-6">
+              <div className="size-2 rounded-full bg-primary animate-pulse" />
+              <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">Stop Re-Teaching Agents</span>
             </motion.div>
 
             <motion.h1 
