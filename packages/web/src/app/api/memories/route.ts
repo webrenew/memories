@@ -27,7 +27,7 @@ export async function GET() {
     })
 
     const result = await turso.execute(
-      "SELECT id, content, tags, type, scope, created_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 100"
+      "SELECT id, content, tags, type, scope, project_id, created_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 100"
     )
 
     return NextResponse.json({ memories: result.rows })
@@ -79,6 +79,7 @@ export async function POST(request: NextRequest) {
       content, 
       type, 
       scope, 
+      project_id: null, // Web-created memories don't have project context
       tags, 
       created_at: now 
     })

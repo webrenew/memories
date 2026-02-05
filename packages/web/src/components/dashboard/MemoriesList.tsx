@@ -9,6 +9,7 @@ interface Memory {
   tags: string | null
   type: string | null
   scope: string | null
+  project_id: string | null
   created_at: string
 }
 

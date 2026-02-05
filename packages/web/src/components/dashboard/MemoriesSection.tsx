@@ -11,6 +11,7 @@ interface Memory {
   tags: string | null
   type: string | null
   scope: string | null
+  project_id: string | null
   created_at: string
 }
 
@@ -60,12 +61,12 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
     return counts
   }, [memories])
 
-  // Get unique project scopes with counts
+  // Get unique projects with counts (using project_id for project-scoped memories)
   const projectScopes = useMemo(() => {
     const scopeCounts = new Map<string, number>()
     memories.forEach((m) => {
-      if (m.scope && m.scope !== "global") {
-        scopeCounts.set(m.scope, (scopeCounts.get(m.scope) || 0) + 1)
+      if (m.scope === "project" && m.project_id) {
+        scopeCounts.set(m.project_id, (scopeCounts.get(m.project_id) || 0) + 1)
       }
     })
     return Array.from(scopeCounts.entries())
@@ -86,7 +87,8 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
     if (scopeFilter === "global") {
       result = result.filter((m) => m.scope === "global")
     } else if (scopeFilter !== "all") {
-      result = result.filter((m) => m.scope === scopeFilter)
+      // Filter by project_id for project-scoped memories
+      result = result.filter((m) => m.project_id === scopeFilter)
     }
 
     // Search filter
@@ -102,7 +104,7 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
   }, [memories, typeFilter, scopeFilter, searchQuery])
 
   const globalCount = memories.filter((m) => m.scope === "global").length
-  const allProjectCount = memories.filter((m) => m.scope && m.scope !== "global").length
+  const allProjectCount = memories.filter((m) => m.scope === "project" && m.project_id).length
   const isProjectFilter = scopeFilter !== "all" && scopeFilter !== "global"
 
   return (

@@ -9,6 +9,7 @@ interface Memory {
   tags: string | null
   type: string | null
   scope: string | null
+  project_id: string | null
   created_at: string
 }
 
@@ -94,13 +95,13 @@ export function MemoryCard({
             <span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 text-[10px] uppercase tracking-wider font-bold text-blue-400">
               Global
             </span>
-          ) : memory.scope ? (
+          ) : memory.scope === "project" && memory.project_id ? (
             <button
-              onClick={() => onFilterByProject?.(memory.scope!)}
+              onClick={() => onFilterByProject?.(memory.project_id!)}
               className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-[10px] tracking-wider font-bold text-amber-400 hover:bg-amber-500/20 transition-colors" 
-              title={`Filter by ${memory.scope}`}
+              title={`Filter by ${memory.project_id}`}
             >
-              {memory.scope.replace(/^github\.com\//, "")}
+              {memory.project_id.replace(/^github\.com\//, "")}
             </button>
           ) : null}
           {memory.tags

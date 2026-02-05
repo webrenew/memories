@@ -11,6 +11,7 @@ interface Memory {
   tags: string | null
   type: string | null
   scope: string | null
+  project_id: string | null
   created_at: string
 }
 
@@ -38,7 +39,7 @@ export default async function MemoriesPage() {
   try {
     const turso = createTurso({ url: profile.turso_db_url!, authToken: profile.turso_db_token! })
     const result = await turso.execute(
-      "SELECT id, content, tags, type, scope, created_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
+      "SELECT id, content, tags, type, scope, project_id, created_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
     )
     memories = result.rows.map(row => ({
       id: row.id as string,
@@ -46,6 +47,7 @@ export default async function MemoriesPage() {
       tags: row.tags as string | null,
       type: row.type as string | null,
       scope: row.scope as string | null,
+      project_id: row.project_id as string | null,
       created_at: row.created_at as string,
     }))
   } catch (err) {
