@@ -8,7 +8,7 @@ description: Install memories.sh, add your first memories, and generate config f
 Install the CLI globally:
 
 ```bash
-npm install -g @memories.sh/cli
+pnpm add -g @memories.sh/cli
 ```
 
 Verify the installation:
@@ -18,7 +18,7 @@ memories --version
 ```
 
 <Callout>
-**Why npm?** The CLI uses native modules for AI-powered semantic search. npm handles native module builds more reliably than pnpm/bun for global installs. The semantic search model (~100MB) downloads on first use and runs entirely locally.
+The semantic search model (~100MB) downloads on first use and runs entirely locally — no API calls, no data leaves your machine.
 </Callout>
 
 ## Initialize
