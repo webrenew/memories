@@ -26,17 +26,15 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  turbopack: {
-    root: path.resolve(__dirname, '../../'),
-    rules: {
-      '*.{jsx,tsx}': {
-        loaders: [loaderPath],
-      },
-    },
-  },
+  // Temporarily disabled for Next.js 16 compatibility
+  // turbopack: {
+  //   root: path.resolve(__dirname, '../../'),
+  //   rules: {
+  //     '*.{jsx,tsx}': {
+  //       loaders: [loaderPath],
+  //     },
+  //   },
+  // },
 };
 
 const withMDX = createMDX();
