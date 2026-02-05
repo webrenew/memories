@@ -135,18 +135,6 @@ export function HowItWorks() {
                 </div>
               </div>
 
-              {/* Platform tabs (like macOS / Linux | Windows) */}
-              <div className="flex items-center gap-2 mb-4">
-                <span className="px-3 py-1.5 text-xs font-mono uppercase tracking-wider bg-muted border border-border rounded text-foreground">
-                  {activeTab === "cli" ? "macOS / Linux" : "Any MCP Client"}
-                </span>
-                {activeTab === "cli" && (
-                  <span className="px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-                    Windows
-                  </span>
-                )}
-              </div>
-
               {/* Install command */}
               <div className="flex items-center gap-3 px-4 py-3 bg-muted/50 border border-border rounded-lg font-mono text-sm mb-5">
                 <span className="text-muted-foreground select-none">&gt;</span>

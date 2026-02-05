@@ -4,7 +4,6 @@ import { Hero } from "@/components/Hero";
 import { HowItWorks } from "@/components/HowItWorks";
 import { FeaturesGrid } from "@/components/FeaturesGrid";
 import { Integrations } from "@/components/Integrations";
-import { Quickstart } from "@/components/Quickstart";
 import { Pricing } from "@/components/Pricing";
 import { FAQ } from "@/components/FAQ";
 import { Footer } from "@/components/Footer";
@@ -23,7 +22,6 @@ export default async function Home() {
         <HowItWorks />
         <FeaturesGrid />
         <Integrations />
-        <Quickstart />
         <Pricing user={user} />
         <FAQ />
       </main>

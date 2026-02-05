@@ -31,8 +31,8 @@ export function Footer() {
             <div className="flex flex-col gap-6">
               <h5 className="text-[10px] uppercase tracking-[0.3em] font-bold text-foreground">Network</h5>
               <div className="flex flex-col gap-4 text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.15em]">
-                <Link href="#" className="hover:text-primary transition-colors">Discord</Link>
-                <Link href="#" className="hover:text-primary transition-colors">X (Twitter)</Link>
+                <a href="https://discord.gg/2K7rhuwc" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Discord</a>
+                <a href="https://x.com/WebRenew_" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">X (Twitter)</a>
               </div>
             </div>
             <div className="flex flex-col gap-6">

@@ -43,7 +43,7 @@ export function Integrations() {
     },
     {
       name: "Any MCP Client",
-      logo: null,
+      logo: "/logos/mcp.svg",
       status: "Available",
       desc: "Built-in MCP server for direct agent access.",
       docsUrl: "/docs/integrations/mcp",
@@ -75,11 +75,11 @@ export function Integrations() {
                   className="p-8 lg:p-10 bg-card/20 flex flex-col items-start group hover:border-primary/40 transition-all h-full cursor-pointer glass-panel-soft rounded-lg"
                 >
                   <div className="flex items-center justify-between w-full mb-12">
-                    <div className="w-8 h-8 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity duration-500">
+                    <div className="w-14 h-14 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity duration-500">
                       {a.logo ? (
-                        <Image src={a.logo} alt={a.name} width={32} height={32} className="dark:invert-0 invert" />
+                        <Image src={a.logo} alt={a.name} width={56} height={56} className="dark:invert-0 invert" />
                       ) : (
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
                           <path d="M4 17l6-6-6-6M12 19h8" />
                         </svg>
                       )}

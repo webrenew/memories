@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 
 const FeatureIcon = ({ index }: { index: number }) => {
   const icons = [
@@ -42,32 +43,38 @@ export function FeaturesGrid() {
     {
       title: "Durable Local State",
       detail: "Rules and context live in a local SQLite store with embeddings, so agent state persists even offline.",
-      metric: "Always available"
+      metric: "Always available",
+      docsUrl: "/docs/concepts/memory-types"
     },
     {
       title: "Semantic Recall",
       detail: "Search by meaning, not just keywords. Query 'auth issues' and find JWT validation rules, session handling, and OAuth flows.",
-      metric: "768-dim vectors"
+      metric: "768-dim vectors",
+      docsUrl: "/docs/cli/recall"
     },
     {
       title: "Local Embeddings",
       detail: "Runs a 100MB embedding model (gte-base) entirely on your CPU via ONNX. No API calls, no data leaves your machine.",
-      metric: "100% private"
+      metric: "100% private",
+      docsUrl: "/docs/cli/embed"
     },
     {
       title: "Tool-Native Output",
       detail: "Generate native configs for Cursor, Claude Code, Copilot, Windsurf, Cline, Roo, Gemini, and more.",
-      metric: "One command"
+      metric: "One command",
+      docsUrl: "/docs/cli/generate"
     },
     {
       title: "Scoped Memory",
       detail: "Keep global preferences separate from repo rules, auto-scoped via git remote.",
-      metric: "Right context"
+      metric: "Right context",
+      docsUrl: "/docs/concepts/scopes"
     },
     {
       title: "Portable State",
       detail: "Export everything to JSON or YAML anytime. Switch tools or leave entirely. Your data is yours.",
-      metric: "No lock-in"
+      metric: "No lock-in",
+      docsUrl: "/docs/import-export"
     }
   ];
 
@@ -104,9 +111,17 @@ export function FeaturesGrid() {
                   {f.detail}
                 </p>
                 
-                <div className="flex items-center gap-2 pt-6 border-t border-border">
-                  <div className="w-1 h-1 rounded-full bg-primary/60" />
-                  <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">{f.metric}</span>
+                <div className="flex items-center justify-between pt-6 border-t border-border">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-primary/60" />
+                    <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">{f.metric}</span>
+                  </div>
+                  <Link 
+                    href={f.docsUrl} 
+                    className="text-[11px] font-medium text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    Learn More →
+                  </Link>
                 </div>
   
                 {/* Technical Hover Decor */}
@@ -128,9 +143,17 @@ export function FeaturesGrid() {
                 Built-in Model Context Protocol server with 7 tools so agents can access state directly.
               </p>
               
-              <div className="flex items-center gap-2 pt-6 border-t border-border">
-                <div className="w-1 h-1 rounded-full bg-primary/60" />
-                <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">memories serve</span>
+              <div className="flex items-center justify-between pt-6 border-t border-border">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-1 rounded-full bg-primary/60" />
+                  <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">memories serve</span>
+                </div>
+                <Link 
+                  href="/docs/mcp-server" 
+                  className="text-[11px] font-medium text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Learn More →
+                </Link>
               </div>
             </div>
           </div>

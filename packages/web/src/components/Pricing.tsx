@@ -84,12 +84,12 @@ export function Pricing({ user }: { user?: User | null }) {
 
         {/* Billing Toggle */}
         <div className="flex justify-center mb-12">
-          <div className="inline-flex items-center gap-3 p-1 bg-muted border border-border rounded-lg">
+          <div className="inline-flex items-center gap-3 p-1 bg-background-secondary border border-border rounded-lg">
             <button
               onClick={() => setIsYearly(false)}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 ${
                 !isYearly
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -99,7 +99,7 @@ export function Pricing({ user }: { user?: User | null }) {
               onClick={() => setIsYearly(true)}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 flex items-center gap-2 ${
                 isYearly
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
