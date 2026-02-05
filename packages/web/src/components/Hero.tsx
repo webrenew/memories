@@ -96,7 +96,7 @@ function CopyCommand() {
   
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText("npm install -g @memories.sh/cli");
+      await navigator.clipboard.writeText("pnpm add -g @memories.sh/cli");
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -113,7 +113,7 @@ function CopyCommand() {
     >
       <div className="flex items-center gap-3 px-4 py-3 bg-foreground/5 border border-border rounded-md font-mono text-sm">
         <span className="text-muted-foreground select-none">$</span>
-        <code className="text-foreground">npm install -g @memories.sh/cli</code>
+        <code className="text-foreground">pnpm add -g @memories.sh/cli</code>
         <button 
           onClick={handleCopy}
           className="ml-auto transition-colors"
