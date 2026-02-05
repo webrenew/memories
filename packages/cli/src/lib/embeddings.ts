@@ -1,14 +1,181 @@
 import { pipeline, type FeatureExtractionPipeline } from "@xenova/transformers";
-import { getDb } from "./db.js";
+import { getDb, getConfigDir } from "./db.js";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
-const MODEL_NAME = "Xenova/gte-base"; // Good quality GTE embeddings
-const EMBEDDING_DIM = 768; // GTE-base produces 768-dim vectors
+// ─── Supported Embedding Models ───────────────────────────────────────────────
+
+/**
+ * Supported embedding model configuration
+ */
+export interface EmbeddingModel {
+  id: string;
+  name: string;
+  dimensions: number;
+  description: string;
+  speed: "fast" | "medium" | "slow";
+  quality: "good" | "better" | "best";
+}
+
+/**
+ * Available embedding models compatible with transformers.js
+ * Ordered by speed (fastest first)
+ */
+export const EMBEDDING_MODELS: Record<string, EmbeddingModel> = {
+  "all-MiniLM-L6-v2": {
+    id: "all-MiniLM-L6-v2",
+    name: "Xenova/all-MiniLM-L6-v2",
+    dimensions: 384,
+    description: "Fastest model, good for most use cases",
+    speed: "fast",
+    quality: "good",
+  },
+  "gte-small": {
+    id: "gte-small",
+    name: "Xenova/gte-small",
+    dimensions: 384,
+    description: "Small GTE model, fast with good quality",
+    speed: "fast",
+    quality: "good",
+  },
+  "gte-base": {
+    id: "gte-base",
+    name: "Xenova/gte-base",
+    dimensions: 768,
+    description: "Balanced speed and quality",
+    speed: "medium",
+    quality: "better",
+  },
+  "gte-large": {
+    id: "gte-large",
+    name: "Xenova/gte-large",
+    dimensions: 1024,
+    description: "Highest quality, slower",
+    speed: "slow",
+    quality: "best",
+  },
+  "mxbai-embed-large-v1": {
+    id: "mxbai-embed-large-v1",
+    name: "mixedbread-ai/mxbai-embed-large-v1",
+    dimensions: 1024,
+    description: "High quality mixedbread model",
+    speed: "slow",
+    quality: "best",
+  },
+};
+
+export const DEFAULT_MODEL_ID = "all-MiniLM-L6-v2";
+
+/**
+ * Get list of available model IDs
+ */
+export function getAvailableModels(): EmbeddingModel[] {
+  return Object.values(EMBEDDING_MODELS);
+}
+
+/**
+ * Get model by ID
+ */
+export function getModelById(id: string): EmbeddingModel | undefined {
+  return EMBEDDING_MODELS[id];
+}
+
+// ─── Model Configuration Persistence ──────────────────────────────────────────
+
+interface EmbeddingConfig {
+  modelId: string;
+  modelName: string;
+  dimensions: number;
+}
+
+function getEmbeddingConfigPath(): string {
+  return join(getConfigDir(), "embedding-model.json");
+}
+
+/**
+ * Get the currently configured embedding model
+ */
+export function getConfiguredModel(): EmbeddingModel {
+  const configPath = getEmbeddingConfigPath();
+  
+  if (existsSync(configPath)) {
+    try {
+      const config = JSON.parse(readFileSync(configPath, "utf-8")) as EmbeddingConfig;
+      const model = EMBEDDING_MODELS[config.modelId];
+      if (model) return model;
+    } catch {
+      // Fall through to default
+    }
+  }
+  
+  return EMBEDDING_MODELS[DEFAULT_MODEL_ID];
+}
+
+/**
+ * Set the embedding model to use.
+ * Returns info about whether existing embeddings need to be regenerated.
+ */
+export function setEmbeddingModel(modelId: string): { 
+  model: EmbeddingModel; 
+  dimensionChanged: boolean;
+  previousDimensions: number;
+} {
+  const model = EMBEDDING_MODELS[modelId];
+  if (!model) {
+    throw new EmbeddingError(`Unknown model: ${modelId}. Available: ${Object.keys(EMBEDDING_MODELS).join(", ")}`);
+  }
+  
+  const previous = getConfiguredModel();
+  const dimensionChanged = previous.dimensions !== model.dimensions;
+  
+  const config: EmbeddingConfig = {
+    modelId: model.id,
+    modelName: model.name,
+    dimensions: model.dimensions,
+  };
+  
+  // Ensure config dir exists
+  const configDir = getConfigDir();
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true });
+  }
+  
+  writeFileSync(getEmbeddingConfigPath(), JSON.stringify(config, null, 2));
+  
+  // Reset cached embedder so next call loads new model
+  resetEmbedder();
+  
+  return { model, dimensionChanged, previousDimensions: previous.dimensions };
+}
+
+// ─── Embedder Instance Management ─────────────────────────────────────────────
 
 let embedder: FeatureExtractionPipeline | null = null;
 let modelLoading: Promise<FeatureExtractionPipeline> | null = null;
+let currentModelId: string | null = null;
+
+/**
+ * Reset the cached embedder (used when model changes)
+ */
+export function resetEmbedder(): void {
+  embedder = null;
+  modelLoading = null;
+  currentModelId = null;
+}
+
+/**
+ * Embedding-specific error for typed error handling
+ */
+export class EmbeddingError extends Error {
+  constructor(
+    message: string,
+    public readonly cause?: unknown
+  ) {
+    super(message);
+    this.name = "EmbeddingError";
+  }
+}
 
 /**
  * Get the cache directory for models
@@ -25,6 +192,13 @@ function getModelCacheDir(): string {
  * Initialize the embedding model (lazy loading)
  */
 async function getEmbedder(): Promise<FeatureExtractionPipeline> {
+  const model = getConfiguredModel();
+  
+  // If model changed, reset
+  if (currentModelId && currentModelId !== model.id) {
+    resetEmbedder();
+  }
+  
   if (embedder) return embedder;
   
   if (modelLoading) return modelLoading;
@@ -35,10 +209,12 @@ async function getEmbedder(): Promise<FeatureExtractionPipeline> {
     // Set environment for transformers.js
     process.env.TRANSFORMERS_CACHE = cacheDir;
     
-    embedder = await pipeline("feature-extraction", MODEL_NAME, {
+    embedder = await pipeline("feature-extraction", model.name, {
       cache_dir: cacheDir,
       quantized: true, // Use quantized model for faster loading
     });
+    
+    currentModelId = model.id;
     
     return embedder;
   })();
@@ -50,16 +226,36 @@ async function getEmbedder(): Promise<FeatureExtractionPipeline> {
  * Generate embedding for text
  */
 export async function getEmbedding(text: string): Promise<Float32Array> {
-  const model = await getEmbedder();
-  
-  const output = await model(text, {
-    pooling: "mean",
-    normalize: true,
-  });
-  
-  // Handle the tensor data conversion
-  const data = output.data as unknown as number[] | Float32Array;
-  return new Float32Array(data);
+  if (!text || text.trim().length === 0) {
+    throw new EmbeddingError("Cannot generate embedding for empty text");
+  }
+
+  const model = getConfiguredModel();
+
+  try {
+    const embedderInstance = await getEmbedder();
+    
+    const output = await embedderInstance(text, {
+      pooling: "mean",
+      normalize: true,
+    });
+    
+    // Handle the tensor data conversion
+    const data = output.data as unknown as number[] | Float32Array;
+    const embedding = new Float32Array(data);
+    
+    // Validate embedding dimension
+    if (embedding.length !== model.dimensions) {
+      throw new EmbeddingError(
+        `Unexpected embedding dimension: expected ${model.dimensions}, got ${embedding.length}`
+      );
+    }
+    
+    return embedding;
+  } catch (error) {
+    if (error instanceof EmbeddingError) throw error;
+    throw new EmbeddingError("Failed to generate embedding", error);
+  }
 }
 
 /**
@@ -83,17 +279,28 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
 }
 
 /**
- * Convert Float32Array to Buffer for SQLite storage
+ * Convert Float32Array to Buffer for SQLite storage.
+ * Creates a proper copy to avoid issues with ArrayBuffer views.
  */
 export function embeddingToBuffer(embedding: Float32Array): Buffer {
-  return Buffer.from(embedding.buffer);
+  // Use slice() to ensure we get a clean copy of just the embedding data
+  return Buffer.from(embedding.buffer.slice(
+    embedding.byteOffset,
+    embedding.byteOffset + embedding.byteLength
+  ));
 }
 
 /**
- * Convert Buffer back to Float32Array
+ * Convert Buffer back to Float32Array.
+ * Handles proper byte alignment for Float32Array.
  */
 export function bufferToEmbedding(buffer: Buffer): Float32Array {
-  return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4);
+  // Create a properly aligned Float32Array from the buffer
+  const arrayBuffer = buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  );
+  return new Float32Array(arrayBuffer);
 }
 
 /**
@@ -120,6 +327,15 @@ export async function storeEmbedding(memoryId: string, embedding: Float32Array):
   await ensureEmbeddingsSchema();
   
   const buffer = embeddingToBuffer(embedding);
+  const model = getConfiguredModel();
+  
+  // Validate buffer size matches expected embedding size
+  const expectedBytes = model.dimensions * 4; // 4 bytes per float32
+  if (buffer.length !== expectedBytes) {
+    throw new EmbeddingError(
+      `Invalid embedding buffer size: expected ${expectedBytes} bytes, got ${buffer.length}`
+    );
+  }
   
   await db.execute({
     sql: "UPDATE memories SET embedding = ? WHERE id = ?",
@@ -143,7 +359,8 @@ export async function getStoredEmbedding(memoryId: string): Promise<Float32Array
   const row = result.rows[0] as unknown as { embedding: ArrayBuffer | null };
   if (!row.embedding) return null;
   
-  return new Float32Array(row.embedding);
+  // Use bufferToEmbedding for consistent conversion
+  return bufferToEmbedding(Buffer.from(row.embedding));
 }
 
 /**
@@ -183,7 +400,8 @@ export async function semanticSearch(
     const r = row as unknown as { id: string; content: string; embedding: ArrayBuffer };
     if (!r.embedding) continue;
     
-    const memEmbedding = new Float32Array(r.embedding);
+    // Use bufferToEmbedding for consistent conversion
+    const memEmbedding = bufferToEmbedding(Buffer.from(r.embedding));
     const score = cosineSimilarity(queryEmbedding, memEmbedding);
     
     if (score >= threshold) {
@@ -209,8 +427,26 @@ export async function isModelAvailable(): Promise<boolean> {
 }
 
 /**
- * Get embedding dimension
+ * Get embedding dimension for the current model
  */
 export function getEmbeddingDimension(): number {
-  return EMBEDDING_DIM;
+  return getConfiguredModel().dimensions;
+}
+
+/**
+ * Get current model info
+ */
+export function getCurrentModelInfo(): EmbeddingModel {
+  return getConfiguredModel();
+}
+
+/**
+ * Clear all embeddings (useful when changing models with different dimensions)
+ */
+export async function clearAllEmbeddings(): Promise<number> {
+  const db = await getDb();
+  const result = await db.execute(
+    "UPDATE memories SET embedding = NULL WHERE embedding IS NOT NULL"
+  );
+  return result.rowsAffected;
 }
