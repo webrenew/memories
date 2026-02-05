@@ -3,15 +3,7 @@ title: MCP Server
 description: Connect memories directly to AI tools via the Model Context Protocol.
 ---
 
-memories.sh includes a built-in MCP (Model Context Protocol) server that allows AI tools to read and write memories directly over stdio, without generating intermediate files.
-
-## Starting the Server
-
-```bash
-memories serve
-```
-
-The server communicates over stdio using the MCP protocol. It logs diagnostic information to stderr.
+memories.sh includes a built-in MCP (Model Context Protocol) server that allows AI tools to read and write memories directly, without generating intermediate files.
 
 ## Why Use the MCP Server?
 
@@ -22,22 +14,63 @@ While `memories generate` creates static files, the MCP server provides **live a
 - No need to regenerate files when memories change
 - Works alongside generated files — use both approaches together
 
-## Connecting to AI Tools
+## Cloud MCP (Recommended)
 
-Add the MCP server to your AI tool's configuration. The exact setup varies by tool — see the [Integrations](/docs/integrations) guide for specific instructions.
+For signed-up users, the easiest way to connect is via our hosted MCP endpoint. This works with any tool that supports HTTP-based MCP.
 
-The general pattern is to add memories.sh as an MCP server with the command `memories serve` (or `npx @memories.sh/cli serve` if not installed globally):
+### 1. Generate an API Key
+
+Get your API key from the [dashboard](/app) or run:
+
+```bash
+memories login
+```
+
+### 2. Configure Your Tool
+
+Add to your tool's MCP configuration:
 
 ```json
 {
   "mcpServers": {
     "memories": {
-      "command": "memories",
-      "args": ["serve"]
+      "url": "https://memories.sh/api/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
     }
   }
 }
 ```
+
+Replace `YOUR_API_KEY` with the key from your dashboard.
+
+<Callout>
+Cloud MCP syncs memories across all your devices and doesn't require the CLI to be running locally.
+</Callout>
+
+## Local MCP (Self-Hosted)
+
+For local-only use or self-hosted setups, run the MCP server locally via stdio:
+
+```bash
+memories serve
+```
+
+Configure your tool to spawn the local server:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "command": "npx",
+      "args": ["-y", "@memories.sh/cli", "serve"]
+    }
+  }
+}
+```
+
+The local server communicates over stdio and logs diagnostic information to stderr.
 
 ## Available Tools and Resources
 

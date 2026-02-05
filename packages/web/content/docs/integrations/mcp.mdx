@@ -5,31 +5,71 @@ description: Use memories.sh with any MCP-compatible client.
 
 memories.sh includes a built-in MCP (Model Context Protocol) server that exposes your memories directly to any compatible AI agent or client.
 
-## Automatic Setup
+## Cloud MCP (Recommended)
 
-The easiest way to configure MCP is to run:
+For the best experience, use our hosted MCP endpoint. Your memories sync across all devices and you don't need the CLI running locally.
+
+### 1. Get Your API Key
+
+Sign up and get your API key from the [dashboard](/app), or run:
+
+```bash
+memories login
+```
+
+### 2. Configure Your Tool
+
+Add the memories MCP server to your tool's configuration. The config is the same for most tools:
+
+```json
+{
+  "mcpServers": {
+    "memories": {
+      "url": "https://memories.sh/api/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+Replace `YOUR_API_KEY` with your key from the [dashboard](/app).
+
+#### Config file locations
+
+| Tool | Config Path |
+|------|-------------|
+| Cursor | `.cursor/mcp.json` or `~/.cursor/mcp.json` |
+| Claude Code | `.mcp.json` or `~/.mcp.json` |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windsurf | `.windsurf/mcp.json` |
+| VS Code | `.vscode/mcp.json` (uses `servers` instead of `mcpServers`) |
+| v0 / Web | Paste config directly into the MCP settings |
+
+---
+
+## Local MCP (Self-Hosted)
+
+For local-only use without cloud sync, run the MCP server locally. This is useful for air-gapped environments or if you prefer keeping data entirely on your machine.
+
+### Quick Setup
+
+Run `memories init` to automatically detect and configure your tools:
 
 ```bash
 memories init
 ```
 
-This automatically detects your installed AI tools and offers to configure MCP for each one.
+### Manual Configuration
 
-## Manual Setup
-
-### Starting the Server
+Start the local server:
 
 ```bash
 memories serve
 ```
 
-This starts an MCP server that provides tools for reading, writing, and searching memories.
-
-### Client Configuration
-
-#### Cursor
-
-Add to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
+Then configure your tool to spawn it:
 
 ```json
 {
@@ -42,73 +82,9 @@ Add to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
 }
 ```
 
-#### Claude Code
+Use the same config file locations as above. For VS Code, use `servers` instead of `mcpServers`.
 
-Add to `.mcp.json` in your project root:
-
-```json
-{
-  "mcpServers": {
-    "memories": {
-      "command": "npx",
-      "args": ["-y", "@memories.sh/cli", "serve"]
-    }
-  }
-}
-```
-
-Or for global config, add to `~/.mcp.json`.
-
-#### Windsurf
-
-Add to `.windsurf/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "memories": {
-      "command": "npx",
-      "args": ["-y", "@memories.sh/cli", "serve"]
-    }
-  }
-}
-```
-
-#### VS Code / GitHub Copilot
-
-Add to `.vscode/mcp.json`:
-
-```json
-{
-  "servers": {
-    "memories": {
-      "command": "npx",
-      "args": ["-y", "@memories.sh/cli", "serve"]
-    }
-  }
-}
-```
-
-Note: VS Code uses `servers` instead of `mcpServers`.
-
-#### Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "memories": {
-      "command": "npx",
-      "args": ["-y", "@memories.sh/cli", "serve"]
-    }
-  }
-}
-```
-
-#### Other Clients
-
-Any MCP-compatible client can connect by running `memories serve` as a subprocess. The server communicates over stdio using the MCP protocol.
+---
 
 ## Available Tools
 
@@ -116,18 +92,20 @@ The MCP server exposes these tools to connected clients:
 
 | Tool | Description |
 |------|-------------|
-| `memories_add` | Add a new memory with optional tags and type |
-| `memories_list` | List all memories, optionally filtered by tags or type |
-| `memories_search` | Full-text or semantic search across memory content |
-| `memories_recall` | Get contextually relevant memories for a given prompt |
-| `memories_delete` | Remove a memory by ID |
+| `get_context` | Get rules and relevant memories for the current task |
+| `add_memory` | Store a new memory (rule, decision, fact, or note) |
+| `search_memories` | Full-text search across memory content |
+| `list_memories` | List recent memories, optionally filtered |
+| `get_rules` | Get all active rules |
+| `edit_memory` | Update an existing memory |
+| `forget_memory` | Soft-delete a memory |
 
 ### Example: Adding a memory via MCP
 
 When your AI agent learns something important, it can save it:
 
 ```
-Tool: memories_add
+Tool: add_memory
 Arguments: {
   "content": "The API rate limit is 100 requests per minute",
   "type": "fact",
@@ -135,42 +113,27 @@ Arguments: {
 }
 ```
 
-### Example: Searching memories
+### Example: Getting context
 
 ```
-Tool: memories_search
+Tool: get_context
 Arguments: {
-  "query": "rate limit",
-  "semantic": true
+  "query": "authentication flow"
 }
 ```
 
-## Generated Instruction Files
+Returns all active rules plus memories relevant to the query.
 
-When you generate instruction files with `memories generate`, they include instructions for the AI to use MCP:
+## Cloud vs Local: When to Use Each
 
-```markdown
-## Memory Management
+| Feature | Cloud MCP | Local MCP |
+|---------|-----------|-----------|
+| Sync across devices | ✓ | ✗ |
+| Works offline | ✗ | ✓ |
+| No local install needed | ✓ | ✗ |
+| Air-gapped environments | ✗ | ✓ |
+| Web-based tools (v0) | ✓ | ✗ |
 
-When you learn something important about this project, save it for future sessions.
+**Use Cloud MCP** if you work across multiple machines or want the simplest setup.
 
-**Via MCP (if connected):**
-Use the `memories_add` tool with content and type parameters.
-
-**When to save:**
-- Architectural decisions and their rationale
-- Project-specific patterns or conventions
-- Non-obvious setup, configuration, or gotchas
-- Tricky bugs and how they were resolved
-```
-
-This teaches the AI how to use the MCP tools to maintain project context.
-
-## Pro Features
-
-With a Pro subscription, the MCP server gains access to:
-
-- **Cloud sync** - Memories sync across all your machines automatically
-- **Unlimited memories** - No storage limits
-- **Server-side semantic search** - Faster embedding generation
-- **Priority support** - Get help when you need it
+**Use Local MCP** if you need offline access, work in air-gapped environments, or prefer keeping all data on your machine.
