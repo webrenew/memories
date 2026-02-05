@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Check, Copy, ChevronDown, ExternalLink, ArrowDown } from "lucide-react";
+import { Check, Copy, ChevronDown, ArrowDown } from "lucide-react";
 import { CursorIcon } from "@/components/icons/CursorIcon";
 import { ClaudeIcon } from "@/components/icons/ClaudeIcon";
 import { AnthropicIcon } from "@/components/icons/AnthropicIcon";
@@ -13,21 +13,6 @@ const API_KEY_PLACEHOLDER = "REPLACE_WITH_YOUR_API_KEY";
 
 // SSE endpoint for cloud-based MCP
 const SSE_ENDPOINT = "https://memories.sh/api/mcp";
-
-// Cursor config uses SSE transport with API key in URL
-const CURSOR_MCP_CONFIG = {
-  url: `${SSE_ENDPOINT}?api_key=${API_KEY_PLACEHOLDER}`,
-};
-
-// Base64 encode the config for Cursor deeplink
-const CURSOR_CONFIG_BASE64 =
-  typeof window !== "undefined"
-    ? btoa(JSON.stringify(CURSOR_MCP_CONFIG))
-    : Buffer.from(JSON.stringify(CURSOR_MCP_CONFIG)).toString("base64");
-
-const CURSOR_INSTALL_URL = `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(
-  "memories"
-)}&config=${CURSOR_CONFIG_BASE64}`;
 
 const CURSOR_MANUAL_CONFIG = `{
   "mcpServers": {
@@ -153,19 +138,10 @@ export function MCPInstallButtons() {
             <pre className="text-sm font-mono text-foreground/80 overflow-x-auto whitespace-pre-wrap">
               {CURSOR_MANUAL_CONFIG}
             </pre>
-            <div className="mt-3 flex items-center gap-3">
-              <p className="text-xs text-muted-foreground flex-1">
-                <strong>Replace</strong> <code className="bg-muted px-1 rounded">{API_KEY_PLACEHOLDER}</code> with your key from
-                the dashboard.
-              </p>
-              <a
-                href={CURSOR_INSTALL_URL}
-                className="text-xs text-primary hover:underline flex items-center gap-1 shrink-0"
-              >
-                Try one-click
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              <strong>Replace</strong> <code className="bg-muted px-1 rounded">{API_KEY_PLACEHOLDER}</code> with your key from the{" "}
+              <a href="/app/settings" className="underline hover:text-foreground">dashboard</a>.
+            </p>
           </div>
         )}
 
