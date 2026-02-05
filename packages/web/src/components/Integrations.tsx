@@ -54,7 +54,10 @@ export function Integrations() {
       <section id="integrations" className="py-28 border-t border-border">
         <div className="w-full px-6 lg:px-16 xl:px-24">
           <div className="mb-20 flex flex-col items-center text-center">
-            <div className="text-[11px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Integrations</div>
+            <div className="inline-flex items-center gap-2 mb-4">
+              <div className="size-2 rounded-full bg-primary animate-pulse" />
+              <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">Integrations</span>
+            </div>
             <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">Works With Your Tools</h2>
             <p className="mt-6 text-lg text-muted-foreground max-w-2xl">
               One memory store, every coding agent. Generate native config files for each tool so your context follows you—no copy-paste, no manual sync.

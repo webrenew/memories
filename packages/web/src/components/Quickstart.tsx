@@ -23,7 +23,10 @@ export function Quickstart() {
     <section id="quickstart" className="py-28 border-t border-white/5 px-6 lg:px-10">
       <div className="max-w-[1200px] mx-auto">
         <div className="mb-20 flex flex-col items-center text-center">
-          <div className="text-[11px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Quick Start</div>
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="size-2 rounded-full bg-primary animate-pulse" />
+            <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">Quick Start</span>
+          </div>
           <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">Get Started</h2>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl">
             Install in seconds. No account required for local use.

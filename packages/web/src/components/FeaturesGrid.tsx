@@ -75,7 +75,10 @@ export function FeaturesGrid() {
       <section id="features" className="py-28 border-t border-border">
         <div className="w-full px-6 lg:px-16 xl:px-24">
           <div className="mb-20 flex flex-col items-center text-center">
-            <div className="text-[11px] uppercase tracking-[0.35em] font-bold text-primary mb-4">Core Features</div>
+            <div className="inline-flex items-center gap-2 mb-4">
+              <div className="size-2 rounded-full bg-primary animate-pulse" />
+              <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">Core Features</span>
+            </div>
             <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">Built for durable state</h2>
             <p className="mt-6 text-lg text-muted-foreground max-w-2xl">
               Everything you need to make agent context persist—locally by default, synced when you choose.
