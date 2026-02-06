@@ -251,7 +251,7 @@ CI runs lint, typecheck, tests, and build on every PR. All checks must pass befo
 
 ## License
 
-[MIT](LICENSE)
+[Apache 2.0](LICENSE)
 
 ---
 

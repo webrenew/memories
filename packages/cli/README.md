@@ -86,4 +86,4 @@ Full documentation at [memories.sh/docs](https://memories.sh/docs)
 
 ## License
 
-[MIT](https://github.com/WebRenew/memories/blob/main/LICENSE)
+[Apache 2.0](https://github.com/WebRenew/memories/blob/main/LICENSE)
