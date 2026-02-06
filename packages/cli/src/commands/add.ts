@@ -5,7 +5,7 @@ import { readAuth, getApiClient } from "../lib/auth.js";
 import { getTemplate, fillTemplate } from "../lib/templates.js";
 import * as ui from "../lib/ui.js";
 
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
+const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 export const addCommand = new Command("add")
   .description("Add a new memory")
@@ -17,14 +17,18 @@ export const addCommand = new Command("add")
   .option("-d, --decision", "Shorthand for --type decision")
   .option("-f, --fact", "Shorthand for --type fact")
   .option("--template <name>", "Use a template (run 'memories template list' to see options)")
-  .action(async (contentArg: string | undefined, opts: { 
-    tags?: string; 
+  .option("--paths <globs>", "Comma-separated glob patterns for path-scoped rules")
+  .option("--category <name>", "Grouping key for organizing memories")
+  .action(async (contentArg: string | undefined, opts: {
+    tags?: string;
     global?: boolean;
     type?: string;
     rule?: boolean;
     decision?: boolean;
     fact?: boolean;
     template?: string;
+    paths?: string;
+    category?: string;
   }) => {
     try {
       // Handle template mode
@@ -91,9 +95,10 @@ export const addCommand = new Command("add")
         type = opts.type as MemoryType;
       }
 
-      const memory = await addMemory(content, { tags, global: opts.global, type });
-      
-      const typeLabel = type === "rule" ? "Rule" : type === "decision" ? "Decision" : type === "fact" ? "Fact" : "Note";
+      const paths = opts.paths?.split(",").map((s) => s.trim()).filter(Boolean);
+      const memory = await addMemory(content, { tags, global: opts.global, type, paths, category: opts.category });
+
+      const typeLabel = type === "rule" ? "Rule" : type === "decision" ? "Decision" : type === "fact" ? "Fact" : type === "skill" ? "Skill" : "Note";
       const scopeInfo = memory.scope === "global" ? "global" : "project";
       
       ui.success(`Stored ${chalk.bold(typeLabel.toLowerCase())} ${chalk.dim(memory.id)}`);

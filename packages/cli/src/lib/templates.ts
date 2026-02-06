@@ -9,7 +9,7 @@ export interface TemplateField {
 export interface Template {
   name: string;
   description: string;
-  type: "rule" | "decision" | "fact" | "note";
+  type: "rule" | "decision" | "fact" | "note" | "skill";
   fields: TemplateField[];
   format: (values: Record<string, string>) => string;
 }

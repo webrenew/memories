@@ -6,7 +6,7 @@ import { getProjectId } from "../lib/git.js";
 
 type Format = "markdown" | "xml" | "plain";
 
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
+const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 function formatMarkdown(sections: { title: string; memories: Memory[] }[]): string {
   return sections

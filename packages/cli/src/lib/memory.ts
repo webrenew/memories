@@ -41,7 +41,7 @@ export type Scope = "global" | "project";
  * - fact: Project-specific knowledge (e.g., "API rate limit is 100/min")
  * - note: General memories (default, backwards compatible)
  */
-export type MemoryType = "rule" | "decision" | "fact" | "note";
+export type MemoryType = "rule" | "decision" | "fact" | "note" | "skill";
 
 export interface Memory {
   id: string;
@@ -50,6 +50,9 @@ export interface Memory {
   scope: Scope;
   project_id: string | null;
   type: MemoryType;
+  paths: string | null;
+  category: string | null;
+  metadata: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -60,6 +63,9 @@ export interface AddMemoryOpts {
   global?: boolean;
   projectId?: string; // Override auto-detected project
   type?: MemoryType; // Memory type (default: 'note')
+  paths?: string[]; // Glob patterns for path-scoped rules
+  category?: string; // Free-form grouping key
+  metadata?: Record<string, unknown>; // Extended attributes (stored as JSON)
 }
 
 export interface QueryMemoryOpts {
@@ -83,6 +89,9 @@ export async function addMemory(
   const id = nanoid(12);
   const tags = opts?.tags?.length ? opts.tags.join(",") : null;
   const type = opts?.type ?? "note";
+  const paths = opts?.paths?.length ? opts.paths.join(",") : null;
+  const category = opts?.category ?? null;
+  const metadata = opts?.metadata ? JSON.stringify(opts.metadata) : null;
 
   let scope: Scope = "global";
   let projectId: string | null = null;
@@ -96,8 +105,8 @@ export async function addMemory(
   }
 
   await db.execute({
-    sql: `INSERT INTO memories (id, content, tags, scope, project_id, type) VALUES (?, ?, ?, ?, ?, ?)`,
-    args: [id, content, tags, scope, projectId, type],
+    sql: `INSERT INTO memories (id, content, tags, scope, project_id, type, paths, category, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, content, tags, scope, projectId, type, paths, category, metadata],
   });
 
   // Generate embedding in background (don't block on it)
@@ -376,7 +385,14 @@ export async function getContext(
  */
 export async function updateMemory(
   id: string,
-  updates: { content?: string; tags?: string[]; type?: MemoryType },
+  updates: {
+    content?: string;
+    tags?: string[];
+    type?: MemoryType;
+    paths?: string[];
+    category?: string | null;
+    metadata?: Record<string, unknown> | null;
+  },
   options?: { skipHistory?: boolean }
 ): Promise<Memory | null> {
   const db = await getDb();
@@ -388,7 +404,7 @@ export async function updateMemory(
   });
 
   if (existing.rows.length === 0) return null;
-  
+
   // Record history before update (unless skipped)
   if (!options?.skipHistory) {
     const old = existing.rows[0] as unknown as Memory;
@@ -411,6 +427,21 @@ export async function updateMemory(
   if (updates.type !== undefined) {
     setClauses.push("type = ?");
     args.push(updates.type);
+  }
+
+  if (updates.paths !== undefined) {
+    setClauses.push("paths = ?");
+    args.push(updates.paths.length ? updates.paths.join(",") : null);
+  }
+
+  if (updates.category !== undefined) {
+    setClauses.push("category = ?");
+    args.push(updates.category);
+  }
+
+  if (updates.metadata !== undefined) {
+    setClauses.push("metadata = ?");
+    args.push(updates.metadata ? JSON.stringify(updates.metadata) : null);
   }
 
   args.push(id);

@@ -32,6 +32,7 @@ const TYPE_LABELS: Record<MemoryType, string> = {
   decision: "💡 DECISION",
   fact: "📋 FACT",
   note: "📝 NOTE",
+  skill: "🔧 SKILL",
 };
 
 function formatMemory(m: Memory): string {
@@ -217,20 +218,29 @@ Use this at the start of tasks to understand project conventions and recall past
 - decision: Why we chose something (e.g., "Chose PostgreSQL for JSONB support")
 - fact: Project-specific knowledge (e.g., "API rate limit is 100 req/min")
 - note: General notes (default)
+- skill: Agent skill definition (e.g., deploy, review workflows)
 
-By default, memories are project-scoped when in a git repo. Use global: true for user-wide preferences.`,
+By default, memories are project-scoped when in a git repo. Use global: true for user-wide preferences.
+Use paths to scope rules to specific files (e.g., ["src/api/**", "**/*.test.ts"]).
+Use category to group related memories (e.g., "api", "testing").`,
     {
       content: z.string().describe("The memory content to store"),
-      type: z.enum(["rule", "decision", "fact", "note"]).optional().describe("Memory type (default: note)"),
+      type: z.enum(["rule", "decision", "fact", "note", "skill"]).optional().describe("Memory type (default: note)"),
       tags: z.array(z.string()).optional().describe("Tags to categorize the memory"),
       global: z.boolean().optional().describe("Store as global memory instead of project-scoped"),
+      paths: z.array(z.string()).optional().describe("Glob patterns for path-scoped rules (e.g., ['src/api/**', '**/*.test.ts'])"),
+      category: z.string().optional().describe("Grouping key for organizing memories (e.g., 'api', 'testing')"),
+      metadata: z.record(z.string(), z.unknown()).optional().describe("Extended attributes as key-value pairs"),
     },
-    async ({ content, type, tags, global: isGlobal }) => {
+    async ({ content, type, tags, global: isGlobal, paths, category, metadata }) => {
       try {
-        const memory = await addMemory(content, { 
-          tags, 
+        const memory = await addMemory(content, {
+          tags,
           global: isGlobal,
           type: type as MemoryType | undefined,
+          paths,
+          category,
+          metadata: metadata as Record<string, unknown> | undefined,
         });
         const typeLabel = TYPE_LABELS[memory.type];
         return {
@@ -257,7 +267,7 @@ By default, memories are project-scoped when in a git repo. Use global: true for
     {
       query: z.string().describe("Search query - words are matched with prefix matching"),
       limit: z.number().optional().describe("Maximum number of results (default: 20)"),
-      types: z.array(z.enum(["rule", "decision", "fact", "note"])).optional().describe("Filter by memory types"),
+      types: z.array(z.enum(["rule", "decision", "fact", "note", "skill"])).optional().describe("Filter by memory types"),
     },
     async ({ query, limit, types }) => {
       try {
@@ -336,7 +346,7 @@ By default, memories are project-scoped when in a git repo. Use global: true for
     {
       limit: z.number().optional().describe("Maximum number of results (default: 50)"),
       tags: z.array(z.string()).optional().describe("Filter by tags"),
-      types: z.array(z.enum(["rule", "decision", "fact", "note"])).optional().describe("Filter by memory types"),
+      types: z.array(z.enum(["rule", "decision", "fact", "note", "skill"])).optional().describe("Filter by memory types"),
     },
     async ({ limit, tags, types }) => {
       try {
@@ -374,19 +384,22 @@ By default, memories are project-scoped when in a git repo. Use global: true for
   // Tool: edit_memory
   server.tool(
     "edit_memory",
-    `Update an existing memory's content, type, or tags. Use this to refine or correct memories.
+    `Update an existing memory's content, type, tags, paths, category, or metadata. Use this to refine or correct memories.
 Find the memory ID first with search_memories or list_memories.`,
     {
       id: z.string().describe("The memory ID to edit"),
       content: z.string().optional().describe("New content for the memory"),
-      type: z.enum(["rule", "decision", "fact", "note"]).optional().describe("New type for the memory"),
+      type: z.enum(["rule", "decision", "fact", "note", "skill"]).optional().describe("New type for the memory"),
       tags: z.array(z.string()).optional().describe("New tags (replaces existing tags)"),
+      paths: z.array(z.string()).optional().describe("New glob patterns for path-scoped rules"),
+      category: z.string().nullable().optional().describe("New grouping key (null to clear)"),
+      metadata: z.record(z.string(), z.unknown()).nullable().optional().describe("New extended attributes (null to clear)"),
     },
-    async ({ id, content, type, tags }) => {
+    async ({ id, content, type, tags, paths, category, metadata }) => {
       try {
-        if (!content && !type && !tags) {
+        if (!content && !type && !tags && !paths && category === undefined && metadata === undefined) {
           return {
-            content: [{ type: "text", text: "Nothing to update. Provide at least one of: content, type, tags." }],
+            content: [{ type: "text", text: "Nothing to update. Provide at least one of: content, type, tags, paths, category, metadata." }],
             isError: true,
           };
         }
@@ -394,6 +407,9 @@ Find the memory ID first with search_memories or list_memories.`,
           content,
           type: type as MemoryType | undefined,
           tags,
+          paths,
+          category,
+          metadata: metadata as Record<string, unknown> | null | undefined,
         });
         if (updated) {
           const typeLabel = TYPE_LABELS[updated.type];
@@ -456,7 +472,7 @@ Use this when you're receiving content in chunks via Server-Sent Events:
 2. Call append_memory_chunk for each chunk as it arrives
 3. Call finalize_memory_stream when done - this creates the memory and generates embeddings`,
     {
-      type: z.enum(["rule", "decision", "fact", "note"]).optional().describe("Memory type (default: note)"),
+      type: z.enum(["rule", "decision", "fact", "note", "skill"]).optional().describe("Memory type (default: note)"),
       tags: z.array(z.string()).optional().describe("Tags to categorize the memory"),
       global: z.boolean().optional().describe("Store as global memory instead of project-scoped"),
     },

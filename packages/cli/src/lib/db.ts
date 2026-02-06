@@ -133,6 +133,9 @@ async function runMigrations(db: Client): Promise<void> {
       scope TEXT NOT NULL DEFAULT 'global',
       project_id TEXT,
       type TEXT NOT NULL DEFAULT 'note',
+      paths TEXT,
+      category TEXT,
+      metadata TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT
@@ -154,9 +157,30 @@ async function runMigrations(db: Client): Promise<void> {
   }
 
   // Add type column if missing (migration for existing DBs)
-  // Types: 'rule' (always active), 'decision' (why we chose something), 'fact' (knowledge), 'note' (general)
+  // Types: 'rule' (always active), 'decision' (why we chose something), 'fact' (knowledge), 'note' (general), 'skill' (agent skill)
   try {
     await db.execute(`ALTER TABLE memories ADD COLUMN type TEXT NOT NULL DEFAULT 'note'`);
+  } catch {
+    // Column already exists
+  }
+
+  // Add paths column if missing (comma-separated glob patterns for path-scoped rules)
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN paths TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  // Add category column if missing (free-form grouping key)
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN category TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  // Add metadata column if missing (JSON blob for extended attributes)
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN metadata TEXT`);
   } catch {
     // Column already exists
   }

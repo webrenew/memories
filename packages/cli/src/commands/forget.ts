@@ -10,13 +10,14 @@ import {
 } from "../lib/memory.js";
 import { getProjectId } from "../lib/git.js";
 
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
+const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 const TYPE_ICONS: Record<MemoryType, string> = {
   rule: "📌",
   decision: "💡",
   fact: "📋",
   note: "📝",
+  skill: "🔧",
 };
 
 async function confirm(message: string): Promise<boolean> {

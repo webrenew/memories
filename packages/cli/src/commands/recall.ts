@@ -8,6 +8,7 @@ const TYPE_ICONS: Record<MemoryType, string> = {
   decision: "💡",
   fact: "📋",
   note: "📝",
+  skill: "🔧",
 };
 
 const TYPE_COLORS: Record<MemoryType, (text: string) => string> = {
@@ -15,6 +16,7 @@ const TYPE_COLORS: Record<MemoryType, (text: string) => string> = {
   decision: chalk.cyan,
   fact: chalk.green,
   note: chalk.white,
+  skill: chalk.magenta,
 };
 
 function formatMemory(m: Memory, verbose: boolean): string {

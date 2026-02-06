@@ -8,6 +8,7 @@ const TYPE_COLORS: Record<MemoryType, (s: string) => string> = {
   decision: chalk.yellow,
   fact: chalk.green,
   note: chalk.dim,
+  skill: chalk.magenta,
 };
 
 const TYPE_LABELS: Record<MemoryType, string> = {
@@ -15,9 +16,10 @@ const TYPE_LABELS: Record<MemoryType, string> = {
   decision: "decision",
   fact: "fact",
   note: "note",
+  skill: "skill",
 };
 
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
+const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 const MAX_CONTENT_WIDTH = 80;
 
 function truncate(str: string, max: number): string {

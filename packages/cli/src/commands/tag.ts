@@ -4,7 +4,7 @@ import { getDb } from "../lib/db.js";
 import { getProjectId } from "../lib/git.js";
 import type { MemoryType } from "../lib/memory.js";
 
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
+const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 interface TagFilters {
   type?: string;

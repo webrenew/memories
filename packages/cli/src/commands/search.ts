@@ -8,9 +8,10 @@ const TYPE_ICONS: Record<MemoryType, string> = {
   decision: "💡",
   fact: "📋",
   note: "📝",
+  skill: "🔧",
 };
 
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
+const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 function formatMemory(m: Memory, score?: number): string {
   const icon = TYPE_ICONS[m.type] || "📝";

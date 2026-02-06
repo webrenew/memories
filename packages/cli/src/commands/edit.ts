@@ -10,7 +10,7 @@ import { listMemories, updateMemory, type Memory, type MemoryType } from "../lib
 import { getDb } from "../lib/db.js";
 import { getProjectId } from "../lib/git.js";
 
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
+const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 function truncate(str: string, max: number): string {
   if (str.length <= max) return str;
@@ -42,8 +42,10 @@ export const editCommand = new Command("edit")
   .argument("[id]", "Memory ID to edit (interactive picker if omitted)")
   .option("-c, --content <content>", "New content (skips editor)")
   .option("-t, --tags <tags>", "New comma-separated tags")
-  .option("--type <type>", "New memory type: rule, decision, fact, note")
-  .action(async (id: string | undefined, opts: { content?: string; tags?: string; type?: string }) => {
+  .option("--type <type>", "New memory type: rule, decision, fact, note, skill")
+  .option("--paths <globs>", "New comma-separated glob patterns for path-scoped rules")
+  .option("--category <name>", "New grouping key for organizing memories")
+  .action(async (id: string | undefined, opts: { content?: string; tags?: string; type?: string; paths?: string; category?: string }) => {
     try {
       // Interactive picker if no ID provided
       if (!id) {
@@ -81,8 +83,8 @@ export const editCommand = new Command("edit")
 
       let newContent = opts.content;
 
-      // If no --content flag, open $EDITOR
-      if (newContent === undefined && opts.tags === undefined && opts.type === undefined) {
+      // If no flags provided, open $EDITOR
+      if (newContent === undefined && opts.tags === undefined && opts.type === undefined && opts.paths === undefined && opts.category === undefined) {
         const editor = process.env.EDITOR || process.env.VISUAL || "vi";
         const tmpFile = join(tmpdir(), `memories-edit-${nanoid(6)}.md`);
 
@@ -102,10 +104,12 @@ export const editCommand = new Command("edit")
       }
 
       // Build updates
-      const updates: { content?: string; tags?: string[]; type?: MemoryType } = {};
+      const updates: { content?: string; tags?: string[]; type?: MemoryType; paths?: string[]; category?: string | null } = {};
       if (newContent !== undefined) updates.content = newContent;
       if (opts.tags !== undefined) updates.tags = opts.tags.split(",").map((s) => s.trim()).filter(Boolean);
       if (opts.type !== undefined) updates.type = opts.type as MemoryType;
+      if (opts.paths !== undefined) updates.paths = opts.paths.split(",").map((s) => s.trim()).filter(Boolean);
+      if (opts.category !== undefined) updates.category = opts.category || null;
 
       const updated = await updateMemory(id, updates);
 
@@ -118,6 +122,8 @@ export const editCommand = new Command("edit")
       if (updates.content !== undefined) changes.push("content");
       if (updates.tags !== undefined) changes.push("tags");
       if (updates.type !== undefined) changes.push(`type→${updates.type}`);
+      if (updates.paths !== undefined) changes.push("paths");
+      if (updates.category !== undefined) changes.push("category");
 
       console.log(chalk.green("✓") + ` Updated ${chalk.dim(id)} (${changes.join(", ")})`);
     } catch (error) {

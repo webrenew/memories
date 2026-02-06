@@ -53,7 +53,7 @@ export const importCommand = new Command("import")
         process.exit(1);
       }
 
-      const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note"];
+      const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
       const importData = data as ImportData;
 
       // Validate and filter entries
