@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 import { randomBytes } from "node:crypto"
 
-// GET - Get current API key (masked)
+// GET - Get current API key
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -23,13 +23,10 @@ export async function GET() {
     return NextResponse.json({ hasKey: false })
   }
 
-  // Return masked key (show first 8 and last 4 chars)
-  const key = userData.mcp_api_key
-  const masked = `${key.slice(0, 12)}...${key.slice(-4)}`
-
+  // Return full key - users need to copy it for MCP config
   return NextResponse.json({ 
     hasKey: true, 
-    maskedKey: masked,
+    apiKey: userData.mcp_api_key,
   })
 }
 
