@@ -190,7 +190,7 @@ export function MCPInstallButtons() {
           {/* Claude Desktop Button */}
           <a
             href="#claude-desktop"
-            className="flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-amber-600/50 transition-all group"
+            className="flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-amber-600/50 transition-all group no-underline"
           >
             <div className="p-2 rounded-lg bg-amber-600/10 group-hover:bg-amber-600/20 transition-colors">
               <AnthropicIcon className="w-5 h-5 text-amber-600" />
@@ -229,7 +229,7 @@ export function MCPInstallButtons() {
           {/* Windsurf */}
           <a
             href="#windsurf"
-            className="flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-cyan-500/50 transition-all group"
+            className="flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-cyan-500/50 transition-all group no-underline"
           >
             <div className="p-2 rounded-lg bg-cyan-500/10 group-hover:bg-cyan-500/20 transition-colors">
               <WindsurfIcon className="w-5 h-5 text-cyan-500" />
@@ -244,7 +244,7 @@ export function MCPInstallButtons() {
           {/* VS Code */}
           <a
             href="#vscode"
-            className="flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-blue-500/50 transition-all group"
+            className="flex items-center gap-3 p-4 rounded-lg border border-border bg-card hover:bg-accent/50 hover:border-blue-500/50 transition-all group no-underline"
           >
             <div className="p-2 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/20 transition-colors">
               <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
@@ -265,28 +265,28 @@ export function MCPInstallButtons() {
         <span className="text-muted-foreground">Jump to:</span>
         <a
           href="#cursor"
-          className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5"
+          className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-1.5 no-underline"
         >
           <CursorIcon className="w-4 h-4" />
           Cursor
         </a>
         <a
           href="#claude-code"
-          className="text-muted-foreground hover:text-orange-500 transition-colors flex items-center gap-1.5"
+          className="text-muted-foreground hover:text-orange-500 transition-colors flex items-center gap-1.5 no-underline"
         >
           <ClaudeIcon className="w-4 h-4" />
           Claude Code
         </a>
         <a
           href="#claude-desktop"
-          className="text-muted-foreground hover:text-amber-600 transition-colors flex items-center gap-1.5"
+          className="text-muted-foreground hover:text-amber-600 transition-colors flex items-center gap-1.5 no-underline"
         >
           <AnthropicIcon className="w-4 h-4" />
           Claude Desktop
         </a>
         <a
           href="#windsurf"
-          className="text-muted-foreground hover:text-cyan-500 transition-colors flex items-center gap-1.5"
+          className="text-muted-foreground hover:text-cyan-500 transition-colors flex items-center gap-1.5 no-underline"
         >
           <WindsurfIcon className="w-4 h-4" />
           Windsurf
