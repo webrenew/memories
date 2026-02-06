@@ -1,0 +1,130 @@
+version: 2
+
+updates:
+  # ── npm (pnpm monorepo, single root lockfile) ──────────────────────
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+      time: "09:00"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 10
+    reviewers:
+      - tradecraft
+    labels:
+      - dependencies
+    commit-message:
+      prefix: "chore(deps):"
+    groups:
+      # Framework groups — batched so related packages upgrade together
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+      nextjs:
+        patterns:
+          - "next"
+          - "next-*"
+          - "@next/*"
+          - "eslint-config-next"
+      supabase:
+        patterns:
+          - "@supabase/*"
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      tailwind:
+        patterns:
+          - "tailwindcss*"
+          - "@tailwindcss/*"
+          - "tw-animate-css"
+          - "tailwind-merge"
+      stripe:
+        patterns:
+          - "stripe"
+          - "@stripe/*"
+      mcp-sdk:
+        patterns:
+          - "@modelcontextprotocol/*"
+      fumadocs:
+        patterns:
+          - "fumadocs-*"
+      three:
+        patterns:
+          - "three"
+          - "@types/three"
+          - "@react-three/*"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@eslint/*"
+          - "typescript-eslint"
+      # Catch-all: dev deps (minor + patch only)
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+        exclude-patterns:
+          - "react*"
+          - "@types/react*"
+          - "next*"
+          - "@next/*"
+          - "@supabase/*"
+          - "@radix-ui/*"
+          - "tailwindcss*"
+          - "@tailwindcss/*"
+          - "stripe*"
+          - "@modelcontextprotocol/*"
+          - "fumadocs-*"
+          - "three*"
+          - "@types/three"
+          - "@react-three/*"
+          - "eslint*"
+          - "@eslint/*"
+          - "typescript-eslint"
+      # Catch-all: prod deps (minor + patch only)
+      production-minor:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+        exclude-patterns:
+          - "react*"
+          - "@types/react*"
+          - "next*"
+          - "@next/*"
+          - "@supabase/*"
+          - "@radix-ui/*"
+          - "tailwindcss*"
+          - "@tailwindcss/*"
+          - "stripe*"
+          - "@modelcontextprotocol/*"
+          - "fumadocs-*"
+          - "three*"
+          - "@types/three"
+          - "@react-three/*"
+          - "eslint*"
+          - "@eslint/*"
+          - "typescript-eslint"
+
+  # ── GitHub Actions ─────────────────────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: "09:00"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    reviewers:
+      - tradecraft
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: "chore(ci):"
+    groups:
+      actions:
+        patterns:
+          - "*"
