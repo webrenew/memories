@@ -7,7 +7,7 @@ The memories.sh MCP server exposes 7 tools that AI agents can call to interact w
 
 ## get_context
 
-The primary tool for AI agents. Returns all active rules plus memories relevant to an optional search query.
+The primary tool for AI agents. Returns all active rules (with path and category metadata) plus memories relevant to an optional search query.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -24,26 +24,47 @@ The primary tool for AI agents. Returns all active rules plus memories relevant 
 }
 ```
 
-Returns all rules first, followed by relevant search results.
+Returns all rules first (including path scope and category when set), followed by relevant search results.
 
 ## add_memory
 
-Store a new memory.
+Store a new memory with optional metadata, path scoping, and categorization.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `content` | `string` | Yes | Memory content |
-| `type` | `enum` | No | `rule`, `decision`, `fact`, `note` (default: `note`) |
+| `type` | `enum` | No | `rule`, `decision`, `fact`, `note`, `skill` (default: `note`) |
 | `tags` | `string[]` | No | Array of tags |
 | `global` | `boolean` | No | Store as global (default: project-scoped) |
+| `paths` | `string[]` | No | Glob patterns for path-scoped rules |
+| `category` | `string` | No | Grouping key (becomes rule filename or skill directory) |
+| `metadata` | `object` | No | Extended attributes (JSON object, primarily for skills) |
 
 ```json
 {
   "name": "add_memory",
   "arguments": {
-    "content": "The API uses JWT tokens with 1h expiry",
-    "type": "fact",
-    "tags": ["auth", "api"]
+    "content": "Use RESTful naming conventions for all endpoints",
+    "type": "rule",
+    "paths": ["src/api/**", "src/routes/**"],
+    "category": "api"
+  }
+}
+```
+
+Adding a skill:
+
+```json
+{
+  "name": "add_memory",
+  "arguments": {
+    "content": "## Deploy\n\n1. Run tests\n2. Build\n3. Deploy to production",
+    "type": "skill",
+    "category": "deploy",
+    "metadata": {
+      "name": "deploy",
+      "description": "Deploy the application to production"
+    }
   }
 }
 ```
@@ -87,18 +108,32 @@ List recent memories with optional filters.
 |-----------|------|----------|-------------|
 | `limit` | `number` | No | Max results |
 | `tags` | `string[]` | No | Filter by tags |
-| `types` | `enum[]` | No | Filter by types |
+| `types` | `enum[]` | No | Filter by types (includes `skill`) |
 
 ## edit_memory
 
-Update an existing memory's content, type, or tags.
+Update an existing memory's content, type, tags, path scope, or category.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | `string` | Yes | Memory ID |
 | `content` | `string` | No | New content |
-| `type` | `enum` | No | New type |
+| `type` | `enum` | No | New type (`rule`, `decision`, `fact`, `note`, `skill`) |
 | `tags` | `string[]` | No | New tags |
+| `paths` | `string[]` | No | New glob patterns for path scoping |
+| `category` | `string` | No | New grouping key |
+| `metadata` | `object` | No | New extended attributes |
+
+```json
+{
+  "name": "edit_memory",
+  "arguments": {
+    "id": "abc123def456",
+    "paths": ["src/api/**"],
+    "category": "api"
+  }
+}
+```
 
 ## forget_memory
 

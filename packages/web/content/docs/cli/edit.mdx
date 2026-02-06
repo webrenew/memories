@@ -7,7 +7,7 @@ description: Edit an existing memory.
 memories edit [id] [options]
 ```
 
-Edit a memory's content, type, or tags. Opens your default editor for interactive editing, or accepts inline changes via options.
+Edit a memory's content, type, tags, path scope, or category. Opens your default editor for interactive editing, or accepts inline changes via options.
 
 ## Arguments
 
@@ -21,7 +21,9 @@ Edit a memory's content, type, or tags. Opens your default editor for interactiv
 |--------|-------------|
 | `-c, --content <content>` | New content (skips editor) |
 | `-t, --tags <tags>` | New comma-separated tags |
-| `--type <type>` | New memory type: `rule`, `decision`, `fact`, `note` |
+| `--type <type>` | New memory type: `rule`, `decision`, `fact`, `note`, `skill` |
+| `--paths <globs>` | New comma-separated glob patterns for path scoping |
+| `--category <name>` | New grouping key |
 
 ## Examples
 
@@ -47,6 +49,18 @@ Change type and tags:
 
 ```bash
 memories edit abc123def456 --type decision --tags "architecture,database"
+```
+
+Add path scoping to an existing rule:
+
+```bash
+memories edit abc123def456 --paths "src/api/**,src/routes/**" --category api
+```
+
+Convert a memory to a skill:
+
+```bash
+memories edit abc123def456 --type skill --category deploy
 ```
 
 ## Behavior

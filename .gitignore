@@ -10,6 +10,9 @@ supabase/.temp/
 .vercel
 .env*.local
 
+# Internal design docs (RFCs, task specs, planning artifacts)
+/docs/
+
 # Local agent config directories (each tool's project-specific config)
 .agents/
 .claude/

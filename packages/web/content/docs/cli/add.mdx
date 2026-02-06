@@ -7,7 +7,7 @@ description: Add a new memory to the store.
 memories add <content> [options]
 ```
 
-Store a new memory with optional type and tags. Memories are automatically scoped to the current project when inside a git repository.
+Store a new memory with optional type, tags, path scoping, and category. Memories are automatically scoped to the current project when inside a git repository.
 
 ## Arguments
 
@@ -21,10 +21,12 @@ Store a new memory with optional type and tags. Memories are automatically scope
 |--------|-------------|
 | `-t, --tags <tags>` | Comma-separated tags |
 | `-g, --global` | Store as global memory (default: project-scoped if in git repo) |
-| `--type <type>` | Memory type: `rule`, `decision`, `fact`, `note` (default: `note`) |
+| `--type <type>` | Memory type: `rule`, `decision`, `fact`, `note`, `skill` (default: `note`) |
 | `-r, --rule` | Shorthand for `--type rule` |
 | `-d, --decision` | Shorthand for `--type decision` |
 | `-f, --fact` | Shorthand for `--type fact` |
+| `--paths <globs>` | Comma-separated glob patterns for path-scoped rules |
+| `--category <name>` | Grouping key (becomes rule filename or skill directory) |
 
 ## Examples
 
@@ -32,6 +34,12 @@ Add a rule:
 
 ```bash
 memories add --rule "Always use early returns to reduce nesting"
+```
+
+Add a path-scoped rule:
+
+```bash
+memories add --rule "Use RESTful naming conventions" --paths "src/api/**" --category api
 ```
 
 Add a decision with tags:
@@ -52,11 +60,27 @@ Add a global memory:
 memories add --global --rule "Use conventional commits in all projects"
 ```
 
+Add a skill:
+
+```bash
+memories add --type skill "## Deploy\n\n1. Run tests\n2. Build\n3. Deploy" \
+  --category deploy
+```
+
 Add a simple note (default type):
 
 ```bash
 memories add "Legacy API deprecated in Q3 2026"
 ```
+
+## Path Scoping
+
+When you set `--paths`, the memory becomes a path-scoped rule. During generation:
+
+- **`.agents/rules/`** — written as a separate rule file with `paths:` frontmatter
+- **Claude Code** — copied to `.claude/rules/` (native `paths:` support)
+- **Cursor** — translated to `.cursor/rules/` with `globs:` frontmatter
+- **Flat-file targets** — merged into the single file with inline path annotations
 
 ## Behavior
 

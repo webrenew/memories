@@ -1,6 +1,6 @@
 ---
 title: Memory Types
-description: Understanding the four memory types — rules, decisions, facts, and notes.
+description: Understanding the five memory types — rules, decisions, facts, notes, and skills.
 ---
 
 Every memory in memories.sh has a **type** that describes its purpose. The type affects how the memory is presented to AI agents and how it's prioritized in context.
@@ -18,6 +18,13 @@ memories add --rule "Use early returns to reduce nesting"
 ```
 
 Rules are the most important memory type. They appear at the top of generated files and are always returned by `memories recall` and the MCP `get_context` tool.
+
+Rules can be **path-scoped** so they only apply to specific files:
+
+```bash
+memories add --rule "Use RESTful naming conventions" --paths "src/api/**"
+memories add --rule "Mock all external services" --paths "**/*.test.ts"
+```
 
 ### Decision
 
@@ -47,11 +54,56 @@ memories add "Legacy API will be deprecated in Q3 2026"
 memories add "The billing module was written by the contractor team"
 ```
 
+### Skill
+
+Skills define reusable capabilities or workflows that AI agents can invoke. They follow the [Agent Skills](https://agentskills.io) open standard and generate `SKILL.md` files in the `.agents/skills/` directory.
+
+```bash
+memories add --type skill "## Deploy to Production\n\n1. Run tests\n2. Build artifacts\n3. Push to registry" \
+  --category deploy \
+  --metadata '{"name": "deploy", "description": "Deploy the app to production"}'
+```
+
+Skills require a `--category` to group them into directories (e.g., `deploy`, `review`, `testing`). The category becomes the skill's folder name in `.agents/skills/{category}/SKILL.md`.
+
+## Extended Fields
+
+In addition to the type, memories can carry optional metadata that enriches generated configurations:
+
+### paths
+
+Comma-separated glob patterns that scope a memory to specific files. When set, the memory only appears in path-scoped rule files rather than global instructions.
+
+```bash
+memories add --rule "Use React Query for data fetching" --paths "src/components/**,src/hooks/**"
+```
+
+Path-scoped memories translate into:
+- `.claude/rules/*.md` with `paths:` frontmatter
+- `.cursor/rules/*.mdc` with `globs:` frontmatter
+- Inline path annotations in flat-file targets
+
+### category
+
+A free-form grouping key. For rules, the category determines the output filename (e.g., `--category api` produces `rules/api.md`). For skills, it determines the directory name.
+
+```bash
+memories add --rule "Validate all request params" --paths "src/api/**" --category api
+```
+
+### metadata
+
+A JSON object for extended attributes. Primarily used for skills (name, description, allowed tools), but available on any memory type for future use.
+
+```bash
+memories add --type skill "..." --metadata '{"name": "code-review", "description": "Systematic code review"}'
+```
+
 ## How Types Affect Context
 
 When an AI agent requests context via `memories recall` or the MCP server:
 
-1. **All rules** are always included (both global and project-scoped)
+1. **All rules** are always included (both global and project-scoped), with path information when available
 2. **Other types** are included based on search relevance or explicit request
 3. Generated files include rules by default, with decisions and facts optional via `--types`
 
@@ -63,3 +115,4 @@ When an AI agent requests context via `memories recall` or the MCP server:
 | Explains a past choice | `decision` |
 | States something concrete and specific | `fact` |
 | Is general context or temporary | `note` |
+| Defines a reusable agent workflow | `skill` |
