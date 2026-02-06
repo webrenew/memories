@@ -115,9 +115,9 @@ export function FeaturesGrid() {
                 key={idx}
                 initial={{ opacity: 0 }}
                 whileInView={{ opacity: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
-                className="group p-8 lg:p-10 glass-panel hover:border-primary/30 transition-all duration-500 relative overflow-hidden rounded-lg"
+                viewport={{ once: true, amount: 0.05 }}
+                transition={{ duration: 0.3 }}
+                className="group p-8 lg:p-10 glass-panel hover:border-primary/30 transition-all duration-500 relative overflow-hidden rounded-lg transform-gpu"
               >
                 <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
                   <FeatureIcon index={idx} />
@@ -148,7 +148,7 @@ export function FeaturesGrid() {
               </motion.div>
             ))}
             
-            <div className="group p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col glass-panel-soft rounded-lg hover:border-primary/40 transition-all duration-500 relative overflow-hidden">
+            <div className="group p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col glass-panel-soft rounded-lg hover:border-primary/40 transition-all duration-500 relative overflow-hidden transform-gpu">
               <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
                 <div className="w-6 h-6 border border-primary/60 rounded-full flex items-center justify-center">
                   <div className="w-1 h-1 bg-primary animate-pulse" />

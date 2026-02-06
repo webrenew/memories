@@ -175,9 +175,9 @@ export function HowItWorks() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              viewport={{ once: true, amount: 0.05 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="flex flex-col items-start text-left"
+              className="flex flex-col items-start text-left transform-gpu"
             >
               {/* Section badge */}
               <div className="inline-flex items-center gap-2 mb-6">
@@ -205,9 +205,9 @@ export function HowItWorks() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              viewport={{ once: true, amount: 0.05 }}
               transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full p-6 rounded-xl border border-border bg-card/50 backdrop-blur-sm mb-16 lg:mb-24"
+              className="w-full p-6 rounded-xl border border-border bg-card/50 backdrop-blur-sm mb-16 lg:mb-24 transform-gpu"
             >
               {/* Card header */}
               <div className="flex items-center justify-between mb-5">
@@ -359,9 +359,9 @@ export function HowItWorks() {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            viewport={{ once: true, amount: 0.05 }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="relative flex items-center"
+            className="relative flex items-center transform-gpu"
           >
             <div className="w-full">
               {/* Tab label on top right of terminal */}

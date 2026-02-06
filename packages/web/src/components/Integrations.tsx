@@ -73,9 +73,9 @@ export function Integrations() {
                 <motion.div 
                   initial={{ opacity: 0 }}
                   whileInView={{ opacity: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4 }}
-                  className="p-8 lg:p-10 bg-card/20 flex flex-col items-start group hover:border-primary/40 transition-all h-full cursor-pointer glass-panel-soft rounded-lg relative overflow-hidden"
+                  viewport={{ once: true, amount: 0.05 }}
+                  transition={{ duration: 0.3 }}
+                  className="p-8 lg:p-10 bg-card/20 flex flex-col items-start group hover:border-primary/40 transition-all h-full cursor-pointer glass-panel-soft rounded-lg relative overflow-hidden transform-gpu"
                 >
                   {/* Background texture - visible on hover */}
                   <div

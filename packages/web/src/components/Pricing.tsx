@@ -119,86 +119,89 @@ export function Pricing({ user }: { user?: User | null }) {
             const isCustom = price === "Custom";
             
             return (
-              <motion.div
-                key={tier.name}
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
-                className={`relative flex flex-col p-8 overflow-hidden ${
-                  tier.highlighted 
-                    ? "bg-primary/10 ring-1 ring-primary/40 shadow-[0_0_40px_rgba(99,102,241,0.25)]" 
-                    : "bg-card/20"
-                } transition-all duration-500 hover:border-primary/40 glass-panel-soft rounded-lg`}
-              >
-                {/* Background texture and overlay for highlighted card */}
+              <div key={tier.name} className={`relative ${tier.highlighted ? "pt-3" : ""}`}>
+                {/* Recommended badge — outside overflow-hidden so it's never clipped */}
                 {tier.highlighted && (
-                  <>
-                    <div
-                      className="absolute inset-0 opacity-15 dark:opacity-25 bg-cover bg-center bg-no-repeat"
-                      style={{ backgroundImage: "url(/bg-texture_memories.webp)" }}
-                    />
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, transparent 0%, transparent 5%, var(--background) 25%, var(--background) 75%, transparent 95%, transparent 100%)",
-                      }}
-                    />
-                  </>
-                )}
-                {tier.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest rounded-md z-10">
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest rounded-md z-10">
                     Recommended
                   </div>
                 )}
 
-                <div className="mb-8 relative z-10">
-                  <h3 className="text-xl font-bold mb-2 uppercase tracking-wider">{tier.name}</h3>
-                  <div className="flex items-baseline gap-1 mb-1">
-                    <span className="text-4xl font-mono font-bold">{price}</span>
-                    {!isCustom && (
-                      <span className="text-muted-foreground text-sm">/month</span>
-                    )}
-                  </div>
-                  {isYearly && tier.yearlyTotal && (
-                    <div className="text-xs text-muted-foreground mb-3">
-                      Billed annually at {tier.yearlyTotal}/year
-                    </div>
-                  )}
-                  {!isYearly && tier.yearlyTotal && (
-                    <div className="h-5 mb-3" /> 
-                  )}
-                  <p className="text-sm text-muted-foreground leading-relaxed italic">
-                    {tier.description}
-                  </p>
-                </div>
-
-                <div className="flex-grow mb-10 relative z-10">
-                  <div className="text-[11px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-6">
-                    Included Features
-                  </div>
-                  <ul className="space-y-4">
-                    {tier.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-3 text-sm text-muted-foreground">
-                        <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <Link 
-                  href={tier.name === "Enterprise" ? "mailto:hello@memories.sh" : user ? "/app/upgrade" : "/login"}
-                  className={`block w-full py-4 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-300 text-center rounded-md relative z-10 ${
-                    tier.highlighted
-                      ? "bg-primary text-primary-foreground hover:opacity-90 shadow-[0_0_20px_rgba(var(--primary),0.3)]"
-                      : "bg-foreground/5 text-foreground border border-border hover:bg-foreground/10"
-                  }`}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true, amount: 0.05 }}
+                  transition={{ duration: 0.3 }}
+                  className={`relative flex flex-col h-full p-8 overflow-hidden transform-gpu ${
+                    tier.highlighted 
+                      ? "bg-primary/10 ring-1 ring-primary/40 shadow-[0_0_40px_rgba(99,102,241,0.25)]" 
+                      : "bg-card/20"
+                  } transition-all duration-500 hover:border-primary/40 glass-panel-soft rounded-lg`}
                 >
-                  {tier.cta}
-                </Link>
-              </motion.div>
+                  {/* Background texture and overlay for highlighted card */}
+                  {tier.highlighted && (
+                    <>
+                      <div
+                        className="absolute inset-0 opacity-15 dark:opacity-25 bg-cover bg-center bg-no-repeat"
+                        style={{ backgroundImage: "url(/bg-texture_memories.webp)" }}
+                      />
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, transparent 0%, transparent 5%, var(--background) 25%, var(--background) 75%, transparent 95%, transparent 100%)",
+                        }}
+                      />
+                    </>
+                  )}
+
+                  <div className="mb-8 relative z-10">
+                    <h3 className="text-xl font-bold mb-2 uppercase tracking-wider">{tier.name}</h3>
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className="text-4xl font-mono font-bold">{price}</span>
+                      {!isCustom && (
+                        <span className="text-muted-foreground text-sm">/month</span>
+                      )}
+                    </div>
+                    {isYearly && tier.yearlyTotal && (
+                      <div className="text-xs text-muted-foreground mb-3">
+                        Billed annually at {tier.yearlyTotal}/year
+                      </div>
+                    )}
+                    {!isYearly && tier.yearlyTotal && (
+                      <div className="h-5 mb-3" /> 
+                    )}
+                    <p className="text-sm text-muted-foreground leading-relaxed italic">
+                      {tier.description}
+                    </p>
+                  </div>
+
+                  <div className="flex-grow mb-10 relative z-10">
+                    <div className="text-[11px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-6">
+                      Included Features
+                    </div>
+                    <ul className="space-y-4">
+                      {tier.features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-3 text-sm text-muted-foreground">
+                          <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <Link 
+                    href={tier.name === "Enterprise" ? "mailto:hello@memories.sh" : user ? "/app/upgrade" : "/login"}
+                    className={`block w-full py-4 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-300 text-center rounded-md relative z-10 ${
+                      tier.highlighted
+                        ? "bg-primary text-primary-foreground hover:opacity-90 shadow-[0_0_20px_rgba(var(--primary),0.3)]"
+                        : "bg-foreground/5 text-foreground border border-border hover:bg-foreground/10"
+                    }`}
+                  >
+                    {tier.cta}
+                  </Link>
+                </motion.div>
+              </div>
             );
           })}
         </div>
