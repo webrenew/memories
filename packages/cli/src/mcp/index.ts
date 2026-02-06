@@ -39,7 +39,9 @@ function formatMemory(m: Memory): string {
   const tags = m.tags ? ` [${m.tags}]` : "";
   const scope = m.scope === "global" ? "G" : "P";
   const typeLabel = TYPE_LABELS[m.type] || "📝 NOTE";
-  return `${typeLabel} (${scope}) ${m.id}: ${m.content}${tags}`;
+  const paths = m.paths ? ` (paths: ${m.paths})` : "";
+  const cat = m.category ? ` {${m.category}}` : "";
+  return `${typeLabel} (${scope}) ${m.id}: ${m.content}${tags}${paths}${cat}`;
 }
 
 function formatRulesSection(rules: Memory[]): string {

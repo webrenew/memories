@@ -70,10 +70,10 @@ describe("generate", () => {
   });
 
   describe("type parsing", () => {
-    const VALID_TYPES = ["rule", "decision", "fact", "note"];
+    const VALID_TYPES = ["rule", "decision", "fact", "note", "skill"];
 
     it("should accept valid types", () => {
-      for (const t of ["rule", "decision", "fact", "note"]) {
+      for (const t of ["rule", "decision", "fact", "note", "skill"]) {
         expect(VALID_TYPES.includes(t)).toBe(true);
       }
     });
