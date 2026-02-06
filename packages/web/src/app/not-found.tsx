@@ -104,7 +104,7 @@ export default function NotFound() {
           {/* Main heading */}
           <motion.h1
             variants={itemVariants}
-            className="text-6xl sm:text-7xl lg:text-8xl font-bold tracking-[-0.03em] mb-6 leading-[0.95] text-foreground"
+            className="font-mono font-normal text-3xl sm:text-4xl lg:text-5xl xl:text-6xl mb-6 leading-[0.95] text-foreground"
           >
             <ScrambleText text="404" delayMs={300} duration={0.8} />
           </motion.h1>

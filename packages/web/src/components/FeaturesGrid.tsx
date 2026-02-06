@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+
 import Link from "next/link";
 import { ScrambleText } from "./animations/ScrambleText";
 
@@ -101,7 +101,7 @@ export function FeaturesGrid() {
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">Core Features</span>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">
+            <h2 className="font-mono font-normal text-2xl sm:text-4xl text-foreground">
               <ScrambleText text="Built for durable state" delayMs={200} />
             </h2>
             <p className="mt-6 text-lg text-muted-foreground max-w-2xl">
@@ -111,15 +111,11 @@ export function FeaturesGrid() {
   
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {features.map((f, idx) => (
-              <motion.div 
+              <div 
                 key={idx}
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true, amount: 0.05 }}
-                transition={{ duration: 0.3 }}
-                className="group p-8 lg:p-10 glass-panel hover:border-primary/30 transition-all duration-500 relative overflow-hidden rounded-lg transform-gpu"
+                className="group p-8 lg:p-10 bg-card/30 border border-border shadow-lg dark:shadow-[0_20px_80px_rgba(0,0,0,0.45)] hover:ring-1 hover:ring-primary/30 relative overflow-hidden rounded-lg"
               >
-                <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
+                <div className="text-primary/60 group-hover:text-primary mb-10">
                   <FeatureIcon index={idx} />
                 </div>
                 
@@ -140,16 +136,16 @@ export function FeaturesGrid() {
                     Learn More →
                   </Link>
                 </div>
-  
+
                 {/* Technical Hover Decor */}
-                <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+                <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none opacity-0 group-hover:opacity-100">
                   <div className="absolute top-4 right-4 w-2 h-2 border-t border-r border-primary/40" />
                 </div>
-              </motion.div>
+              </div>
             ))}
             
-            <div className="group p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col glass-panel-soft rounded-lg hover:border-primary/40 transition-all duration-500 relative overflow-hidden transform-gpu">
-              <div className="text-primary/60 group-hover:text-primary transition-colors duration-500 mb-10">
+            <div className="group p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col shadow-md dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)] rounded-lg hover:ring-1 hover:ring-primary/40 relative overflow-hidden">
+              <div className="text-primary/60 group-hover:text-primary mb-10">
                 <div className="w-6 h-6 border border-primary/60 rounded-full flex items-center justify-center">
                   <div className="w-1 h-1 bg-primary animate-pulse" />
                 </div>

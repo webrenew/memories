@@ -76,7 +76,7 @@ export function Pricing({ user }: { user?: User | null }) {
             <span className="w-1.5 h-1.5 bg-primary animate-pulse" />
             Pricing
           </motion.div>
-          <h2 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-gradient">
+          <h2 className="font-mono font-normal text-2xl sm:text-4xl mb-6 text-foreground">
             <ScrambleText text="Simple, Transparent Pricing" delayMs={200} />
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto text-lg font-light leading-relaxed">
@@ -119,7 +119,7 @@ export function Pricing({ user }: { user?: User | null }) {
             const isCustom = price === "Custom";
             
             return (
-              <div key={tier.name} className={`relative ${tier.highlighted ? "pt-3" : ""}`}>
+              <div key={tier.name} className={`relative ${tier.highlighted ? "pt-3 -mt-4 mb-[-16px] md:-mt-6 md:mb-[-24px]" : ""}`}>
                 {/* Recommended badge — outside overflow-hidden so it's never clipped */}
                 {tier.highlighted && (
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest rounded-md z-10">
@@ -127,16 +127,12 @@ export function Pricing({ user }: { user?: User | null }) {
                   </div>
                 )}
 
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  viewport={{ once: true, amount: 0.05 }}
-                  transition={{ duration: 0.3 }}
-                  className={`relative flex flex-col h-full p-8 overflow-hidden transform-gpu ${
+                <div
+                  className={`relative flex flex-col h-full p-8 overflow-hidden animate-in fade-in duration-300 ${
                     tier.highlighted 
                       ? "bg-primary/10 ring-1 ring-primary/40 shadow-[0_0_40px_rgba(99,102,241,0.25)]" 
                       : "bg-card/20"
-                  } transition-all duration-500 hover:border-primary/40 glass-panel-soft rounded-lg`}
+                  } hover:ring-1 hover:ring-primary/40 border border-border shadow-md dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)] rounded-lg`}
                 >
                   {/* Background texture and overlay for highlighted card */}
                   {tier.highlighted && (
@@ -156,7 +152,7 @@ export function Pricing({ user }: { user?: User | null }) {
                   )}
 
                   <div className="mb-8 relative z-10">
-                    <h3 className="text-xl font-bold mb-2 uppercase tracking-wider">{tier.name}</h3>
+                    <h3 className="font-mono font-normal text-xl sm:text-2xl mb-2 uppercase tracking-wider text-foreground">{tier.name}</h3>
                     <div className="flex items-baseline gap-1 mb-1">
                       <span className="text-4xl font-mono font-bold">{price}</span>
                       {!isCustom && (
@@ -200,7 +196,7 @@ export function Pricing({ user }: { user?: User | null }) {
                   >
                     {tier.cta}
                   </Link>
-                </motion.div>
+                </div>
               </div>
             );
           })}

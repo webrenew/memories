@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+
 import Image from "next/image";
 import Link from "next/link";
 import { ScrambleText } from "./animations/ScrambleText";
@@ -11,14 +11,14 @@ export function Integrations() {
       name: "Claude Code",
       logo: "/logos/claude-code.svg",
       status: "Available",
-      desc: "Generates CLAUDE.md for Anthropic's coding CLI.",
+      desc: "Generates CLAUDE.md, path-scoped rules, skills, and settings.",
       docsUrl: "/docs/integrations/claude-code",
     },
     {
       name: "Cursor",
       logo: "/logos/cursor.svg",
       status: "Available",
-      desc: "Generates .cursor/rules/memories.mdc with frontmatter.",
+      desc: "Generates .cursor/rules/ with globs frontmatter and skills.",
       docsUrl: "/docs/integrations/cursor",
     },
     {
@@ -59,7 +59,7 @@ export function Integrations() {
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">Integrations</span>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">
+            <h2 className="font-mono font-normal text-2xl sm:text-4xl text-foreground">
               <ScrambleText text="Works With Your Tools" delayMs={200} />
             </h2>
             <p className="mt-6 text-lg text-muted-foreground max-w-2xl">
@@ -70,24 +70,18 @@ export function Integrations() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {adapters.map((a, idx) => (
               <Link href={a.docsUrl} key={idx}>
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
-                  viewport={{ once: true, amount: 0.05 }}
-                  transition={{ duration: 0.3 }}
-                  className="p-8 lg:p-10 bg-card/20 flex flex-col items-start group hover:border-primary/40 transition-all h-full cursor-pointer glass-panel-soft rounded-lg relative overflow-hidden transform-gpu"
-                >
+                <div className="p-8 lg:p-10 bg-card/20 flex flex-col items-start group hover:ring-1 hover:ring-primary/40 h-full cursor-pointer border border-border shadow-md dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)] rounded-lg relative overflow-hidden">
                   {/* Background texture - visible on hover */}
                   <div
-                    className="absolute inset-0 opacity-0 group-hover:opacity-15 dark:group-hover:opacity-25 bg-cover bg-center bg-no-repeat transition-opacity duration-500"
+                    className="absolute inset-0 opacity-0 group-hover:opacity-20 dark:group-hover:opacity-40 bg-cover bg-center bg-no-repeat"
                     style={{ backgroundImage: "url(/bg-texture_memories.webp)" }}
                   />
                   {/* Diamond gradient overlay - visible on hover */}
                   <div
-                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                    className="absolute inset-0 opacity-0 group-hover:opacity-60 dark:group-hover:opacity-50"
                     style={{
                       background:
-                        "linear-gradient(135deg, transparent 0%, transparent 5%, var(--background) 25%, var(--background) 75%, transparent 95%, transparent 100%)",
+                        "linear-gradient(135deg, transparent 0%, transparent 10%, var(--background) 35%, var(--background) 65%, transparent 90%, transparent 100%)",
                     }}
                   />
 
@@ -97,7 +91,7 @@ export function Integrations() {
                   </span>
                   
                   {/* Icon - left aligned with headings */}
-                  <div className="h-14 mb-12 opacity-80 group-hover:opacity-100 transition-opacity duration-500 relative z-10">
+                  <div className="h-14 mb-12 opacity-80 group-hover:opacity-100 relative z-10">
                     {a.logo ? (
                       <Image src={a.logo} alt={a.name} width={40} height={40} className="dark:invert-0 invert" />
                     ) : (
@@ -110,10 +104,10 @@ export function Integrations() {
                   <h4 className="text-lg font-bold mb-3 tracking-tight text-foreground relative z-10">{a.name}</h4>
                   <p className="text-[13px] text-muted-foreground leading-relaxed mb-10 font-light relative z-10">{a.desc}</p>
                   
-                  <span className="mt-auto text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-2 relative z-10">
-                    View Docs <span className="text-lg opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">→</span>
+                  <span className="mt-auto text-[11px] font-bold uppercase tracking-[0.25em] text-muted-foreground group-hover:text-primary flex items-center gap-2 relative z-10">
+                    View Docs <span className="text-lg opacity-0 group-hover:opacity-100 group-hover:translate-x-1">→</span>
                   </span>
-                </motion.div>
+                </div>
               </Link>
             ))}
           </div>

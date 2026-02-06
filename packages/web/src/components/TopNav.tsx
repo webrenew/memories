@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import type { User } from "@supabase/supabase-js";
+import { ScrambleTextOnHover } from "./animations/ScrambleText";
 
 const navItems = [
   { href: "#how-it-works", label: "How" },
@@ -49,9 +50,11 @@ export function TopNav({ user }: { user?: User | null }) {
                   href={item.href} 
                   className="group relative px-4 py-2 flex items-center gap-2"
                 >
-                  <span className="text-[11px] uppercase tracking-[0.12em] font-medium text-muted-foreground/80 group-hover:text-foreground transition-colors">
-                    {item.label}
-                  </span>
+                  <ScrambleTextOnHover
+                    text={item.label}
+                    className="font-mono text-[11px] uppercase tracking-[0.12em] font-normal text-muted-foreground/80 group-hover:text-foreground transition-colors"
+                    duration={0.4}
+                  />
                   
                   {/* Hover Indicator */}
                   <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-px bg-primary/80 group-hover:w-1/2 transition-all duration-500" />

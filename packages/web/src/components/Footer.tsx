@@ -22,7 +22,7 @@ export function Footer() {
           
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-16 md:gap-24">
             <div className="flex flex-col gap-6">
-              <h5 className="text-[10px] uppercase tracking-[0.3em] font-bold text-foreground">Product</h5>
+              <h5 className="font-mono text-[10px] sm:text-xs uppercase tracking-wider text-white/50">Product</h5>
               <div className="flex flex-col gap-4 text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.15em]">
                 <Link href="/docs" className="hover:text-primary transition-colors">Documentation</Link>
                 <Link href="/docs/cli" className="hover:text-primary transition-colors">CLI Reference</Link>
@@ -31,14 +31,14 @@ export function Footer() {
               </div>
             </div>
             <div className="flex flex-col gap-6">
-              <h5 className="text-[10px] uppercase tracking-[0.3em] font-bold text-foreground">Network</h5>
+              <h5 className="font-mono text-[10px] sm:text-xs uppercase tracking-wider text-white/50">Network</h5>
               <div className="flex flex-col gap-4 text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.15em]">
                 <a href="https://discord.gg/2K7rhuwc" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Discord</a>
                 <a href="https://x.com/WebRenew_" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">X (Twitter)</a>
               </div>
             </div>
             <div className="flex flex-col gap-6">
-              <h5 className="text-[10px] uppercase tracking-[0.3em] font-bold text-foreground">Legal</h5>
+              <h5 className="font-mono text-[10px] sm:text-xs uppercase tracking-wider text-white/50">Legal</h5>
               <div className="flex flex-col gap-4 text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.15em]">
                 <a href="https://www.webrenew.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Privacy</a>
                 <a href="https://www.webrenew.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Terms</a>

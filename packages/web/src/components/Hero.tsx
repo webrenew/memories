@@ -200,7 +200,7 @@ export function Hero() {
 
             <motion.h1 
               variants={itemVariants} 
-              className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-[-0.03em] mb-6 leading-[0.95] text-foreground"
+              className="font-mono font-normal text-3xl sm:text-4xl lg:text-5xl xl:text-6xl tracking-tight mb-6 leading-[0.95] text-foreground"
             >
               <ScrambleText text="The unified agent memory layer." delayMs={300} duration={1.2} />
             </motion.h1>

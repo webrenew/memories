@@ -188,7 +188,7 @@ export function HowItWorks() {
               </div>
 
               {/* Main heading */}
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight text-foreground mb-4">
+              <h2 className="font-mono font-normal text-2xl sm:text-4xl tracking-tight text-foreground mb-4">
                 <ScrambleText key={activeTab} text={tabContent[activeTab].heading} delayMs={0} duration={0.6} />
               </h2>
               
@@ -249,7 +249,7 @@ export function HowItWorks() {
 
               {/* Card title and description */}
               <div className="mt-6 pt-5 border-t border-border">
-                <h3 className="text-lg font-semibold text-foreground mb-2">
+                <h3 className="font-mono font-normal text-xl sm:text-2xl text-foreground mb-2">
                   {tabContent[activeTab].cardTitle}
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">

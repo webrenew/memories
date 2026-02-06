@@ -40,7 +40,7 @@ export function FAQ() {
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">Support</span>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground text-gradient">
+            <h2 className="font-mono font-normal text-2xl sm:text-4xl text-foreground">
               <ScrambleText text="Questions & Answers" delayMs={200} />
             </h2>
             <p className="mt-6 text-lg text-muted-foreground max-w-2xl">
@@ -66,7 +66,7 @@ export function FAQ() {
           onClick={() => setIsOpen(!isOpen)}
           className="w-full flex items-center justify-between p-10 text-left transition-colors"
         >
-          <span className="font-bold tracking-tight text-lg text-foreground">{question}</span>
+          <span className="font-mono font-normal tracking-tight text-lg text-foreground">{question}</span>
         <div className={`transition-transform duration-500 ${isOpen ? 'rotate-45 text-primary' : 'text-muted-foreground/40'}`}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14M5 12h14" />
