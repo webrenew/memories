@@ -50,7 +50,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
-    "framer-motion": "^12.23.24",
+    "framer-motion": "^12.33.0",
     "fumadocs-core": "^16.5.0",
     "fumadocs-mdx": "^14.2.6",
     "fumadocs-ui": "^16.5.0",
