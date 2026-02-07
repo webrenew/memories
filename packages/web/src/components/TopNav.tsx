@@ -66,14 +66,9 @@ export function TopNav({ user }: { user?: User | null }) {
               {user ? (
                 <Link 
                   href="/app" 
-                  className="group hidden sm:flex items-center gap-3 px-6 py-2 bg-primary/90 text-primary-foreground shadow-[0_0_30px_rgba(99,102,241,0.25)] hover:opacity-90 transition-all duration-300 rounded-md"
+                  className="group hidden sm:flex items-center px-4 py-2 bg-primary/90 text-primary-foreground shadow-[0_0_30px_rgba(99,102,241,0.25)] hover:opacity-90 transition-all duration-300 rounded-md"
                 >
                   <span className="text-[10px] uppercase tracking-[0.2em] font-bold">Dashboard</span>
-                  <div className="w-6 h-6 rounded-sm bg-primary-foreground/20 flex items-center justify-center">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M5 12h14m-7-7 7 7-7 7" />
-                    </svg>
-                  </div>
                 </Link>
               ) : (
                 <Link 
