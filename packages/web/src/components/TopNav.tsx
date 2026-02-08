@@ -6,6 +6,7 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import type { User } from "@supabase/supabase-js";
 import { ScrambleTextOnHover } from "./animations/ScrambleText";
+import { Github } from "./icons/app/Github";
 
 const navItems = [
   { href: "#how-it-works", label: "How" },
@@ -63,6 +64,16 @@ export function TopNav({ user }: { user?: User | null }) {
             </div>
 
             <div className="flex items-center gap-6">
+              <a
+                href="https://github.com/WebRenew/memories"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground/80 hover:text-foreground transition-colors"
+                aria-label="GitHub"
+              >
+                <Github className="w-5 h-5" />
+              </a>
+
               {user ? (
                 <Link 
                   href="/app" 
