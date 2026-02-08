@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { createClient as createTurso } from "@libsql/client"
 import { NextRequest, NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, createMemorySchema, updateMemorySchema, deleteMemorySchema } from "@/lib/validations"
 
 export async function GET() {
   const supabase = await createClient()
@@ -51,10 +52,9 @@ export async function POST(request: NextRequest) {
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const { content, type = "rule", scope = "global", tags } = await request.json()
-  if (!content) {
-    return NextResponse.json({ error: "Content required" }, { status: 400 })
-  }
+  const parsed = parseBody(createMemorySchema, await request.json())
+  if (!parsed.success) return parsed.response
+  const { content, type, scope, tags } = parsed.data
 
   const { data: profile } = await supabase
     .from("users")
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     await turso.execute({
       sql: `INSERT INTO memories (id, content, type, scope, tags, created_at, updated_at) 
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [id, content, type, scope, tags || null, now, now],
+      args: [id, content, type, scope, tags ?? null, now, now],
     })
 
     return NextResponse.json({ 
@@ -107,10 +107,9 @@ export async function PATCH(request: NextRequest) {
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const { id, content, tags } = await request.json()
-  if (!id || !content) {
-    return NextResponse.json({ error: "ID and content required" }, { status: 400 })
-  }
+  const parsed = parseBody(updateMemorySchema, await request.json())
+  if (!parsed.success) return parsed.response
+  const { id, content, tags } = parsed.data
 
   const { data: profile } = await supabase
     .from("users")
@@ -130,7 +129,7 @@ export async function PATCH(request: NextRequest) {
 
     await turso.execute({
       sql: `UPDATE memories SET content = ?, tags = ?, updated_at = datetime('now') WHERE id = ?`,
-      args: [content, tags || null, id],
+      args: [content, tags ?? null, id],
     })
 
     return NextResponse.json({ success: true })
@@ -150,10 +149,9 @@ export async function DELETE(request: NextRequest) {
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const { id } = await request.json()
-  if (!id) {
-    return NextResponse.json({ error: "Memory ID required" }, { status: 400 })
-  }
+  const parsed = parseBody(deleteMemorySchema, await request.json())
+  if (!parsed.success) return parsed.response
+  const { id } = parsed.data
 
   const { data: profile } = await supabase
     .from("users")

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { removeTeamSeat } from "@/lib/stripe/teams"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, updateMemberRoleSchema } from "@/lib/validations"
 
 // GET /api/orgs/[orgId]/members - List organization members
 export async function GET(
@@ -167,12 +168,9 @@ export async function PATCH(
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const body = await request.json()
-  const { userId, role } = body
-
-  if (!userId || !role || !["admin", "member"].includes(role)) {
-    return NextResponse.json({ error: "Invalid userId or role" }, { status: 400 })
-  }
+  const parsed = parseBody(updateMemberRoleSchema, await request.json())
+  if (!parsed.success) return parsed.response
+  const { userId, role } = parsed.data
 
   // Check current user is owner or admin
   const { data: currentMembership } = await supabase

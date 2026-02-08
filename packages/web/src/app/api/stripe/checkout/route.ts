@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getStripe } from "@/lib/stripe"
 import { NextResponse } from "next/server"
 import { checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
+import { parseBody, checkoutSchema } from "@/lib/validations"
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -14,8 +15,9 @@ export async function POST(request: Request) {
   const rateLimited = await checkRateLimit(strictRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const body = await request.json().catch(() => ({}))
-  const billing = body.billing === "monthly" ? "monthly" : "annual"
+  const parsed = parseBody(checkoutSchema, await request.json().catch(() => ({})))
+  if (!parsed.success) return parsed.response
+  const { billing } = parsed.data
 
   const priceId =
     billing === "annual"

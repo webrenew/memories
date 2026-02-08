@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 import { randomBytes } from "node:crypto"
 import { checkRateLimit, getClientIp, publicRateLimit } from "@/lib/rate-limit"
+import { parseBody, cliAuthPollSchema, cliAuthApproveSchema } from "@/lib/validations"
 
 export async function POST(request: Request) {
   const rateLimited = await checkRateLimit(publicRateLimit, getClientIp(request))
@@ -10,21 +11,16 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}))
 
-  // Validate code format on both actions
-  if (body.action === "poll" || body.action === "approve") {
-    const code = body.code as string
-    if (!code || typeof code !== "string" || !/^[a-f0-9]{32}$/.test(code)) {
-      return NextResponse.json({ error: "Invalid code" }, { status: 400 })
-    }
-  }
-
   if (body.action === "poll") {
+    const parsed = parseBody(cliAuthPollSchema, body)
+    if (!parsed.success) return parsed.response
+
     // CLI is polling for its token — look up by cli_auth_code in the database
     const admin = createAdminClient()
     const { data: user } = await admin
       .from("users")
       .select("cli_token, email")
-      .eq("cli_auth_code", body.code)
+      .eq("cli_auth_code", parsed.data.code)
       .single()
 
     if (!user || !user.cli_token) {
@@ -36,7 +32,7 @@ export async function POST(request: Request) {
     await admin
       .from("users")
       .update({ cli_auth_code: null })
-      .eq("cli_auth_code", body.code)
+      .eq("cli_auth_code", parsed.data.code)
 
     return NextResponse.json({
       token: user.cli_token,
@@ -45,6 +41,9 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "approve") {
+    const parsed = parseBody(cliAuthApproveSchema, body)
+    if (!parsed.success) return parsed.response
+
     // Browser is approving the CLI auth
     const supabase = await createClient()
     const {
@@ -62,7 +61,7 @@ export async function POST(request: Request) {
     const admin = createAdminClient()
     const { error } = await admin
       .from("users")
-      .update({ cli_token: cliToken, cli_auth_code: body.code })
+      .update({ cli_token: cliToken, cli_auth_code: parsed.data.code })
       .eq("id", user.id)
 
     if (error) {

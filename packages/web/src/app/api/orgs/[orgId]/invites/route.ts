@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { sendTeamInviteEmail } from "@/lib/resend"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, createInviteSchema } from "@/lib/validations"
 
 // GET /api/orgs/[orgId]/invites - List pending invites
 export async function GET(
@@ -81,16 +82,9 @@ export async function POST(
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
   }
 
-  const body = await request.json()
-  const { email, role = "member" } = body
-
-  if (!email || typeof email !== "string" || !email.includes("@")) {
-    return NextResponse.json({ error: "Valid email is required" }, { status: 400 })
-  }
-
-  if (!["admin", "member"].includes(role)) {
-    return NextResponse.json({ error: "Invalid role" }, { status: 400 })
-  }
+  const parsed = parseBody(createInviteSchema, await request.json())
+  if (!parsed.success) return parsed.response
+  const { email, role } = parsed.data
 
   // Only owner can invite as admin
   if (role === "admin" && membership.role !== "owner") {

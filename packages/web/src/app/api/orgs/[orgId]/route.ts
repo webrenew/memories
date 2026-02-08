@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, updateOrgSchema } from "@/lib/validations"
 
 // GET /api/orgs/[orgId] - Get organization details
 export async function GET(
@@ -71,11 +72,13 @@ export async function PATCH(
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
   }
 
-  const body = await request.json()
+  const parsed = parseBody(updateOrgSchema, await request.json())
+  if (!parsed.success) return parsed.response
+
   const updates: Record<string, string> = {}
 
-  if (body.name && typeof body.name === "string") {
-    updates.name = body.name.trim()
+  if (parsed.data.name) {
+    updates.name = parsed.data.name
   }
 
   if (Object.keys(updates).length === 0) {

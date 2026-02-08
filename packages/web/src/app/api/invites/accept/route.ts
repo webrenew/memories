@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { addTeamSeat } from "@/lib/stripe/teams"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, acceptInviteSchema } from "@/lib/validations"
 
 // POST /api/invites/accept - Accept an invite
 export async function POST(request: Request) {
@@ -15,12 +16,9 @@ export async function POST(request: Request) {
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const body = await request.json()
-  const { token, billing = "monthly" } = body
-
-  if (!token) {
-    return NextResponse.json({ error: "Token is required" }, { status: 400 })
-  }
+  const parsed = parseBody(acceptInviteSchema, await request.json())
+  if (!parsed.success) return parsed.response
+  const { token, billing } = parsed.data
 
   // Find invite with org details
   const { data: invite, error: inviteError } = await supabase

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { parseBody, createOrgSchema } from "@/lib/validations"
 
 // GET /api/orgs - List user's organizations
 export async function GET() {
@@ -53,12 +54,9 @@ export async function POST(request: Request) {
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const body = await request.json()
-  const { name } = body
-
-  if (!name || typeof name !== "string" || name.trim().length < 2) {
-    return NextResponse.json({ error: "Organization name must be at least 2 characters" }, { status: 400 })
-  }
+  const parsed = parseBody(createOrgSchema, await request.json())
+  if (!parsed.success) return parsed.response
+  const { name } = parsed.data
 
   // Generate slug from name
   const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
@@ -81,7 +79,7 @@ export async function POST(request: Request) {
   const { data: org, error: orgError } = await supabase
     .from("organizations")
     .insert({
-      name: name.trim(),
+      name,
       slug,
       owner_id: user.id,
     })

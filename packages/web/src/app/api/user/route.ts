@@ -1,15 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
-
-// Valid embedding models (must match CLI)
-const VALID_EMBEDDING_MODELS = [
-  "all-MiniLM-L6-v2",
-  "gte-small",
-  "gte-base",
-  "gte-large",
-  "mxbai-embed-large-v1",
-]
+import { parseBody, updateUserSchema } from "@/lib/validations"
 
 export async function PATCH(request: Request) {
   const supabase = await createClient()
@@ -22,23 +14,17 @@ export async function PATCH(request: Request) {
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const body = await request.json().catch(() => ({}))
+  const parsed = parseBody(updateUserSchema, await request.json().catch(() => ({})))
+  if (!parsed.success) return parsed.response
 
   const updates: Record<string, string> = {}
 
-  if (typeof body.name === "string" && body.name.length <= 200) {
-    updates.name = body.name
+  if (parsed.data.name !== undefined) {
+    updates.name = parsed.data.name
   }
 
-  if (typeof body.embedding_model === "string") {
-    if (VALID_EMBEDDING_MODELS.includes(body.embedding_model)) {
-      updates.embedding_model = body.embedding_model
-    } else {
-      return NextResponse.json(
-        { error: `Invalid embedding model. Valid options: ${VALID_EMBEDDING_MODELS.join(", ")}` },
-        { status: 400 }
-      )
-    }
+  if (parsed.data.embedding_model !== undefined) {
+    updates.embedding_model = parsed.data.embedding_model
   }
 
   if (Object.keys(updates).length === 0) {
