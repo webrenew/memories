@@ -50,7 +50,7 @@ export function HowItWorks() {
   const [copied, setCopied] = useState(false);
   const [endpointCopied, setEndpointCopied] = useState(false);
 
-  const tabs = [{ id: "cli" as const, number: "01", label: "CLI", sublabel: "Command Line" }, { id: "mcp" as const, number: "02", label: "MCP", sublabel: "Agent Server" }];
+  const tabs = [{ id: "cli" as const, number: "01", label: "CLI", sublabel: "Command Line" }, { id: "mcp" as const, number: "02", label: "MCP", sublabel: "Fallback" }];
   const installCommands = { cli: "pnpm add -g @memories.sh/cli", mcp: "memories serve" };
 
   const tabContent = {
@@ -61,10 +61,10 @@ export function HowItWorks() {
       cardDescription: "Local SQLite database. Works offline. Syncs when you want it to.",
     },
     mcp: {
-      heading: "Seven tools. Direct access.",
-      description: "Agents interact with your memory store directly via the built-in MCP server.",
-      cardTitle: "Direct agent access",
-      cardDescription: "Works with any MCP-compatible client.",
+      heading: "MCP when you need it.",
+      description: "For browser-based agents like v0, bolt.new, and Lovable—or any MCP client that can't run the CLI—the built-in server gives direct access to your memory store.",
+      cardTitle: "Direct agent fallback",
+      cardDescription: "Ideal for browser-based tools. Available for any MCP-compatible client.",
       endpoint: "https://memories.sh/api/mcp",
     },
   };

@@ -7,6 +7,8 @@ description: "MCP server integration for memories.sh — the persistent memory l
 
 Connect AI agents to the memories.sh memory layer via MCP (Model Context Protocol).
 
+> **The CLI is the primary interface for memories.sh** — use `memories generate` to create native config files for each tool. The MCP server is a **fallback** for real-time access when static configs aren't enough. It's also the **best choice for browser-based agents** (v0, bolt.new, Lovable) where the CLI can't run.
+
 ## Quick Start
 
 ```bash

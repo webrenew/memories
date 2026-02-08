@@ -175,20 +175,17 @@ To generate embeddings for existing memories:
 memories embed
 ```
 
-## Use the MCP Server
+## MCP Server (Fallback)
 
-The MCP server exposes your memories directly to AI tools. If you ran `memories init`, MCP is already configured for your detected tools.
+The primary workflow is `memories generate` — it writes native config files that each tool reads natively. For browser-based agents (v0, bolt.new, Lovable) or any MCP client where the CLI can't run, the built-in MCP server provides real-time access.
 
-To start the server manually:
+If you ran `memories init`, MCP is already configured for your detected tools. To start the server manually:
 
 ```bash
 memories serve
 ```
 
-MCP gives your AI tools live access to:
-- Search and recall memories
-- Add new memories during conversations
-- Access project-specific context
+MCP gives agents live access to search, add, and manage memories directly — useful when static configs aren't enough.
 
 See the [MCP Server](/docs/mcp-server) guide for details.
 
@@ -213,6 +210,6 @@ This syncs files from `.agents/`, `.claude/`, `.cursor/`, `.codex/`, `.windsurf/
 
 - [CLI Reference](/docs/cli) — Complete command documentation
 - [Memory Types and Scopes](/docs/concepts/memory-types) — Understanding the type system
-- [MCP Server](/docs/mcp-server) — Connect memories to any MCP-compatible tool
+- [MCP Server](/docs/mcp-server) — Fallback for real-time agent access
 - [Files Sync](/docs/cli/files) — Sync config files across machines
 - [Cloud Sync](/docs/cloud-sync) — Multi-device sync with Pro

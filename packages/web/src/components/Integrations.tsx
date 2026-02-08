@@ -43,7 +43,7 @@ export function Integrations() {
       name: "Any MCP Client",
       logo: "/logos/mcp.svg",
       status: "Available",
-      desc: "Built-in MCP server for direct agent access.",
+      desc: "For v0, bolt.new, Lovable, and any MCP client where the CLI can't run.",
       docsUrl: "/docs/integrations/mcp",
     }
   ];

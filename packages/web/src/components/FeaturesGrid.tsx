@@ -150,7 +150,7 @@ export function FeaturesGrid() {
               
               <h4 className="text-lg font-bold tracking-tight text-foreground mb-4">MCP Server</h4>
               <p className="text-[13px] text-muted-foreground leading-relaxed font-light mb-8">
-                Built-in Model Context Protocol server with 7 tools so agents can access state directly.
+                For browser-based agents or when static configs aren't enough, the built-in MCP server provides real-time access.
               </p>
               
               <div className="flex items-center justify-between pt-6 border-t border-border">

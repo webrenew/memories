@@ -7,6 +7,8 @@ description: "CLI reference and workflows for memories.sh — the persistent mem
 
 CLI reference for `@memories.sh/cli` — manage memories, generate configs, and sync across tools.
 
+> **The CLI is the primary way to interact with memories.sh.** Use it to store memories, generate native config files, and manage your memory store. For environments where the CLI isn't available (v0, bolt.new, Lovable, or other browser-based agents), use the [MCP server](../memories-mcp/SKILL.md) as a fallback.
+
 ## Install & Init
 
 ```bash

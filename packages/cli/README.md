@@ -38,7 +38,7 @@ memories serve
 - **Skills** — define reusable agent workflows following the [Agent Skills](https://agentskills.io) standard
 - **`.agents/` directory** — canonical, tool-agnostic config format
 - **Semantic search** — AI-powered embeddings find related memories
-- **MCP server** — 7 tools for direct AI agent access
+- **MCP server** — fallback for agents that need real-time access beyond static configs
 - **Local-first** — SQLite database, fully offline capable
 - **Cloud sync** — optional Turso-powered cross-machine sync
 
@@ -65,7 +65,7 @@ memories serve
 | `roo` | `.roo/rules/memories.md` |
 | `gemini` | `GEMINI.md` |
 
-## MCP Server
+## MCP Server (Fallback)
 
 ```json
 {

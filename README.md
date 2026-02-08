@@ -68,7 +68,7 @@ memories generate
 - **Skills** — define reusable agent workflows following the [Agent Skills](https://agentskills.io) standard
 - **`.agents/` canonical directory** — tool-agnostic intermediate format, checked into git
 - **Semantic search** — AI-powered embeddings find related memories, not just keyword matches
-- **MCP server** — built-in Model Context Protocol server with 7 tools for direct agent access
+- **MCP server** — fallback MCP server for agents that need real-time access beyond static configs
 - **Auto-setup** — `memories init` detects installed tools and configures MCP automatically
 - **Cloud sync** — optional sync via Turso embedded replicas (local speed, cloud backup)
 - **Import/Export** — ingest existing rule files, export to YAML for sharing
@@ -122,9 +122,9 @@ The `.agents/` directory is the canonical, tool-agnostic intermediate:
 └── settings.json             # Permissions, hooks, env vars
 ```
 
-## MCP Server
+## MCP Server (Fallback)
 
-The CLI includes a built-in MCP server for direct agent access:
+For agents that support MCP, the CLI includes a built-in server for real-time access when static configs aren't enough:
 
 ```bash
 memories serve
