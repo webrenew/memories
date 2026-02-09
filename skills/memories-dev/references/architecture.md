@@ -176,18 +176,19 @@ Detects installed AI coding tools and configures MCP:
 
 **Location:** `packages/web/`
 
-- Next.js 15 with App Router
+- Next.js 16 with App Router
 - Supabase Auth (SSR via `@supabase/ssr`)
 - Fumadocs for documentation (`content/docs/`)
 - Stripe for payments
+- Shared types at `src/types/memory.ts` (canonical `Memory`, `MemoryType`, `Scope`)
+- Zod validation at `src/lib/validations.ts`
 - API routes under `src/app/api/`
 
 **Key API routes:**
-- `/api/memories` — CRUD
-- `/api/search` — Full-text search
+- `/api/memories` — CRUD (GET, POST, PATCH, DELETE) with full field set (paths, category, metadata)
 - `/api/auth/cli` — Device code flow endpoint
 - `/api/db/provision` — Turso DB provisioning
-- `/api/mcp` — Cloud MCP endpoint
+- `/api/mcp` — Cloud MCP endpoint (7 tools, FTS5 search with LIKE fallback, at feature parity with CLI MCP)
 
 ---
 

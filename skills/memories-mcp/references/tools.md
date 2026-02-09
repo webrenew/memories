@@ -22,9 +22,10 @@ Complete reference for all memories.sh MCP tools.
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `query` | string | No | — | What you're working on — used to find relevant memories |
-| `limit` | number | No | 10 | Max memories to return (rules always included) |
+| `project_id` | string | No | — | Project identifier (e.g., `github.com/user/repo`) for project-specific rules |
+| `limit` | number | No | 5 | Max memories to return (rules always included) |
 
-**Returns:** Markdown with `## Active Rules` section + `## Relevant to: "{query}"` section.
+**Returns:** Markdown with `## Project Rules` and `## Global Rules` sections + `## Relevant Memories` section. Uses FTS5 with BM25 ranking (LIKE fallback for older databases).
 
 **When to use:** At the start of any task. Call with no query to get just rules.
 
@@ -42,14 +43,17 @@ get_context({ query: "database migration" })
 
 ## add_memory
 
-Store a new memory.
+Store a new memory with optional metadata, path scoping, and categorization.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `content` | string | Yes | — | The memory content |
-| `type` | `"rule" \| "decision" \| "fact" \| "note"` | No | `"note"` | Memory type |
+| `type` | `"rule" \| "decision" \| "fact" \| "note" \| "skill"` | No | `"note"` | Memory type |
+| `project_id` | string | No | — | Project identifier to scope this memory to a specific project |
 | `tags` | string[] | No | — | Tags for categorization |
-| `global` | boolean | No | `false` | Store as global (user-wide) vs project-scoped |
+| `paths` | string[] | No | — | Glob patterns for path-scoped rules (e.g., `["src/api/**"]`) |
+| `category` | string | No | — | Grouping key (becomes rule filename or skill directory) |
+| `metadata` | object | No | — | Extended attributes (JSON, primarily for skills) |
 
 **Returns:** Confirmation with memory ID, type label, and scope.
 
@@ -58,6 +62,7 @@ Store a new memory.
 - `decision` — Choices with rationale: "Chose PostgreSQL for JSONB support"
 - `fact` — Knowledge to recall later: "API rate limit is 100 req/min"
 - `note` — Everything else (default)
+- `skill` — Reusable agent workflows (use with `category` and `metadata`)
 
 ```
 add_memory({
@@ -65,37 +70,42 @@ add_memory({
   type: "fact",
   tags: ["api", "limits"]
 })
-→ Stored 📋 FACT abc123 (project: my-app)
+→ Stored fact (global): API rate limit is 100 requests per minute
 ```
 
 ---
 
 ## search_memories
 
-Full-text search across memories with prefix matching.
+Full-text search across memories with BM25 ranking. Uses FTS5 when available, falling back to LIKE matching.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `query` | string | Yes | — | Search query (prefix-matched) |
-| `limit` | number | No | 20 | Max results |
-| `types` | string[] | No | — | Filter: `["rule", "decision", "fact", "note"]` |
+| `query` | string | Yes | — | Search query |
+| `project_id` | string | No | — | Project identifier to include project-specific memories |
+| `type` | string | No | — | Filter: `"rule"`, `"decision"`, `"fact"`, `"note"`, `"skill"` |
+| `limit` | number | No | 10 | Max results |
 
 **Returns:** Formatted list of matching memories ranked by relevance. Includes both global and project-scoped.
 
 ```
-search_memories({ query: "auth", types: ["decision"] })
+search_memories({ query: "auth", type: "decision" })
 → Found 2 memories:
-→ 💡 DECISION (P) abc123: Chose JWT for stateless authentication
-→ 💡 DECISION (G) def456: Always use bcrypt for password hashing
+→ [decision] Chose JWT for stateless authentication (global)
+→ [decision] Always use bcrypt for password hashing (@my-app)
 ```
 
 ---
 
 ## get_rules
 
-Get all active rules. No parameters.
+Get all active rules, split by global and project scope.
 
-**Returns:** Rules split into `## Global Rules` and `## Project Rules` sections.
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `project_id` | string | No | — | Project identifier to include project-specific rules |
+
+**Returns:** Rules split into `## Project Rules` and `## Global Rules` sections.
 
 ```
 get_rules({})
@@ -114,9 +124,10 @@ List recent memories with optional filters.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `limit` | number | No | 50 | Max results |
-| `tags` | string[] | No | — | Filter by tags |
-| `types` | string[] | No | — | Filter by memory types |
+| `type` | string | No | — | Filter by type: `"rule"`, `"decision"`, `"fact"`, `"note"`, `"skill"` |
+| `tags` | string | No | — | Filter by tag (partial match) |
+| `project_id` | string | No | — | Project identifier to include project-specific memories |
+| `limit` | number | No | 20 | Max results |
 
 **Returns:** Formatted list of memories. Includes both global and project-scoped.
 
@@ -130,10 +141,13 @@ Update an existing memory. Find the ID first with `search_memories` or `list_mem
 |-----------|------|----------|---------|-------------|
 | `id` | string | Yes | — | Memory ID to edit |
 | `content` | string | No | — | New content |
-| `type` | string | No | — | New type |
+| `type` | string | No | — | New type (`rule`, `decision`, `fact`, `note`, `skill`) |
 | `tags` | string[] | No | — | New tags (replaces existing) |
+| `paths` | string[] | No | — | New glob patterns for path scoping |
+| `category` | string | No | — | New grouping key |
+| `metadata` | object | No | — | New extended attributes |
 
-At least one of `content`, `type`, or `tags` must be provided.
+At least one field besides `id` must be provided.
 
 ---
 

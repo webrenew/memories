@@ -55,6 +55,7 @@ When using `add_memory`, pick the right type:
 - **decision** — Architectural choices with rationale
 - **fact** — Project-specific knowledge (API limits, env vars, etc.)
 - **note** — General notes (default)
+- **skill** — Reusable agent workflows (use with `category` and `metadata`)
 
 ## Scopes
 
