@@ -128,6 +128,38 @@ describe("/api/memories", () => {
       expect(body.content).toBe("New memory")
       expect(body.type).toBe("note")
       expect(body.id).toBeDefined()
+      expect(body.updated_at).toBeDefined()
+      expect(body.paths).toBeNull()
+      expect(body.category).toBeNull()
+      expect(body.metadata).toBeNull()
+    })
+
+    it("should create memory with full fields", async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+      mockSelect.mockReturnValue({
+        data: { turso_db_url: "libsql://test.turso.io", turso_db_token: "token" },
+      })
+      mockExecute.mockResolvedValue({})
+
+      const request = makeRequest("POST", {
+        content: "Use strict mode",
+        type: "skill",
+        scope: "project",
+        project_id: "github.com/user/repo",
+        paths: "src/**/*.ts",
+        category: "typescript",
+        metadata: '{"priority":"high"}',
+      })
+      const response = await POST(request)
+      expect(response.status).toBe(200)
+
+      const body = await response.json()
+      expect(body.type).toBe("skill")
+      expect(body.scope).toBe("project")
+      expect(body.project_id).toBe("github.com/user/repo")
+      expect(body.paths).toBe("src/**/*.ts")
+      expect(body.category).toBe("typescript")
+      expect(body.metadata).toBe('{"priority":"high"}')
     })
   })
 

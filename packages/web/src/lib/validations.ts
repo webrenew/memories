@@ -22,17 +22,28 @@ export function parseBody<T>(
 
 // --- Memories ---
 
+export const memoryTypeEnum = z.enum(["rule", "decision", "fact", "note", "skill"])
+export const memoryScopeEnum = z.enum(["global", "project"])
+
 export const createMemorySchema = z.object({
   content: z.string().min(1, "Content required"),
-  type: z.enum(["rule", "decision", "fact", "note"]).default("rule"),
-  scope: z.enum(["global", "project"]).default("global"),
+  type: memoryTypeEnum.default("rule"),
+  scope: memoryScopeEnum.default("global"),
   tags: z.string().nullable().optional(),
+  project_id: z.string().nullable().optional(),
+  paths: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  metadata: z.string().nullable().optional(),
 })
 
 export const updateMemorySchema = z.object({
   id: z.string().min(1, "Memory ID required"),
   content: z.string().min(1, "Content required"),
   tags: z.string().nullable().optional(),
+  type: memoryTypeEnum.optional(),
+  paths: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  metadata: z.string().nullable().optional(),
 })
 
 export const deleteMemorySchema = z.object({

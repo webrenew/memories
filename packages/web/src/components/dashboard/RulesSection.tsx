@@ -4,16 +4,7 @@ import { useState, useMemo } from "react"
 import { ChevronDown } from "lucide-react"
 import { MemoriesList } from "./MemoriesList"
 import { AddRuleForm } from "./AddRuleForm"
-
-interface Memory {
-  id: string
-  content: string
-  tags: string | null
-  type: string | null
-  scope: string | null
-  project_id: string | null
-  created_at: string
-}
+import type { Memory } from "@/types/memory"
 
 type ScopeFilter = "all" | "global" | string // "all", "global", or a specific project scope
 

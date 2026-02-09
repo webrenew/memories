@@ -32,7 +32,7 @@ export async function GET() {
     })
 
     const result = await turso.execute(
-      "SELECT id, content, tags, type, scope, project_id, created_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 100"
+      "SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 100"
     )
 
     return NextResponse.json({ memories: result.rows })
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = parseBody(createMemorySchema, await request.json())
   if (!parsed.success) return parsed.response
-  const { content, type, scope, tags } = parsed.data
+  const { content, type, scope, tags, project_id, paths, category, metadata } = parsed.data
 
   const { data: profile } = await supabase
     .from("users")
@@ -76,19 +76,23 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
 
     await turso.execute({
-      sql: `INSERT INTO memories (id, content, type, scope, tags, created_at, updated_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [id, content, type, scope, tags ?? null, now, now],
+      sql: `INSERT INTO memories (id, content, type, scope, project_id, tags, paths, category, metadata, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [id, content, type, scope, project_id ?? null, tags ?? null, paths ?? null, category ?? null, metadata ?? null, now, now],
     })
 
-    return NextResponse.json({ 
-      id, 
-      content, 
-      type, 
-      scope, 
-      project_id: null, // Web-created memories don't have project context
-      tags, 
-      created_at: now 
+    return NextResponse.json({
+      id,
+      content,
+      type,
+      scope,
+      project_id: project_id ?? null,
+      tags: tags ?? null,
+      paths: paths ?? null,
+      category: category ?? null,
+      metadata: metadata ?? null,
+      created_at: now,
+      updated_at: now,
     })
   } catch (err) {
     console.error("Failed to add memory:", err)
@@ -109,7 +113,7 @@ export async function PATCH(request: NextRequest) {
 
   const parsed = parseBody(updateMemorySchema, await request.json())
   if (!parsed.success) return parsed.response
-  const { id, content, tags } = parsed.data
+  const { id, content, tags, type, paths, category, metadata } = parsed.data
 
   const { data: profile } = await supabase
     .from("users")
@@ -127,9 +131,34 @@ export async function PATCH(request: NextRequest) {
       authToken: profile.turso_db_token,
     })
 
+    const updates: string[] = ["content = ?", "updated_at = datetime('now')"]
+    const updateArgs: (string | null)[] = [content]
+
+    if (tags !== undefined) {
+      updates.push("tags = ?")
+      updateArgs.push(tags ?? null)
+    }
+    if (type !== undefined) {
+      updates.push("type = ?")
+      updateArgs.push(type)
+    }
+    if (paths !== undefined) {
+      updates.push("paths = ?")
+      updateArgs.push(paths ?? null)
+    }
+    if (category !== undefined) {
+      updates.push("category = ?")
+      updateArgs.push(category ?? null)
+    }
+    if (metadata !== undefined) {
+      updates.push("metadata = ?")
+      updateArgs.push(metadata ?? null)
+    }
+
+    updateArgs.push(id)
     await turso.execute({
-      sql: `UPDATE memories SET content = ?, tags = ?, updated_at = datetime('now') WHERE id = ?`,
-      args: [content, tags ?? null, id],
+      sql: `UPDATE memories SET ${updates.join(", ")} WHERE id = ? AND deleted_at IS NULL`,
+      args: updateArgs,
     })
 
     return NextResponse.json({ success: true })

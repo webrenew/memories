@@ -4,16 +4,7 @@ import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
 import { MemoriesSection } from "@/components/dashboard/MemoriesSection"
 import { ToolsPanel } from "@/components/dashboard/ToolsPanel"
 import { ApiKeySection } from "@/components/dashboard/ApiKeySection"
-
-interface Memory {
-  id: string
-  content: string
-  tags: string | null
-  type: string | null
-  scope: string | null
-  project_id: string | null
-  created_at: string
-}
+import type { Memory } from "@/types/memory"
 
 export default async function MemoriesPage() {
   const supabase = await createClient()
@@ -39,16 +30,20 @@ export default async function MemoriesPage() {
   try {
     const turso = createTurso({ url: profile.turso_db_url!, authToken: profile.turso_db_token! })
     const result = await turso.execute(
-      "SELECT id, content, tags, type, scope, project_id, created_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
+      "SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
     )
     memories = result.rows.map(row => ({
       id: row.id as string,
       content: row.content as string,
       tags: row.tags as string | null,
-      type: row.type as string | null,
-      scope: row.scope as string | null,
+      type: (row.type as Memory["type"]) ?? "note",
+      scope: (row.scope as Memory["scope"]) ?? "global",
       project_id: row.project_id as string | null,
+      paths: row.paths as string | null,
+      category: row.category as string | null,
+      metadata: row.metadata as string | null,
       created_at: row.created_at as string,
+      updated_at: (row.updated_at as string) ?? (row.created_at as string),
     }))
   } catch (err) {
     console.error("Turso connection error:", err)

@@ -66,13 +66,89 @@ interface MemoryRow {
   content: string
   type: string
   scope: string
-  project_id?: string | null
+  project_id: string | null
+  tags: string | null
+  paths: string | null
+  category: string | null
+  metadata: string | null
+  created_at: string
+  updated_at: string
 }
 
 // Format memory for display
 function formatMemory(m: MemoryRow): string {
   const scope = m.scope === "project" && m.project_id ? `@${m.project_id.split("/").pop()}` : "global"
-  return `[${m.type}] ${truncate(m.content)} (${scope})`
+  const tags = m.tags ? ` [${m.tags}]` : ""
+  return `[${m.type}] ${truncate(m.content)} (${scope})${tags}`
+}
+
+// Full SELECT columns for memory queries
+const MEMORY_COLUMNS = "id, content, type, scope, project_id, tags, paths, category, metadata, created_at, updated_at"
+const MEMORY_COLUMNS_ALIASED = "m.id, m.content, m.type, m.scope, m.project_id, m.tags, m.paths, m.category, m.metadata, m.created_at, m.updated_at"
+
+// Valid memory types for server-side validation
+const VALID_TYPES = new Set(["rule", "decision", "fact", "note", "skill"])
+
+// FTS5 search with LIKE fallback
+async function searchWithFts(
+  turso: ReturnType<typeof createTurso>,
+  query: string,
+  projectId: string | undefined,
+  limit: number,
+  excludeType?: string
+): Promise<MemoryRow[]> {
+  // Try FTS5 first
+  try {
+    let typeFilter = ""
+    const ftsArgs: (string | number)[] = [query]
+
+    if (excludeType && VALID_TYPES.has(excludeType)) {
+      typeFilter = "AND m.type != ?"
+      ftsArgs.push(excludeType)
+    }
+
+    const projectFilter = projectId
+      ? `AND (m.scope = 'global' OR (m.scope = 'project' AND m.project_id = ?))`
+      : `AND m.scope = 'global'`
+    if (projectId) ftsArgs.push(projectId)
+    ftsArgs.push(limit)
+
+    const ftsResult = await turso.execute({
+      sql: `SELECT ${MEMORY_COLUMNS_ALIASED}
+            FROM memories_fts fts
+            JOIN memories m ON m.rowid = fts.rowid
+            WHERE memories_fts MATCH ? AND m.deleted_at IS NULL
+            ${typeFilter} ${projectFilter}
+            ORDER BY bm25(memories_fts) LIMIT ?`,
+      args: ftsArgs,
+    })
+    if (ftsResult.rows.length > 0) {
+      return ftsResult.rows as unknown as MemoryRow[]
+    }
+  } catch {
+    // FTS table may not exist for older DBs — fall through to LIKE
+  }
+
+  // Fallback to LIKE
+  let sql = `SELECT ${MEMORY_COLUMNS} FROM memories
+             WHERE deleted_at IS NULL AND content LIKE ?`
+  const sqlArgs: (string | number)[] = [`%${query}%`]
+
+  if (excludeType && VALID_TYPES.has(excludeType)) {
+    sql += ` AND type != ?`
+    sqlArgs.push(excludeType)
+  }
+
+  sql += ` AND (scope = 'global'`
+  if (projectId) {
+    sql += ` OR (scope = 'project' AND project_id = ?)`
+    sqlArgs.push(projectId)
+  }
+  sql += `) ORDER BY created_at DESC LIMIT ?`
+  sqlArgs.push(limit)
+
+  const result = await turso.execute({ sql, args: sqlArgs })
+  return result.rows as unknown as MemoryRow[]
 }
 
 // Handle tool execution
@@ -86,7 +162,7 @@ async function executeTool(
   switch (toolName) {
     case "get_context": {
       // Get rules: global + project-specific only
-      let rulesSql = `SELECT id, content, type, scope, project_id FROM memories 
+      let rulesSql = `SELECT ${MEMORY_COLUMNS} FROM memories 
                       WHERE type = 'rule' AND deleted_at IS NULL 
                       AND (scope = 'global'`
       const rulesArgs: (string | number)[] = []
@@ -115,21 +191,9 @@ async function executeTool(
       // Get relevant memories if query provided
       if (args.query) {
         const limit = (args.limit as number) || 5
-        let searchSql = `SELECT id, content, type, scope, project_id FROM memories 
-                         WHERE deleted_at IS NULL AND type != 'rule' AND content LIKE ?
-                         AND (scope = 'global'`
-        const searchArgs: (string | number)[] = [`%${args.query}%`]
-        
-        if (projectId) {
-          searchSql += ` OR (scope = 'project' AND project_id = ?)`
-          searchArgs.push(projectId)
-        }
-        searchSql += `) ORDER BY created_at DESC LIMIT ?`
-        searchArgs.push(limit)
-
-        const searchResult = await turso.execute({ sql: searchSql, args: searchArgs })
-        if (searchResult.rows.length > 0) {
-          output += `\n\n## Relevant Memories\n${searchResult.rows.map(m => `- ${formatMemory(m as unknown as MemoryRow)}`).join("\n")}`
+        const results = await searchWithFts(turso, args.query as string, projectId, limit, "rule")
+        if (results.length > 0) {
+          output += `\n\n## Relevant Memories\n${results.map(m => `- ${formatMemory(m)}`).join("\n")}`
         }
       }
 
@@ -138,17 +202,52 @@ async function executeTool(
       }
     }
 
+    case "get_rules": {
+      let sql = `SELECT ${MEMORY_COLUMNS} FROM memories 
+                 WHERE type = 'rule' AND deleted_at IS NULL AND (scope = 'global'`
+      const sqlArgs: (string | number)[] = []
+
+      if (projectId) {
+        sql += ` OR (scope = 'project' AND project_id = ?)`
+        sqlArgs.push(projectId)
+      }
+      sql += `) ORDER BY scope DESC, created_at DESC`
+
+      const result = await turso.execute({ sql, args: sqlArgs })
+
+      if (result.rows.length === 0) {
+        return { content: [{ type: "text", text: "No rules found." }] }
+      }
+
+      const globalRules = result.rows.filter(r => r.scope === "global")
+      const projectRules = result.rows.filter(r => r.scope === "project")
+
+      let output = ""
+      if (projectRules.length > 0) {
+        output += `## Project Rules\n${projectRules.map(r => `- ${r.content}`).join("\n")}\n\n`
+      }
+      if (globalRules.length > 0) {
+        output += `## Global Rules\n${globalRules.map(r => `- ${r.content}`).join("\n")}`
+      }
+
+      return { content: [{ type: "text", text: output }] }
+    }
+
     case "add_memory": {
       const memoryId = crypto.randomUUID().replace(/-/g, "").slice(0, 12)
       const now = new Date().toISOString()
-      const type = (args.type as string) || "note"
+      const rawType = (args.type as string) || "note"
+      const type = VALID_TYPES.has(rawType) ? rawType : "note"
       const tags = Array.isArray(args.tags) ? args.tags.join(",") : null
       const scope = projectId ? "project" : "global"
+      const paths = Array.isArray(args.paths) ? args.paths.join(",") : null
+      const category = (args.category as string) || null
+      const metadata = args.metadata ? JSON.stringify(args.metadata) : null
 
       await turso.execute({
-        sql: `INSERT INTO memories (id, content, type, scope, project_id, tags, created_at, updated_at) 
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [memoryId, args.content as string, type, scope, projectId || null, tags, now, now],
+        sql: `INSERT INTO memories (id, content, type, scope, project_id, tags, paths, category, metadata, created_at, updated_at) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [memoryId, args.content as string, type, scope, projectId || null, tags, paths, category, metadata, now, now],
       })
 
       const scopeLabel = projectId ? `project:${projectId.split("/").pop()}` : "global"
@@ -169,13 +268,25 @@ async function executeTool(
         updates.push("content = ?")
         updateArgs.push(args.content as string)
       }
-      if (args.type !== undefined) {
+      if (args.type !== undefined && VALID_TYPES.has(args.type as string)) {
         updates.push("type = ?")
         updateArgs.push(args.type as string)
       }
       if (args.tags !== undefined) {
         updates.push("tags = ?")
         updateArgs.push(Array.isArray(args.tags) ? args.tags.join(",") : null)
+      }
+      if (args.paths !== undefined) {
+        updates.push("paths = ?")
+        updateArgs.push(Array.isArray(args.paths) ? args.paths.join(",") : null)
+      }
+      if (args.category !== undefined) {
+        updates.push("category = ?")
+        updateArgs.push((args.category as string) || null)
+      }
+      if (args.metadata !== undefined) {
+        updates.push("metadata = ?")
+        updateArgs.push(args.metadata ? JSON.stringify(args.metadata) : null)
       }
 
       updateArgs.push(id)
@@ -206,35 +317,30 @@ async function executeTool(
 
     case "search_memories": {
       const limit = (args.limit as number) || 10
-      let sql = `SELECT id, content, type, scope, project_id FROM memories 
-                 WHERE deleted_at IS NULL AND content LIKE ?
-                 AND (scope = 'global'`
-      const sqlArgs: (string | number)[] = [`%${args.query}%`]
-      
-      if (projectId) {
-        sql += ` OR (scope = 'project' AND project_id = ?)`
-        sqlArgs.push(projectId)
+      const query = args.query as string
+
+      // Type filter support
+      let typeFilter: string | undefined
+      if (args.type) {
+        typeFilter = args.type as string
       }
-      sql += `) ORDER BY created_at DESC LIMIT ?`
-      sqlArgs.push(limit)
 
-      const result = await turso.execute({ sql, args: sqlArgs })
+      const results = await searchWithFts(turso, query, projectId, limit)
+      const filtered = typeFilter ? results.filter(m => m.type === typeFilter) : results
 
-      if (result.rows.length === 0) {
+      if (filtered.length === 0) {
         return { content: [{ type: "text", text: "No memories found." }] }
       }
       
-      const formatted = result.rows
-        .map(m => formatMemory(m as unknown as MemoryRow))
-        .join("\n")
+      const formatted = filtered.map(m => formatMemory(m)).join("\n")
       return {
-        content: [{ type: "text", text: `Found ${result.rows.length} memories:\n\n${formatted}` }],
+        content: [{ type: "text", text: `Found ${filtered.length} memories:\n\n${formatted}` }],
       }
     }
 
     case "list_memories": {
       const limit = (args.limit as number) || 20
-      let sql = `SELECT id, content, type, scope, project_id FROM memories WHERE deleted_at IS NULL`
+      let sql = `SELECT ${MEMORY_COLUMNS} FROM memories WHERE deleted_at IS NULL`
       const sqlArgs: (string | number)[] = []
 
       // Scope filter: global + project
@@ -250,6 +356,11 @@ async function executeTool(
         sqlArgs.push(args.type as string)
       }
 
+      if (args.tags) {
+        sql += " AND tags LIKE ?"
+        sqlArgs.push(`%${args.tags as string}%`)
+      }
+
       sql += " ORDER BY created_at DESC LIMIT ?"
       sqlArgs.push(limit)
 
@@ -259,8 +370,8 @@ async function executeTool(
         return { content: [{ type: "text", text: "No memories found." }] }
       }
       
-      const formatted = result.rows
-        .map(m => formatMemory(m as unknown as MemoryRow))
+      const formatted = (result.rows as unknown as MemoryRow[])
+        .map(m => formatMemory(m))
         .join("\n")
       return {
         content: [{ type: "text", text: `${result.rows.length} memories:\n\n${formatted}` }],
@@ -287,29 +398,45 @@ const TOOLS = [
     },
   },
   {
+    name: "get_rules",
+    description: "Get all active rules. Returns global rules plus project-specific rules if project_id is provided.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: { type: "string", description: "Project identifier to include project-specific rules" },
+      },
+    },
+  },
+  {
     name: "add_memory",
-    description: "Store a new memory. Use type='rule' for always-active guidelines, 'decision' for architectural choices, 'fact' for knowledge, 'note' for general info.",
+    description: "Store a new memory. Use type='rule' for always-active guidelines, 'decision' for architectural choices, 'fact' for knowledge, 'note' for general info, 'skill' for reusable capabilities.",
     inputSchema: {
       type: "object",
       properties: {
         content: { type: "string", description: "The memory content" },
-        type: { type: "string", enum: ["rule", "decision", "fact", "note"], description: "Memory type (default: note)" },
+        type: { type: "string", enum: ["rule", "decision", "fact", "note", "skill"], description: "Memory type (default: note)" },
         project_id: { type: "string", description: "Project identifier to scope this memory to a specific project" },
         tags: { type: "array", items: { type: "string" }, description: "Optional tags for organization" },
+        paths: { type: "array", items: { type: "string" }, description: "File glob patterns this memory applies to (e.g., ['src/**/*.ts'])" },
+        category: { type: "string", description: "Category for grouping related memories" },
+        metadata: { type: "object", description: "Additional structured metadata (stored as JSON)" },
       },
       required: ["content"],
     },
   },
   {
     name: "edit_memory",
-    description: "Update an existing memory's content, type, or tags.",
+    description: "Update an existing memory's content, type, tags, paths, category, or metadata.",
     inputSchema: {
       type: "object",
       properties: {
         id: { type: "string", description: "Memory ID to edit" },
         content: { type: "string", description: "New content (optional)" },
-        type: { type: "string", enum: ["rule", "decision", "fact", "note"], description: "New type (optional)" },
+        type: { type: "string", enum: ["rule", "decision", "fact", "note", "skill"], description: "New type (optional)" },
         tags: { type: "array", items: { type: "string" }, description: "New tags (optional)" },
+        paths: { type: "array", items: { type: "string" }, description: "New file glob patterns (optional)" },
+        category: { type: "string", description: "New category (optional)" },
+        metadata: { type: "object", description: "New metadata (optional)" },
       },
       required: ["id"],
     },
@@ -327,12 +454,13 @@ const TOOLS = [
   },
   {
     name: "search_memories",
-    description: "Search memories by content. Returns global + project-specific memories.",
+    description: "Search memories by content using full-text search. Returns global + project-specific memories.",
     inputSchema: {
       type: "object",
       properties: {
         query: { type: "string", description: "Search query" },
         project_id: { type: "string", description: "Project identifier to include project-specific memories" },
+        type: { type: "string", enum: ["rule", "decision", "fact", "note", "skill"], description: "Filter by memory type" },
         limit: { type: "number", description: "Max results (default: 10)" },
       },
       required: ["query"],
@@ -344,7 +472,8 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        type: { type: "string", enum: ["rule", "decision", "fact", "note"], description: "Filter by type" },
+        type: { type: "string", enum: ["rule", "decision", "fact", "note", "skill"], description: "Filter by type" },
+        tags: { type: "string", description: "Filter by tag (partial match)" },
         project_id: { type: "string", description: "Project identifier to include project-specific memories" },
         limit: { type: "number", description: "Max results (default: 20)" },
       },

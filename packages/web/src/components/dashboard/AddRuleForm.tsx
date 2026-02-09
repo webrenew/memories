@@ -2,16 +2,7 @@
 
 import { useState } from "react"
 import { Plus } from "lucide-react"
-
-interface Memory {
-  id: string
-  content: string
-  tags: string | null
-  type: string | null
-  scope: string | null
-  project_id: string | null
-  created_at: string
-}
+import type { Memory } from "@/types/memory"
 
 export function AddRuleForm({ onAdd }: { onAdd: (memory: Memory) => void }) {
   const [isOpen, setIsOpen] = useState(false)

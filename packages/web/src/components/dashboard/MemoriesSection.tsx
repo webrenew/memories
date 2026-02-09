@@ -4,26 +4,16 @@ import { useState, useMemo } from "react"
 import { ChevronDown, Search } from "lucide-react"
 import { MemoriesList } from "./MemoriesList"
 import { AddRuleForm } from "./AddRuleForm"
+import type { Memory } from "@/types/memory"
 
-interface Memory {
-  id: string
-  content: string
-  tags: string | null
-  type: string | null
-  scope: string | null
-  project_id: string | null
-  created_at: string
-}
-
-type TypeFilter = "all" | "rule" | "command" | "skill" | "memory" | "decision" | "fact"
+type TypeFilter = "all" | "rule" | "decision" | "fact" | "note" | "skill"
 type ScopeFilter = "all" | "global" | string
 
 const TYPE_OPTIONS: { value: TypeFilter; label: string; color: string }[] = [
   { value: "all", label: "All Types", color: "" },
   { value: "rule", label: "Rules", color: "text-primary" },
-  { value: "command", label: "Commands", color: "text-green-400" },
   { value: "skill", label: "Skills", color: "text-purple-400" },
-  { value: "memory", label: "Memories", color: "text-cyan-400" },
+  { value: "note", label: "Notes", color: "text-cyan-400" },
   { value: "decision", label: "Decisions", color: "text-amber-400" },
   { value: "fact", label: "Facts", color: "text-pink-400" },
 ]

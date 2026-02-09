@@ -49,19 +49,45 @@ describe("createMemorySchema", () => {
     const result = createMemorySchema.safeParse({ content: "Remember this" })
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data).toEqual({
-        content: "Remember this",
-        type: "rule",
-        scope: "global",
-      })
+      expect(result.data.content).toBe("Remember this")
+      expect(result.data.type).toBe("rule")
+      expect(result.data.scope).toBe("global")
     }
   })
 
-  it("should accept all memory types", () => {
-    for (const type of ["rule", "decision", "fact", "note"] as const) {
+  it("should accept all memory types including skill", () => {
+    for (const type of ["rule", "decision", "fact", "note", "skill"] as const) {
       const result = createMemorySchema.safeParse({ content: "test", type })
       expect(result.success).toBe(true)
     }
+  })
+
+  it("should accept optional fields: project_id, paths, category, metadata", () => {
+    const result = createMemorySchema.safeParse({
+      content: "test",
+      project_id: "github.com/user/repo",
+      paths: "src/**/*.ts",
+      category: "testing",
+      metadata: '{"key":"value"}',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.project_id).toBe("github.com/user/repo")
+      expect(result.data.paths).toBe("src/**/*.ts")
+      expect(result.data.category).toBe("testing")
+      expect(result.data.metadata).toBe('{"key":"value"}')
+    }
+  })
+
+  it("should accept null optional fields", () => {
+    const result = createMemorySchema.safeParse({
+      content: "test",
+      project_id: null,
+      paths: null,
+      category: null,
+      metadata: null,
+    })
+    expect(result.success).toBe(true)
   })
 
   it("should accept both scopes", () => {
@@ -112,6 +138,22 @@ describe("updateMemorySchema", () => {
   it("should reject empty content", () => {
     const result = updateMemorySchema.safeParse({ id: "abc123", content: "" })
     expect(result.success).toBe(false)
+  })
+
+  it("should accept optional type, paths, category, metadata", () => {
+    const result = updateMemorySchema.safeParse({
+      id: "abc123",
+      content: "updated",
+      type: "skill",
+      paths: "src/**/*.ts",
+      category: "testing",
+      metadata: '{"key":"value"}',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.type).toBe("skill")
+      expect(result.data.paths).toBe("src/**/*.ts")
+    }
   })
 })
 

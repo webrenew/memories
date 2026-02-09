@@ -2,16 +2,7 @@
 
 import { useState } from "react"
 import { Trash2, Pencil, Check, X } from "lucide-react"
-
-interface Memory {
-  id: string
-  content: string
-  tags: string | null
-  type: string | null
-  scope: string | null
-  project_id: string | null
-  created_at: string
-}
+import type { Memory } from "@/types/memory"
 
 export function MemoryCard({ 
   memory, 
@@ -76,10 +67,8 @@ export function MemoryCard({
         <div className="flex items-center gap-2">
           {memory.type ? (
             <span className={`px-2 py-0.5 border text-[10px] uppercase tracking-wider font-bold ${
-              memory.type === "rule" 
+              memory.type === "rule"
                 ? "bg-primary/10 border-primary/20 text-primary"
-                : memory.type === "command"
-                ? "bg-green-500/10 border-green-500/20 text-green-400"
                 : memory.type === "skill"
                 ? "bg-purple-500/10 border-purple-500/20 text-purple-400"
                 : memory.type === "decision"
