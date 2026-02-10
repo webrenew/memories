@@ -12,7 +12,7 @@ ${HOOK_MARKER_START}
 # Auto-generate IDE rule files from memories
 if command -v memories &> /dev/null; then
   memories generate all --force 2>/dev/null || true
-  git add -A -- .cursor/rules/memories.mdc CLAUDE.md AGENTS.md .github/copilot-instructions.md .windsurf/rules/memories.md .clinerules/memories.md .roo/rules/memories.md GEMINI.md 2>/dev/null || true
+  git add -A -- .agents .cursor/rules/memories.mdc CLAUDE.md .github/copilot-instructions.md .windsurf/rules/memories.md .clinerules/memories.md .roo/rules/memories.md GEMINI.md 2>/dev/null || true
 fi
 ${HOOK_MARKER_END}`;
 

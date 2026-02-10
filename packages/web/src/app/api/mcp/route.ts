@@ -419,7 +419,7 @@ const TOOLS = [
         content: { type: "string", description: "The memory content" },
         type: { type: "string", enum: ["rule", "decision", "fact", "note", "skill"], description: "Memory type (default: note)" },
         project_id: { type: "string", description: "Project identifier to scope this memory to a specific project" },
-        tags: { type: "array", items: { type: "string" }, description: "Optional tags for organization" },
+        tags: { type: "array", items: { type: "string" }, description: "Optional tags for organization and filtering" },
         paths: { type: "array", items: { type: "string" }, description: "File glob patterns this memory applies to (e.g., ['src/**/*.ts'])" },
         category: { type: "string", description: "Category for grouping related memories" },
         metadata: { type: "object", description: "Additional structured metadata (stored as JSON)" },

@@ -13,8 +13,8 @@ memories init
 ```
 
 This automatically:
-1. Detects Factory/Droid (looks for `.factory/` directory)
-2. Configures MCP in `.factory/mcp.json`
+1. Sets up your local memory store
+2. Configures MCP for supported tools
 3. Generates instruction files with your existing memories
 
 ## Manual Setup
@@ -24,7 +24,7 @@ This automatically:
 Generate instructions for Droid:
 
 ```bash
-memories generate agents -o .factory/instructions.md
+memories generate claude -o .factory/instructions.md
 ```
 
 Droid will read this file and incorporate your rules, decisions, and facts into its context.

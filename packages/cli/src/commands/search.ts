@@ -77,6 +77,9 @@ export const searchCommand = new Command("search")
           const results = await semanticSearch(query, {
             limit: parseInt(opts.limit, 10),
             projectId,
+            includeGlobal,
+            globalOnly,
+            types,
           });
           
           if (opts.json) {

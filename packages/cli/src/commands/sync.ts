@@ -10,6 +10,26 @@ import * as ui from "../lib/ui.js";
 
 const DB_PATH = join(homedir(), ".config", "memories", "local.db");
 
+interface CredentialResponse {
+  url?: string;
+  token?: string;
+  dbName?: string | null;
+  turso_db_url?: string;
+  turso_db_token?: string;
+  turso_db_name?: string | null;
+}
+
+function inferDbName(syncUrl: string | undefined): string | null {
+  if (!syncUrl) return null;
+  try {
+    const host = new URL(syncUrl.replace("libsql://", "https://")).hostname;
+    const firstLabel = host.split(".")[0];
+    return firstLabel || null;
+  } catch {
+    return null;
+  }
+}
+
 export const syncCommand = new Command("sync").description(
   "Manage remote sync"
 );
@@ -39,11 +59,14 @@ syncCommand
 
           const profileRes = await apiFetch("/api/db/credentials");
           if (profileRes.ok) {
-            const creds = (await profileRes.json()) as {
-              url: string;
-              token: string;
-              dbName: string;
-            };
+            const creds = (await profileRes.json()) as CredentialResponse;
+            const syncUrl = creds.url ?? creds.turso_db_url;
+            const syncToken = creds.token ?? creds.turso_db_token;
+            const dbName = creds.dbName ?? creds.turso_db_name ?? inferDbName(syncUrl);
+
+            if (!syncUrl || !syncToken || !dbName) {
+              throw new Error("Incomplete credential response from /api/db/credentials");
+            }
 
             if (existsSync(DB_PATH)) {
               resetDb();
@@ -51,10 +74,10 @@ syncCommand
             }
 
             await saveSyncConfig({
-              syncUrl: creds.url,
-              syncToken: creds.token,
+              syncUrl,
+              syncToken,
               org: opts.org,
-              dbName: creds.dbName,
+              dbName,
             });
 
             spinner.text = "Waiting for database to be ready...";
@@ -66,7 +89,7 @@ syncCommand
             spinner.stop();
             ui.success("Cloud sync enabled");
             ui.dim(`Remote: ${data.url}`);
-            ui.dim(`Database: ${creds.dbName}`);
+            ui.dim(`Database: ${dbName}`);
             return;
           }
         }

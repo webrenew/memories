@@ -95,8 +95,8 @@ The built-in Model Context Protocol server enables AI agents to interact with me
 # Stdio transport (for Claude Code, Cursor)
 memories serve
 
-# HTTP transport (for web-based agents)
-memories serve --http --port 3001
+# SSE transport (for web-based agents)
+memories serve --sse --port 3001
 ```
 
 ### MCP Configuration (Claude Code)
@@ -166,7 +166,7 @@ The `memories generate` command outputs native config files:
 | Claude Code | `CLAUDE.md` |
 | Cursor | `.cursor/rules/*.mdc` |
 | GitHub Copilot | `.github/copilot-instructions.md` |
-| Windsurf | `.windsurfrules` |
+| Windsurf | `.windsurf/rules/memories.md` |
 
 ## Cloud Sync
 

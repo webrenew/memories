@@ -13,8 +13,8 @@ memories init
 ```
 
 This automatically:
-1. Detects OpenCode (looks for `.opencode/` directory)
-2. Configures MCP in `.opencode/mcp.json`
+1. Sets up your local memory store
+2. Configures MCP for supported tools
 3. Generates instruction files with your existing memories
 
 ## Manual Setup
@@ -25,10 +25,10 @@ This automatically:
 memories generate agents
 ```
 
-This creates an `AGENTS.md` file that OpenCode reads automatically. You can also create a dedicated OpenCode instructions file:
+This creates the canonical `.agents/` directory. To create a dedicated OpenCode instructions file:
 
 ```bash
-memories generate agents -o .opencode/instructions.md
+memories generate claude -o .opencode/instructions.md
 ```
 
 ### Option 2: MCP Server
@@ -78,7 +78,7 @@ This syncs:
 OpenCode reads from `.opencode/instructions.md` at the project level. Generate this file with:
 
 ```bash
-memories generate agents -o .opencode/instructions.md
+memories generate claude -o .opencode/instructions.md
 ```
 
 ### Skills

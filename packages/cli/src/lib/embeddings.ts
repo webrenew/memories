@@ -3,6 +3,7 @@ import { getDb, getConfigDir } from "./db.js";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import type { MemoryType } from "./memory.js";
 
 // ─── Supported Embedding Models ───────────────────────────────────────────────
 
@@ -315,7 +316,17 @@ export async function ensureEmbeddingsSchema(): Promise<void> {
   const hasEmbedding = columns.some(c => c.name === "embedding");
   
   if (!hasEmbedding) {
-    await db.execute("ALTER TABLE memories ADD COLUMN embedding BLOB");
+    try {
+      await db.execute("ALTER TABLE memories ADD COLUMN embedding BLOB");
+    } catch (error) {
+      // Concurrent callers may race and one will see a duplicate-column error.
+      if (
+        !(error instanceof Error) ||
+        !error.message.toLowerCase().includes("duplicate column name: embedding")
+      ) {
+        throw error;
+      }
+    }
   }
 }
 
@@ -368,27 +379,49 @@ export async function getStoredEmbedding(memoryId: string): Promise<Float32Array
  */
 export async function semanticSearch(
   query: string,
-  opts?: { limit?: number; threshold?: number; projectId?: string }
+  opts?: {
+    limit?: number;
+    threshold?: number;
+    projectId?: string;
+    includeGlobal?: boolean;
+    globalOnly?: boolean;
+    types?: MemoryType[];
+  }
 ): Promise<{ id: string; content: string; score: number }[]> {
   const db = await getDb();
   const limit = opts?.limit ?? 10;
   const threshold = opts?.threshold ?? 0.3; // Minimum similarity score
+  const includeGlobal = opts?.includeGlobal ?? true;
+  const projectId = opts?.globalOnly ? undefined : opts?.projectId;
   
   // Generate query embedding
   const queryEmbedding = await getEmbedding(query);
   
   // Get all memories with embeddings
   let sql = `
-    SELECT id, content, embedding, scope, project_id 
+    SELECT id, content, embedding
     FROM memories 
     WHERE deleted_at IS NULL AND embedding IS NOT NULL
   `;
   const args: string[] = [];
+
+  const scopeConditions: string[] = [];
+  if (includeGlobal) {
+    scopeConditions.push("scope = 'global'");
+  }
+  if (projectId) {
+    scopeConditions.push("(scope = 'project' AND project_id = ?)");
+    args.push(projectId);
+  }
+  if (scopeConditions.length === 0) {
+    return [];
+  }
+  sql += ` AND (${scopeConditions.join(" OR ")})`;
   
-  // Filter by project if specified
-  if (opts?.projectId) {
-    sql += " AND (scope = 'global' OR (scope = 'project' AND project_id = ?))";
-    args.push(opts.projectId);
+  if (opts?.types?.length) {
+    const placeholders = opts.types.map(() => "?").join(", ");
+    sql += ` AND type IN (${placeholders})`;
+    args.push(...opts.types);
   }
   
   const result = await db.execute({ sql, args });

@@ -30,20 +30,29 @@ export async function GET() {
       authToken: profile.turso_db_token,
     })
 
-    const [totalResult, agentResult, dailyResult] = await Promise.all([
-      turso.execute("SELECT COUNT(*) as count FROM memories"),
-      turso.execute("SELECT agent, COUNT(*) as count FROM memories GROUP BY agent ORDER BY count DESC"),
+    const [totalResult, typeResult, dailyResult] = await Promise.all([
+      turso.execute("SELECT COUNT(*) as count FROM memories WHERE deleted_at IS NULL"),
       turso.execute(
-        "SELECT DATE(created_at) as date, COUNT(*) as count FROM memories GROUP BY DATE(created_at) ORDER BY date DESC LIMIT 30"
+        "SELECT type, COUNT(*) as count FROM memories WHERE deleted_at IS NULL GROUP BY type ORDER BY count DESC"
+      ),
+      turso.execute(
+        "SELECT DATE(created_at) as date, COUNT(*) as count FROM memories WHERE deleted_at IS NULL GROUP BY DATE(created_at) ORDER BY date DESC LIMIT 30"
       ),
     ])
 
+    const byType = typeResult.rows.map((r) => ({
+      type: String(r.type ?? "note"),
+      count: Number(r.count),
+    }))
+
     return NextResponse.json({
       total: Number(totalResult.rows[0]?.count ?? 0),
-      byAgent: agentResult.rows.map((r) => ({
-        agent: String(r.agent ?? "unknown"),
-        count: Number(r.count),
+      // Legacy key kept for compatibility with older clients.
+      byAgent: byType.map((r) => ({
+        agent: r.type,
+        count: r.count,
       })),
+      byType,
       byDay: dailyResult.rows.map((r) => ({
         date: String(r.date),
         count: Number(r.count),

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { 
   CreditCard, 
   Zap, 
@@ -176,12 +177,12 @@ export function BillingContent({ plan, hasStripeCustomer, usage, memberSince }: 
                   {loading ? "Loading..." : "$150/year"} 
                   <span className="text-xs text-green-400">(Save $30)</span>
                 </button>
-                <a 
-                  href="/pricing" 
+                <Link
+                  href="/#pricing"
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   View details
-                </a>
+                </Link>
               </div>
             </>
           )}

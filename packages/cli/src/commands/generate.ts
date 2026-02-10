@@ -82,7 +82,7 @@ const TARGETS: Target[] = [
 // ── .gitignore Management ───────────────────────────────────────────
 
 // Files users likely want git-tracked (shared with team)
-const TRACK_BY_DEFAULT = new Set(["CLAUDE.md", "AGENTS.md", "GEMINI.md", ".github/copilot-instructions.md"]);
+const TRACK_BY_DEFAULT = new Set(["CLAUDE.md", ".agents/", "GEMINI.md", ".github/copilot-instructions.md"]);
 
 async function checkGitignore(filePath: string): Promise<void> {
   // Only suggest for files in hidden directories (tool-specific)

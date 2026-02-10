@@ -21,6 +21,7 @@ import {
 } from "../lib/memory.js";
 import { getProjectId } from "../lib/git.js";
 import { setCloudMode } from "../lib/db.js";
+import { CLI_VERSION } from "../lib/version.js";
 
 // Re-export for use by serve command
 export function setCloudCredentials(url: string, token: string): void {
@@ -59,7 +60,7 @@ async function createMcpServer(): Promise<McpServer> {
 
   const server = new McpServer({
     name: "memories",
-    version: "0.1.0",
+    version: CLI_VERSION,
   });
 
   // ─── Resources ───────────────────────────────────────────────────

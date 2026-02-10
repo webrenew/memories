@@ -17,7 +17,7 @@ interface Target {
 const TARGETS: Target[] = [
   { name: "cursor", defaultPath: ".cursor/rules/memories.mdc" },
   { name: "claude", defaultPath: "CLAUDE.md" },
-  { name: "agents", defaultPath: "AGENTS.md" },
+  { name: "agents", defaultPath: ".agents/instructions.md" },
   { name: "copilot", defaultPath: ".github/copilot-instructions.md" },
   { name: "windsurf", defaultPath: ".windsurf/rules/memories.md" },
   { name: "cline", defaultPath: ".clinerules/memories.md" },

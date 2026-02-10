@@ -9,7 +9,7 @@ The `files` command syncs your AI tool config directories across machines. This 
 
 When you switch between machines or set up a new environment, you lose all your carefully curated:
 
-- **Instruction files** (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`)
+- **Instruction files** (`.agents/instructions.md`, `CLAUDE.md`, `GEMINI.md`)
 - **Custom commands** (slash commands for Claude Code, etc.)
 - **Skills** (reusable agent capabilities)
 - **Rules** (tool-specific coding rules)
@@ -26,7 +26,7 @@ The command intelligently syncs only meaningful configuration files, not cache o
 
 | Tool | Files Synced |
 |------|--------------|
-| `.agents/` | `AGENTS.md`, `commands/*.md`, `tasks/*.md`, `skills/**/*` |
+| `.agents/` | `instructions.md`, `settings.json`, `commands/*.md`, `tasks/*.md`, `skills/**/*` |
 | `.claude/` | `CLAUDE.md`, `settings.json`, `commands/*.md`, `rules/*.md`, `hooks/*`, `tasks/*.md`, `skills/**/*` |
 | `.cursor/` | `mcp.json`, `rules.md`, `rules/*.md`, `skills/**/*` |
 | `.codex/` | `config.toml`, `AGENTS.md`, `instructions.md`, `rules/*`, `tasks/*.md`, `skills/**/*` |
@@ -90,7 +90,7 @@ Example output:
 ```
 Would import 317 files:
 
-  G .agents/AGENTS.md [Agents]
+  G .agents/instructions.md [Agents]
   G .agents/commands/review.md [Agents]
   G .agents/commands/deploy.md [Agents]
   G .agents/skills/frontend-design/SKILL.md [Agents]
@@ -134,16 +134,16 @@ memories files apply --global --force
 ### View file content
 
 ```bash
-memories files show .agents/AGENTS.md
+memories files show .agents/instructions.md
 ```
 
 Output:
 ```
-# .agents/AGENTS.md
+# .agents/instructions.md
 # Scope: global | Source: Agents
 # Updated: 2026-02-04T14:30:00.000Z
 ──────────────────────────────────────────────────
-# AGENTS.md
+# instructions.md
 
 You are an AI coding assistant...
 ```

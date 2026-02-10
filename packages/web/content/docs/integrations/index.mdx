@@ -30,8 +30,8 @@ This automatically detects installed tools and configures MCP for each one.
 | [Cursor](/docs/integrations/cursor) | `.cursor/rules/memories.mdc` | Yes | Yes |
 | [Windsurf](/docs/integrations/windsurf) | `.windsurf/rules/memories.md` | Yes | Yes |
 | [VS Code / Copilot](/docs/integrations/copilot) | `.github/copilot-instructions.md` | Yes | Yes |
-| [OpenCode](/docs/integrations/opencode) | `AGENTS.md` / `.opencode/instructions.md` | Yes | Yes |
-| [Factory (Droid)](/docs/integrations/factory) | `.factory/instructions.md` | Yes | Yes |
+| [OpenCode](/docs/integrations/opencode) | `.agents/` / `.opencode/instructions.md` | Yes | No |
+| [Factory (Droid)](/docs/integrations/factory) | `.agents/` / `.factory/instructions.md` | Yes | No |
 | [Cline](/docs/integrations/cline) | `.clinerules/memories.md` | Yes | No |
 | [Roo](/docs/integrations/roo) | `.roo/rules/memories.md` | Yes | No |
 | [Gemini](/docs/integrations/gemini) | `GEMINI.md` | No | No |
@@ -44,7 +44,7 @@ This automatically detects installed tools and configures MCP for each one.
 
 ### Universal Target
 
-The `agents` target (`AGENTS.md`) works with multiple tools that read the AGENTS.md convention:
+The `agents` target generates the canonical `.agents/` directory:
 - Amp
 - Codex  
 - Goose
@@ -79,7 +79,7 @@ For web-based tools like v0 that can't spawn local processes, use SSE transport:
 memories serve --sse --port 3030
 ```
 
-Then configure the tool to connect to `http://localhost:3030/sse`. See the [v0 integration guide](/docs/integrations/v0) for details.
+Then configure the tool to connect to `http://localhost:3030/mcp`. See the [v0 integration guide](/docs/integrations/v0) for details.
 
 ## Config File Locations
 

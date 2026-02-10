@@ -84,7 +84,7 @@ memories generate
 | **Gemini** | `gemini` | `GEMINI.md` |
 | **Cline** | `cline` | `.clinerules/memories.md` |
 | **Roo** | `roo` | `.roo/rules/memories.md` |
-| **Amp / Codex / Goose / Kilo / OpenCode** | `agents` | `AGENTS.md` |
+| **Amp / Codex / Goose / Kilo / OpenCode** | `agents` | `.agents/` |
 
 ## Memory Types
 

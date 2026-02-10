@@ -27,11 +27,12 @@ import { historyCommand, revertCommand } from "./commands/history.js";
 import { embedCommand } from "./commands/embed.js";
 import { loginCommand, logoutCommand } from "./commands/login.js";
 import { filesCommand } from "./commands/files.js";
+import { CLI_VERSION } from "./lib/version.js";
 
 const program = new Command()
   .name("memories")
   .description("A local-first memory layer for AI agents")
-  .version("0.3.0");
+  .version(CLI_VERSION);
 
 // Core commands (most used)
 program.addCommand(initCommand);

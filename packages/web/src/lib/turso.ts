@@ -92,11 +92,34 @@ export async function initSchema(url: string, token: string): Promise<void> {
       scope TEXT NOT NULL DEFAULT 'global',
       project_id TEXT,
       type TEXT NOT NULL DEFAULT 'note',
+      paths TEXT,
+      category TEXT,
+      metadata TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT
     )`
   )
+
+  // Keep schema compatible with CLI migrations for older or partially-initialized DBs.
+  const tableInfo = await db.execute("PRAGMA table_info(memories)")
+  const existingCols = new Set(
+    (tableInfo.rows as unknown as Array<{ name: string }>).map((c) => c.name)
+  )
+  const requiredCols: Array<{ name: string; ddl: string }> = [
+    { name: "scope", ddl: "TEXT NOT NULL DEFAULT 'global'" },
+    { name: "project_id", ddl: "TEXT" },
+    { name: "type", ddl: "TEXT NOT NULL DEFAULT 'note'" },
+    { name: "paths", ddl: "TEXT" },
+    { name: "category", ddl: "TEXT" },
+    { name: "metadata", ddl: "TEXT" },
+  ]
+
+  for (const col of requiredCols) {
+    if (!existingCols.has(col.name)) {
+      await db.execute(`ALTER TABLE memories ADD COLUMN ${col.name} ${col.ddl}`)
+    }
+  }
 
   await db.execute(
     `CREATE TABLE IF NOT EXISTS configs (

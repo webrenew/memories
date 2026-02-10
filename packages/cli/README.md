@@ -3,7 +3,7 @@
 The unified agent memory layer. Store rules once, generate configs for every AI tool.
 
 [![npm version](https://img.shields.io/npm/v/@memories.sh/cli?color=000&labelColor=1a1a2e)](https://www.npmjs.com/package/@memories.sh/cli)
-[![License: MIT](https://img.shields.io/npm/l/@memories.sh/cli?color=000&labelColor=1a1a2e)](https://github.com/WebRenew/memories/blob/main/LICENSE)
+[![License: Apache-2.0](https://img.shields.io/npm/l/@memories.sh/cli?color=000&labelColor=1a1a2e)](https://github.com/WebRenew/memories/blob/main/LICENSE)
 
 ## Install
 

@@ -34,7 +34,7 @@ function hashContent(content: string): string {
 // Only sync: instruction files, commands, skills, rules, and essential configs
 const SYNC_TARGETS = [
   // .agents - Agent instruction files, commands, tasks, and skills
-  { dir: ".agents", files: ["AGENTS.md"] },
+  { dir: ".agents", files: ["instructions.md", "settings.json"] },
   { dir: ".agents/commands", pattern: /\.md$/ },
   { dir: ".agents/tasks", pattern: /\.(md|txt)$/ },
   { dir: ".agents/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
