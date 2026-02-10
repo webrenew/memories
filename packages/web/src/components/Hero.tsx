@@ -202,7 +202,7 @@ export function Hero() {
               variants={itemVariants} 
               className="font-mono font-normal text-3xl sm:text-4xl lg:text-5xl xl:text-6xl tracking-tight mb-6 leading-[0.95] text-foreground"
             >
-              <ScrambleText text="One shared memory and skills layer for every AI agent and app." delayMs={300} duration={1.2} />
+              <ScrambleText text="One shared memory and config layer for every AI agent and app." delayMs={300} duration={1.2} />
             </motion.h1>
 
             <motion.p variants={itemVariants} className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl leading-relaxed font-light">
