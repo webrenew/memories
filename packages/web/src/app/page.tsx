@@ -3,6 +3,7 @@ import { TopNav } from "@/components/TopNav";
 import { Hero } from "@/components/Hero";
 import { HowItWorks } from "@/components/HowItWorks";
 import { FeaturesGrid } from "@/components/FeaturesGrid";
+import { SDKSection } from "@/components/SDKSection";
 import { Integrations } from "@/components/Integrations";
 import { Pricing } from "@/components/Pricing";
 import { FAQ } from "@/components/FAQ";
@@ -21,6 +22,7 @@ export default async function Home() {
         <Hero />
         <HowItWorks />
         <FeaturesGrid />
+        <SDKSection />
         <Integrations />
         <Pricing user={user} />
         <FAQ />
