@@ -1,0 +1,184 @@
+---
+title: Core Client
+description: MemoriesClient for use with any LLM framework.
+---
+
+`@memories.sh/core` provides a standalone client that works with any LLM SDK — Anthropic, OpenAI, or custom integrations. Zero runtime dependencies, edge-compatible.
+
+## Install
+
+```bash
+pnpm add @memories.sh/core
+```
+
+## Basic Usage
+
+```typescript
+import { MemoriesClient } from "@memories.sh/core"
+
+const client = new MemoriesClient({
+  apiKey: "mcp_xxx", // or uses MEMORIES_API_KEY env var
+})
+
+const { rules, memories } = await client.context.get("auth patterns")
+
+// Use with any LLM SDK
+const response = await anthropic.messages.create({
+  model: "claude-sonnet-4-5-20250929",
+  system: client.buildSystemPrompt({ rules, memories }),
+  messages: [{ role: "user", content: userMessage }],
+})
+```
+
+## API Reference
+
+### Constructor
+
+```typescript
+const client = new MemoriesClient({
+  apiKey: "mcp_xxx",    // API key (default: MEMORIES_API_KEY env var)
+  userId: "user_123",   // Optional: scope all operations to a user
+})
+```
+
+### `client.context.get(query?, options?)`
+
+Fetch rules and relevant memories for a query.
+
+```typescript
+const { rules, memories } = await client.context.get("deployment process")
+
+// With options
+const ctx = await client.context.get("auth", {
+  limit: 20,
+  includeRules: true,
+})
+```
+
+### `client.memories.add(input)`
+
+Create a new memory.
+
+```typescript
+await client.memories.add({
+  content: "Use TypeScript with strict mode",
+  type: "rule",
+  tags: ["code-style"],
+  paths: ["src/**"],
+})
+```
+
+### `client.memories.search(query, options?)`
+
+Full-text search across memories.
+
+```typescript
+const results = await client.memories.search("auth patterns", {
+  type: "rule",
+  limit: 10,
+})
+```
+
+### `client.memories.list(options?)`
+
+List memories with optional filters.
+
+```typescript
+const memories = await client.memories.list({
+  type: "rule",
+  tags: ["code-style"],
+  limit: 50,
+})
+```
+
+### `client.memories.edit(id, updates)`
+
+Update an existing memory.
+
+```typescript
+await client.memories.edit("mem_abc123", {
+  content: "Updated content",
+  tags: ["updated-tag"],
+})
+```
+
+### `client.memories.forget(id)`
+
+Soft-delete a memory.
+
+```typescript
+await client.memories.forget("mem_abc123")
+```
+
+### `client.buildSystemPrompt(context)`
+
+Format rules and memories into a system prompt block.
+
+```typescript
+const { rules, memories } = await client.context.get("auth")
+const systemPrompt = client.buildSystemPrompt({ rules, memories })
+
+// Returns formatted text like:
+// ## Rules (always follow)
+// - Use TypeScript with strict mode
+// - Prefer functional patterns
+//
+// ## Relevant Context (from memory)
+// - [decision] Chose Supabase over Firebase for auth
+// - [fact] Project uses pnpm
+```
+
+## Seed API
+
+Programmatically seed memories from existing context files or structured data:
+
+```typescript
+// Seed from existing project context files
+const { imported, skipped } = await client.seed({
+  sources: "auto", // scans cwd for .cursorrules, CLAUDE.md, AGENTS.md, etc.
+  dedup: true,
+})
+
+// Seed from structured data
+await client.seed({
+  memories: [
+    { content: "Use TypeScript with strict mode", type: "rule", tags: ["code-style"] },
+    { content: "Project uses pnpm", type: "fact", tags: ["tooling"] },
+  ],
+})
+
+// Seed from a markdown file
+await client.seed({ file: "./CONVENTIONS.md" })
+```
+
+## userId Scoping
+
+For multi-tenant apps, scope all operations to a specific user:
+
+```typescript
+const client = new MemoriesClient({
+  apiKey: "mcp_xxx",
+  userId: "user_123",
+})
+
+// All operations are now scoped to user_123
+await client.memories.add({ content: "User prefers dark mode", type: "preference" })
+const { memories } = await client.context.get("user preferences")
+// Only returns memories for user_123
+```
+
+## Edge Runtime
+
+The core client is edge-compatible with zero dependencies:
+
+```typescript
+import { MemoriesClient } from "@memories.sh/core"
+
+export const runtime = "edge"
+
+export async function POST(req: Request) {
+  const client = new MemoriesClient()
+  const { rules } = await client.context.get()
+  return Response.json({ rules: rules.map((r) => r.content) })
+}
+```

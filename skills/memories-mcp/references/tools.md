@@ -163,6 +163,8 @@ Soft-delete a memory by ID (recoverable).
 
 ## Streaming Tools
 
+> **CLI only.** These tools are available in the local CLI MCP server but not in the cloud MCP endpoint. They require in-process state (active streams) that cannot be maintained over HTTP.
+
 For collecting content from SSE/streaming sources (v0 artifacts, Claude artifacts, etc.).
 
 ### start_memory_stream

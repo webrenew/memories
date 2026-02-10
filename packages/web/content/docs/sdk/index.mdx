@@ -1,0 +1,98 @@
+---
+title: TypeScript SDK
+description: Wire persistent memory into AI apps with two packages.
+---
+
+The memories.sh SDK gives AI applications persistent memory through two packages:
+
+| Package | What it does |
+|---------|-------------|
+| `@memories.sh/ai-sdk` | Middleware + tools for the Vercel AI SDK |
+| `@memories.sh/core` | Standalone client for any LLM framework |
+
+## Three Tiers of Integration
+
+| Tier | Pattern | DX | When to use |
+|------|---------|-----|------------|
+| **Middleware** | Auto-inject context into every prompt | 2 lines | Default — "it just works" |
+| **Tools** | LLM decides when to read/write | 3-5 lines | Agent loops that manage their own memory |
+| **Client** | Dev manually fetches context | 10+ lines | Custom integrations, non-AI-SDK apps |
+
+## Quick Start
+
+### Install
+
+```bash
+pnpm add @memories.sh/ai-sdk
+```
+
+Set your API key:
+
+```bash
+export MEMORIES_API_KEY=mcp_xxx
+```
+
+### Middleware (recommended)
+
+Two lines to add memory to any model:
+
+```typescript
+import { generateText, wrapLanguageModel } from "ai"
+import { openai } from "@ai-sdk/openai"
+import { memoriesMiddleware } from "@memories.sh/ai-sdk"
+
+const model = wrapLanguageModel({
+  model: openai("gpt-4o"),
+  middleware: memoriesMiddleware(),
+})
+
+const { text } = await generateText({
+  model,
+  prompt: "How should I handle auth in this project?",
+})
+// Model automatically sees relevant rules + memories in its system prompt
+```
+
+### Tools (for agent loops)
+
+When the LLM should manage its own memory:
+
+```typescript
+import { generateText, stepCountIs } from "ai"
+import { memoriesTools, memoriesSystemPrompt } from "@memories.sh/ai-sdk"
+
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  system: memoriesSystemPrompt(),
+  tools: memoriesTools(),
+  stopWhen: stepCountIs(5),
+  prompt: userMessage,
+})
+```
+
+### Core Client (no AI SDK)
+
+Use with any LLM SDK:
+
+```typescript
+import { MemoriesClient } from "@memories.sh/core"
+
+const client = new MemoriesClient({ apiKey: "mcp_xxx" })
+const { rules, memories } = await client.context.get("deployment process")
+
+const response = await anthropic.messages.create({
+  model: "claude-sonnet-4-5-20250929",
+  system: client.buildSystemPrompt({ rules, memories }),
+  messages: [{ role: "user", content: userMessage }],
+})
+```
+
+## Availability
+
+The SDK is available on the Enterprise plan. [Contact us](mailto:hello@memories.sh) to get started.
+
+## Next Steps
+
+- [Middleware reference](/docs/sdk/middleware) — `memoriesMiddleware()` config and composability
+- [Tools reference](/docs/sdk/tools) — `memoriesTools()` bundle and individual tools
+- [Core Client reference](/docs/sdk/client) — `MemoriesClient` class API

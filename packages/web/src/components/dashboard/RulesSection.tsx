@@ -6,16 +6,16 @@ import { MemoriesList } from "./MemoriesList"
 import { AddRuleForm } from "./AddRuleForm"
 import type { Memory } from "@/types/memory"
 
-type ScopeFilter = "all" | "global" | string // "all", "global", or a specific project scope
+type ScopeFilter = "all" | "global" | string // "all", "global", or a specific project_id
 
-function formatProjectName(scope: string): string {
+function formatProjectName(projectId: string): string {
   // github.com/org/repo -> org/repo
-  return scope.replace(/^github\.com\//, "")
+  return projectId.replace(/^github\.com\//, "")
 }
 
-function getShortProjectName(scope: string): string {
+function getShortProjectName(projectId: string): string {
   // github.com/org/repo -> repo
-  return scope.replace(/^github\.com\//, "").split("/").pop() || scope
+  return projectId.replace(/^github\.com\//, "").split("/").pop() || projectId
 }
 
 export function RulesSection({ initialRules }: { initialRules: Memory[] }) {
@@ -31,12 +31,12 @@ export function RulesSection({ initialRules }: { initialRules: Memory[] }) {
     setRules(updated)
   }
 
-  // Get unique project scopes with counts
+  // Get unique projects with counts (using project_id, not scope)
   const projectScopes = useMemo(() => {
     const scopeCounts = new Map<string, number>()
     rules.forEach((r) => {
-      if (r.scope && r.scope !== "global") {
-        scopeCounts.set(r.scope, (scopeCounts.get(r.scope) || 0) + 1)
+      if (r.scope === "project" && r.project_id) {
+        scopeCounts.set(r.project_id, (scopeCounts.get(r.project_id) || 0) + 1)
       }
     })
     return Array.from(scopeCounts.entries())
@@ -47,11 +47,11 @@ export function RulesSection({ initialRules }: { initialRules: Memory[] }) {
   const filteredRules = useMemo(() => {
     if (scopeFilter === "all") return rules
     if (scopeFilter === "global") return rules.filter((r) => r.scope === "global")
-    return rules.filter((r) => r.scope === scopeFilter)
+    return rules.filter((r) => r.project_id === scopeFilter)
   }, [rules, scopeFilter])
 
   const globalCount = rules.filter((r) => r.scope === "global").length
-  const allProjectCount = rules.filter((r) => r.scope && r.scope !== "global").length
+  const allProjectCount = rules.filter((r) => r.scope === "project" && r.project_id).length
 
   // Check if current filter is a specific project
   const isProjectFilter = scopeFilter !== "all" && scopeFilter !== "global"

@@ -131,8 +131,9 @@ export async function PATCH(request: NextRequest) {
       authToken: profile.turso_db_token,
     })
 
-    const updates: string[] = ["updated_at = datetime('now')"]
-    const updateArgs: (string | null)[] = []
+    const now = new Date().toISOString()
+    const updates: string[] = ["updated_at = ?"]
+    const updateArgs: (string | null)[] = [now]
 
     if (content !== undefined) {
       updates.push("content = ?")
@@ -203,9 +204,10 @@ export async function DELETE(request: NextRequest) {
     })
 
     // Soft delete by setting deleted_at
+    const now = new Date().toISOString()
     await turso.execute({
-      sql: "UPDATE memories SET deleted_at = datetime('now') WHERE id = ?",
-      args: [id],
+      sql: "UPDATE memories SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL",
+      args: [now, id],
     })
 
     return NextResponse.json({ success: true })

@@ -1,0 +1,126 @@
+---
+title: Middleware
+description: memoriesMiddleware() auto-injects rules and context into every LLM call.
+---
+
+`memoriesMiddleware()` is the headline feature of the SDK. It wraps any Vercel AI SDK model so that rules and relevant memories are automatically injected into the system prompt — no tool calls, no prompt engineering.
+
+## Basic Usage
+
+```typescript
+import { generateText, wrapLanguageModel } from "ai"
+import { openai } from "@ai-sdk/openai"
+import { memoriesMiddleware } from "@memories.sh/ai-sdk"
+
+const model = wrapLanguageModel({
+  model: openai("gpt-4o"),
+  middleware: memoriesMiddleware(),
+})
+
+const { text } = await generateText({
+  model,
+  prompt: "How should I handle auth in this project?",
+})
+```
+
+The middleware uses the `MEMORIES_API_KEY` environment variable by default.
+
+## Config Options
+
+```typescript
+memoriesMiddleware({
+  // Max memories to inject (default: 10)
+  limit: 10,
+
+  // Also inject rules (type=rule) (default: true)
+  includeRules: true,
+
+  // Auto-store learnings from responses (default: false)
+  autoStore: false,
+
+  // Custom query extraction from params
+  extractQuery: (params) => {
+    // Return a string to search memories with
+    return params.prompt as string
+  },
+
+  // Scope all operations to a user
+  userId: "user_123",
+
+  // Skip the fetch and use preloaded context
+  preloaded: preloadedContext,
+})
+```
+
+### `limit`
+
+Maximum number of memories to inject into the system prompt. Default: `10`.
+
+### `includeRules`
+
+Whether to include rules (memories with `type: "rule"`) in the injected context. Default: `true`.
+
+### `autoStore`
+
+When `true`, the middleware will extract and store learnings from each conversation via `onFinish`. Default: `false`.
+
+### `extractQuery`
+
+Custom function to extract the search query from the call parameters. By default, the middleware uses the last user message.
+
+### `userId`
+
+Scope all memory operations to a specific user. Required for multi-tenant apps.
+
+### `preloaded`
+
+Pass preloaded context to avoid an extra fetch on every call. Use with `preloadContext()`:
+
+```typescript
+import { preloadContext, memoriesMiddleware } from "@memories.sh/ai-sdk"
+
+const ctx = await preloadContext({ query: userMessage, limit: 15 })
+
+const model = wrapLanguageModel({
+  model: openai("gpt-4o"),
+  middleware: memoriesMiddleware({ preloaded: ctx }),
+})
+```
+
+## How It Works
+
+1. `transformParams` intercepts the call before it reaches the model
+2. Extracts the last user message as a search query
+3. Calls `client.context.get(query)` to fetch rules + relevant memories
+4. Prepends a `## Memory Context` block to the system prompt
+5. The model sees memories as part of its instructions — no tool call needed
+
+## Composability
+
+AI SDK middleware is composable. Stack `memoriesMiddleware()` with other middleware:
+
+```typescript
+const model = wrapLanguageModel({
+  model: openai("gpt-4o"),
+  middleware: [
+    memoriesMiddleware(),
+    loggingMiddleware,
+    guardrailMiddleware,
+  ],
+})
+```
+
+This is lighter than provider wrapping (Mem0's approach) and plays well with the rest of the AI SDK ecosystem.
+
+## With Auto-Store
+
+```typescript
+const model = wrapLanguageModel({
+  model: openai("gpt-4o"),
+  middleware: memoriesMiddleware({
+    autoStore: true,
+  }),
+})
+```
+
+When `autoStore` is enabled, the middleware watches responses and stores learnings back to your memory store automatically.

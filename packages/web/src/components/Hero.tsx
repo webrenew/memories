@@ -202,11 +202,11 @@ export function Hero() {
               variants={itemVariants} 
               className="font-mono font-normal text-3xl sm:text-4xl lg:text-5xl xl:text-6xl tracking-tight mb-6 leading-[0.95] text-foreground"
             >
-              <ScrambleText text="The unified agent memory layer." delayMs={300} duration={1.2} />
+              <ScrambleText text="Agent memory layer and SDK." delayMs={300} duration={1.2} />
             </motion.h1>
 
             <motion.p variants={itemVariants} className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl leading-relaxed font-light">
-              Durable, local-first state for coding agents. Store rules once, recall context, and generate native configs for every tool; offline by default, sync when you need it.
+              Durable state for coding agents and a TypeScript SDK for AI apps. Store rules, recall context, and wire memory into any LLM—local-first, sync when you need it.
             </motion.p>
 
             <CopyCommand />

@@ -29,6 +29,10 @@ export function FAQ() {
     {
       q: "Which coding agents are supported?",
       a: "Cursor, Claude Code, GitHub Copilot, Windsurf, Cline, Roo, Gemini, Amp, Codex, OpenCode, Kilo, Trae, Goose, plus any MCP-compatible client via the built-in server."
+    },
+    {
+      q: "What is the SDK for?",
+      a: "The TypeScript SDK (@memories.sh/ai-sdk) lets you wire persistent memory into AI apps. memoriesMiddleware() wraps any Vercel AI SDK model so rules and context auto-inject into every prompt—no tool calls needed. For agent loops, use memoriesTools() to let the LLM manage its own memory."
     }
   ];
 

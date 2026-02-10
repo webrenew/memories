@@ -127,7 +127,7 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {/* Type Filter */}
         <div className="flex items-center gap-1 p-1 bg-muted/30 border border-border">
-          {TYPE_OPTIONS.slice(0, 5).map((opt) => {
+          {TYPE_OPTIONS.map((opt) => {
             const count = opt.value === "all" 
               ? memories.length 
               : typeCounts.get(opt.value) || 0

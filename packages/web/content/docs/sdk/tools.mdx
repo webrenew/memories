@@ -1,0 +1,135 @@
+---
+title: Tools
+description: memoriesTools() gives LLMs direct access to read and write memory.
+---
+
+For agent loops where the LLM should actively manage its own memory, use `memoriesTools()`. This gives the model tools to get context, store memories, search, and forget.
+
+## Tool Bundle
+
+```typescript
+import { generateText, stepCountIs } from "ai"
+import { memoriesTools } from "@memories.sh/ai-sdk"
+
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools: memoriesTools(),
+  stopWhen: stepCountIs(5),
+  system: "You have persistent memory. Use getContext at conversation start.",
+  prompt: userMessage,
+})
+```
+
+`memoriesTools()` returns all five tools as a single object you can spread into your tools config.
+
+## Individual Tools
+
+For fine-grained control, import tools individually:
+
+```typescript
+import {
+  getContext,
+  storeMemory,
+  searchMemories,
+  forgetMemory,
+  listMemories,
+} from "@memories.sh/ai-sdk"
+
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools: {
+    recall: getContext(),
+    remember: storeMemory(),
+    search: searchMemories(),
+    forget: forgetMemory(),
+    list: listMemories(),
+  },
+  prompt: userMessage,
+})
+```
+
+### `getContext(config?)`
+
+Fetches rules and relevant memories for a query. The primary "read" tool.
+
+### `storeMemory(config?)`
+
+Stores a new memory. Accepts `content`, `type`, `tags`, and `paths`.
+
+### `searchMemories(config?)`
+
+Full-text search across all memories. Returns ranked results.
+
+### `forgetMemory(config?)`
+
+Soft-deletes a memory by ID.
+
+### `listMemories(config?)`
+
+Lists memories with optional filters for type, tags, and scope.
+
+## System Prompt Helper
+
+Use `memoriesSystemPrompt()` to generate optimized instructions for tools usage:
+
+```typescript
+import { memoriesSystemPrompt } from "@memories.sh/ai-sdk"
+
+const system = memoriesSystemPrompt({
+  includeInstructions: true,
+  persona: "coding assistant",
+  rules: preloadedRules, // optional: inject rules directly
+})
+```
+
+This generates a system prompt that tells the model when and how to use memory tools effectively.
+
+## Auto-Store Callback
+
+Use `createMemoriesOnFinish()` to automatically store learnings after each response:
+
+```typescript
+import { streamText } from "ai"
+import { memoriesTools, createMemoriesOnFinish } from "@memories.sh/ai-sdk"
+
+const result = streamText({
+  model: openai("gpt-4o"),
+  tools: memoriesTools(),
+  prompt: userMessage,
+  onFinish: createMemoriesOnFinish({
+    mode: "tool-calls-only", // or "auto-extract"
+    userId: "user_123",
+  }),
+})
+```
+
+### Modes
+
+- **`tool-calls-only`** — Only stores memories when the model explicitly calls `storeMemory`. Explicit and predictable.
+- **`auto-extract`** — Uses LLM-powered extraction to find and store learnings from the conversation. More automatic, but adds latency and cost.
+
+## Combining Middleware + Tools
+
+Use middleware for automatic context injection and tools for writes:
+
+```typescript
+import { generateText, wrapLanguageModel, stepCountIs } from "ai"
+import { memoriesMiddleware, storeMemory, forgetMemory } from "@memories.sh/ai-sdk"
+
+const model = wrapLanguageModel({
+  model: openai("gpt-4o"),
+  middleware: memoriesMiddleware(),
+})
+
+const { text } = await generateText({
+  model,
+  tools: {
+    store: storeMemory(),
+    forget: forgetMemory(),
+  },
+  stopWhen: stepCountIs(3),
+  prompt: "Remember that we decided to use Supabase for auth",
+})
+```
+
+This gives you the best of both worlds: automatic reads via middleware, explicit writes via tools.

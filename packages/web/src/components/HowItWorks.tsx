@@ -43,15 +43,31 @@ const mcpSteps = [
   },
 ];
 
+const sdkCodeLines = [
+  { tokens: [{ text: "import", style: "keyword" }, { text: " { wrapLanguageModel } ", style: "default" }, { text: "from", style: "keyword" }, { text: ' "ai"', style: "string" }] },
+  { tokens: [{ text: "import", style: "keyword" }, { text: " { memoriesMiddleware } ", style: "default" }, { text: "from", style: "keyword" }, { text: ' "@memories.sh/ai-sdk"', style: "string" }] },
+  { tokens: [] },
+  { tokens: [{ text: "const", style: "keyword" }, { text: " model = ", style: "default" }, { text: "wrapLanguageModel", style: "fn" }, { text: "({", style: "default" }] },
+  { tokens: [{ text: "  model: ", style: "default" }, { text: "openai", style: "fn" }, { text: "(", style: "default" }, { text: '"gpt-4o"', style: "string" }, { text: "),", style: "default" }] },
+  { tokens: [{ text: "  middleware: ", style: "default" }, { text: "memoriesMiddleware", style: "fn" }, { text: "()", style: "default" }] },
+  { tokens: [{ text: "})", style: "default" }] },
+  { tokens: [] },
+  { tokens: [{ text: "// Rules + memories auto-injected into every prompt", style: "comment" }] },
+] as const;
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export function HowItWorks() {
-  const [activeTab, setActiveTab] = useState<"cli" | "mcp">("cli");
+  const [activeTab, setActiveTab] = useState<"cli" | "mcp" | "sdk">("cli");
   const [copied, setCopied] = useState(false);
   const [endpointCopied, setEndpointCopied] = useState(false);
 
-  const tabs = [{ id: "cli" as const, number: "01", label: "CLI", sublabel: "Command Line" }, { id: "mcp" as const, number: "02", label: "MCP", sublabel: "Fallback" }];
-  const installCommands = { cli: "pnpm add -g @memories.sh/cli", mcp: "memories serve" };
+  const tabs = [
+    { id: "cli" as const, number: "01", label: "CLI", sublabel: "Command Line" },
+    { id: "mcp" as const, number: "02", label: "MCP", sublabel: "Fallback" },
+    { id: "sdk" as const, number: "03", label: "SDK", sublabel: "TypeScript" },
+  ];
+  const installCommands: Record<string, string> = { cli: "pnpm add -g @memories.sh/cli", mcp: "memories serve", sdk: "pnpm add @memories.sh/ai-sdk" };
 
   const tabContent = {
     cli: {
@@ -66,6 +82,12 @@ export function HowItWorks() {
       cardTitle: "Direct agent fallback",
       cardDescription: "Same 7 tools as CLI. FTS5 search, path-scoped rules, skills, and full field support.",
       endpoint: "https://memories.sh/api/mcp",
+    },
+    sdk: {
+      heading: "Two lines. Memory everywhere.",
+      description: "Wrap any model with memoriesMiddleware(). Rules and context auto-inject into every prompt—no tool calls, no prompt engineering.",
+      cardTitle: "AI SDK middleware",
+      cardDescription: "@memories.sh/ai-sdk — composable middleware for the Vercel AI SDK. Stack with logging, guardrails, caching.",
     },
   };
 
@@ -105,9 +127,9 @@ export function HowItWorks() {
     setTyping({ completedSteps: 0, charIndex: 0, noteVisible: false });
   }, [activeTab]);
 
-  // Drive the typing animation frame-by-frame (works for both tabs)
+  // Drive the typing animation frame-by-frame (works for CLI and MCP tabs; SDK is static)
   useEffect(() => {
-    if (!isTerminalInView) return;
+    if (!isTerminalInView || activeTab === "sdk") return;
 
     const steps = activeTab === "cli" ? cliSteps : mcpSteps;
     const { completedSteps, charIndex, noteVisible } = typing;
@@ -147,18 +169,20 @@ export function HowItWorks() {
     return () => clearTimeout(timer);
   }, [isTerminalInView, activeTab, typing]);
 
-  // Auto-advance from CLI → MCP after CLI animation completes
+  // Auto-advance: CLI → MCP → SDK
   useEffect(() => {
     if (!isAutoPlaying.current) return;
     if (activeTab === "cli" && typing.completedSteps >= cliSteps.length) {
-      const timer = setTimeout(() => {
-        setActiveTab("mcp");
-      }, 1000);
+      const timer = setTimeout(() => setActiveTab("mcp"), 1000);
+      return () => clearTimeout(timer);
+    }
+    if (activeTab === "mcp" && typing.completedSteps >= mcpSteps.length) {
+      const timer = setTimeout(() => setActiveTab("sdk"), 1000);
       return () => clearTimeout(timer);
     }
   }, [activeTab, typing.completedSteps]);
 
-  const handleTabClick = (tabId: "cli" | "mcp") => {
+  const handleTabClick = (tabId: "cli" | "mcp" | "sdk") => {
     isAutoPlaying.current = false;
     setActiveTab(tabId);
   };
@@ -214,7 +238,7 @@ export function HowItWorks() {
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                   <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                    {activeTab === "cli" ? "01 - Command Line" : "02 - Agent Server"}
+                    {activeTab === "cli" ? "01 - Command Line" : activeTab === "mcp" ? "02 - Agent Server" : "03 - TypeScript SDK"}
                   </span>
                 </div>
               </div>
@@ -238,7 +262,7 @@ export function HowItWorks() {
 
               {/* Quickstart link */}
               <a
-                href={activeTab === "cli" ? "/docs/cli" : "/docs/mcp-server"}
+                href={activeTab === "cli" ? "/docs/cli" : activeTab === "mcp" ? "/docs/mcp-server" : "/docs/sdk"}
                 className="inline-flex items-center gap-2 px-4 py-2 text-xs font-mono uppercase tracking-wider border border-border rounded hover:bg-muted transition-colors text-foreground"
               >
                 Quickstart Guide
@@ -281,7 +305,7 @@ export function HowItWorks() {
                 )}
                 
                 <a
-                  href={activeTab === "cli" ? "/docs/cli" : "/docs/mcp-server"}
+                  href={activeTab === "cli" ? "/docs/cli" : activeTab === "mcp" ? "/docs/mcp-server" : "/docs/sdk"}
                   className="inline-flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors font-medium"
                 >
                   Learn more
@@ -367,7 +391,7 @@ export function HowItWorks() {
               {/* Tab label on top right of terminal */}
               <div className="flex justify-end mb-4">
                 <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                  {activeTab === "cli" ? "Terminal" : "MCP Server"}
+                  {activeTab === "cli" ? "Terminal" : activeTab === "mcp" ? "MCP Server" : "app.ts"}
                 </span>
               </div>
 
@@ -384,13 +408,48 @@ export function HowItWorks() {
                     <div className="w-3 h-3 rounded-full bg-[#28c840]" />
                   </div>
                   <span className="ml-3 text-xs text-muted-foreground font-mono">
-                    {activeTab === "cli" ? "~/project" : "mcp-server"}
+                    {activeTab === "cli" ? "~/project" : activeTab === "mcp" ? "mcp-server" : "app.ts"}
                   </span>
                 </div>
 
                 {/* Content */}
                 <div className="p-6 md:p-8 space-y-6 font-mono">
-                  {activeTab === "cli" ? (
+                  {activeTab === "sdk" ? (
+                    <div className="space-y-0.5">
+                      {sdkCodeLines.map((line, i) => (
+                        <motion.div
+                          key={`sdk-${i}`}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.3, delay: i * 0.06 }}
+                          className="text-sm md:text-base leading-relaxed"
+                        >
+                          {line.tokens.length === 0 ? (
+                            <span>&nbsp;</span>
+                          ) : (
+                            line.tokens.map((token, j) => (
+                              <span
+                                key={j}
+                                className={
+                                  token.style === "keyword"
+                                    ? "text-purple-400"
+                                    : token.style === "string"
+                                    ? "text-green-400"
+                                    : token.style === "fn"
+                                    ? "text-primary"
+                                    : token.style === "comment"
+                                    ? "text-muted-foreground/60 italic"
+                                    : "text-foreground/80"
+                                }
+                              >
+                                {token.text}
+                              </span>
+                            ))
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : activeTab === "cli" ? (
                     <>
                       {cliSteps.map((step, i) => {
                         const fullCmd = `${step.cmd} ${step.arg}`;
@@ -520,7 +579,7 @@ export function HowItWorks() {
               {/* Bottom labels */}
               <div className="flex justify-between mt-4">
                 <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                  {activeTab === "cli" ? "CLI" : "MCP"}
+                  {activeTab === "cli" ? "CLI" : activeTab === "mcp" ? "MCP" : "SDK"}
                 </span>
                 <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                   {tabContent[activeTab].cardTitle}

@@ -147,19 +147,45 @@ export function FeaturesGrid() {
                   <div className="w-1 h-1 bg-primary animate-pulse" />
                 </div>
               </div>
-              
+
               <h4 className="text-lg font-bold tracking-tight text-foreground mb-4">MCP Server</h4>
               <p className="text-[13px] text-muted-foreground leading-relaxed font-light mb-8">
                 7 tools with FTS5 search at full CLI parity. For browser-based agents or any MCP client that needs real-time access.
               </p>
-              
+
               <div className="flex items-center justify-between pt-6 border-t border-border">
                 <div className="flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-primary/60" />
                   <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">memories serve</span>
                 </div>
-                <Link 
-                  href="/docs/mcp-server" 
+                <Link
+                  href="/docs/mcp-server"
+                  className="text-[11px] font-medium text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Learn More →
+                </Link>
+              </div>
+            </div>
+
+            <div className="group p-8 lg:p-10 bg-primary/10 border border-primary/30 flex flex-col shadow-md dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)] rounded-lg hover:ring-1 hover:ring-primary/40 relative overflow-hidden">
+              <div className="text-primary/60 group-hover:text-primary mb-10">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 17l6-6-6-6M12 19h8" />
+                </svg>
+              </div>
+
+              <h4 className="text-lg font-bold tracking-tight text-foreground mb-4">TypeScript SDK</h4>
+              <p className="text-[13px] text-muted-foreground leading-relaxed font-light mb-8">
+                memoriesMiddleware() wraps any LLM model. Rules and context auto-inject into every prompt. Also ships standalone tools for agent loops.
+              </p>
+
+              <div className="flex items-center justify-between pt-6 border-t border-border">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-1 rounded-full bg-primary/60" />
+                  <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-muted-foreground">2 lines</span>
+                </div>
+                <Link
+                  href="/docs/sdk"
                   className="text-[11px] font-medium text-muted-foreground hover:text-primary transition-colors"
                 >
                   Learn More →
