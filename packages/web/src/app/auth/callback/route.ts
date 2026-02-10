@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { reconcileUserAccountByEmail } from "@/lib/account-reconciliation"
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -11,6 +12,19 @@ export async function GET(request: Request) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (user) {
+          await reconcileUserAccountByEmail(user)
+        }
+      } catch (reconciliationError) {
+        // Do not block login on reconciliation failures.
+        console.error("Auth callback reconciliation failed:", reconciliationError)
+      }
+
       return NextResponse.redirect(`${origin}${next}`)
     }
   }

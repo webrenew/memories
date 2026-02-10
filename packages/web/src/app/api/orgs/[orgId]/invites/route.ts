@@ -91,20 +91,25 @@ export async function POST(
     return NextResponse.json({ error: "Only owner can invite as admin" }, { status: 403 })
   }
 
-  // Check if email already a member
-  const { data: existingUser } = await supabase
+  // Check if any account with this email is already a member.
+  const { data: existingUsers } = await supabase
     .from("users")
     .select("id")
-    .eq("email", email.toLowerCase())
-    .single()
+    .ilike("email", email.toLowerCase())
 
-  if (existingUser) {
-    const { data: existingMember } = await supabase
+  if (existingUsers && existingUsers.length > 0) {
+    const existingUserIds = existingUsers.map((u) => u.id)
+    const { data: existingMember, error: existingMemberError } = await supabase
       .from("org_members")
       .select("id")
       .eq("org_id", orgId)
-      .eq("user_id", existingUser.id)
-      .single()
+      .in("user_id", existingUserIds)
+      .limit(1)
+      .maybeSingle()
+
+    if (existingMemberError) {
+      return NextResponse.json({ error: existingMemberError.message }, { status: 500 })
+    }
 
     if (existingMember) {
       return NextResponse.json({ error: "User is already a member" }, { status: 400 })

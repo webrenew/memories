@@ -9,10 +9,16 @@ export function OAuthButtons() {
   async function signIn(provider: "google" | "github") {
     setLoading(provider)
     const supabase = createClient()
+    const scopes =
+      provider === "github"
+        ? "read:user user:email"
+        : "openid profile email"
+
     await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        scopes,
       },
     })
   }

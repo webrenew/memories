@@ -115,14 +115,15 @@ export async function DELETE(
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  // Only owner can delete
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("owner_id")
-    .eq("id", orgId)
+  // Only users with owner role can delete.
+  const { data: membership } = await supabase
+    .from("org_members")
+    .select("role")
+    .eq("org_id", orgId)
+    .eq("user_id", user.id)
     .single()
 
-  if (!org || org.owner_id !== user.id) {
+  if (!membership || membership.role !== "owner") {
     return NextResponse.json({ error: "Only the owner can delete this organization" }, { status: 403 })
   }
 
