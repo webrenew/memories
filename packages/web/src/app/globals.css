@@ -213,7 +213,7 @@
   }
 
   .glass-panel {
-    @apply bg-card/30 backdrop-blur-xl border border-border shadow-lg dark:shadow-[0_20px_80px_rgba(0,0,0,0.45)];
+    @apply bg-card backdrop-blur-xl border border-border shadow-lg dark:bg-card/30 dark:shadow-[0_20px_80px_rgba(0,0,0,0.45)];
   }
 
   .glass-panel-soft {
