@@ -14,8 +14,11 @@ export interface WorkspaceContext extends Omit<ActiveMemoryContext, "plan"> {
 }
 
 export function normalizeWorkspacePlan(plan: string | null | undefined): WorkspacePlan {
-  if (plan === "pro" || plan === "past_due") {
-    return plan
+  if (plan === "past_due") {
+    return "past_due"
+  }
+  if (plan === "pro" || plan === "team" || plan === "enterprise") {
+    return "pro"
   }
   return "free"
 }

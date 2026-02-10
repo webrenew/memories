@@ -64,7 +64,17 @@ function resolveOrganizationPlan(
     return "free"
   }
 
+  // Active subscription with a Stripe subscription ID is definitively pro
   if (org.subscription_status === "active" && org.stripe_subscription_id) {
+    return "pro"
+  }
+
+  // Org plan "team" or "enterprise" with active status is a paid tier,
+  // even without a dedicated stripe_subscription_id (e.g. owner's personal sub covers it)
+  if (
+    org.subscription_status === "active" &&
+    (org.plan === "team" || org.plan === "enterprise")
+  ) {
     return "pro"
   }
 

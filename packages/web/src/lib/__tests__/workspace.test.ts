@@ -20,7 +20,7 @@ describe("workspace helpers", () => {
     expect(normalizeWorkspacePlan("pro")).toBe("pro")
     expect(normalizeWorkspacePlan("past_due")).toBe("past_due")
     expect(normalizeWorkspacePlan("free")).toBe("free")
-    expect(normalizeWorkspacePlan("enterprise")).toBe("free")
+    expect(normalizeWorkspacePlan("enterprise")).toBe("pro")
     expect(normalizeWorkspacePlan(null)).toBe("free")
   })
 
@@ -58,7 +58,7 @@ describe("workspace helpers", () => {
       ownerType: "organization",
       orgId: "org-1",
       orgRole: "admin",
-      plan: "free",
+      plan: "pro",
       hasDatabase: true,
       canProvision: true,
       canManageBilling: false,
