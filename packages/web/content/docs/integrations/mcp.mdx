@@ -27,7 +27,10 @@ Add to `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` globally):
 {
   "mcpServers": {
     "memories": {
-      "url": "https://memories.sh/api/mcp?api_key=REPLACE_WITH_YOUR_API_KEY"
+      "url": "https://memories.sh/api/mcp",
+      "headers": {
+        "Authorization": "Bearer REPLACE_WITH_YOUR_API_KEY"
+      }
     }
   }
 }
@@ -42,7 +45,7 @@ Add to `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` globally):
 ### Claude Code
 
 ```bash
-claude mcp add memories --url "https://memories.sh/api/mcp?api_key=REPLACE_WITH_YOUR_API_KEY"
+claude mcp add memories -e API_KEY=REPLACE_WITH_YOUR_API_KEY -- npx -y @memories.sh/cli serve --api-key "$API_KEY"
 ```
 
 **Replace** `REPLACE_WITH_YOUR_API_KEY` with your key.
@@ -57,7 +60,10 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "memories": {
-      "url": "https://memories.sh/api/mcp?api_key=REPLACE_WITH_YOUR_API_KEY"
+      "url": "https://memories.sh/api/mcp",
+      "headers": {
+        "Authorization": "Bearer REPLACE_WITH_YOUR_API_KEY"
+      }
     }
   }
 }
@@ -75,7 +81,10 @@ Add to `.windsurf/mcp.json` in your project:
 {
   "mcpServers": {
     "memories": {
-      "url": "https://memories.sh/api/mcp?api_key=REPLACE_WITH_YOUR_API_KEY"
+      "url": "https://memories.sh/api/mcp",
+      "headers": {
+        "Authorization": "Bearer REPLACE_WITH_YOUR_API_KEY"
+      }
     }
   }
 }
@@ -91,7 +100,10 @@ Add to `.vscode/mcp.json` in your project:
 {
   "servers": {
     "memories": {
-      "url": "https://memories.sh/api/mcp?api_key=REPLACE_WITH_YOUR_API_KEY"
+      "url": "https://memories.sh/api/mcp",
+      "headers": {
+        "Authorization": "Bearer REPLACE_WITH_YOUR_API_KEY"
+      }
     }
   }
 }
@@ -101,10 +113,15 @@ Add to `.vscode/mcp.json` in your project:
 
 ### v0 / Web Tools
 
-Paste this URL in your MCP settings:
+Use this endpoint and header in your MCP settings:
 
-```
-https://memories.sh/api/mcp?api_key=REPLACE_WITH_YOUR_API_KEY
+```json
+{
+  "url": "https://memories.sh/api/mcp",
+  "headers": {
+    "Authorization": "Bearer REPLACE_WITH_YOUR_API_KEY"
+  }
+}
 ```
 
 ---

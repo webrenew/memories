@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { hashMcpApiKey } from "@/lib/mcp-api-key"
 
 const {
   mockAuthenticateRequest,
@@ -33,6 +34,8 @@ vi.mock("@/lib/active-memory-context", () => ({
 
 import { GET } from "../route"
 
+const VALID_API_KEY = `mcp_${"a".repeat(64)}`
+
 describe("/api/db/credentials", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -54,7 +57,7 @@ describe("/api/db/credentials", () => {
 
   it("returns credentials for mcp api key auth", async () => {
     const mockSingle = vi.fn().mockResolvedValue({
-      data: { id: "user-mcp-1" },
+      data: { id: "user-mcp-1", mcp_api_key_expires_at: "2099-01-01T00:00:00.000Z" },
       error: null,
     })
     const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
@@ -62,14 +65,14 @@ describe("/api/db/credentials", () => {
     mockAdminFrom.mockReturnValue({ select: mockSelect })
 
     const request = new Request("http://localhost/api/db/credentials", {
-      headers: { authorization: "Bearer mcp_testkey" },
+      headers: { authorization: `Bearer ${VALID_API_KEY}` },
     })
 
     const response = await GET(request as never)
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockEq).toHaveBeenCalledWith("mcp_api_key", "mcp_testkey")
+    expect(mockEq).toHaveBeenCalledWith("mcp_api_key_hash", hashMcpApiKey(VALID_API_KEY))
     expect(mockResolveActiveMemoryContext).toHaveBeenCalledWith(expect.anything(), "user-mcp-1")
     expect(body).toMatchObject({
       url: "libsql://demo.turso.io",
@@ -79,6 +82,23 @@ describe("/api/db/credentials", () => {
       turso_db_token: "token-123",
       turso_db_name: "demo-db",
     })
+  })
+
+  it("returns 401 when mcp key is expired", async () => {
+    const mockSingle = vi.fn().mockResolvedValue({
+      data: { id: "user-mcp-1", mcp_api_key_expires_at: "2020-01-01T00:00:00.000Z" },
+      error: null,
+    })
+    const mockEq = vi.fn().mockReturnValue({ single: mockSingle })
+    const mockSelect = vi.fn().mockReturnValue({ eq: mockEq })
+    mockAdminFrom.mockReturnValue({ select: mockSelect })
+
+    const request = new Request("http://localhost/api/db/credentials", {
+      headers: { authorization: `Bearer ${VALID_API_KEY}` },
+    })
+
+    const response = await GET(request as never)
+    expect(response.status).toBe(401)
   })
 
   it("returns credentials for cli/session auth", async () => {

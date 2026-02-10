@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { authenticateRequest } from "@/lib/auth"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { hashMcpApiKey, isValidMcpApiKey } from "@/lib/mcp-api-key"
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization")
@@ -11,7 +12,8 @@ export async function GET(request: NextRequest) {
   }
 
   const bearer = authHeader.slice(7)
-  const rateLimited = await checkRateLimit(apiRateLimit, bearer)
+  const rateLimitSubject = bearer.startsWith("mcp_") ? hashMcpApiKey(bearer) : bearer
+  const rateLimited = await checkRateLimit(apiRateLimit, rateLimitSubject)
   if (rateLimited) return rateLimited
 
   const admin = createAdminClient()
@@ -19,15 +21,26 @@ export async function GET(request: NextRequest) {
 
   // Bearer mcp_* is used by hosted MCP and --api-key flows.
   if (bearer.startsWith("mcp_")) {
+    if (!isValidMcpApiKey(bearer)) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
+    }
+
+    const apiKeyHash = hashMcpApiKey(bearer)
     const res = await admin
       .from("users")
-      .select("id")
-      .eq("mcp_api_key", bearer)
+      .select("id, mcp_api_key_expires_at")
+      .eq("mcp_api_key_hash", apiKeyHash)
       .single()
-    if (res.error || !res.data?.id) {
+
+    if (res.error || !res.data?.id || !res.data?.mcp_api_key_expires_at) {
       console.error("Credentials lookup error:", res.error)
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
+
+    if (new Date(res.data.mcp_api_key_expires_at).getTime() <= Date.now()) {
+      return NextResponse.json({ error: "API key expired" }, { status: 401 })
+    }
+
     userId = res.data.id as string
   } else {
     // Bearer cli_* (or session cookies) is used by CLI login/sync flows.

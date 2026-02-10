@@ -19,7 +19,8 @@ memories serve
 memories serve --sse --port 3030
 
 # Cloud-hosted (no local install needed)
-# Endpoint: https://memories.sh/api/mcp?api_key=YOUR_KEY
+# Endpoint: https://memories.sh/api/mcp
+# Header: Authorization: Bearer YOUR_KEY
 ```
 
 ## Primary Tool: `get_context`
@@ -87,7 +88,7 @@ For clients that support MCP resources:
 |-----------|----------|---------|
 | **stdio** | Claude Code, Cursor, local tools | `memories serve` |
 | **HTTP/SSE** | v0, web-based agents, remote | `memories serve --sse --port 3030` |
-| **Cloud** | No local install, cross-device | `https://memories.sh/api/mcp?api_key=KEY` |
+| **Cloud** | No local install, cross-device | `https://memories.sh/api/mcp` + `Authorization: Bearer KEY` |
 
 ## Reference Files
 

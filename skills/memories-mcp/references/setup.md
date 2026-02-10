@@ -83,7 +83,10 @@ Add to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
 {
   "mcpServers": {
     "memories": {
-      "url": "https://memories.sh/api/mcp?api_key=YOUR_API_KEY"
+      "url": "https://memories.sh/api/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
     }
   }
 }

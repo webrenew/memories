@@ -14,9 +14,12 @@ const API_KEY_PLACEHOLDER = "REPLACE_WITH_YOUR_API_KEY";
 // SSE endpoint for cloud-based MCP
 const SSE_ENDPOINT = "https://memories.sh/api/mcp";
 
-// Cursor deeplink config - SSE URL to cloud server
+// Cursor deeplink config - SSE URL + auth header
 const CURSOR_DEEPLINK_CONFIG = {
-  url: `${SSE_ENDPOINT}?api_key=${API_KEY_PLACEHOLDER}`,
+  url: SSE_ENDPOINT,
+  headers: {
+    Authorization: `Bearer ${API_KEY_PLACEHOLDER}`,
+  },
 };
 
 // Base64 encode for Cursor deeplink
@@ -31,12 +34,15 @@ const CURSOR_INSTALL_URL = `cursor://anysphere.cursor-deeplink/mcp/install?name=
 const CURSOR_MANUAL_CONFIG = `{
   "mcpServers": {
     "memories": {
-      "url": "${SSE_ENDPOINT}?api_key=${API_KEY_PLACEHOLDER}"
+      "url": "${SSE_ENDPOINT}",
+      "headers": {
+        "Authorization": "Bearer ${API_KEY_PLACEHOLDER}"
+      }
     }
   }
 }`;
 
-const CLAUDE_CODE_COMMAND = `claude mcp add memories --url "https://memories.sh/api/mcp?api_key=${API_KEY_PLACEHOLDER}"`;
+const CLAUDE_CODE_COMMAND = `claude mcp add memories -e API_KEY=${API_KEY_PLACEHOLDER} -- npx -y @memories.sh/cli serve --api-key "$API_KEY"`;
 
 interface CopyButtonProps {
   value: string;
@@ -180,7 +186,7 @@ export function MCPInstallButtons() {
             </pre>
             <p className="text-xs text-muted-foreground mt-2">
               <strong>Replace</strong> <code className="bg-muted px-1 rounded">{API_KEY_PLACEHOLDER}</code> with your key from
-              the dashboard.
+              the dashboard. This command runs the memories CLI MCP bridge with your API key.
             </p>
           </div>
         )}

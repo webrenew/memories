@@ -3,40 +3,124 @@
 import { useState, useEffect, useCallback } from "react"
 import { Copy, RefreshCw, Trash2, Key, Eye, EyeOff, Check } from "lucide-react"
 
+const MCP_ENDPOINT = "https://memories.sh/api/mcp"
+const DEFAULT_EXPIRY_DAYS = 30
+const MIN_EXPIRY_OFFSET_MS = 60 * 1000
+
+function toDateTimeLocalValue(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  const hours = String(date.getHours()).padStart(2, "0")
+  const minutes = String(date.getMinutes()).padStart(2, "0")
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+function defaultExpiryInputValue(): string {
+  const expiry = new Date(Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+  return toDateTimeLocalValue(expiry)
+}
+
+function isoToLocalInputValue(iso: string | null): string {
+  if (!iso) return defaultExpiryInputValue()
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return defaultExpiryInputValue()
+  return toDateTimeLocalValue(parsed)
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return "Not set"
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return "Not set"
+  return parsed.toLocaleString()
+}
+
+interface KeyMetadataResponse {
+  hasKey?: boolean
+  keyPreview?: string | null
+  createdAt?: string | null
+  expiresAt?: string | null
+  isExpired?: boolean
+}
+
 export function ApiKeySection() {
   const [apiKey, setApiKey] = useState<string | null>(null)
+  const [hasKey, setHasKey] = useState(false)
+  const [keyPreview, setKeyPreview] = useState<string | null>(null)
+  const [createdAt, setCreatedAt] = useState<string | null>(null)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [isExpired, setIsExpired] = useState(false)
+  const [expiryInput, setExpiryInput] = useState(defaultExpiryInputValue())
   const [loading, setLoading] = useState(true)
   const [showKey, setShowKey] = useState(false)
   const [copiedKey, setCopiedKey] = useState(false)
-  const [copiedUrl, setCopiedUrl] = useState(false)
+  const [copiedEndpoint, setCopiedEndpoint] = useState(false)
+  const [copiedHeader, setCopiedHeader] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchKey()
-  }, [])
-
-  async function fetchKey() {
+  const fetchKey = useCallback(async () => {
     try {
+      setError(null)
       const res = await fetch("/api/mcp/key")
-      const data = await res.json()
-      setApiKey(data.apiKey || null)
+      const data = (await res.json()) as KeyMetadataResponse
+      setHasKey(Boolean(data.hasKey))
+      setKeyPreview(data.keyPreview || null)
+      setCreatedAt(data.createdAt || null)
+      setExpiresAt(data.expiresAt || null)
+      setIsExpired(Boolean(data.isExpired))
+      setApiKey(null)
+      setShowKey(false)
+      setExpiryInput(isoToLocalInputValue(data.expiresAt || null))
     } catch (err) {
       console.error("Failed to fetch API key:", err)
+      setError("Failed to fetch API key metadata")
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    void fetchKey()
+  }, [fetchKey])
 
   async function generateKey() {
+    if (!expiryInput) {
+      setError("Select an expiry date and time.")
+      return
+    }
+
+    const parsedExpiry = new Date(expiryInput)
+    if (Number.isNaN(parsedExpiry.getTime())) {
+      setError("Expiry must be a valid date and time.")
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await fetch("/api/mcp/key", { method: "POST" })
+      setError(null)
+      const res = await fetch("/api/mcp/key", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expiresAt: parsedExpiry.toISOString() }),
+      })
       const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to generate API key")
+      }
+
       if (data.apiKey) {
         setApiKey(data.apiKey)
         setShowKey(true)
+        setHasKey(true)
+        setKeyPreview(data.keyPreview || null)
+        setCreatedAt(data.createdAt || new Date().toISOString())
+        setExpiresAt(data.expiresAt || parsedExpiry.toISOString())
+        setIsExpired(false)
       }
     } catch (err) {
       console.error("Failed to generate API key:", err)
+      setError(err instanceof Error ? err.message : "Failed to generate API key")
     } finally {
       setLoading(false)
     }
@@ -48,11 +132,19 @@ export function ApiKeySection() {
     }
     setLoading(true)
     try {
+      setError(null)
       await fetch("/api/mcp/key", { method: "DELETE" })
       setApiKey(null)
+      setHasKey(false)
+      setKeyPreview(null)
+      setCreatedAt(null)
+      setExpiresAt(null)
+      setIsExpired(false)
       setShowKey(false)
+      setExpiryInput(defaultExpiryInputValue())
     } catch (err) {
       console.error("Failed to revoke API key:", err)
+      setError("Failed to revoke API key")
     } finally {
       setLoading(false)
     }
@@ -66,24 +158,38 @@ export function ApiKeySection() {
       setTimeout(() => setCopiedKey(false), 2000)
     } catch (err) {
       console.error("Failed to copy:", err)
+      setError("Failed to copy key")
     }
   }, [apiKey])
 
-  const copyUrl = useCallback(async () => {
-    if (!apiKey) return
-    const url = `https://memories.sh/api/mcp?api_key=${apiKey}`
+  const copyEndpoint = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(url)
-      setCopiedUrl(true)
-      setTimeout(() => setCopiedUrl(false), 2000)
+      await navigator.clipboard.writeText(MCP_ENDPOINT)
+      setCopiedEndpoint(true)
+      setTimeout(() => setCopiedEndpoint(false), 2000)
     } catch (err) {
       console.error("Failed to copy:", err)
+      setError("Failed to copy endpoint")
+    }
+  }, [])
+
+  const copyHeader = useCallback(async () => {
+    const header = apiKey ? `Authorization: Bearer ${apiKey}` : "Authorization: Bearer <YOUR_API_KEY>"
+    try {
+      await navigator.clipboard.writeText(header)
+      setCopiedHeader(true)
+      setTimeout(() => setCopiedHeader(false), 2000)
+    } catch (err) {
+      console.error("Failed to copy:", err)
+      setError("Failed to copy header")
     }
   }, [apiKey])
 
-  const maskedKey = apiKey ? `${apiKey.slice(0, 12)}${"•".repeat(40)}${apiKey.slice(-4)}` : ""
+  const maskedKey = apiKey ? `${apiKey.slice(0, 12)}${"*".repeat(40)}${apiKey.slice(-4)}` : ""
+  const displayedKey = apiKey ? (showKey ? apiKey : maskedKey) : (keyPreview || "")
+  const minExpiryValue = toDateTimeLocalValue(new Date(Date.now() + MIN_EXPIRY_OFFSET_MS))
 
-  if (loading && !apiKey) {
+  if (loading && !hasKey && !apiKey) {
     return (
       <div className="border border-border bg-card/20 rounded-lg p-6">
         <div className="animate-pulse h-20 bg-muted/20 rounded" />
@@ -104,26 +210,43 @@ export function ApiKeySection() {
       </div>
 
       <div className="p-4 space-y-4">
-        {apiKey ? (
+        <div className="space-y-2">
+          <label className="text-xs text-muted-foreground">Key Expiry (required)</label>
+          <input
+            type="datetime-local"
+            value={expiryInput}
+            min={minExpiryValue}
+            onChange={(e) => setExpiryInput(e.target.value)}
+            className="w-full bg-muted/30 px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
+          />
+          <p className="text-xs text-muted-foreground">
+            Choose exactly when this key should expire. Non-expiring keys are not allowed.
+          </p>
+        </div>
+
+        {hasKey ? (
           <div className="space-y-4">
-            {/* API Key */}
             <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">Your API Key</label>
+              <label className="text-xs text-muted-foreground">
+                {apiKey ? "Your API Key (shown once)" : "Stored API Key"}
+              </label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-muted/30 px-3 py-2 rounded text-xs font-mono break-all select-all">
-                  {showKey ? apiKey : maskedKey}
+                  {displayedKey}
                 </code>
                 <button
                   onClick={() => setShowKey(!showKey)}
-                  className="p-2 hover:bg-muted/30 rounded transition-colors"
+                  disabled={!apiKey}
+                  className="p-2 hover:bg-muted/30 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   title={showKey ? "Hide" : "Show"}
                 >
                   {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
                 <button
                   onClick={copyKey}
-                  className="p-2 hover:bg-muted/30 rounded transition-colors"
-                  title="Copy key"
+                  disabled={!apiKey}
+                  className="p-2 hover:bg-muted/30 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={apiKey ? "Copy key" : "Regenerate to copy a new key"}
                 >
                   {copiedKey ? (
                     <Check className="h-4 w-4 text-green-400" />
@@ -132,21 +255,36 @@ export function ApiKeySection() {
                   )}
                 </button>
               </div>
+              {!apiKey && (
+                <p className="text-xs text-muted-foreground">
+                  Keys are stored as hashes only. Regenerate to get a new copyable key.
+                </p>
+              )}
             </div>
 
-            {/* MCP URL */}
+            <div className="grid gap-2 sm:grid-cols-2 text-xs text-muted-foreground">
+              <div>
+                <span className="block uppercase tracking-wider mb-1">Created</span>
+                <span>{formatDateTime(createdAt)}</span>
+              </div>
+              <div>
+                <span className="block uppercase tracking-wider mb-1">Expires</span>
+                <span className={isExpired ? "text-red-400" : ""}>{formatDateTime(expiresAt)}</span>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground">MCP Endpoint URL</label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-muted/30 px-3 py-2 rounded text-xs font-mono truncate">
-                  https://memories.sh/api/mcp?api_key=...
+                  {MCP_ENDPOINT}
                 </code>
                 <button
-                  onClick={copyUrl}
+                  onClick={copyEndpoint}
                   className="p-2 hover:bg-muted/30 rounded transition-colors"
-                  title="Copy full URL"
+                  title="Copy endpoint"
                 >
-                  {copiedUrl ? (
+                  {copiedEndpoint ? (
                     <Check className="h-4 w-4 text-green-400" />
                   ) : (
                     <Copy className="h-4 w-4" />
@@ -155,7 +293,26 @@ export function ApiKeySection() {
               </div>
             </div>
 
-            {/* Actions */}
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">Authorization Header</label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-muted/30 px-3 py-2 rounded text-xs font-mono truncate">
+                  {apiKey ? `Authorization: Bearer ${apiKey}` : "Authorization: Bearer <YOUR_API_KEY>"}
+                </code>
+                <button
+                  onClick={copyHeader}
+                  className="p-2 hover:bg-muted/30 rounded transition-colors"
+                  title="Copy header"
+                >
+                  {copiedHeader ? (
+                    <Check className="h-4 w-4 text-green-400" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-2 border-t border-border">
               <button
                 onClick={generateKey}
@@ -189,6 +346,12 @@ export function ApiKeySection() {
               Generate API Key
             </button>
           </div>
+        )}
+
+        {error && (
+          <p className="text-xs text-red-400 border-t border-border pt-3">
+            {error}
+          </p>
         )}
       </div>
     </div>

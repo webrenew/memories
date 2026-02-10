@@ -3,6 +3,7 @@ import { createClient as createTurso } from "@libsql/client"
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit, mcpRateLimit } from "@/lib/rate-limit"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { hashMcpApiKey, isValidMcpApiKey } from "@/lib/mcp-api-key"
 
 // Store active SSE connections
 const connections = new Map<string, {
@@ -13,19 +14,24 @@ const connections = new Map<string, {
 
 // Authenticate via API key and return user's Turso client
 async function authenticateAndGetTurso(apiKey: string) {
-  if (!apiKey.startsWith("mcp_")) {
+  if (!isValidMcpApiKey(apiKey)) {
     return { error: "Invalid API key format", status: 401 }
   }
 
+  const apiKeyHash = hashMcpApiKey(apiKey)
   const admin = createAdminClient()
   const { data: user, error } = await admin
     .from("users")
-    .select("id, email")
-    .eq("mcp_api_key", apiKey)
+    .select("id, email, mcp_api_key_expires_at")
+    .eq("mcp_api_key_hash", apiKeyHash)
     .single()
 
   if (error || !user) {
     return { error: "Invalid API key", status: 401 }
+  }
+
+  if (!user.mcp_api_key_expires_at || new Date(user.mcp_api_key_expires_at).getTime() <= Date.now()) {
+    return { error: "API key expired. Generate a new key from memories.sh/app.", status: 401 }
   }
 
   const context = await resolveActiveMemoryContext(admin, user.id)
@@ -47,8 +53,7 @@ function getApiKey(request: NextRequest): string | null {
   if (authHeader?.startsWith("Bearer ")) {
     return authHeader.slice(7)
   }
-  const url = new URL(request.url)
-  return url.searchParams.get("api_key")
+  return null
 }
 
 // Format SSE message
@@ -499,7 +504,8 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  const rateLimited = await checkRateLimit(mcpRateLimit, apiKey)
+  const rateLimitKey = hashMcpApiKey(apiKey)
+  const rateLimited = await checkRateLimit(mcpRateLimit, rateLimitKey)
   if (rateLimited) return rateLimited
 
   const auth = await authenticateAndGetTurso(apiKey)
@@ -550,7 +556,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing API key" }, { status: 401 })
     }
 
-    const rateLimited = await checkRateLimit(mcpRateLimit, apiKey)
+    const rateLimitKey = hashMcpApiKey(apiKey)
+    const rateLimited = await checkRateLimit(mcpRateLimit, rateLimitKey)
     if (rateLimited) return rateLimited
 
     const auth = await authenticateAndGetTurso(apiKey)

@@ -38,8 +38,10 @@ vi.mock("@/lib/rate-limit", () => ({
 import { GET, POST, OPTIONS } from "../route"
 import { NextRequest } from "next/server"
 
+const VALID_API_KEY = `mcp_${"a".repeat(64)}`
+
 // Helpers
-function makePostRequest(body: unknown, apiKey = "mcp_testkey123"): NextRequest {
+function makePostRequest(body: unknown, apiKey = VALID_API_KEY): NextRequest {
   return new NextRequest("https://example.com/api/mcp", {
     method: "POST",
     body: JSON.stringify(body),
@@ -65,6 +67,7 @@ function setupAuth() {
     data: {
       id: "user-1",
       email: "test@example.com",
+      mcp_api_key_expires_at: "2099-01-01T00:00:00.000Z",
     },
   })
   mockResolveActiveMemoryContext.mockResolvedValue({
@@ -107,7 +110,7 @@ describe("/api/mcp", () => {
 
     it("should return 400 when database not configured", async () => {
       mockAdminSelect.mockReturnValue({
-        data: { id: "user-1", email: "test@example.com" },
+        data: { id: "user-1", email: "test@example.com", mcp_api_key_expires_at: "2099-01-01T00:00:00.000Z" },
       })
       mockResolveActiveMemoryContext.mockResolvedValue({
         ownerType: "user",
@@ -116,8 +119,16 @@ describe("/api/mcp", () => {
         turso_db_token: null,
         turso_db_name: null,
       })
-      const response = await GET(makeGetRequest("mcp_testkey123"))
+      const response = await GET(makeGetRequest(VALID_API_KEY))
       expect(response.status).toBe(400)
+    })
+
+    it("should return 401 for expired API key", async () => {
+      mockAdminSelect.mockReturnValue({
+        data: { id: "user-1", email: "test@example.com", mcp_api_key_expires_at: "2020-01-01T00:00:00.000Z" },
+      })
+      const response = await GET(makeGetRequest(VALID_API_KEY))
+      expect(response.status).toBe(401)
     })
   })
 
@@ -723,16 +734,14 @@ describe("/api/mcp", () => {
   // --- API key extraction ---
 
   describe("API key from query param", () => {
-    it("should accept api_key query parameter", async () => {
-      setupAuth()
+    it("should reject api_key query parameter without bearer auth", async () => {
       const request = new NextRequest("https://example.com/api/mcp?api_key=mcp_testkey123", {
         method: "POST",
         body: JSON.stringify(jsonrpc("ping")),
         headers: { "content-type": "application/json" },
       })
       const response = await POST(request)
-      const body = await response.json()
-      expect(body.result).toEqual({})
+      expect(response.status).toBe(401)
     })
   })
 })
