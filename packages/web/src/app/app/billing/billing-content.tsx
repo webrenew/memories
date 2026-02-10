@@ -31,6 +31,9 @@ interface BillingContentProps {
   hasStripeCustomer: boolean
   usage: UsageStats
   memberSince: string | null
+  ownerType: "user" | "organization"
+  orgRole: "owner" | "admin" | "member" | null
+  canManageBilling: boolean
 }
 
 // Reserved for future Free tier comparison UI
@@ -49,28 +52,46 @@ const PRO_FEATURES = [
   "Priority support",
 ]
 
-export function BillingContent({ plan, hasStripeCustomer, usage, memberSince }: BillingContentProps) {
+export function BillingContent({
+  plan,
+  hasStripeCustomer,
+  usage,
+  memberSince,
+  ownerType,
+  orgRole,
+  canManageBilling,
+}: BillingContentProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
   const [deleting, setDeleting] = useState(false)
   const isPro = plan === "pro"
+  const isOrgWorkspace = ownerType === "organization"
 
   async function handleManageBilling() {
+    if (!canManageBilling) return
+
     setLoading(true)
     try {
       const res = await fetch("/api/stripe/portal", { method: "POST" })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to open billing portal")
+      }
       if (data.url) {
         window.location.href = data.url
       }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to open billing portal")
     } finally {
       setLoading(false)
     }
   }
 
   async function handleUpgrade(billing: "monthly" | "annual") {
+    if (!canManageBilling) return
+
     setLoading(true)
     try {
       const res = await fetch("/api/stripe/checkout", { 
@@ -78,10 +99,15 @@ export function BillingContent({ plan, hasStripeCustomer, usage, memberSince }: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ billing }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to start checkout")
+      }
       if (data.url) {
         window.location.href = data.url
       }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to start checkout")
     } finally {
       setLoading(false)
     }
@@ -110,9 +136,20 @@ export function BillingContent({ plan, hasStripeCustomer, usage, memberSince }: 
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Billing & Usage</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage your subscription and view usage
+          {isOrgWorkspace
+            ? "Manage organization billing and view usage"
+            : "Manage your subscription and view usage"}
         </p>
       </div>
+
+      {isOrgWorkspace && !canManageBilling && (
+        <div className="border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+          <p className="font-medium text-amber-300">Billing is owner-managed</p>
+          <p className="text-amber-200/80 mt-1">
+            You&apos;re an organization {orgRole || "member"}. Only the organization owner can manage billing actions.
+          </p>
+        </div>
+      )}
 
       {/* Current Plan */}
       <div className="border border-border bg-card/20">
@@ -144,7 +181,7 @@ export function BillingContent({ plan, hasStripeCustomer, usage, memberSince }: 
                   </span>
                 ))}
               </div>
-              {hasStripeCustomer && (
+              {hasStripeCustomer && canManageBilling && (
                 <button
                   onClick={handleManageBilling}
                   disabled={loading}
@@ -154,36 +191,47 @@ export function BillingContent({ plan, hasStripeCustomer, usage, memberSince }: 
                   {loading ? "Loading..." : "Manage Subscription"}
                 </button>
               )}
+              {hasStripeCustomer && !canManageBilling && (
+                <p className="text-xs text-muted-foreground">
+                  Billing changes are restricted to the organization owner.
+                </p>
+              )}
             </>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
                 You&apos;re on the Free plan. Upgrade to Pro for cloud sync, web dashboard access, and MCP API.
               </p>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                <button
-                  onClick={() => handleUpgrade("monthly")}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  <Zap className="h-4 w-4" />
-                  {loading ? "Loading..." : "Upgrade — $15/mo"}
-                </button>
-                <button
-                  onClick={() => handleUpgrade("annual")}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 bg-muted/50 border border-border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
-                >
-                  {loading ? "Loading..." : "$150/year"} 
-                  <span className="text-xs text-green-400">(Save $30)</span>
-                </button>
-                <Link
-                  href="/#pricing"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  View details
-                </Link>
-              </div>
+              {canManageBilling ? (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <button
+                    onClick={() => handleUpgrade("monthly")}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    <Zap className="h-4 w-4" />
+                    {loading ? "Loading..." : "Upgrade — $15/mo"}
+                  </button>
+                  <button
+                    onClick={() => handleUpgrade("annual")}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-4 py-2 bg-muted/50 border border-border text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+                  >
+                    {loading ? "Loading..." : "$150/year"} 
+                    <span className="text-xs text-green-400">(Save $30)</span>
+                  </button>
+                  <Link
+                    href="/#pricing"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    View details
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Upgrade actions are restricted to the organization owner.
+                </p>
+              )}
             </>
           )}
         </div>
@@ -317,7 +365,7 @@ export function BillingContent({ plan, hasStripeCustomer, usage, memberSince }: 
 
         <div className="p-4 space-y-6">
           {/* Cancel Subscription (Pro only) */}
-          {isPro && hasStripeCustomer && (
+          {isPro && hasStripeCustomer && canManageBilling && (
             <div className="flex items-start justify-between gap-4 pb-6 border-b border-red-500/20">
               <div>
                 <h3 className="font-medium text-sm">Cancel Subscription</h3>

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { UpgradeCard } from "./upgrade-card"
+import { resolveWorkspaceContext } from "@/lib/workspace"
 
 export const metadata = {
   title: "Upgrade to Pro",
@@ -12,13 +13,10 @@ export default async function UpgradePage() {
 
   if (!user) return null
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("plan")
-    .eq("id", user.id)
-    .single()
+  const workspace = await resolveWorkspaceContext(supabase, user.id)
+  const canManageBilling = workspace?.canManageBilling ?? true
 
-  if (profile?.plan === "pro") {
+  if (workspace?.plan === "pro") {
     redirect("/app")
   }
 
@@ -33,7 +31,16 @@ export default async function UpgradePage() {
         </p>
       </div>
 
-      <UpgradeCard />
+      {!canManageBilling ? (
+        <div className="max-w-md border border-amber-500/30 bg-amber-500/5 p-5 text-sm">
+          <p className="font-medium text-amber-300">Billing is owner-managed</p>
+          <p className="text-amber-200/80 mt-1">
+            Only the organization owner can start checkout while an organization workspace is active.
+          </p>
+        </div>
+      ) : (
+        <UpgradeCard />
+      )}
     </div>
   )
 }

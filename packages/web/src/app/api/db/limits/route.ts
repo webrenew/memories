@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient as createTurso } from "@libsql/client"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
-import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { resolveWorkspaceContext } from "@/lib/workspace"
 
 const FREE_LIMIT = 5000
 
@@ -18,27 +18,27 @@ export async function GET(request: Request) {
   if (rateLimited) return rateLimited
 
   const admin = createAdminClient()
-  const context = await resolveActiveMemoryContext(admin, auth.userId)
-  if (!context) {
+  const workspace = await resolveWorkspaceContext(admin, auth.userId)
+  if (!workspace) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  if (!context.turso_db_url || !context.turso_db_token) {
+  const plan = workspace.plan
+  const isPro = plan === "pro"
+
+  if (!workspace.hasDatabase || !workspace.turso_db_url || !workspace.turso_db_token) {
     return NextResponse.json({
-      plan: context.plan ?? "free",
-      memoryLimit: FREE_LIMIT,
+      plan,
+      memoryLimit: isPro ? null : FREE_LIMIT,
       memoryCount: 0,
     })
   }
 
-  const plan = context.plan ?? "free"
-  const isPro = plan === "pro"
-
   let memoryCount = 0
   try {
     const turso = createTurso({
-      url: context.turso_db_url,
-      authToken: context.turso_db_token,
+      url: workspace.turso_db_url,
+      authToken: workspace.turso_db_token,
     })
     const result = await turso.execute(
       "SELECT COUNT(*) as count FROM memories WHERE deleted_at IS NULL"

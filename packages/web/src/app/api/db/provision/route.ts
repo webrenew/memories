@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { createDatabase, createDatabaseToken, initSchema } from "@/lib/turso"
 import { NextResponse } from "next/server"
 import { checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
-import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { resolveWorkspaceContext } from "@/lib/workspace"
 
 const TURSO_ORG = "webrenew"
 
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   if (rateLimited) return rateLimited
 
   const admin = createAdminClient()
-  let context = await resolveActiveMemoryContext(admin, auth.userId, {
+  let context = await resolveWorkspaceContext(admin, auth.userId, {
     fallbackToUserWithoutOrgCredentials: false,
   })
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       )
     }
 
-    context = await resolveActiveMemoryContext(admin, auth.userId, {
+    context = await resolveWorkspaceContext(admin, auth.userId, {
       fallbackToUserWithoutOrgCredentials: false,
     })
   }
@@ -48,17 +48,14 @@ export async function POST(request: Request) {
     )
   }
 
-  if (context.turso_db_url && context.turso_db_token) {
+  if (context.hasDatabase && context.turso_db_url && context.turso_db_token) {
     return NextResponse.json({
       url: context.turso_db_url,
       provisioned: false,
     })
   }
 
-  if (
-    context.ownerType === "organization" &&
-    !["owner", "admin"].includes(context.orgRole ?? "")
-  ) {
+  if (!context.canProvision) {
     return NextResponse.json(
       { error: "Only owners or admins can provision organization memory" },
       { status: 403 }

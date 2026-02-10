@@ -15,6 +15,8 @@ interface Fixtures {
   organization: {
     id: string
     plan: string | null
+    subscription_status: "active" | "past_due" | "cancelled" | null
+    stripe_subscription_id: string | null
     turso_db_url: string | null
     turso_db_token: string | null
     turso_db_name: string | null
@@ -99,6 +101,8 @@ describe("resolveActiveMemoryContext", () => {
       organization: {
         id: "org-1",
         plan: "pro",
+        subscription_status: "active",
+        stripe_subscription_id: "sub_123",
         turso_db_url: "libsql://org.turso.io",
         turso_db_token: "org-token",
         turso_db_name: "org-db",
@@ -127,6 +131,8 @@ describe("resolveActiveMemoryContext", () => {
       organization: {
         id: "org-1",
         plan: "pro",
+        subscription_status: "active",
+        stripe_subscription_id: null,
         turso_db_url: null,
         turso_db_token: null,
         turso_db_name: null,
@@ -153,6 +159,8 @@ describe("resolveActiveMemoryContext", () => {
       organization: {
         id: "org-1",
         plan: "pro",
+        subscription_status: "active",
+        stripe_subscription_id: null,
         turso_db_url: null,
         turso_db_token: null,
         turso_db_name: null,
@@ -165,5 +173,57 @@ describe("resolveActiveMemoryContext", () => {
 
     expect(context?.ownerType).toBe("user")
     expect(context?.turso_db_url).toBe("libsql://user.turso.io")
+  })
+
+  it("maps org past_due subscription status to past_due plan", async () => {
+    const client = makeClient({
+      user: {
+        id: "user-1",
+        current_org_id: "org-1",
+        plan: "free",
+        turso_db_url: "libsql://user.turso.io",
+        turso_db_token: "user-token",
+        turso_db_name: "user-db",
+      },
+      membership: { role: "owner" },
+      organization: {
+        id: "org-1",
+        plan: "pro",
+        subscription_status: "past_due",
+        stripe_subscription_id: "sub_123",
+        turso_db_url: "libsql://org.turso.io",
+        turso_db_token: "org-token",
+        turso_db_name: "org-db",
+      },
+    })
+
+    const context = await resolveActiveMemoryContext(client, "user-1")
+    expect(context?.plan).toBe("past_due")
+  })
+
+  it("maps cancelled org subscription status to free plan", async () => {
+    const client = makeClient({
+      user: {
+        id: "user-1",
+        current_org_id: "org-1",
+        plan: "pro",
+        turso_db_url: "libsql://user.turso.io",
+        turso_db_token: "user-token",
+        turso_db_name: "user-db",
+      },
+      membership: { role: "owner" },
+      organization: {
+        id: "org-1",
+        plan: "pro",
+        subscription_status: "cancelled",
+        stripe_subscription_id: null,
+        turso_db_url: "libsql://org.turso.io",
+        turso_db_token: "org-token",
+        turso_db_name: "org-db",
+      },
+    })
+
+    const context = await resolveActiveMemoryContext(client, "user-1")
+    expect(context?.plan).toBe("free")
   })
 })

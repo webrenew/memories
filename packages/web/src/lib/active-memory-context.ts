@@ -7,9 +7,13 @@ interface UserMemoryRow {
   turso_db_name: string | null
 }
 
+type OrgSubscriptionStatus = "active" | "past_due" | "cancelled" | null
+
 interface OrganizationMemoryRow {
   id: string
   plan: string | null
+  subscription_status: OrgSubscriptionStatus
+  stripe_subscription_id: string | null
   turso_db_url: string | null
   turso_db_token: string | null
   turso_db_name: string | null
@@ -46,6 +50,25 @@ function toUserContext(user: UserMemoryRow): ActiveMemoryContext {
     turso_db_token: user.turso_db_token,
     turso_db_name: user.turso_db_name,
   }
+}
+
+function resolveOrganizationPlan(
+  org: OrganizationMemoryRow,
+  fallbackPlan: string | null
+): string | null {
+  if (org.subscription_status === "past_due") {
+    return "past_due"
+  }
+
+  if (org.subscription_status === "cancelled") {
+    return "free"
+  }
+
+  if (org.subscription_status === "active" && org.stripe_subscription_id) {
+    return "pro"
+  }
+
+  return org.plan ?? fallbackPlan
 }
 
 export async function resolveActiveMemoryContext(
@@ -99,7 +122,9 @@ export async function resolveActiveMemoryContext(
 
   const { data: orgData, error: orgError } = await supabase
     .from("organizations")
-    .select("id, plan, turso_db_url, turso_db_token, turso_db_name")
+    .select(
+      "id, plan, subscription_status, stripe_subscription_id, turso_db_url, turso_db_token, turso_db_name"
+    )
     .eq("id", user.current_org_id)
     .single()
 
@@ -120,7 +145,7 @@ export async function resolveActiveMemoryContext(
     userId,
     orgId: org.id,
     orgRole: membership.role,
-    plan: org.plan ?? user.plan,
+    plan: resolveOrganizationPlan(org, user.plan),
     turso_db_url: org.turso_db_url,
     turso_db_token: org.turso_db_token,
     turso_db_name: org.turso_db_name,

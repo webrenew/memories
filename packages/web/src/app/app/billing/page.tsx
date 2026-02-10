@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createTurso } from "@libsql/client"
 import { BillingContent } from "./billing-content"
-import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { resolveWorkspaceContext } from "@/lib/workspace"
 
 export const metadata = {
   title: "Billing & Usage",
@@ -69,15 +69,15 @@ export default async function BillingPage() {
 
   if (!user) return null
 
+  const workspace = await resolveWorkspaceContext(supabase, user.id)
+
   const { data: profile } = await supabase
     .from("users")
-    .select("plan, stripe_customer_id, created_at")
+    .select("stripe_customer_id, created_at")
     .eq("id", user.id)
     .single()
 
-  const context = await resolveActiveMemoryContext(supabase, user.id)
-
-  const plan = profile?.plan || "free"
+  const plan = workspace?.plan || "free"
   const hasStripeCustomer = !!profile?.stripe_customer_id
   const memberSince = profile?.created_at
 
@@ -90,8 +90,8 @@ export default async function BillingPage() {
     lastSync: null,
   }
 
-  if (context?.turso_db_url && context?.turso_db_token) {
-    usage = await getUsageStats(context.turso_db_url, context.turso_db_token)
+  if (workspace?.turso_db_url && workspace?.turso_db_token) {
+    usage = await getUsageStats(workspace.turso_db_url, workspace.turso_db_token)
   }
 
   return (
@@ -100,6 +100,9 @@ export default async function BillingPage() {
       hasStripeCustomer={hasStripeCustomer}
       usage={usage}
       memberSince={memberSince}
+      ownerType={workspace?.ownerType ?? "user"}
+      orgRole={workspace?.orgRole ?? null}
+      canManageBilling={workspace?.canManageBilling ?? true}
     />
   )
 }

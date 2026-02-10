@@ -1,19 +1,37 @@
-import { createClient } from "@/lib/supabase/server"
+import { authenticateRequest } from "@/lib/auth"
 import { getStripe } from "@/lib/stripe"
 import { NextResponse } from "next/server"
 import { checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import { parseBody, checkoutSchema } from "@/lib/validations"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { resolveWorkspaceContext } from "@/lib/workspace"
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const auth = await authenticateRequest(request)
 
-  if (!user) {
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const rateLimited = await checkRateLimit(strictRateLimit, user.id)
+  const rateLimited = await checkRateLimit(strictRateLimit, auth.userId)
   if (rateLimited) return rateLimited
+
+  const admin = createAdminClient()
+  const workspace = await resolveWorkspaceContext(admin, auth.userId)
+  if (!workspace) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  if (!workspace.canManageBilling) {
+    return NextResponse.json(
+      { error: "Only organization owners can manage billing" },
+      { status: 403 }
+    )
+  }
+
+  if (workspace.plan === "pro") {
+    return NextResponse.json({ error: "Workspace is already on Pro" }, { status: 400 })
+  }
 
   const parsed = parseBody(checkoutSchema, await request.json().catch(() => ({})))
   if (!parsed.success) return parsed.response
@@ -24,10 +42,10 @@ export async function POST(request: Request) {
       ? process.env.STRIPE_PRO_PRICE_ID_ANNUAL!
       : process.env.STRIPE_PRO_PRICE_ID!
 
-  const { data: profile } = await supabase
+  const { data: profile } = await admin
     .from("users")
     .select("stripe_customer_id, email")
-    .eq("id", user.id)
+    .eq("id", auth.userId)
     .single()
 
   let customerId = profile?.stripe_customer_id
@@ -35,24 +53,25 @@ export async function POST(request: Request) {
   if (!customerId) {
     // Use idempotency key to prevent duplicate customers on rapid double-clicks
     try {
+      const customerEmail = profile?.email || auth.email || undefined
       const customer = await getStripe().customers.create({
-        email: profile?.email ?? user.email!,
-        metadata: { supabase_user_id: user.id },
+        email: customerEmail,
+        metadata: { supabase_user_id: auth.userId },
       }, {
-        idempotencyKey: `customer_create_${user.id}`,
+        idempotencyKey: `customer_create_${auth.userId}`,
       })
       customerId = customer.id
 
-      await supabase
+      await admin
         .from("users")
         .update({ stripe_customer_id: customerId })
-        .eq("id", user.id)
+        .eq("id", auth.userId)
     } catch {
       // Re-read in case another request already created the customer
-      const { data: refreshed } = await supabase
+      const { data: refreshed } = await admin
         .from("users")
         .select("stripe_customer_id")
-        .eq("id", user.id)
+        .eq("id", auth.userId)
         .single()
 
       customerId = refreshed?.stripe_customer_id
@@ -64,6 +83,13 @@ export async function POST(request: Request) {
 
   try {
     const { origin } = new URL(request.url)
+    const metadata: Record<string, string> = {
+      supabase_user_id: auth.userId,
+      workspace_owner_type: workspace.ownerType,
+    }
+    if (workspace.orgId) {
+      metadata.workspace_org_id = workspace.orgId
+    }
 
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
@@ -71,7 +97,7 @@ export async function POST(request: Request) {
       mode: "subscription",
       success_url: `${origin}/app?upgraded=true`,
       cancel_url: `${origin}/app/upgrade`,
-      metadata: { supabase_user_id: user.id },
+      metadata,
     })
 
     return NextResponse.json({ url: session.url })

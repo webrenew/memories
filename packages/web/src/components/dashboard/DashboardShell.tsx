@@ -11,8 +11,12 @@ interface Profile {
   email: string
   name: string | null
   avatar_url: string | null
-  plan: string
-  turso_db_url: string | null
+}
+
+interface WorkspaceSummary {
+  ownerType: "user" | "organization"
+  orgRole: "owner" | "admin" | "member" | null
+  plan: "free" | "pro" | "past_due"
 }
 
 const navItems = [
@@ -26,15 +30,19 @@ const navItems = [
 export function DashboardShell({
   user,
   profile,
+  workspace,
   children,
 }: {
   user: User
   profile: Profile | null
+  workspace: WorkspaceSummary
   children: React.ReactNode
 }) {
   const pathname = usePathname()
   const displayName = profile?.name ?? user.email?.split("@")[0] ?? "User"
-  const plan = profile?.plan ?? "free"
+  const plan = workspace.plan
+  const canManageBilling =
+    workspace.ownerType === "user" || workspace.orgRole === "owner"
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -48,19 +56,30 @@ export function DashboardShell({
             <span className="text-xs font-bold uppercase tracking-wider text-destructive">
               Payment failed
             </span>
-            <span className="text-xs text-destructive/80 mx-1">—</span>
-            <a
-              href="#"
-              onClick={async (e) => {
-                e.preventDefault()
-                const res = await fetch("/api/stripe/portal", { method: "POST" })
-                const { url } = await res.json()
-                if (url) window.location.href = url
-              }}
-              className="text-xs font-bold uppercase tracking-wider text-destructive underline underline-offset-2 hover:text-destructive/80"
-            >
-              Update payment method
-            </a>
+            {canManageBilling ? (
+              <>
+                <span className="text-xs text-destructive/80 mx-1">—</span>
+                <a
+                  href="#"
+                  onClick={async (e) => {
+                    e.preventDefault()
+                    const res = await fetch("/api/stripe/portal", { method: "POST" })
+                    const data = await res.json().catch(() => ({}))
+                    if (data.url) window.location.href = data.url
+                  }}
+                  className="text-xs font-bold uppercase tracking-wider text-destructive underline underline-offset-2 hover:text-destructive/80"
+                >
+                  Update payment method
+                </a>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-destructive/80 mx-1">—</span>
+                <span className="text-xs text-destructive/80">
+                  Contact your organization owner to update billing.
+                </span>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -82,7 +101,7 @@ export function DashboardShell({
           </Link>
 
           <div className="flex items-center gap-4">
-            {plan !== "pro" && (
+            {plan !== "pro" && canManageBilling && (
               <Link
                 href="/app/upgrade"
                 className="hidden sm:flex items-center gap-2 px-4 py-1.5 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 transition-all duration-300"
