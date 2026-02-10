@@ -95,8 +95,10 @@ async function searchWithFts(
   query: string,
   projectId: string | undefined,
   limit: number,
-  excludeType?: string
+  options?: { excludeType?: string; includeType?: string }
 ): Promise<MemoryRow[]> {
+  const { excludeType, includeType } = options ?? {}
+
   // Try FTS5 first
   try {
     let typeFilter = ""
@@ -105,6 +107,9 @@ async function searchWithFts(
     if (excludeType && VALID_TYPES.has(excludeType)) {
       typeFilter = "AND m.type != ?"
       ftsArgs.push(excludeType)
+    } else if (includeType && VALID_TYPES.has(includeType)) {
+      typeFilter = "AND m.type = ?"
+      ftsArgs.push(includeType)
     }
 
     const projectFilter = projectId
@@ -137,6 +142,9 @@ async function searchWithFts(
   if (excludeType && VALID_TYPES.has(excludeType)) {
     sql += ` AND type != ?`
     sqlArgs.push(excludeType)
+  } else if (includeType && VALID_TYPES.has(includeType)) {
+    sql += ` AND type = ?`
+    sqlArgs.push(includeType)
   }
 
   sql += ` AND (scope = 'global'`
@@ -191,7 +199,7 @@ async function executeTool(
       // Get relevant memories if query provided
       if (args.query) {
         const limit = (args.limit as number) || 5
-        const results = await searchWithFts(turso, args.query as string, projectId, limit, "rule")
+        const results = await searchWithFts(turso, args.query as string, projectId, limit, { excludeType: "rule" })
         if (results.length > 0) {
           output += `\n\n## Relevant Memories\n${results.map(m => `- ${formatMemory(m)}`).join("\n")}`
         }
@@ -306,7 +314,7 @@ async function executeTool(
 
       const now = new Date().toISOString()
       await turso.execute({
-        sql: `UPDATE memories SET deleted_at = ? WHERE id = ?`,
+        sql: `UPDATE memories SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL`,
         args: [now, id],
       })
 
@@ -318,23 +326,17 @@ async function executeTool(
     case "search_memories": {
       const limit = (args.limit as number) || 10
       const query = args.query as string
+      const includeType = args.type && VALID_TYPES.has(args.type as string) ? (args.type as string) : undefined
 
-      // Type filter support
-      let typeFilter: string | undefined
-      if (args.type) {
-        typeFilter = args.type as string
-      }
+      const results = await searchWithFts(turso, query, projectId, limit, { includeType })
 
-      const results = await searchWithFts(turso, query, projectId, limit)
-      const filtered = typeFilter ? results.filter(m => m.type === typeFilter) : results
-
-      if (filtered.length === 0) {
+      if (results.length === 0) {
         return { content: [{ type: "text", text: "No memories found." }] }
       }
-      
-      const formatted = filtered.map(m => formatMemory(m)).join("\n")
+
+      const formatted = results.map(m => formatMemory(m)).join("\n")
       return {
-        content: [{ type: "text", text: `Found ${filtered.length} memories:\n\n${formatted}` }],
+        content: [{ type: "text", text: `Found ${results.length} memories:\n\n${formatted}` }],
       }
     }
 
@@ -357,8 +359,9 @@ async function executeTool(
       }
 
       if (args.tags) {
-        sql += " AND tags LIKE ?"
-        sqlArgs.push(`%${args.tags as string}%`)
+        sql += " AND tags LIKE ? ESCAPE '\\'"
+        const escaped = (args.tags as string).replace(/[%_\\]/g, "\\$&")
+        sqlArgs.push(`%${escaped}%`)
       }
 
       sql += " ORDER BY created_at DESC LIMIT ?"

@@ -38,7 +38,7 @@ export const createMemorySchema = z.object({
 
 export const updateMemorySchema = z.object({
   id: z.string().min(1, "Memory ID required"),
-  content: z.string().min(1, "Content required"),
+  content: z.string().min(1, "Content required").optional(),
   tags: z.string().nullable().optional(),
   type: memoryTypeEnum.optional(),
   paths: z.string().nullable().optional(),

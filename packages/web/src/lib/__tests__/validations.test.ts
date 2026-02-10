@@ -135,9 +135,14 @@ describe("updateMemorySchema", () => {
     expect(result.success).toBe(false)
   })
 
-  it("should reject empty content", () => {
+  it("should reject empty content when provided", () => {
     const result = updateMemorySchema.safeParse({ id: "abc123", content: "" })
     expect(result.success).toBe(false)
+  })
+
+  it("should accept update without content (partial update)", () => {
+    const result = updateMemorySchema.safeParse({ id: "abc123", tags: "api,auth" })
+    expect(result.success).toBe(true)
   })
 
   it("should accept optional type, paths, category, metadata", () => {

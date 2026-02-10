@@ -37,7 +37,7 @@ Store a new memory with optional metadata, path scoping, and categorization.
 | `content` | `string` | Yes | Memory content |
 | `type` | `enum` | No | `rule`, `decision`, `fact`, `note`, `skill` (default: `note`) |
 | `tags` | `string[]` | No | Array of tags |
-| `global` | `boolean` | No | Store as global (default: project-scoped) |
+| `project_id` | `string` | No | Project identifier to scope to a project (omit for global) |
 | `paths` | `string[]` | No | Glob patterns for path-scoped rules |
 | `category` | `string` | No | Grouping key (becomes rule filename or skill directory) |
 | `metadata` | `object` | No | Extended attributes (JSON object, primarily for skills) |

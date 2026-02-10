@@ -131,9 +131,13 @@ export async function PATCH(request: NextRequest) {
       authToken: profile.turso_db_token,
     })
 
-    const updates: string[] = ["content = ?", "updated_at = datetime('now')"]
-    const updateArgs: (string | null)[] = [content]
+    const updates: string[] = ["updated_at = datetime('now')"]
+    const updateArgs: (string | null)[] = []
 
+    if (content !== undefined) {
+      updates.push("content = ?")
+      updateArgs.push(content)
+    }
     if (tags !== undefined) {
       updates.push("tags = ?")
       updateArgs.push(tags ?? null)
