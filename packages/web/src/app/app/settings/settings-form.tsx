@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { ChevronDown } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import type { UserIdentity } from "@supabase/supabase-js"
 
 // Match CLI embedding models
 const EMBEDDING_MODELS = [
@@ -70,10 +72,19 @@ interface SettingsFormProps {
     avatar_url: string
     plan: string
     embedding_model: string | null
+    auth_providers: string[]
   }
 }
 
+type OAuthProvider = "github" | "google"
+
+const OAUTH_PROVIDERS: Array<{ id: OAuthProvider; label: string; scopes: string }> = [
+  { id: "github", label: "GitHub", scopes: "read:user user:email" },
+  { id: "google", label: "Google", scopes: "openid profile email" },
+]
+
 export function SettingsForm({ profile }: SettingsFormProps) {
+  const [supabase] = useState(() => createClient())
   const [name, setName] = useState(profile.name)
   const [embeddingModel, setEmbeddingModel] = useState(
     profile.embedding_model || "all-MiniLM-L6-v2"
@@ -81,6 +92,10 @@ export function SettingsForm({ profile }: SettingsFormProps) {
   const [saving, setSaving] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [showDimensionWarning, setShowDimensionWarning] = useState(false)
+  const [identities, setIdentities] = useState<UserIdentity[]>([])
+  const [authLoading, setAuthLoading] = useState(false)
+  const [linkingProvider, setLinkingProvider] = useState<OAuthProvider | null>(null)
+  const [unlinkingProvider, setUnlinkingProvider] = useState<OAuthProvider | null>(null)
 
   const currentModel = EMBEDDING_MODELS.find((m) => m.id === embeddingModel)
   const originalModel = EMBEDDING_MODELS.find(
@@ -131,6 +146,110 @@ export function SettingsForm({ profile }: SettingsFormProps) {
   const hasChanges =
     name !== profile.name ||
     embeddingModel !== (profile.embedding_model || "all-MiniLM-L6-v2")
+
+  const effectiveProviders = (identities.length > 0
+    ? identities.map((identity) => identity.provider)
+    : profile.auth_providers
+  ).filter((provider): provider is OAuthProvider => provider === "github" || provider === "google")
+
+  const linkedProviders = new Set(effectiveProviders)
+  const linkedIdentityCount = effectiveProviders.length
+
+  const refreshIdentities = useCallback(async () => {
+    setAuthLoading(true)
+    try {
+      const { data, error } = await supabase.auth.getUser()
+      if (error) {
+        throw error
+      }
+
+      const userIdentities = (data.user?.identities || []) as UserIdentity[]
+      setIdentities(userIdentities)
+    } catch (error) {
+      console.error("Failed to refresh auth identities:", error)
+      toast.error("Failed to refresh connected accounts")
+    } finally {
+      setAuthLoading(false)
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    void refreshIdentities()
+  }, [refreshIdentities])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const linked = params.get("linked")
+    if (linked === "github" || linked === "google") {
+      const providerLabel = linked === "github" ? "GitHub" : "Google"
+      toast.success(`${providerLabel} account linked`)
+
+      params.delete("linked")
+      const nextQuery = params.toString()
+      const nextUrl = nextQuery
+        ? `${window.location.pathname}?${nextQuery}`
+        : window.location.pathname
+      window.history.replaceState({}, "", nextUrl)
+      void refreshIdentities()
+    }
+  }, [refreshIdentities])
+
+  async function handleLinkProvider(provider: OAuthProvider) {
+    setLinkingProvider(provider)
+    try {
+      const target = `/app/settings?linked=${provider}`
+      const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(target)}`
+      const scopes = OAUTH_PROVIDERS.find((entry) => entry.id === provider)?.scopes
+      const { error } = await supabase.auth.linkIdentity({
+        provider,
+        options: {
+          redirectTo,
+          scopes,
+        },
+      })
+
+      if (error) {
+        throw error
+      }
+    } catch (error) {
+      console.error("Failed to link identity:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to connect provider")
+      setLinkingProvider(null)
+    }
+  }
+
+  async function handleUnlinkProvider(provider: OAuthProvider) {
+    if (linkedIdentityCount <= 1) {
+      toast.error("Connect another provider before unlinking your last sign-in method")
+      return
+    }
+
+    const identity = identities.find((entry) => entry.provider === provider)
+    if (!identity) {
+      toast.error("Provider is not linked")
+      return
+    }
+
+    if (!confirm(`Disconnect ${provider === "github" ? "GitHub" : "Google"} from this account?`)) {
+      return
+    }
+
+    setUnlinkingProvider(provider)
+    try {
+      const { error } = await supabase.auth.unlinkIdentity(identity)
+      if (error) {
+        throw error
+      }
+
+      toast.success(`${provider === "github" ? "GitHub" : "Google"} disconnected`)
+      await refreshIdentities()
+    } catch (error) {
+      console.error("Failed to unlink identity:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to disconnect provider")
+    } finally {
+      setUnlinkingProvider(null)
+    }
+  }
 
   return (
     <div className="space-y-8 max-w-xl">
@@ -282,6 +401,63 @@ export function SettingsForm({ profile }: SettingsFormProps) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Connected Accounts */}
+      <div className="border border-border bg-card/20 p-6 space-y-6">
+        <div>
+          <h2 className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground/60">
+            Connected Accounts
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Link multiple sign-in providers so GitHub and Google always open the same account.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {OAUTH_PROVIDERS.map((provider) => {
+            const isLinked = linkedProviders.has(provider.id)
+            const isBusy = linkingProvider === provider.id || unlinkingProvider === provider.id
+
+            return (
+              <div
+                key={provider.id}
+                className="flex items-center justify-between gap-4 border border-border bg-muted/20 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{provider.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {isLinked ? "Connected" : "Not connected"}
+                  </p>
+                </div>
+
+                {isLinked ? (
+                  <button
+                    type="button"
+                    onClick={() => handleUnlinkProvider(provider.id)}
+                    disabled={authLoading || isBusy}
+                    className="px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] border border-border bg-background hover:bg-muted/30 transition-colors disabled:opacity-50"
+                  >
+                    {isBusy ? "Disconnecting..." : "Disconnect"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleLinkProvider(provider.id)}
+                    disabled={authLoading || isBusy}
+                    className="px-3 py-1.5 text-xs font-bold uppercase tracking-[0.1em] bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {isBusy ? "Connecting..." : "Connect"}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Keep at least two providers linked before disconnecting one to avoid lockout.
+        </p>
       </div>
 
       {/* Save */}

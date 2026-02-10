@@ -33,6 +33,9 @@ export default async function SettingsPage() {
           avatar_url: profile?.avatar_url ?? "",
           plan: profile?.plan ?? "free",
           embedding_model: profile?.embedding_model ?? null,
+          auth_providers: (user.identities || [])
+            .map((identity) => identity.provider)
+            .filter((provider): provider is string => Boolean(provider)),
         }}
       />
     </div>
