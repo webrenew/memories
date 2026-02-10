@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Copy, RefreshCw, Trash2, Key, Eye, EyeOff, Check } from "lucide-react"
+import { TenantDatabaseMappingsSection } from "@/components/dashboard/TenantDatabaseMappingsSection"
 
 const MCP_ENDPOINT = "https://memories.sh/api/mcp"
 const DEFAULT_EXPIRY_DAYS = 30
@@ -198,162 +199,166 @@ export function ApiKeySection() {
   }
 
   return (
-    <div className="border border-border bg-card/20 rounded-lg">
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Key className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold">API Key</h3>
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Connect Cursor, Claude, and other AI tools to your memories
-        </p>
-      </div>
-
-      <div className="p-4 space-y-4">
-        <div className="space-y-2">
-          <label className="text-xs text-muted-foreground">Key Expiry (required)</label>
-          <input
-            type="datetime-local"
-            value={expiryInput}
-            min={minExpiryValue}
-            onChange={(e) => setExpiryInput(e.target.value)}
-            className="w-full bg-muted/30 px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
-          />
-          <p className="text-xs text-muted-foreground">
-            Choose exactly when this key should expire. Non-expiring keys are not allowed.
+    <div className="space-y-4">
+      <div className="border border-border bg-card/20 rounded-lg">
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Key className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold">API Key</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Connect Cursor, Claude, and other AI tools to your memories
           </p>
         </div>
 
-        {hasKey ? (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">
-                {apiKey ? "Your API Key (shown once)" : "Stored API Key"}
-              </label>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-muted/30 px-3 py-2 rounded text-xs font-mono break-all select-all">
-                  {displayedKey}
-                </code>
+        <div className="p-4 space-y-4">
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground">Key Expiry (required)</label>
+            <input
+              type="datetime-local"
+              value={expiryInput}
+              min={minExpiryValue}
+              onChange={(e) => setExpiryInput(e.target.value)}
+              className="w-full bg-muted/30 px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
+            />
+            <p className="text-xs text-muted-foreground">
+              Choose exactly when this key should expire. Non-expiring keys are not allowed.
+            </p>
+          </div>
+
+          {hasKey ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">
+                  {apiKey ? "Your API Key (shown once)" : "Stored API Key"}
+                </label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-muted/30 px-3 py-2 rounded text-xs font-mono break-all select-all">
+                    {displayedKey}
+                  </code>
+                  <button
+                    onClick={() => setShowKey(!showKey)}
+                    disabled={!apiKey}
+                    className="p-2 hover:bg-muted/30 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={showKey ? "Hide" : "Show"}
+                  >
+                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                  <button
+                    onClick={copyKey}
+                    disabled={!apiKey}
+                    className="p-2 hover:bg-muted/30 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={apiKey ? "Copy key" : "Regenerate to copy a new key"}
+                  >
+                    {copiedKey ? (
+                      <Check className="h-4 w-4 text-green-400" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                {!apiKey && (
+                  <p className="text-xs text-muted-foreground">
+                    Keys are stored as hashes only. Regenerate to get a new copyable key.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 text-xs text-muted-foreground">
+                <div>
+                  <span className="block uppercase tracking-wider mb-1">Created</span>
+                  <span>{formatDateTime(createdAt)}</span>
+                </div>
+                <div>
+                  <span className="block uppercase tracking-wider mb-1">Expires</span>
+                  <span className={isExpired ? "text-red-400" : ""}>{formatDateTime(expiresAt)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">MCP Endpoint URL</label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-muted/30 px-3 py-2 rounded text-xs font-mono truncate">
+                    {MCP_ENDPOINT}
+                  </code>
+                  <button
+                    onClick={copyEndpoint}
+                    className="p-2 hover:bg-muted/30 rounded transition-colors"
+                    title="Copy endpoint"
+                  >
+                    {copiedEndpoint ? (
+                      <Check className="h-4 w-4 text-green-400" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Authorization Header</label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-muted/30 px-3 py-2 rounded text-xs font-mono truncate">
+                    {apiKey ? `Authorization: Bearer ${apiKey}` : "Authorization: Bearer <YOUR_API_KEY>"}
+                  </code>
+                  <button
+                    onClick={copyHeader}
+                    className="p-2 hover:bg-muted/30 rounded transition-colors"
+                    title="Copy header"
+                  >
+                    {copiedHeader ? (
+                      <Check className="h-4 w-4 text-green-400" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-border">
                 <button
-                  onClick={() => setShowKey(!showKey)}
-                  disabled={!apiKey}
-                  className="p-2 hover:bg-muted/30 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={showKey ? "Hide" : "Show"}
+                  onClick={generateKey}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-muted/30 hover:bg-muted/50 rounded transition-colors disabled:opacity-50"
                 >
-                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+                  Regenerate
                 </button>
                 <button
-                  onClick={copyKey}
-                  disabled={!apiKey}
-                  className="p-2 hover:bg-muted/30 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  title={apiKey ? "Copy key" : "Regenerate to copy a new key"}
+                  onClick={revokeKey}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors disabled:opacity-50"
                 >
-                  {copiedKey ? (
-                    <Check className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-              {!apiKey && (
-                <p className="text-xs text-muted-foreground">
-                  Keys are stored as hashes only. Regenerate to get a new copyable key.
-                </p>
-              )}
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2 text-xs text-muted-foreground">
-              <div>
-                <span className="block uppercase tracking-wider mb-1">Created</span>
-                <span>{formatDateTime(createdAt)}</span>
-              </div>
-              <div>
-                <span className="block uppercase tracking-wider mb-1">Expires</span>
-                <span className={isExpired ? "text-red-400" : ""}>{formatDateTime(expiresAt)}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">MCP Endpoint URL</label>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-muted/30 px-3 py-2 rounded text-xs font-mono truncate">
-                  {MCP_ENDPOINT}
-                </code>
-                <button
-                  onClick={copyEndpoint}
-                  className="p-2 hover:bg-muted/30 rounded transition-colors"
-                  title="Copy endpoint"
-                >
-                  {copiedEndpoint ? (
-                    <Check className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                  <Trash2 className="h-3 w-3" />
+                  Revoke
                 </button>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">Authorization Header</label>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-muted/30 px-3 py-2 rounded text-xs font-mono truncate">
-                  {apiKey ? `Authorization: Bearer ${apiKey}` : "Authorization: Bearer <YOUR_API_KEY>"}
-                </code>
-                <button
-                  onClick={copyHeader}
-                  className="p-2 hover:bg-muted/30 rounded transition-colors"
-                  title="Copy header"
-                >
-                  {copiedHeader ? (
-                    <Check className="h-4 w-4 text-green-400" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2 border-t border-border">
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Generate an API key to connect AI tools to your memories.
+              </p>
               <button
                 onClick={generateKey}
                 disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-muted/30 hover:bg-muted/50 rounded transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-                Regenerate
-              </button>
-              <button
-                onClick={revokeKey}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors disabled:opacity-50"
-              >
-                <Trash2 className="h-3 w-3" />
-                Revoke
+                <Key className="h-4 w-4" />
+                Generate API Key
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Generate an API key to connect AI tools to your memories.
-            </p>
-            <button
-              onClick={generateKey}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              <Key className="h-4 w-4" />
-              Generate API Key
-            </button>
-          </div>
-        )}
+          )}
 
-        {error && (
-          <p className="text-xs text-red-400 border-t border-border pt-3">
-            {error}
-          </p>
-        )}
+          {error && (
+            <p className="text-xs text-red-400 border-t border-border pt-3">
+              {error}
+            </p>
+          )}
+        </div>
       </div>
+
+      <TenantDatabaseMappingsSection hasApiKey={hasKey} apiKeyExpired={isExpired} />
     </div>
   )
 }
