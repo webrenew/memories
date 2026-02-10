@@ -15,7 +15,7 @@ const layers: {
     description: (
       <>
         <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded">memoriesMiddleware()</code>{" "}
-        wraps any model. 2 lines to add memory to any AI app.
+        connects any model to cloud memory. 2 lines to ship.
       </>
     ),
     accent: true,
@@ -54,18 +54,18 @@ export function SDKSection() {
             </div>
 
             <h2 className="font-mono font-normal text-2xl sm:text-4xl text-foreground mb-6">
-              <ScrambleText text="Built on CLI and MCP." delayMs={200} />
+              <ScrambleText text="Cloud-native memory for AI apps." delayMs={200} />
             </h2>
 
             <p className="text-lg text-muted-foreground max-w-lg mb-4">
-              The SDK wraps the CLI&apos;s local store and the MCP server&apos;s
-              API into composable middleware and tools for AI apps. <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded">memoriesMiddleware()</code> is
+              The SDK connects your AI apps to memories.sh cloud—giving every
+              prompt the right rules and context. <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded">memoriesMiddleware()</code> is
               all it takes.
             </p>
             <p className="text-sm text-muted-foreground max-w-lg mb-8">
-              Import the middleware, pass your model, and every prompt
-              automatically gets the right rules and context. No glue code, no
-              manual retrieval.
+              Import the middleware, pass your model, and ship. The CLI and MCP
+              handle local-first storage and agent access—the SDK brings it all
+              to production.
             </p>
 
             <Link
