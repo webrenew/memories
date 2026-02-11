@@ -119,6 +119,123 @@ describe("MemoriesClient", () => {
     expect(context.rules[0]?.content).toBe("Keep it simple")
   })
 
+  it.each([
+    {
+      name: "uses constructor tenant/user scope and preserves tier order",
+      clientOptions: { tenantId: "tenant-a", userId: "user-default" },
+      input: { query: "auth", mode: "all" as const },
+      expected: {
+        tenantId: "tenant-a",
+        userId: "user-default",
+        projectId: undefined,
+        memoryIds: ["mem_working_1", "mem_long_1"],
+        ruleCount: 1,
+      },
+    },
+    {
+      name: "allows per-call user override and working-only mode",
+      clientOptions: { tenantId: "tenant-a", userId: "user-default" },
+      input: { query: "auth", userId: "user-override", projectId: "github.com/acme/repo", mode: "working" as const },
+      expected: {
+        tenantId: "tenant-a",
+        userId: "user-override",
+        projectId: "github.com/acme/repo",
+        memoryIds: ["mem_working_1"],
+        ruleCount: 1,
+      },
+    },
+    {
+      name: "supports rules-only mode for deterministic instruction-only context",
+      clientOptions: { tenantId: "tenant-a" },
+      input: { userId: "user-42", mode: "rules_only" as const },
+      expected: {
+        tenantId: "tenant-a",
+        userId: "user-42",
+        projectId: undefined,
+        memoryIds: [],
+        ruleCount: 1,
+      },
+    },
+  ])("context matrix: $name", async ({ clientOptions, input, expected }) => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: "1",
+          result: {
+            content: [{ type: "text", text: "" }],
+            structuredContent: {
+              ok: true,
+              data: {
+                rules: [
+                  {
+                    id: "rule_1",
+                    content: "Keep it simple",
+                    type: "rule",
+                    layer: "rule",
+                    scope: "global",
+                    projectId: null,
+                    tags: [],
+                  },
+                ],
+                workingMemories: [
+                  {
+                    id: "mem_working_1",
+                    content: "Current user task context",
+                    type: "note",
+                    layer: "working",
+                    scope: "global",
+                    projectId: null,
+                    tags: [],
+                  },
+                ],
+                longTermMemories: [
+                  {
+                    id: "mem_long_1",
+                    content: "Durable architecture decision",
+                    type: "decision",
+                    layer: "long_term",
+                    scope: "global",
+                    projectId: null,
+                    tags: [],
+                  },
+                ],
+              },
+              error: null,
+              meta: { version: "2026-02-10", tool: "get_context" },
+            },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    )
+
+    const client = new MemoriesClient({
+      apiKey: "mcp_test",
+      baseUrl: "https://example.com/api/mcp",
+      fetch: fetchMock as unknown as typeof fetch,
+      ...clientOptions,
+    })
+
+    const context = await client.context.get(input)
+    expect(context.rules).toHaveLength(expected.ruleCount)
+    expect(context.memories.map((memory) => memory.id)).toEqual(expected.memoryIds)
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
+    const requestBody = JSON.parse((requestInit?.body as string) ?? "{}") as {
+      params?: { arguments?: Record<string, unknown> }
+    }
+    const args = requestBody.params?.arguments ?? {}
+
+    expect(args.tenant_id).toBe(expected.tenantId)
+    expect(args.user_id).toBe(expected.userId)
+    if (expected.projectId) {
+      expect(args.project_id).toBe(expected.projectId)
+    } else {
+      expect(args).not.toHaveProperty("project_id")
+    }
+  })
+
   it("parses structuredContent for memory list/search", async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse((init?.body as string) ?? "{}") as { params?: { name?: string } }

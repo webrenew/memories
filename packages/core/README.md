@@ -31,7 +31,13 @@ await client.memories.add({
   projectId: "dashboard",
 })
 
-const context = await client.context.get("SSO plan details", { limit: 8 })
+const context = await client.context.get({
+  query: "SSO plan details",
+  projectId: "dashboard",
+  userId: "user_123",
+  mode: "all",
+  limit: 8,
+})
 console.log(context.memories.map((m) => m.content))
 ```
 
@@ -55,13 +61,26 @@ Recommended pattern for SaaS apps:
 
 `MemoriesClient` exposes:
 
-- `context.get(query?: string, options?: { limit?: number; includeRules?: boolean; projectId?: string })`
+- `context.get(input?: { query?: string; userId?: string; tenantId?: string; projectId?: string; mode?: "all" | "working" | "long_term" | "rules_only"; limit?: number; includeRules?: boolean })`
 - `memories.add(input)`
 - `memories.search(query, options?)`
 - `memories.list(options?)`
 - `memories.edit(id, updates)`
 - `memories.forget(id)`
 - `buildSystemPrompt({ rules, memories })`
+
+`context.get` mode behavior:
+
+- `all` (default): `rules + working + long_term`
+- `working`: `rules + working`
+- `long_term`: `rules + long_term`
+- `rules_only`: rules only
+
+Legacy signature is still supported:
+
+```ts
+await client.context.get("auth patterns", { projectId: "dashboard", limit: 10 })
+```
 
 Types are exported for all inputs and outputs (`MemoryRecord`, `ContextResult`, `MutationResult`, etc.).
 

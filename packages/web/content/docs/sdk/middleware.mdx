@@ -35,6 +35,10 @@ memoriesMiddleware({
   // Also inject rules (type=rule) (default: true)
   includeRules: true,
 
+  // Context tier selection (default: "all")
+  // "all" | "working" | "long_term" | "rules_only"
+  mode: "all",
+
   // Custom query extraction from params
   extractQuery: (params) => {
     // Return a string to search memories with
@@ -59,6 +63,15 @@ Maximum number of memories to inject into the system prompt. Default: `10`.
 ### `includeRules`
 
 Whether to include rules (memories with `type: "rule"`) in the injected context. Default: `true`.
+
+### `mode`
+
+Context tier mode for retrieval. Default: `"all"`.
+
+- `all`: rules + working + long-term
+- `working`: rules + working only
+- `long_term`: rules + long-term only
+- `rules_only`: rules only
 
 ### `extractQuery`
 
@@ -91,7 +104,7 @@ const model = wrapLanguageModel({
 
 1. `transformParams` intercepts the call before it reaches the model
 2. Extracts the last user message as a search query
-3. Calls `client.context.get(query)` to fetch rules + relevant memories
+3. Calls `client.context.get({ query, mode, ...scope })` to fetch tiered context
 4. Prepends a `## Memory Context` block to the system prompt
 5. The model sees memories as part of its instructions — no tool call needed
 

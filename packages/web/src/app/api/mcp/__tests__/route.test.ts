@@ -369,6 +369,82 @@ describe("/api/mcp", () => {
       expect(body.result.structuredContent.workingMemories).toHaveLength(1)
       expect(body.result.structuredContent.longTermMemories).toHaveLength(1)
     })
+
+    it.each([
+      {
+        name: "shared scope on default database",
+        args: {},
+        expectedUserFilter: "user_id IS NULL",
+        expectedUserArg: null,
+        tenantId: null,
+      },
+      {
+        name: "shared + user scope on tenant database",
+        args: { tenant_id: "tenant-a", user_id: "user-42" },
+        expectedUserFilter: "user_id IS NULL OR user_id = ?",
+        expectedUserArg: "user-42",
+        tenantId: "tenant-a",
+      },
+    ])("e2e matrix: enforces isolation and tier order ($name)", async ({ args, expectedUserFilter, expectedUserArg, tenantId }) => {
+      setupAuth()
+      if (tenantId) {
+        mockTenantSelect.mockReturnValue({
+          data: {
+            turso_db_url: "libsql://tenant-a.turso.io",
+            turso_db_token: "tenant-token",
+            status: "ready",
+          },
+        })
+      }
+
+      mockExecute.mockImplementation(async (input: { sql: string } | string) => {
+        const sql = typeof input === "string" ? input : input.sql
+        if (sql.includes("memory_layer = 'rule'") || sql.includes("type = 'rule'")) {
+          return {
+            rows: [
+              { id: "r1", content: "Always validate inputs", type: "rule", memory_layer: "rule", scope: "global", project_id: null, user_id: null, tags: null },
+            ],
+          }
+        }
+        if (sql.includes("memory_layer = 'working'")) {
+          return {
+            rows: [
+              { id: "w1", content: "In-flight migration context", type: "note", memory_layer: "working", scope: "global", project_id: null, user_id: expectedUserArg, tags: null },
+            ],
+          }
+        }
+        if (sql.includes("memory_layer IS NULL OR memory_layer = 'long_term'")) {
+          return {
+            rows: [
+              { id: "l1", content: "Persisted architecture decision", type: "decision", memory_layer: "long_term", scope: "global", project_id: null, user_id: expectedUserArg, tags: null },
+            ],
+          }
+        }
+        return { rows: [] }
+      })
+
+      const response = await POST(makePostRequest(
+        jsonrpc("tools/call", { name: "get_context", arguments: args })
+      ))
+      const body = await response.json()
+      const text = body.result.content[0].text as string
+      expect(text.indexOf("In-flight migration context")).toBeLessThan(text.indexOf("Persisted architecture decision"))
+      expect(body.result.structuredContent.memories.map((memory: { id: string }) => memory.id)).toEqual(["w1", "l1"])
+
+      const workingCall = getExecuteCallBySqlFragment("AND memory_layer = 'working'")
+      const longTermCall = getExecuteCallBySqlFragment("AND (memory_layer IS NULL OR memory_layer = 'long_term')")
+      expect(workingCall.sql).toContain(expectedUserFilter)
+      expect(longTermCall.sql).toContain(expectedUserFilter)
+      if (expectedUserArg) {
+        expect(workingCall.args).toContain(expectedUserArg)
+        expect(longTermCall.args).toContain(expectedUserArg)
+      }
+
+      if (tenantId) {
+        const tenantLookup = mockTenantSelect.mock.calls[0]?.[0] as { filters?: Record<string, string> }
+        expect(tenantLookup.filters?.tenant_id).toBe(tenantId)
+      }
+    })
   })
 
   // --- Tool Execution: get_rules ---

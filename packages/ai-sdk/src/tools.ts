@@ -1,14 +1,18 @@
-import type { MemoryAddInput, MemoryEditInput, MemoryListOptions, MemorySearchOptions, MemoryType } from "@memories.sh/core"
+import type { ContextGetInput, MemoryAddInput, MemoryEditInput, MemoryListOptions, MemorySearchOptions, MemoryType } from "@memories.sh/core"
 import { resolveClient } from "./client"
 import type { MemoriesBaseOptions, MemoriesTools } from "./types"
 
 export function getContext(options: MemoriesBaseOptions = {}) {
   const client = resolveClient(options)
-  return async (input: { query?: string; limit?: number; includeRules?: boolean; projectId?: string } = {}) =>
-    client.context.get(input.query, {
+  return async (input: ContextGetInput = {}) =>
+    client.context.get({
+      query: input.query,
       limit: input.limit,
       includeRules: input.includeRules,
       projectId: input.projectId ?? options.projectId,
+      userId: input.userId ?? options.userId,
+      tenantId: input.tenantId ?? options.tenantId,
+      mode: input.mode,
     })
 }
 

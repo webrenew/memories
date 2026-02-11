@@ -50,10 +50,19 @@ export interface ContextResult {
   raw: string
 }
 
+export type ContextMode = "all" | "working" | "long_term" | "rules_only"
+
 export interface ContextGetOptions {
   limit?: number
   includeRules?: boolean
   projectId?: string
+  userId?: string
+  tenantId?: string
+  mode?: ContextMode
+}
+
+export interface ContextGetInput extends ContextGetOptions {
+  query?: string
 }
 
 export interface MemoryAddInput {

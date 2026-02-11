@@ -4,6 +4,8 @@ export { parseContextResponse, parseMemoryListResponse } from "./parsers"
 export type { MemoriesClientOptions } from "./client"
 export type {
   BuildSystemPromptInput,
+  ContextGetInput,
+  ContextMode,
   ContextGetOptions,
   ContextResult,
   MemoriesErrorData,

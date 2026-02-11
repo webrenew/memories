@@ -21,7 +21,12 @@ const client = new MemoriesClient({
   tenantId: "acme-prod",
 })
 
-const { rules, memories } = await client.context.get("auth patterns")
+const { rules, memories } = await client.context.get({
+  query: "auth patterns",
+  projectId: "github.com/acme/platform",
+  userId: "user_123",
+  mode: "all",
+})
 
 // Use with any LLM SDK
 const response = await anthropic.messages.create({
@@ -43,18 +48,38 @@ const client = new MemoriesClient({
 })
 ```
 
-### `client.context.get(query?, options?)`
+### `client.context.get(input?)`
 
-Fetch rules and relevant memories for a query.
+Fetch rules and relevant memories with explicit runtime scope controls.
 
 ```typescript
-const { rules, memories } = await client.context.get("deployment process")
-
-// With options
-const ctx = await client.context.get("auth", {
-  limit: 20,
-  includeRules: true,
+const { rules, memories } = await client.context.get({
+  query: "deployment process",
+  projectId: "github.com/acme/platform",
+  userId: "user_123",
+  mode: "all",
 })
+
+// Rules + working only
+const ctx = await client.context.get({
+  query: "auth",
+  mode: "working",
+  limit: 20,
+  includeRules: true, // default true
+})
+```
+
+`mode` controls tier selection:
+
+- `all` (default): rules + working + long-term
+- `working`: rules + working only
+- `long_term`: rules + long-term only
+- `rules_only`: rules only
+
+Legacy signature remains supported:
+
+```typescript
+await client.context.get("auth", { projectId: "github.com/acme/platform", limit: 20 })
 ```
 
 ### `client.memories.add(input)`
@@ -117,7 +142,7 @@ await client.memories.forget("mem_abc123")
 Format rules and memories into a system prompt block.
 
 ```typescript
-const { rules, memories } = await client.context.get("auth")
+const { rules, memories } = await client.context.get({ query: "auth" })
 const systemPrompt = client.buildSystemPrompt({ rules, memories })
 
 // Returns formatted text like:
@@ -152,6 +177,13 @@ await client.memories.add({
   type: "note",
   projectId: "github.com/acme/platform",
 })
+
+// Per-call override is also supported:
+const context = await client.context.get({
+  userId: "user_456",
+  projectId: "github.com/acme/platform",
+  mode: "working",
+})
 ```
 
 For single-user apps, `tenantId` can be your app environment or workspace id:
@@ -165,7 +197,7 @@ const client = new MemoriesClient({
 
 // All operations are now scoped to user_123
 await client.memories.add({ content: "User prefers dark mode", type: "note" })
-const { memories } = await client.context.get("user preferences")
+const { memories } = await client.context.get({ query: "user preferences" })
 // Only returns memories for user_123
 ```
 

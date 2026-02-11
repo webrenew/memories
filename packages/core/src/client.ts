@@ -3,7 +3,9 @@ import { parseContextResponse, parseMemoryListResponse } from "./parsers"
 import { buildSystemPrompt } from "./system-prompt"
 import type {
   BuildSystemPromptInput,
+  ContextGetInput,
   ContextGetOptions,
+  ContextMode,
   ContextResult,
   MemoriesErrorData,
   MemoriesResponseEnvelope,
@@ -226,6 +228,83 @@ function dedupeMemories(records: z.infer<typeof structuredMemorySchema>[]): z.in
   return deduped
 }
 
+const contextModes = new Set<ContextMode>(["all", "working", "long_term", "rules_only"])
+
+interface ContextBuckets {
+  working: z.infer<typeof structuredMemorySchema>[]
+  longTerm: z.infer<typeof structuredMemorySchema>[]
+}
+
+interface NormalizedContextInput extends ContextGetInput {
+  mode: ContextMode
+}
+
+type ContextGetMethod = {
+  (input?: ContextGetInput): Promise<ContextResult>
+  (query?: string, options?: ContextGetOptions): Promise<ContextResult>
+}
+
+function normalizeContextMode(mode: unknown): ContextMode {
+  if (typeof mode === "string" && contextModes.has(mode as ContextMode)) {
+    return mode as ContextMode
+  }
+  return "all"
+}
+
+function normalizeContextInput(
+  inputOrQuery?: string | ContextGetInput,
+  options: ContextGetOptions = {}
+): NormalizedContextInput {
+  const fromObject =
+    inputOrQuery && typeof inputOrQuery === "object"
+      ? inputOrQuery
+      : { query: typeof inputOrQuery === "string" ? inputOrQuery : undefined, ...options }
+
+  return {
+    ...fromObject,
+    mode: normalizeContextMode(fromObject.mode),
+  }
+}
+
+function partitionByLayer(records: z.infer<typeof structuredMemorySchema>[]): ContextBuckets {
+  const working: z.infer<typeof structuredMemorySchema>[] = []
+  const longTerm: z.infer<typeof structuredMemorySchema>[] = []
+
+  for (const record of records) {
+    const type = normalizeMemoryType(record.type)
+    const layer = normalizeMemoryLayer(record.layer, type)
+    if (layer === "working") {
+      working.push(record)
+      continue
+    }
+    if (layer === "long_term") {
+      longTerm.push(record)
+    }
+  }
+
+  return { working, longTerm }
+}
+
+function pickMemoriesForMode(
+  mode: ContextMode,
+  structured: z.infer<typeof contextStructuredSchema>
+): z.infer<typeof structuredMemorySchema>[] {
+  const fallbackBuckets = partitionByLayer(structured.memories)
+  const working = dedupeMemories([...structured.workingMemories, ...fallbackBuckets.working])
+  const longTerm = dedupeMemories([...structured.longTermMemories, ...fallbackBuckets.longTerm])
+
+  if (mode === "rules_only") {
+    return []
+  }
+  if (mode === "working") {
+    return working
+  }
+  if (mode === "long_term") {
+    return longTerm
+  }
+  return dedupeMemories([...working, ...longTerm])
+}
+
 interface ParsedToolResult {
   raw: string
   structured: unknown
@@ -324,37 +403,40 @@ export class MemoriesClient {
     this.defaultHeaders = options.headers ?? {}
   }
 
-  readonly context = {
-    get: async (query?: string, options: ContextGetOptions = {}): Promise<ContextResult> => {
+  readonly context: { get: ContextGetMethod } = {
+    get: async (
+      inputOrQuery?: string | ContextGetInput,
+      options: ContextGetOptions = {}
+    ): Promise<ContextResult> => {
+      const input = normalizeContextInput(inputOrQuery, options)
       const toolResult = await this.callTool("get_context", {
-        query,
-        limit: options.limit,
-        project_id: options.projectId,
+        query: input.query,
+        limit: input.limit,
+        project_id: input.projectId,
+        user_id: input.userId,
+        tenant_id: input.tenantId,
       })
 
       const structured = contextStructuredSchema.safeParse(toolResult.structured)
       if (structured.success) {
-        const orderedMemories = dedupeMemories([
-          ...structured.data.workingMemories,
-          ...structured.data.longTermMemories,
-          ...structured.data.memories,
-        ])
+        const orderedMemories = pickMemoriesForMode(input.mode, structured.data)
         const parsedFromStructured: ContextResult = {
           rules: structured.data.rules.map(toMemoryRecord),
           memories: orderedMemories.map(toMemoryRecord),
           raw: toolResult.raw,
         }
-        if (options.includeRules === false) {
+        if (input.includeRules === false) {
           return { ...parsedFromStructured, rules: [] }
         }
         return parsedFromStructured
       }
 
       const parsed = parseContextResponse(toolResult.raw)
-      if (options.includeRules === false) {
-        return { ...parsed, rules: [] }
+      const modeFiltered = input.mode === "rules_only" ? { ...parsed, memories: [] } : parsed
+      if (input.includeRules === false) {
+        return { ...modeFiltered, rules: [] }
       }
-      return parsed
+      return modeFiltered
     },
   }
 
@@ -532,10 +614,10 @@ export class MemoriesClient {
 
   private withDefaultScope(args: Record<string, unknown>): Record<string, unknown> {
     let scoped: Record<string, unknown> = args
-    if (this.userId) {
+    if (this.userId && scoped.user_id === undefined) {
       scoped = { ...scoped, user_id: this.userId }
     }
-    if (this.tenantId) {
+    if (this.tenantId && scoped.tenant_id === undefined) {
       scoped = { ...scoped, tenant_id: this.tenantId }
     }
     return scoped

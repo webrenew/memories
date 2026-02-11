@@ -56,10 +56,14 @@ export function memoriesMiddleware(options: MemoriesMiddlewareOptions = {}) {
       const context =
         options.preloaded ??
         (query || includeRules
-          ? await client.context.get(query, {
+          ? await client.context.get({
+              query,
               limit,
               includeRules,
               projectId: options.projectId,
+              userId: options.userId,
+              tenantId: options.tenantId,
+              mode: options.mode,
             })
           : emptyContext())
 

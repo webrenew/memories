@@ -1,5 +1,6 @@
 import type {
-  ContextGetOptions,
+  ContextGetInput,
+  ContextMode,
   ContextResult,
   MemoriesClient,
   MemoriesClientOptions,
@@ -20,6 +21,7 @@ export interface MemoriesBaseOptions extends Omit<MemoriesClientOptions, "userId
 export interface MemoriesMiddlewareOptions extends MemoriesBaseOptions {
   limit?: number
   includeRules?: boolean
+  mode?: ContextMode
   extractQuery?: (params: unknown) => string | undefined
   preloaded?: ContextResult
 }
@@ -36,7 +38,7 @@ export interface CreateMemoriesOnFinishOptions extends MemoriesBaseOptions {
 }
 
 export interface MemoriesTools {
-  getContext: (input?: { query?: string } & ContextGetOptions) => Promise<ContextResult>
+  getContext: (input?: ContextGetInput) => Promise<ContextResult>
   storeMemory: (input: MemoryAddInput) => Promise<MutationResult>
   searchMemories: (input: { query: string } & MemorySearchOptions) => Promise<MemoryRecord[]>
   listMemories: (input?: MemoryListOptions) => Promise<MemoryRecord[]>

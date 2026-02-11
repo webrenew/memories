@@ -84,7 +84,12 @@ Use with any LLM SDK:
 import { MemoriesClient } from "@memories.sh/core"
 
 const client = new MemoriesClient({ apiKey: "mcp_xxx", tenantId: "acme-prod" })
-const { rules, memories } = await client.context.get("deployment process")
+const { rules, memories } = await client.context.get({
+  query: "deployment process",
+  userId: "user_123",
+  projectId: "github.com/acme/platform",
+  mode: "all",
+})
 
 const response = await anthropic.messages.create({
   model: "claude-sonnet-4-5-20250929",
