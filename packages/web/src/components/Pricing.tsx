@@ -8,19 +8,30 @@ import { useState } from "react";
 import { ScrambleText } from "./animations/ScrambleText";
 import { useUser } from "@/hooks/use-user";
 
-const tiers = [
+const code = "font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded";
+
+const tiers: {
+  name: string;
+  monthlyPrice: string;
+  yearlyPrice: string;
+  yearlyTotal?: string;
+  description: string;
+  features: { key: string; label: React.ReactNode }[];
+  cta: string;
+  highlighted: boolean;
+}[] = [
   {
     name: "Free",
     monthlyPrice: "$0",
     yearlyPrice: "$0",
     description: "Durable state on your machine. No account required.",
     features: [
-      "Unlimited local memories",
-      "Local semantic recall",
-      "13+ tool configs",
-      "Built-in MCP server",
-      "Works offline by default",
-      "Export to JSON/YAML anytime",
+      { key: "unlimited", label: "Unlimited local memories" },
+      { key: "recall", label: "Local semantic recall" },
+      { key: "tools", label: "13+ tool configs" },
+      { key: "mcp", label: "Built-in MCP server" },
+      { key: "offline", label: "Works offline by default" },
+      { key: "export", label: "Export to JSON/YAML anytime" },
     ],
     cta: "Get Started",
     highlighted: false,
@@ -32,13 +43,13 @@ const tiers = [
     yearlyTotal: "$150",
     description: "Sync and back up state across machines.",
     features: [
-      "Everything in Free",
-      "Cloud backup and sync",
-      "Access from any device",
-      "Web dashboard",
-      "Create teams and invite members",
-      "Server-side semantic recall",
-      "Priority support",
+      { key: "free", label: "Everything in Free" },
+      { key: "sync", label: "Cloud backup and sync" },
+      { key: "devices", label: "Access from any device" },
+      { key: "dashboard", label: "Web dashboard" },
+      { key: "teams", label: "Create teams and invite members" },
+      { key: "server-recall", label: "Server-side semantic recall" },
+      { key: "support", label: "Priority support" },
     ],
     cta: "Go Pro",
     highlighted: true,
@@ -49,13 +60,13 @@ const tiers = [
     yearlyPrice: "Custom",
     description: "SDK access for AI apps with persistent memory.",
     features: [
-      "Everything in Professional",
-      "@memories.sh/ai-sdk package",
-      "@memories.sh/core client library",
-      "memoriesMiddleware() for AI SDK",
-      "Multi-tenant userId scoping",
-      "Custom embedding models",
-      "Dedicated support and SLA",
+      { key: "pro", label: "Everything in Professional" },
+      { key: "ai-sdk", label: <><code className={code}>@memories.sh/ai-sdk</code> package</> },
+      { key: "core", label: <><code className={code}>@memories.sh/core</code> client library</> },
+      { key: "middleware", label: <><code className={code}>memoriesMiddleware()</code> for AI SDK</> },
+      { key: "tenant", label: "Multi-tenant userId scoping" },
+      { key: "embeddings", label: "Custom embedding models" },
+      { key: "sla", label: "Dedicated support and SLA" },
     ],
     cta: "Contact Us",
     highlighted: false,
@@ -182,9 +193,9 @@ export function Pricing({ user }: { user?: User | null }) {
                     </div>
                     <ul className="space-y-4">
                       {tier.features.map((feature) => (
-                        <li key={feature} className="flex items-start gap-3 text-sm text-muted-foreground">
+                        <li key={feature.key} className="flex items-start gap-3 text-sm text-muted-foreground">
                           <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                          <span>{feature}</span>
+                          <span>{feature.label}</span>
                         </li>
                       ))}
                     </ul>

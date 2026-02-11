@@ -140,7 +140,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "Openclaw",
-    logo: "/logos/clawdbot.svg",
+    logo: "/logos/openclaw.svg",
     slug: "openclaw",
     status: "Available",
     desc: "Open-source personal AI assistant with persistent memory and skill plugins.",

@@ -85,9 +85,9 @@ export function HowItWorks() {
     },
     sdk: {
       heading: "Two lines. Memory everywhere.",
-      description: "Wrap any model with memoriesMiddleware(). Rules and context auto-inject into every prompt—no tool calls, no prompt engineering.",
+      description: <>Wrap any model with <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded">memoriesMiddleware()</code>. Rules and context auto-inject into every prompt—no tool calls, no prompt engineering.</>,
       cardTitle: "AI SDK middleware",
-      cardDescription: "@memories.sh/ai-sdk — composable middleware for the Vercel AI SDK. Stack with logging, guardrails, caching.",
+      cardDescription: <><code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded">@memories.sh/ai-sdk</code> — composable middleware for the Vercel AI SDK. Stack with logging, guardrails, caching.</>,
     },
   };
 

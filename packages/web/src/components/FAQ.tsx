@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ScrambleText } from "./animations/ScrambleText";
 
 export function FAQ() {
-  const faqs = [
+  const c = "font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded";
+  const faqs: { q: string; a: React.ReactNode }[] = [
     {
       q: "What problem does memories.sh solve?",
       a: "Agents forget and switching tools resets context. memories.sh gives you a durable, local-first state layer so rules, decisions, facts, and skills persist—with path-scoped rules, FTS5 search, and native config generation for 13+ tools."
@@ -16,15 +17,15 @@ export function FAQ() {
     },
     {
       q: "What's the difference between global and project memory?",
-      a: "Global memory is your persistent state across tools and projects. Project memory is repo-specific and auto-scoped via git remote. You can also create path-scoped rules with glob patterns (e.g. src/api/**) for fine-grained context."
+      a: <>Global memory is your persistent state across tools and projects. Project memory is repo-specific and auto-scoped via git remote. You can also create path-scoped rules with glob patterns (e.g. <code className={c}>src/api/**</code>) for fine-grained context.</>
     },
     {
       q: "Am I locked into memories.sh?",
-      a: "No. Export state to JSON or YAML anytime with 'memories export'. Generate native config files for supported tools. Your data stays portable."
+      a: <>No. Export state to JSON or YAML anytime with <code className={c}>memories export</code>. Generate native config files for supported tools. Your data stays portable.</>
     },
     {
       q: "Where is my data stored?",
-      a: "All data is stored locally at ~/.config/memories/ on your machine. Cloud sync (Pro) is optional for backup and multi-machine continuity."
+      a: <>All data is stored locally at <code className={c}>~/.config/memories/</code> on your machine. Cloud sync (Pro) is optional for backup and multi-machine continuity.</>
     },
     {
       q: "Which coding agents are supported?",
@@ -32,7 +33,7 @@ export function FAQ() {
     },
     {
       q: "What is the SDK for?",
-      a: "The TypeScript SDK (@memories.sh/ai-sdk) lets you wire persistent memory into AI apps. memoriesMiddleware() wraps any Vercel AI SDK model so rules and context auto-inject into every prompt—no tool calls needed. For agent loops, use memoriesTools() to let the LLM manage its own memory."
+      a: <>The TypeScript SDK (<code className={c}>@memories.sh/ai-sdk</code>) lets you wire persistent memory into AI apps. <code className={c}>memoriesMiddleware()</code> wraps any Vercel AI SDK model so rules and context auto-inject into every prompt—no tool calls needed. For agent loops, use <code className={c}>memoriesTools()</code> to let the LLM manage its own memory.</>
     }
   ];
 
@@ -61,7 +62,7 @@ export function FAQ() {
     );
   }
   
-  function FAQItem({ question, answer }: { question: string, answer: string }) {
+  function FAQItem({ question, answer }: { question: string, answer: React.ReactNode }) {
     const [isOpen, setIsOpen] = useState(false);
   
     return (
