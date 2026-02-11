@@ -139,7 +139,7 @@ export const TOOLS: Tool[] = [
     docsUrl: "/docs/integrations/goose",
   },
   {
-    name: "Openclaw",
+    name: "OpenClaw",
     logo: "/logos/openclaw.svg",
     slug: "openclaw",
     status: "Available",

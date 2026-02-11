@@ -1,68 +1,64 @@
 ---
-title: Openclaw
-description: Integrate memories.sh with Openclaw.
+title: OpenClaw
+description: Integrate memories.sh with OpenClaw.
 ---
 
-[Openclaw](https://openclaw.ai/) is an open-source personal AI agent by Peter Steinberger. It features persistent memory, extensible skill plugins, browser automation, and 50+ integrations across chat platforms, developer tools, and smart home devices.
+[OpenClaw](https://openclaw.ai/) is an open-source personal AI assistant. Its current onboarding flow imports `AGENTS.md` and skill files into `~/.openclaw/workspace`, so the clean memories.sh integration path is to generate those artifacts from your memory store.
 
-## Why memories.sh + Openclaw
+## Why memories.sh + OpenClaw
 
-Openclaw has its own built-in memory system. Adding memories.sh gives you:
+Adding memories.sh gives you:
 
-- **Cross-tool portability** — Memories created in Openclaw are available in Claude Code, Cursor, Windsurf, and every other integration
-- **Structured storage** — Rules, decisions, and facts with full-text search (FTS5)
-- **Project scoping** — Path-scoped rules that activate only in relevant directories
+- **Cross-tool portability** — Rules and decisions you keep for OpenClaw also power Claude Code, Cursor, Windsurf, and other integrations
+- **Structured memory store** — Keep rules, decisions, and facts in one searchable local database
+- **Reusable skills** — Generate `.agents/skills/**/SKILL.md` once and reuse across agent ecosystems
 
-## Quick Setup
+## Recommended Setup (Workspace-First)
+
+### 1) Run OpenClaw onboarding once
+
+```bash
+openclaw onboard
+```
+
+This creates and configures your OpenClaw workspace (default: `~/.openclaw/workspace`).
+
+### 2) Generate memories.sh output for OpenClaw
+
+From your project (where your memories are scoped):
 
 ```bash
 cd your-project
 memories init
-```
-
-This automatically:
-1. Sets up your local memory store
-2. Configures MCP for supported tools
-3. Generates instruction files with your existing memories
-
-## Manual Setup
-
-### Option 1: Generated File
-
-```bash
+memories generate claude -o ~/.openclaw/workspace/AGENTS.md
 memories generate agents
+mkdir -p ~/.openclaw/workspace/skills
+cp -R .agents/skills/. ~/.openclaw/workspace/skills/
 ```
 
-This creates the canonical `.agents/` directory that Openclaw reads for project context.
+This writes:
+1. `AGENTS.md` into OpenClaw's workspace for session instructions
+2. `SKILL.md` files into OpenClaw's workspace `skills/` directory
 
-### Option 2: MCP Server
+### 3) Keep it in sync
 
-Add memories.sh to Openclaw's MCP configuration. Create or edit `.openclaw/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "memories": {
-      "command": "npx",
-      "args": ["-y", "@memories.sh/cli", "serve"]
-    }
-  }
-}
-```
-
-### Recommended: Use Both
-
-1. **Generated file** — Provides a static baseline always available to Openclaw
-2. **MCP server** — Gives Openclaw live access to search, recall, and add memories
-
-## Syncing Openclaw Config
-
-To sync your Openclaw configuration across machines:
+Whenever memories change:
 
 ```bash
-# On your main machine
-memories files ingest
-
-# On a new machine
-memories files apply --global --force
+cd your-project
+memories generate claude -o ~/.openclaw/workspace/AGENTS.md
+memories generate agents
+cp -R .agents/skills/. ~/.openclaw/workspace/skills/
 ```
+
+## Important Notes
+
+- OpenClaw docs currently define context discovery around `AGENTS.md` and `SKILL.md` artifacts.
+- OpenClaw docs currently do not document a project-level MCP config path like `.openclaw/mcp.json` for this integration flow.
+- If you changed your workspace path in `~/.openclaw/openclaw.json` (for example `agent.workspace` or `agents.defaults.workspace`), replace `~/.openclaw/workspace` with your configured path.
+
+## OpenClaw References
+
+- [Getting Started](https://docs.openclaw.ai/start/getting-started)
+- [Onboarding](https://docs.openclaw.ai/start/onboarding)
+- [Agent Workspace](https://docs.openclaw.ai/concepts/agent-workspace)
