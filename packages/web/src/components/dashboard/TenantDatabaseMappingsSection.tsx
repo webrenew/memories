@@ -1,9 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Database, Link2, RefreshCw, Server, Trash2 } from "lucide-react"
+import { AlertTriangle, Database, Link2, RefreshCw, Server, Trash2 } from "lucide-react"
 
 type ProvisionMode = "provision" | "attach"
+type SpendControlMode = "attach_only" | "allow_provision"
 
 type TenantStatus = "provisioning" | "ready" | "disabled" | "error"
 
@@ -26,6 +27,9 @@ interface TenantDatabaseMappingsSectionProps {
   hasApiKey: boolean
   apiKeyExpired: boolean
 }
+
+const SPEND_CONTROL_STORAGE_KEY = "memories.tenant-db.spend-control"
+const PROVISION_ACK_STORAGE_KEY = "memories.tenant-db.provision-ack"
 
 function formatDateTime(value: string | null): string {
   if (!value) return "Not set"
@@ -63,6 +67,8 @@ export function TenantDatabaseMappingsSection({
 }: TenantDatabaseMappingsSectionProps) {
   const [tenantId, setTenantId] = useState("")
   const [mode, setMode] = useState<ProvisionMode>("provision")
+  const [spendControl, setSpendControl] = useState<SpendControlMode>("attach_only")
+  const [provisionAcknowledged, setProvisionAcknowledged] = useState(false)
   const [tursoDbUrl, setTursoDbUrl] = useState("")
   const [tursoDbToken, setTursoDbToken] = useState("")
   const [tursoDbName, setTursoDbName] = useState("")
@@ -121,11 +127,64 @@ export function TenantDatabaseMappingsSection({
     void fetchMappings()
   }, [fetchMappings])
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+
+    try {
+      const storedControl = window.localStorage.getItem(SPEND_CONTROL_STORAGE_KEY)
+      if (storedControl === "attach_only" || storedControl === "allow_provision") {
+        setSpendControl(storedControl)
+      }
+
+      setProvisionAcknowledged(window.localStorage.getItem(PROVISION_ACK_STORAGE_KEY) === "true")
+    } catch {
+      // Ignore storage failures in strict browser contexts.
+    }
+  }, [])
+
+  useEffect(() => {
+    if (spendControl === "attach_only" && mode === "provision") {
+      setMode("attach")
+    }
+  }, [mode, spendControl])
+
+  function handleSpendControlChange(next: SpendControlMode) {
+    setSpendControl(next)
+    if (typeof window === "undefined") return
+    try {
+      window.localStorage.setItem(SPEND_CONTROL_STORAGE_KEY, next)
+    } catch {
+      // Ignore storage failures in strict browser contexts.
+    }
+  }
+
+  function handleProvisionAcknowledgedChange(checked: boolean) {
+    setProvisionAcknowledged(checked)
+    if (typeof window === "undefined") return
+    try {
+      window.localStorage.setItem(PROVISION_ACK_STORAGE_KEY, checked ? "true" : "false")
+    } catch {
+      // Ignore storage failures in strict browser contexts.
+    }
+  }
+
   async function handleCreateOrAttach() {
     const trimmedTenantId = tenantId.trim()
     if (!trimmedTenantId) {
       setError("tenantId is required")
       return
+    }
+
+    if (mode === "provision") {
+      if (spendControl !== "allow_provision") {
+        setError("Provisioning is disabled by spend control. Switch to “Allow provisioning”.")
+        return
+      }
+
+      if (!provisionAcknowledged) {
+        setError("Acknowledge the provisioning warning before creating tenant databases.")
+        return
+      }
     }
 
     setSaving(true)
@@ -233,16 +292,71 @@ export function TenantDatabaseMappingsSection({
           </p>
         ) : (
           <>
+            <div className="border border-amber-500/30 bg-amber-500/10 rounded-md p-3 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-200">Multi-tenant routing can increase infrastructure spend</p>
+                  <p className="text-xs text-amber-100/80 mt-1">
+                    Provisioning creates a new Turso database per tenant. Use spend controls to prevent accidental database creation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => handleSpendControlChange("attach_only")}
+                  className={`text-left rounded border p-2 transition-colors ${
+                    spendControl === "attach_only"
+                      ? "border-primary bg-primary/15"
+                      : "border-border hover:bg-muted/30"
+                  }`}
+                >
+                  <p className="text-xs font-semibold">Attach Only (Recommended)</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Prevent one-click DB creation; only map existing tenant DBs.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSpendControlChange("allow_provision")}
+                  className={`text-left rounded border p-2 transition-colors ${
+                    spendControl === "allow_provision"
+                      ? "border-primary bg-primary/15"
+                      : "border-border hover:bg-muted/30"
+                  }`}
+                >
+                  <p className="text-xs font-semibold">Allow Provisioning</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Enable one-click tenant DB provisioning from this dashboard.
+                  </p>
+                </button>
+              </div>
+
+              <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={provisionAcknowledged}
+                  onChange={(event) => handleProvisionAcknowledgedChange(event.target.checked)}
+                  className="mt-0.5"
+                />
+                I understand that provisioning tenant databases may create billable infrastructure costs.
+              </label>
+            </div>
+
             <div className="border border-border bg-muted/20 rounded-md p-3 space-y-3">
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setMode("provision")}
+                  disabled={spendControl !== "allow_provision"}
                   className={`px-3 py-1.5 text-xs rounded border transition-colors ${
                     mode === "provision"
                       ? "bg-primary text-primary-foreground border-primary"
                       : "border-border hover:bg-muted/30"
-                  }`}
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   <Server className="h-3 w-3 inline mr-1.5" />
                   Provision New
@@ -260,6 +374,12 @@ export function TenantDatabaseMappingsSection({
                   Attach Existing
                 </button>
               </div>
+
+              {spendControl === "attach_only" && (
+                <p className="text-xs text-muted-foreground">
+                  Spend control is set to Attach Only. Switch to Allow Provisioning to create tenant databases from this page.
+                </p>
+              )}
 
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1">
