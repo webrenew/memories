@@ -37,8 +37,14 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
     setMemories((prev) => [memory, ...prev])
   }
 
-  const handleChange = (updated: Memory[]) => {
-    setMemories(updated)
+  const handleDeleteMemory = (id: string) => {
+    setMemories((prev) => prev.filter((memory) => memory.id !== id))
+  }
+
+  const handleUpdateMemory = (id: string, content: string) => {
+    setMemories((prev) =>
+      prev.map((memory) => (memory.id === id ? { ...memory, content } : memory))
+    )
   }
 
   // Get unique types with counts
@@ -280,8 +286,9 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
           </div>
         ) : (
           <MemoriesList 
-            initialMemories={filteredMemories} 
-            onMemoriesChange={handleChange}
+            memories={filteredMemories}
+            onDeleteMemory={handleDeleteMemory}
+            onUpdateMemory={handleUpdateMemory}
             onFilterByProject={(scope) => setScopeFilter(scope)}
           />
         )}

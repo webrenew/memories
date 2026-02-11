@@ -1,32 +1,25 @@
 "use client"
 
-import { useState } from "react"
 import { MemoryCard } from "./MemoryCard"
 import type { Memory } from "@/types/memory"
 
 export function MemoriesList({ 
-  initialMemories,
-  onMemoriesChange,
+  memories,
+  onDeleteMemory,
+  onUpdateMemory,
   onFilterByProject
 }: { 
-  initialMemories: Memory[]
-  onMemoriesChange?: (memories: Memory[]) => void
+  memories: Memory[]
+  onDeleteMemory?: (id: string) => void
+  onUpdateMemory?: (id: string, content: string) => void
   onFilterByProject?: (scope: string) => void
 }) {
-  const [memories, setMemories] = useState(initialMemories)
-
   const handleDelete = (id: string) => {
-    const updated = memories.filter((m) => m.id !== id)
-    setMemories(updated)
-    onMemoriesChange?.(updated)
+    onDeleteMemory?.(id)
   }
 
   const handleUpdate = (id: string, content: string) => {
-    const updated = memories.map((m) => 
-      m.id === id ? { ...m, content } : m
-    )
-    setMemories(updated)
-    onMemoriesChange?.(updated)
+    onUpdateMemory?.(id, content)
   }
 
   if (memories.length === 0) {

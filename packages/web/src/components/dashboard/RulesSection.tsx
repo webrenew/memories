@@ -27,8 +27,12 @@ export function RulesSection({ initialRules }: { initialRules: Memory[] }) {
     setRules((prev) => [memory, ...prev])
   }
 
-  const handleChange = (updated: Memory[]) => {
-    setRules(updated)
+  const handleDeleteRule = (id: string) => {
+    setRules((prev) => prev.filter((rule) => rule.id !== id))
+  }
+
+  const handleUpdateRule = (id: string, content: string) => {
+    setRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, content } : rule)))
   }
 
   // Get unique projects with counts (using project_id, not scope)
@@ -184,8 +188,9 @@ export function RulesSection({ initialRules }: { initialRules: Memory[] }) {
           </div>
         ) : (
           <MemoriesList 
-            initialMemories={filteredRules} 
-            onMemoriesChange={handleChange}
+            memories={filteredRules}
+            onDeleteMemory={handleDeleteRule}
+            onUpdateMemory={handleUpdateRule}
             onFilterByProject={(scope) => setScopeFilter(scope)}
           />
         )}
