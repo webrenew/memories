@@ -80,6 +80,16 @@ export function TeamContent({
   const [createError, setCreateError] = useState<string | null>(null)
   const [newOrgName, setNewOrgName] = useState("")
 
+  useEffect(() => {
+    if (!currentOrgId) {
+      setSelectedOrgId(null)
+      return
+    }
+
+    const exists = organizations.some((org) => org.id === currentOrgId)
+    setSelectedOrgId(exists ? currentOrgId : null)
+  }, [currentOrgId, organizations])
+
   const selectedOrg = organizations.find(o => o.id === selectedOrgId)
   const isOwner = selectedOrg?.role === "owner"
   const isAdmin = selectedOrg?.role === "admin" || isOwner
