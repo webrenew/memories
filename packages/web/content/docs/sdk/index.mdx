@@ -98,6 +98,61 @@ const response = await anthropic.messages.create({
 })
 ```
 
+## Management APIs (Copy-Paste)
+
+### `MemoriesClient.management.*`
+
+```typescript
+import { MemoriesClient } from "@memories.sh/core"
+
+const client = new MemoriesClient({
+  apiKey: process.env.MEMORIES_API_KEY,
+  baseUrl: "https://memories.sh",
+  transport: "sdk_http",
+})
+
+const keyStatus = await client.management.keys.get()
+const rotatedKey = await client.management.keys.create({
+  expiresAt: "2027-01-01T00:00:00.000Z",
+})
+const revoked = await client.management.keys.revoke()
+
+const tenantMappings = await client.management.tenants.list()
+const upsertedTenant = await client.management.tenants.upsert({
+  tenantId: "acme-prod",
+  mode: "provision",
+})
+const disabledTenant = await client.management.tenants.disable("acme-prod")
+
+void [keyStatus, rotatedKey, revoked, tenantMappings, upsertedTenant, disabledTenant]
+```
+
+### `memoriesManagement()`
+
+```typescript
+import { memoriesManagement } from "@memories.sh/ai-sdk"
+
+const management = memoriesManagement({
+  apiKey: process.env.MEMORIES_API_KEY,
+  baseUrl: "https://memories.sh",
+})
+
+const keyStatus = await management.keys.get()
+const rotatedKey = await management.keys.create({
+  expiresAt: "2027-01-01T00:00:00.000Z",
+})
+const revoked = await management.keys.revoke()
+
+const tenantMappings = await management.tenants.list()
+const upsertedTenant = await management.tenants.upsert({
+  tenantId: "acme-prod",
+  mode: "provision",
+})
+const disabledTenant = await management.tenants.disable("acme-prod")
+
+void [keyStatus, rotatedKey, revoked, tenantMappings, upsertedTenant, disabledTenant]
+```
+
 ## Availability
 
 The SDK is available on the Enterprise plan. [Contact us](mailto:hello@memories.sh) to get started.

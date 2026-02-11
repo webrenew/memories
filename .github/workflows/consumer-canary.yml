@@ -136,3 +136,60 @@ jobs:
             if (!ai.memoriesManagement) throw new Error('Missing memoriesManagement export');
             console.log('Consumer canary passed');
           "
+
+      - name: Runtime smoke (optional, read-only)
+        if: ${{ secrets.MEMORIES_CANARY_API_KEY != '' }}
+        env:
+          MEMORIES_CANARY_API_KEY: ${{ secrets.MEMORIES_CANARY_API_KEY }}
+          MEMORIES_CANARY_BASE_URL: ${{ secrets.MEMORIES_CANARY_BASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canary
+          node --input-type=module <<'NODE'
+          import { MemoriesClient } from "@memories.sh/core";
+          import { memoriesManagement } from "@memories.sh/ai-sdk";
+
+          const apiKey = process.env.MEMORIES_CANARY_API_KEY;
+          const baseUrl = process.env.MEMORIES_CANARY_BASE_URL || "https://memories.sh";
+
+          const client = new MemoriesClient({
+            apiKey,
+            baseUrl,
+            transport: "sdk_http",
+          });
+
+          const management = memoriesManagement({
+            apiKey,
+            baseUrl,
+          });
+
+          const [coreKeys, coreTenants, aiKeys, aiTenants] = await Promise.all([
+            client.management.keys.get(),
+            client.management.tenants.list(),
+            management.keys.get(),
+            management.tenants.list(),
+          ]);
+
+          if (typeof coreKeys.hasKey !== "boolean") {
+            throw new Error("core management.keys.get returned unexpected shape");
+          }
+          if (typeof coreTenants.count !== "number") {
+            throw new Error("core management.tenants.list returned unexpected shape");
+          }
+          if (typeof aiKeys.hasKey !== "boolean") {
+            throw new Error("ai-sdk memoriesManagement.keys.get returned unexpected shape");
+          }
+          if (typeof aiTenants.count !== "number") {
+            throw new Error("ai-sdk memoriesManagement.tenants.list returned unexpected shape");
+          }
+
+          console.log(
+            `Runtime smoke passed (read-only): coreTenants=${coreTenants.count}, aiTenants=${aiTenants.count}`
+          );
+          NODE
+
+      - name: Runtime smoke skipped
+        if: ${{ secrets.MEMORIES_CANARY_API_KEY == '' }}
+        shell: bash
+        run: echo "MEMORIES_CANARY_API_KEY not configured; skipping optional read-only runtime smoke."

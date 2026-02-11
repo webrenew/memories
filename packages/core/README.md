@@ -75,6 +75,33 @@ Recommended pattern for SaaS apps:
 - `management.tenants.disable(tenantId)`
 - `buildSystemPrompt({ rules, memories })`
 
+## Copy-Paste: `MemoriesClient.management.*`
+
+```ts
+import { MemoriesClient } from "@memories.sh/core"
+
+const client = new MemoriesClient({
+  apiKey: process.env.MEMORIES_API_KEY,
+  baseUrl: "https://memories.sh",
+  transport: "sdk_http",
+})
+
+const keyStatus = await client.management.keys.get()
+const rotatedKey = await client.management.keys.create({
+  expiresAt: "2027-01-01T00:00:00.000Z",
+})
+const revoked = await client.management.keys.revoke()
+
+const tenantMappings = await client.management.tenants.list()
+const upsertedTenant = await client.management.tenants.upsert({
+  tenantId: "acme-prod",
+  mode: "provision",
+})
+const disabledTenant = await client.management.tenants.disable("acme-prod")
+
+void [keyStatus, rotatedKey, revoked, tenantMappings, upsertedTenant, disabledTenant]
+```
+
 `context.get` mode behavior:
 
 - `all` (default): `rules + working + long_term`

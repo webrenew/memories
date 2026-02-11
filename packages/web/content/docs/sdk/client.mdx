@@ -206,18 +206,28 @@ When you manage API keys or tenant mappings programmatically, prefer the SDK man
 The core client exposes these directly:
 
 ```typescript
-const keyStatus = await client.management.keys.get()
-const rotated = await client.management.keys.create({
-  expiresAt: "2026-12-31T00:00:00.000Z",
-})
-await client.management.keys.revoke()
+import { MemoriesClient } from "@memories.sh/core"
 
-const mappings = await client.management.tenants.list()
-await client.management.tenants.upsert({
+const client = new MemoriesClient({
+  apiKey: process.env.MEMORIES_API_KEY,
+  baseUrl: "https://memories.sh",
+  transport: "sdk_http",
+})
+
+const keyStatus = await client.management.keys.get()
+const rotatedKey = await client.management.keys.create({
+  expiresAt: "2027-01-01T00:00:00.000Z",
+})
+const revoked = await client.management.keys.revoke()
+
+const tenantMappings = await client.management.tenants.list()
+const upsertedTenant = await client.management.tenants.upsert({
   tenantId: "acme-prod",
   mode: "provision",
 })
-await client.management.tenants.disable("acme-prod")
+const disabledTenant = await client.management.tenants.disable("acme-prod")
+
+void [keyStatus, rotatedKey, revoked, tenantMappings, upsertedTenant, disabledTenant]
 ```
 
 Legacy MCP management routes (`/api/mcp/key`, `/api/mcp/tenants`) remain available for backward compatibility.

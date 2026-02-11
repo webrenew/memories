@@ -105,6 +105,32 @@ const middleware = memoriesMiddleware({ client })
 - `preloadContext(options)` to fetch context ahead of generation
 - `defaultExtractQuery(params)` default query extraction from prompt/messages
 
+## Copy-Paste: `memoriesManagement()`
+
+```ts
+import { memoriesManagement } from "@memories.sh/ai-sdk"
+
+const management = memoriesManagement({
+  apiKey: process.env.MEMORIES_API_KEY,
+  baseUrl: "https://memories.sh",
+})
+
+const keyStatus = await management.keys.get()
+const rotatedKey = await management.keys.create({
+  expiresAt: "2027-01-01T00:00:00.000Z",
+})
+const revoked = await management.keys.revoke()
+
+const tenantMappings = await management.tenants.list()
+const upsertedTenant = await management.tenants.upsert({
+  tenantId: "acme-prod",
+  mode: "provision",
+})
+const disabledTenant = await management.tenants.disable("acme-prod")
+
+void [keyStatus, rotatedKey, revoked, tenantMappings, upsertedTenant, disabledTenant]
+```
+
 ## Documentation
 
 Full docs: [memories.sh/docs](https://memories.sh/docs)
