@@ -1,4 +1,4 @@
 {
   "title": "SDK",
-  "pages": ["index", "middleware", "tools", "client"]
+  "pages": ["index", "middleware", "tools", "client", "endpoint-contract"]
 }

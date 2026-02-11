@@ -5,10 +5,14 @@ description: Configure tenant-scoped Turso routing for hosted MCP.
 
 For SaaS apps, you can route MCP tool calls to tenant-specific databases by passing `tenant_id` in tool arguments.
 
+<Callout>
+If you are integrating through the SDK HTTP surface, use `/api/sdk/v1/management/tenants`. The MCP route names below are legacy-compatible aliases.
+</Callout>
+
 ## How Routing Works
 
 1. Use your MCP API key as usual (`Authorization: Bearer mcp_...`).
-2. Configure per-tenant database mappings with `/api/mcp/tenants`.
+2. Configure per-tenant database mappings with `/api/sdk/v1/management/tenants` (or legacy `/api/mcp/tenants`).
 3. Include `tenant_id` in tool arguments (`get_context`, `add_memory`, etc.).
 4. The server resolves `(api_key_hash, tenant_id)` to the mapped Turso database.
 
@@ -16,11 +20,11 @@ If `tenant_id` is omitted, requests use the API key's default workspace database
 
 ## Manage Tenant Mappings
 
-### `GET /api/mcp/tenants`
+### `GET /api/sdk/v1/management/tenants` (legacy: `/api/mcp/tenants`)
 
 List all tenant mappings for your active MCP API key.
 
-### `POST /api/mcp/tenants`
+### `POST /api/sdk/v1/management/tenants` (legacy: `/api/mcp/tenants`)
 
 Create or update a tenant mapping.
 
@@ -57,7 +61,7 @@ Example (`attach`):
 }
 ```
 
-### `DELETE /api/mcp/tenants?tenantId=...`
+### `DELETE /api/sdk/v1/management/tenants?tenantId=...` (legacy: `/api/mcp/tenants`)
 
 Soft-disables a mapping (`status: "disabled"`).
 

@@ -56,6 +56,8 @@ Transport behavior:
 - `sdk_http`: uses `/api/sdk/v1/*` endpoints
 - `mcp`: uses JSON-RPC `/api/mcp`
 
+For the canonical SDK HTTP contracts (envelopes, status codes, and route list), see [SDK endpoint contract](/docs/sdk/endpoint-contract).
+
 ### `client.context.get(input?)`
 
 Fetch rules and relevant memories with explicit runtime scope controls.
@@ -193,6 +195,15 @@ const context = await client.context.get({
   mode: "working",
 })
 ```
+
+## Management APIs
+
+When you manage API keys or tenant mappings programmatically, prefer the SDK management endpoints:
+
+- `/api/sdk/v1/management/keys`
+- `/api/sdk/v1/management/tenants`
+
+Legacy MCP management routes (`/api/mcp/key`, `/api/mcp/tenants`) remain available for backward compatibility.
 
 For single-user apps, `tenantId` can be your app environment or workspace id:
 

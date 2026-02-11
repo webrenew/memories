@@ -1,0 +1,110 @@
+---
+title: SDK Endpoint Contract
+description: Canonical HTTP routes, response envelope, and error model for SDK integrations.
+---
+
+The SDK HTTP surface is versioned under `/api/sdk/v1/*` and returns one stable response envelope for every endpoint.
+
+## Base URL
+
+Hosted base URL:
+
+```text
+https://memories.sh
+```
+
+Runtime endpoints:
+
+- `POST /api/sdk/v1/context/get`
+- `POST /api/sdk/v1/memories/add`
+- `POST /api/sdk/v1/memories/search`
+- `POST /api/sdk/v1/memories/list`
+- `POST /api/sdk/v1/memories/edit`
+- `POST /api/sdk/v1/memories/forget`
+- `GET /api/sdk/v1/health`
+
+Management endpoints:
+
+- `GET|POST|DELETE /api/sdk/v1/management/keys`
+- `GET|POST|DELETE /api/sdk/v1/management/tenants`
+
+Legacy management aliases still work:
+
+- `/api/mcp/key`
+- `/api/mcp/tenants`
+
+## Authentication
+
+Send your API key in the `Authorization` header:
+
+```http
+Authorization: Bearer mcp_xxx
+```
+
+## Canonical Response Envelope
+
+Success:
+
+```json
+{
+  "ok": true,
+  "data": {},
+  "error": null,
+  "meta": {
+    "version": "2026-02-11",
+    "endpoint": "/api/sdk/v1/context/get",
+    "requestId": "3a4f3fc2-24ea-4e9e-ac61-6f2807f39584",
+    "timestamp": "2026-02-11T12:00:00.000Z"
+  }
+}
+```
+
+Failure:
+
+```json
+{
+  "ok": false,
+  "data": null,
+  "error": {
+    "type": "validation_error",
+    "code": "INVALID_INPUT",
+    "message": "tenantId is required",
+    "status": 400,
+    "retryable": false,
+    "details": {
+      "field": "tenantId"
+    }
+  },
+  "meta": {
+    "version": "2026-02-11",
+    "endpoint": "/api/sdk/v1/memories/add",
+    "requestId": "8f2c34e5-2ed5-4a2f-92ea-c9d9faaf8db0",
+    "timestamp": "2026-02-11T12:00:00.000Z"
+  }
+}
+```
+
+## Error Types
+
+- `auth_error` (`401`, `403`)
+- `validation_error` (`400`)
+- `not_found_error` (`404`)
+- `rate_limit_error` (`429`)
+- `internal_error` (`500+`)
+- `unknown_error` (other statuses)
+
+## Scope Model
+
+All runtime endpoints accept request scope fields directly or through `scope`:
+
+- `tenantId`: route request to a tenant-mapped database
+- `userId`: enforce end-user memory isolation
+- `projectId`: narrow retrieval and writes to a project/repo
+
+If `tenantId` is omitted, the request uses the API key's default workspace database.
+
+## Compatibility Notes
+
+- SDK clients should prefer `transport: "sdk_http"` or `transport: "auto"`.
+- MCP JSON-RPC (`/api/mcp`) remains supported for MCP-native clients.
+- Breaking SDK HTTP changes will ship under a new route prefix (`/api/sdk/v2/*`).
