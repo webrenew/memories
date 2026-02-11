@@ -95,6 +95,26 @@ function setupAuth() {
   })
 }
 
+function getLastExecuteCall(): { sql: string; args?: unknown[] } {
+  const call = mockExecute.mock.calls.at(-1)?.[0] as { sql: string; args?: unknown[] } | undefined
+  if (!call) {
+    throw new Error("Expected Turso execute to be called")
+  }
+  return call
+}
+
+function getExecuteCallBySqlFragment(fragment: string): { sql: string; args?: unknown[] } {
+  const call = mockExecute.mock.calls.find((entry) => {
+    const sql = entry[0]?.sql
+    return typeof sql === "string" && sql.includes(fragment)
+  })?.[0] as { sql: string; args?: unknown[] } | undefined
+
+  if (!call) {
+    throw new Error(`Expected Turso execute call containing SQL fragment: ${fragment}`)
+  }
+  return call
+}
+
 describe("/api/mcp", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -281,13 +301,19 @@ describe("/api/mcp", () => {
 
     it("should include search results when query provided", async () => {
       setupAuth()
-      // First call: rules query
-      mockExecute.mockResolvedValueOnce({
-        rows: [{ id: "r1", content: "Always use strict mode", type: "rule", scope: "global", project_id: null }],
-      })
-      // Second call: FTS5 search
-      mockExecute.mockResolvedValueOnce({
-        rows: [{ id: "m1", content: "Auth uses JWT tokens", type: "fact", scope: "global", project_id: null, tags: null }],
+      mockExecute.mockImplementation(async (input: { sql: string } | string) => {
+        const sql = typeof input === "string" ? input : input.sql
+        if (sql.includes("WHERE type = 'rule'")) {
+          return {
+            rows: [{ id: "r1", content: "Always use strict mode", type: "rule", scope: "global", project_id: null }],
+          }
+        }
+        if (sql.includes("FROM memories_fts")) {
+          return {
+            rows: [{ id: "m1", content: "Auth uses JWT tokens", type: "fact", scope: "global", project_id: null, tags: null }],
+          }
+        }
+        return { rows: [] }
       })
 
       const response = await POST(makePostRequest(
@@ -417,7 +443,7 @@ describe("/api/mcp", () => {
       expect(body.result.content[0].text).toContain("Stored skill")
 
       // Verify serialized fields in SQL call
-      const callArgs = mockExecute.mock.calls[0][0].args
+      const callArgs = getExecuteCallBySqlFragment("INSERT INTO memories").args as unknown[]
       expect(callArgs).toContain("deploy,ci")      // tags joined
       expect(callArgs).toContain("src/api/**")      // paths joined
       expect(callArgs).toContain("devops")           // category
@@ -436,6 +462,21 @@ describe("/api/mcp", () => {
       ))
       const body = await response.json()
       expect(body.result.content[0].text).toContain("Stored note")
+    })
+
+    it("stores user_id when provided", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({})
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "add_memory",
+          arguments: { content: "User preference", user_id: "user-42" },
+        })
+      ))
+
+      const insertCall = getExecuteCallBySqlFragment("INSERT INTO memories")
+      expect(insertCall.args).toContain("user-42")
     })
   })
 
@@ -473,7 +514,7 @@ describe("/api/mcp", () => {
         })
       ))
 
-      const sql = mockExecute.mock.calls[0][0].sql as string
+      const sql = getExecuteCallBySqlFragment("UPDATE memories SET").sql
       expect(sql).toContain("type = ?")
     })
 
@@ -488,7 +529,7 @@ describe("/api/mcp", () => {
         })
       ))
 
-      const sql = mockExecute.mock.calls[0][0].sql as string
+      const sql = getExecuteCallBySqlFragment("UPDATE memories SET").sql
       expect(sql).not.toContain("type = ?")
     })
 
@@ -519,8 +560,24 @@ describe("/api/mcp", () => {
         })
       ))
 
-      const sql = mockExecute.mock.calls[0][0].sql as string
+      const sql = getExecuteCallBySqlFragment("UPDATE memories SET").sql
       expect(sql).toContain("deleted_at IS NULL")
+    })
+
+    it("constrains edits by user_id when provided", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({})
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "edit_memory",
+          arguments: { id: "abc123", content: "test", user_id: "user-42" },
+        })
+      ))
+
+      const call = getExecuteCallBySqlFragment("UPDATE memories SET")
+      expect(call.sql).toContain("AND user_id = ?")
+      expect(call.args).toContain("user-42")
     })
   })
 
@@ -558,7 +615,7 @@ describe("/api/mcp", () => {
         })
       ))
 
-      const sql = mockExecute.mock.calls[0][0].sql as string
+      const sql = getExecuteCallBySqlFragment("UPDATE memories SET deleted_at").sql
       expect(sql).toContain("deleted_at IS NULL")
     })
 
@@ -575,6 +632,22 @@ describe("/api/mcp", () => {
       expect(body.error).toBeDefined()
       expect(body.error.code).toBe(-32602)
       expect(body.error.data.code).toBe("MEMORY_ID_REQUIRED")
+    })
+
+    it("constrains deletes by user_id when provided", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({})
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "forget_memory",
+          arguments: { id: "abc123", user_id: "user-42" },
+        })
+      ))
+
+      const call = getExecuteCallBySqlFragment("UPDATE memories SET deleted_at")
+      expect(call.sql).toContain("AND user_id = ?")
+      expect(call.args).toContain("user-42")
     })
   })
 
@@ -621,13 +694,19 @@ describe("/api/mcp", () => {
 
     it("should fall back to LIKE when FTS5 fails", async () => {
       setupAuth()
-      // First call (FTS5) throws
-      mockExecute.mockRejectedValueOnce(new Error("no such table: memories_fts"))
-      // Second call (LIKE fallback) succeeds
-      mockExecute.mockResolvedValueOnce({
-        rows: [
-          { id: "m1", content: "Found via LIKE", type: "note", scope: "global", project_id: null, tags: null },
-        ],
+      mockExecute.mockImplementation(async (input: { sql: string } | string) => {
+        const sql = typeof input === "string" ? input : input.sql
+        if (sql.includes("FROM memories_fts")) {
+          throw new Error("no such table: memories_fts")
+        }
+        if (sql.includes("content LIKE ?")) {
+          return {
+            rows: [
+              { id: "m1", content: "Found via LIKE", type: "note", scope: "global", project_id: null, tags: null },
+            ],
+          }
+        }
+        return { rows: [] }
       })
 
       const response = await POST(makePostRequest(
@@ -656,8 +735,24 @@ describe("/api/mcp", () => {
       ))
 
       // FTS5 SQL should include type filter
-      const sql = mockExecute.mock.calls[0][0].sql as string
+      const sql = getExecuteCallBySqlFragment("FROM memories_fts").sql
       expect(sql).toContain("m.type = ?")
+    })
+
+    it("applies user scope filter when user_id is provided", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rows: [] })
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "search_memories",
+          arguments: { query: "auth", user_id: "user-42" },
+        })
+      ))
+
+      const call = getExecuteCallBySqlFragment("FROM memories_fts")
+      expect(call.sql).toContain("m.user_id IS NULL OR m.user_id = ?")
+      expect(call.args).toContain("user-42")
     })
   })
 
@@ -697,9 +792,9 @@ describe("/api/mcp", () => {
         })
       ))
 
-      const sql = mockExecute.mock.calls[0][0].sql as string
+      const sql = getLastExecuteCall().sql
       expect(sql).toContain("type = ?")
-      expect(mockExecute.mock.calls[0][0].args).toContain("rule")
+      expect(getLastExecuteCall().args).toContain("rule")
     })
 
     it("should filter by tags with LIKE escaping", async () => {
@@ -713,10 +808,10 @@ describe("/api/mcp", () => {
         })
       ))
 
-      const sql = mockExecute.mock.calls[0][0].sql as string
+      const sql = getLastExecuteCall().sql
       expect(sql).toContain("ESCAPE")
       // The % in "100%" should be escaped
-      const args = mockExecute.mock.calls[0][0].args as string[]
+      const args = getLastExecuteCall().args as string[]
       expect(args.some((a: string) => typeof a === "string" && a.includes("100\\%"))).toBe(true)
     })
 
@@ -731,7 +826,7 @@ describe("/api/mcp", () => {
         })
       ))
 
-      const sql = mockExecute.mock.calls[0][0].sql as string
+      const sql = getLastExecuteCall().sql
       expect(sql).toContain("project_id = ?")
     })
 
@@ -747,6 +842,37 @@ describe("/api/mcp", () => {
       ))
       const body = await response.json()
       expect(body.result.content[0].text).toBe("No memories found.")
+    })
+
+    it("defaults to shared memories only when user_id is absent", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rows: [] })
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "list_memories",
+          arguments: {},
+        })
+      ))
+
+      const sql = getLastExecuteCall().sql
+      expect(sql).toContain("user_id IS NULL")
+    })
+
+    it("includes shared + user memories when user_id is provided", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rows: [] })
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "list_memories",
+          arguments: { user_id: "user-42" },
+        })
+      ))
+
+      const call = getLastExecuteCall()
+      expect(call.sql).toContain("user_id IS NULL OR user_id = ?")
+      expect(call.args).toContain("user-42")
     })
   })
 
@@ -790,6 +916,19 @@ describe("/api/mcp", () => {
       const body = await response.json()
       expect(body.error.code).toBe(-32602)
       expect(body.error.data.code).toBe("TENANT_ID_INVALID")
+    })
+
+    it("returns typed error when user_id is invalid", async () => {
+      setupAuth()
+      const response = await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "get_rules",
+          arguments: { user_id: 42 },
+        })
+      ))
+      const body = await response.json()
+      expect(body.error.code).toBe(-32602)
+      expect(body.error.data.code).toBe("USER_ID_INVALID")
     })
 
     it("returns typed error when tenant database is not configured", async () => {

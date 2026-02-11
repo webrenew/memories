@@ -190,6 +190,7 @@ interface MemoryRow {
   type: string
   scope: string
   project_id: string | null
+  user_id: string | null
   tags: string | null
   paths: string | null
   category: string | null
@@ -377,6 +378,28 @@ function parseTenantId(args: Record<string, unknown>): string | null {
   return args.tenant_id.trim()
 }
 
+function parseUserId(args: Record<string, unknown>): string | null {
+  if (args.user_id === undefined || args.user_id === null) {
+    return null
+  }
+
+  if (typeof args.user_id !== "string" || args.user_id.trim().length === 0) {
+    throw new ToolExecutionError(
+      apiError({
+        type: "validation_error",
+        code: "USER_ID_INVALID",
+        message: "user_id must be a non-empty string",
+        status: 400,
+        retryable: false,
+        details: { field: "user_id" },
+      }),
+      { rpcCode: -32602 }
+    )
+  }
+
+  return args.user_id.trim()
+}
+
 async function resolveTenantTurso(
   apiKeyHash: string,
   tenantId: string
@@ -444,6 +467,23 @@ function formatMemory(m: MemoryRow): string {
   return `[${m.type}] ${truncate(m.content)} (${scope})${tags}`
 }
 
+function buildUserScopeFilter(
+  userId: string | null,
+  columnPrefix = ""
+): { clause: string; args: string[] } {
+  const userColumn = `${columnPrefix}user_id`
+  if (userId) {
+    return {
+      clause: `(${userColumn} IS NULL OR ${userColumn} = ?)`,
+      args: [userId],
+    }
+  }
+  return {
+    clause: `${userColumn} IS NULL`,
+    args: [],
+  }
+}
+
 function parseList(value: string | null | undefined): string[] {
   if (!value) return []
   return value
@@ -487,21 +527,47 @@ interface ToolExecutionResult {
 }
 
 // Full SELECT columns for memory queries
-const MEMORY_COLUMNS = "id, content, type, scope, project_id, tags, paths, category, metadata, created_at, updated_at"
-const MEMORY_COLUMNS_ALIASED = "m.id, m.content, m.type, m.scope, m.project_id, m.tags, m.paths, m.category, m.metadata, m.created_at, m.updated_at"
+const MEMORY_COLUMNS =
+  "id, content, type, scope, project_id, user_id, tags, paths, category, metadata, created_at, updated_at"
+const MEMORY_COLUMNS_ALIASED =
+  "m.id, m.content, m.type, m.scope, m.project_id, m.user_id, m.tags, m.paths, m.category, m.metadata, m.created_at, m.updated_at"
 
 // Valid memory types for server-side validation
 const VALID_TYPES = new Set(["rule", "decision", "fact", "note", "skill"])
+
+const userIdSchemaEnsuredClients = new WeakSet<ReturnType<typeof createTurso>>()
+
+async function ensureMemoryUserIdSchema(turso: ReturnType<typeof createTurso>): Promise<void> {
+  if (userIdSchemaEnsuredClients.has(turso)) {
+    return
+  }
+
+  try {
+    await turso.execute("ALTER TABLE memories ADD COLUMN user_id TEXT")
+  } catch (err) {
+    const message = err instanceof Error ? err.message.toLowerCase() : ""
+    if (!message.includes("duplicate column name")) {
+      throw err
+    }
+  }
+
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memories_user_scope_project ON memories(user_id, scope, project_id)"
+  )
+  userIdSchemaEnsuredClients.add(turso)
+}
 
 // FTS5 search with LIKE fallback
 async function searchWithFts(
   turso: ReturnType<typeof createTurso>,
   query: string,
   projectId: string | undefined,
+  userId: string | null,
   limit: number,
   options?: { excludeType?: string; includeType?: string }
 ): Promise<MemoryRow[]> {
   const { excludeType, includeType } = options ?? {}
+  const userFilter = buildUserScopeFilter(userId, "m.")
 
   // Try FTS5 first
   try {
@@ -520,6 +586,7 @@ async function searchWithFts(
       ? `AND (m.scope = 'global' OR (m.scope = 'project' AND m.project_id = ?))`
       : `AND m.scope = 'global'`
     if (projectId) ftsArgs.push(projectId)
+    ftsArgs.push(...userFilter.args)
     ftsArgs.push(limit)
 
     const ftsResult = await turso.execute({
@@ -527,7 +594,7 @@ async function searchWithFts(
             FROM memories_fts fts
             JOIN memories m ON m.rowid = fts.rowid
             WHERE memories_fts MATCH ? AND m.deleted_at IS NULL
-            ${typeFilter} ${projectFilter}
+            ${typeFilter} ${projectFilter} AND ${userFilter.clause}
             ORDER BY bm25(memories_fts) LIMIT ?`,
       args: ftsArgs,
     })
@@ -551,6 +618,10 @@ async function searchWithFts(
     sqlArgs.push(includeType)
   }
 
+  const fallbackUserFilter = buildUserScopeFilter(userId)
+  sql += ` AND ${fallbackUserFilter.clause}`
+  sqlArgs.push(...fallbackUserFilter.args)
+
   sql += ` AND (scope = 'global'`
   if (projectId) {
     sql += ` OR (scope = 'project' AND project_id = ?)`
@@ -570,6 +641,7 @@ async function executeTool(
   turso: ReturnType<typeof createTurso>
 ): Promise<ToolExecutionResult> {
   const projectId = args.project_id as string | undefined
+  const userId = parseUserId(args)
 
   switch (toolName) {
     case "get_context": {
@@ -583,7 +655,9 @@ async function executeTool(
         rulesSql += ` OR (scope = 'project' AND project_id = ?)`
         rulesArgs.push(projectId)
       }
-      rulesSql += `) ORDER BY scope DESC, created_at DESC`
+      const userFilter = buildUserScopeFilter(userId)
+      rulesSql += `) AND ${userFilter.clause} ORDER BY scope DESC, created_at DESC`
+      rulesArgs.push(...userFilter.args)
 
       const rulesResult = await turso.execute({ sql: rulesSql, args: rulesArgs })
       
@@ -604,7 +678,9 @@ async function executeTool(
       let relevantMemories: MemoryRow[] = []
       if (args.query) {
         const limit = (args.limit as number) || 5
-        relevantMemories = await searchWithFts(turso, args.query as string, projectId, limit, { excludeType: "rule" })
+        relevantMemories = await searchWithFts(turso, args.query as string, projectId, userId, limit, {
+          excludeType: "rule",
+        })
         if (relevantMemories.length > 0) {
           output += `\n\n## Relevant Memories\n${relevantMemories.map(m => `- ${formatMemory(m)}`).join("\n")}`
         }
@@ -628,7 +704,9 @@ async function executeTool(
         sql += ` OR (scope = 'project' AND project_id = ?)`
         sqlArgs.push(projectId)
       }
-      sql += `) ORDER BY scope DESC, created_at DESC`
+      const userFilter = buildUserScopeFilter(userId)
+      sql += `) AND ${userFilter.clause} ORDER BY scope DESC, created_at DESC`
+      sqlArgs.push(...userFilter.args)
 
       const result = await turso.execute({ sql, args: sqlArgs })
 
@@ -687,9 +765,9 @@ async function executeTool(
       const metadata = args.metadata ? JSON.stringify(args.metadata) : null
 
       await turso.execute({
-        sql: `INSERT INTO memories (id, content, type, scope, project_id, tags, paths, category, metadata, created_at, updated_at) 
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [memoryId, content, type, scope, projectId || null, tags, paths, category, metadata, now, now],
+        sql: `INSERT INTO memories (id, content, type, scope, project_id, user_id, tags, paths, category, metadata, created_at, updated_at) 
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [memoryId, content, type, scope, projectId || null, userId, tags, paths, category, metadata, now, now],
       })
 
       const scopeLabel = projectId ? `project:${projectId.split("/").pop()}` : "global"
@@ -700,6 +778,7 @@ async function executeTool(
         type,
         scope,
         project_id: projectId || null,
+        user_id: userId,
         tags,
         paths,
         category,
@@ -762,10 +841,15 @@ async function executeTool(
         updateArgs.push(args.metadata ? JSON.stringify(args.metadata) : null)
       }
 
-      updateArgs.push(id)
+      const whereArgs: (string | null)[] = [id]
+      if (userId) {
+        whereArgs.push(userId)
+      }
       await turso.execute({
-        sql: `UPDATE memories SET ${updates.join(", ")} WHERE id = ? AND deleted_at IS NULL`,
-        args: updateArgs,
+        sql: `UPDATE memories SET ${updates.join(", ")} WHERE id = ? AND deleted_at IS NULL${
+          userId ? " AND user_id = ?" : " AND user_id IS NULL"
+        }`,
+        args: [...updateArgs, ...whereArgs],
       })
 
       const message = `Updated memory ${id}`
@@ -797,8 +881,10 @@ async function executeTool(
 
       const now = new Date().toISOString()
       await turso.execute({
-        sql: `UPDATE memories SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL`,
-        args: [now, id],
+        sql: `UPDATE memories SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL${
+          userId ? " AND user_id = ?" : " AND user_id IS NULL"
+        }`,
+        args: userId ? [now, id, userId] : [now, id],
       })
 
       const message = `Deleted memory ${id}`
@@ -830,7 +916,7 @@ async function executeTool(
       }
       const includeType = args.type && VALID_TYPES.has(args.type as string) ? (args.type as string) : undefined
 
-      const results = await searchWithFts(turso, query, projectId, limit, { includeType })
+      const results = await searchWithFts(turso, query, projectId, userId, limit, { includeType })
 
       if (results.length === 0) {
         return {
@@ -856,6 +942,10 @@ async function executeTool(
       const limit = (args.limit as number) || 20
       let sql = `SELECT ${MEMORY_COLUMNS} FROM memories WHERE deleted_at IS NULL`
       const sqlArgs: (string | number)[] = []
+
+      const userFilter = buildUserScopeFilter(userId)
+      sql += ` AND ${userFilter.clause}`
+      sqlArgs.push(...userFilter.args)
 
       // Scope filter: global + project
       sql += ` AND (scope = 'global'`
@@ -930,6 +1020,7 @@ const TOOLS = [
       properties: {
         query: { type: "string", description: "What you're working on (for finding relevant memories)" },
         project_id: { type: "string", description: "Project identifier (e.g., github.com/user/repo) to include project-specific rules" },
+        user_id: { type: "string", description: "User identifier for scoped recall (includes shared + user-specific memories)" },
         tenant_id: { type: "string", description: "Tenant identifier to route requests to a tenant-specific memory database" },
         limit: { type: "number", description: "Max memories to return (default: 5)" },
       },
@@ -942,6 +1033,7 @@ const TOOLS = [
       type: "object",
       properties: {
         project_id: { type: "string", description: "Project identifier to include project-specific rules" },
+        user_id: { type: "string", description: "User identifier for scoped recall (includes shared + user-specific memories)" },
         tenant_id: { type: "string", description: "Tenant identifier to route requests to a tenant-specific memory database" },
       },
     },
@@ -955,6 +1047,7 @@ const TOOLS = [
         content: { type: "string", description: "The memory content" },
         type: { type: "string", enum: ["rule", "decision", "fact", "note", "skill"], description: "Memory type (default: note)" },
         project_id: { type: "string", description: "Project identifier to scope this memory to a specific project" },
+        user_id: { type: "string", description: "User identifier to store this memory as user-scoped data" },
         tenant_id: { type: "string", description: "Tenant identifier to route requests to a tenant-specific memory database" },
         tags: { type: "array", items: { type: "string" }, description: "Optional tags for organization and filtering" },
         paths: { type: "array", items: { type: "string" }, description: "File glob patterns this memory applies to (e.g., ['src/**/*.ts'])" },
@@ -977,6 +1070,7 @@ const TOOLS = [
         paths: { type: "array", items: { type: "string" }, description: "New file glob patterns (optional)" },
         category: { type: "string", description: "New category (optional)" },
         metadata: { type: "object", description: "New metadata (optional)" },
+        user_id: { type: "string", description: "User identifier; edits are constrained to this user's memories" },
         tenant_id: { type: "string", description: "Tenant identifier to route requests to a tenant-specific memory database" },
       },
       required: ["id"],
@@ -989,6 +1083,7 @@ const TOOLS = [
       type: "object",
       properties: {
         id: { type: "string", description: "Memory ID to delete" },
+        user_id: { type: "string", description: "User identifier; deletes are constrained to this user's memories" },
         tenant_id: { type: "string", description: "Tenant identifier to route requests to a tenant-specific memory database" },
       },
       required: ["id"],
@@ -1002,6 +1097,7 @@ const TOOLS = [
       properties: {
         query: { type: "string", description: "Search query" },
         project_id: { type: "string", description: "Project identifier to include project-specific memories" },
+        user_id: { type: "string", description: "User identifier for scoped recall (includes shared + user-specific memories)" },
         tenant_id: { type: "string", description: "Tenant identifier to route requests to a tenant-specific memory database" },
         type: { type: "string", enum: ["rule", "decision", "fact", "note", "skill"], description: "Filter by memory type" },
         limit: { type: "number", description: "Max results (default: 10)" },
@@ -1018,6 +1114,7 @@ const TOOLS = [
         type: { type: "string", enum: ["rule", "decision", "fact", "note", "skill"], description: "Filter by type" },
         tags: { type: "string", description: "Filter by tag (partial match)" },
         project_id: { type: "string", description: "Project identifier to include project-specific memories" },
+        user_id: { type: "string", description: "User identifier for scoped recall (includes shared + user-specific memories)" },
         tenant_id: { type: "string", description: "Tenant identifier to route requests to a tenant-specific memory database" },
         limit: { type: "number", description: "Max results (default: 20)" },
       },
@@ -1208,6 +1305,7 @@ export async function POST(request: NextRequest) {
           const toolTurso = tenantId
             ? await resolveTenantTurso(apiKeyHash, tenantId)
             : turso
+          await ensureMemoryUserIdSchema(toolTurso)
           result = await executeTool(toolName, args, toolTurso)
         } catch (err) {
           const toolError = toToolExecutionError(err, typeof toolName === "string" ? toolName : undefined)
