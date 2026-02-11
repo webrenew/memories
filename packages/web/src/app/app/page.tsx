@@ -46,6 +46,7 @@ export default async function MemoriesPage() {
   }
 
   const ruleCount = memories.filter(m => m.type === "rule").length
+  const workspaceKey = `${context?.ownerType ?? "user"}:${context?.orgId ?? user.id}`
 
   return (
     <div className="space-y-8">
@@ -60,7 +61,7 @@ export default async function MemoriesPage() {
           </p>
         </div>
       ) : (
-        <MemoriesSection initialMemories={memories} />
+        <MemoriesSection key={workspaceKey} initialMemories={memories} />
       )}
     </div>
   )
