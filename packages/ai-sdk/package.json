@@ -1,6 +1,6 @@
 {
   "name": "@memories.sh/ai-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI SDK middleware and tools for memories.sh",
   "type": "module",
   "license": "Apache-2.0",
