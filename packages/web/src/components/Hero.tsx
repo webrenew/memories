@@ -2,33 +2,17 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
-import Image from "next/image";
 import dynamic from "next/dynamic";
 import { ScrambleText } from "./animations/ScrambleText";
+import { ToolLogo } from "./ui/tool-logo";
+import { MARQUEE_TOOLS } from "@/lib/tools";
 
 const ShaderBackground = dynamic(
   () => import("./ShaderBackground").then((mod) => mod.ShaderBackground),
   { ssr: false }
 );
 
-const tools = [
-  { name: "Cursor", logo: "/logos/cursor.svg" },
-  { name: "Claude Code", logo: "/logos/claude-code.svg" },
-  { name: "Copilot", logo: "/logos/copilot.svg" },
-  { name: "Windsurf", logo: "/logos/windsurf.svg" },
-  { name: "Cline", logo: "/logos/cline.svg" },
-  { name: "Codex", logo: "/logos/codex.svg" },
-  { name: "Gemini", logo: "/logos/gemini.svg" },
-  { name: "Roo", logo: "/logos/roo.svg" },
-  { name: "OpenCode", logo: "/logos/opencode.svg" },
-  { name: "Kilo", logo: "/logos/kilo.svg" },
-  { name: "Amp", logo: "/logos/amp.svg" },
-  { name: "Trae", logo: "/logos/trae.svg" },
-  { name: "Goose", logo: "/logos/goose.svg" },
-  { name: "Blackbox", logo: "/logos/blackbox.svg" },
-];
-
-const marqueeTools = [...tools, ...tools, ...tools];
+const marqueeTools = [...MARQUEE_TOOLS, ...MARQUEE_TOOLS, ...MARQUEE_TOOLS];
 
 const MemoryStream = () => {
   const [memories, setMemories] = useState<Array<{ id: number; hash: string; addr: string; status: string }>>([]);
@@ -291,13 +275,7 @@ export function Hero() {
                     key={`${tool.name}-${index}`}
                     className="flex shrink-0 items-center px-6 opacity-70 hover:opacity-100 transition-opacity duration-300"
                   >
-                    <Image
-                      src={tool.logo}
-                      alt={tool.name}
-                      width={56}
-                      height={56}
-                      className="w-14 h-14 opacity-90 dark:invert-0 invert"
-                    />
+                    <ToolLogo src={tool.logo} alt={tool.name} size="lg" className="opacity-90" />
                   </div>
                 ))}
               </div>

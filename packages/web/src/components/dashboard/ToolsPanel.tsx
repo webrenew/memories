@@ -1,15 +1,8 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
-
-const TOOLS = [
-  { name: "Cursor", logo: "/logos/cursor.svg", cmd: "cursor", file: ".cursor/rules/memories.mdc" },
-  { name: "Claude", logo: "/logos/claude-code.svg", cmd: "claude", file: "CLAUDE.md" },
-  { name: "Copilot", logo: "/logos/copilot.svg", cmd: "copilot", file: ".github/copilot-instructions.md" },
-  { name: "Windsurf", logo: "/logos/windsurf.svg", cmd: "windsurf", file: ".windsurf/rules/memories.md" },
-  { name: "Gemini", logo: "/logos/gemini.svg", cmd: "gemini", file: "GEMINI.md" },
-]
+import { ToolLogo } from "../ui/tool-logo"
+import { GENERATOR_TOOLS } from "@/lib/tools"
 
 export function ToolsPanel({ ruleCount }: { ruleCount: number }) {
   return (
@@ -31,19 +24,13 @@ export function ToolsPanel({ ruleCount }: { ruleCount: number }) {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-        {TOOLS.map((tool) => (
+        {GENERATOR_TOOLS.map((tool) => (
           <Link
             key={tool.cmd}
-            href={`/docs/integrations/${tool.cmd === "claude" ? "claude-code" : tool.cmd}`}
+            href={tool.docsUrl}
             className="group flex flex-col items-center gap-3 p-4 border border-border bg-card/5 hover:bg-card/20 hover:border-primary/30 transition-all"
           >
-            <Image
-              src={tool.logo}
-              alt={tool.name}
-              width={64}
-              height={64}
-              className="opacity-60 group-hover:opacity-100 transition-opacity"
-            />
+            <ToolLogo src={tool.logo} alt={tool.name} size="lg" className="opacity-60 group-hover:opacity-100 transition-opacity" />
             <div className="text-center">
               <p className="text-xs font-bold">{tool.name}</p>
               <p className="text-[9px] text-muted-foreground font-mono truncate max-w-[100px]">

@@ -1,25 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Image from "next/image";
+import { ToolLogo } from "./ui/tool-logo";
+import { MARQUEE_TOOLS } from "@/lib/tools";
 
-const tools = [
-  { name: "Claude Code", logo: "/logos/claude-code.svg" },
-  { name: "Cursor", logo: "/logos/cursor.svg" },
-  { name: "GitHub Copilot", logo: "/logos/copilot.svg" },
-  { name: "Windsurf", logo: "/logos/windsurf.svg" },
-  { name: "Gemini", logo: "/logos/gemini.svg" },
-  { name: "Codex", logo: "/logos/codex.svg" },
-  { name: "Roo", logo: "/logos/roo.svg" },
-  { name: "Cline", logo: "/logos/cline.svg" },
-  { name: "OpenCode", logo: "/logos/opencode.svg" },
-  { name: "Kilo", logo: "/logos/kilo.svg" },
-  { name: "Amp", logo: "/logos/amp.svg" },
-  { name: "Trae", logo: "/logos/trae.svg" },
-  { name: "Goose", logo: "/logos/goose.svg" },
-];
-
-const marqueeItems = [...tools, ...tools, ...tools];
+const marqueeItems = [...MARQUEE_TOOLS, ...MARQUEE_TOOLS, ...MARQUEE_TOOLS];
 
 export function TrustedBy() {
   return (
@@ -49,13 +34,7 @@ export function TrustedBy() {
                     key={`${tool.name}-${index}`}
                     className="flex shrink-0 items-center gap-2 px-5 lg:px-7 opacity-60 hover:opacity-100 transition-opacity duration-300"
                   >
-                    <Image
-                      src={tool.logo}
-                      alt={tool.name}
-                      width={16}
-                      height={16}
-                      className="opacity-70"
-                    />
+                    <ToolLogo src={tool.logo} alt={tool.name} size="xs" className="opacity-70" />
                     <span className="font-mono text-[11px] uppercase tracking-[0.05em] text-muted-foreground">
                       {tool.name}
                     </span>

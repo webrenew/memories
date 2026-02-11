@@ -1,60 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ScrambleText } from "./animations/ScrambleText";
+import { ToolLogo } from "./ui/tool-logo";
+import { TOOLS } from "@/lib/tools";
 
 export function Integrations() {
-  const adapters = [
-    {
-      name: "Claude Code",
-      logo: "/logos/claude-code.svg",
-      status: "Available",
-      desc: "Generates CLAUDE.md, path-scoped rules, skills, and settings.",
-      docsUrl: "/docs/integrations/claude-code",
-    },
-    {
-      name: "Cursor",
-      logo: "/logos/cursor.svg",
-      status: "Available",
-      desc: "Generates .cursor/rules/ with globs frontmatter and skills.",
-      docsUrl: "/docs/integrations/cursor",
-    },
-    {
-      name: "GitHub Copilot",
-      logo: "/logos/copilot.svg",
-      status: "Available",
-      desc: "Generates .github/copilot-instructions.md.",
-      docsUrl: "/docs/integrations/copilot",
-    },
-    {
-      name: "Windsurf",
-      logo: "/logos/windsurf.svg",
-      status: "Available",
-      desc: "Generates .windsurf/rules/memories.md.",
-      docsUrl: "/docs/integrations/windsurf",
-    },
-    {
-      name: "BLACKBOX CLI",
-      logo: "/logos/blackbox.svg",
-      status: "Available",
-      desc: "Connects to memories.sh through MCP for live context and memory writes.",
-      docsUrl: "/docs/integrations/blackbox",
-    },
-    {
-      name: "Gemini",
-      logo: "/logos/gemini.svg",
-      status: "Available",
-      desc: "Generates GEMINI.md for Google's coding agent.",
-      docsUrl: "/docs/integrations/gemini",
-    },
-    {
-      name: "Any MCP Client",
-      logo: "/logos/mcp.svg",
-      status: "Available",
-      desc: "7 tools at full CLI parity with FTS5 search. For v0, bolt.new, Lovable, and any MCP client.",
-      docsUrl: "/docs/integrations/mcp",
-    }
-  ];
-
     return (
       <section id="integrations" className="py-28 border-t border-border">
         <div className="w-full px-6 lg:px-16 xl:px-24">
@@ -72,8 +21,8 @@ export function Integrations() {
           </div>
   
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-            {adapters.map((a, idx) => (
-              <Link href={a.docsUrl} key={idx}>
+            {TOOLS.map((a) => (
+              <Link href={a.docsUrl} key={a.slug}>
                 <div className="p-8 lg:p-10 bg-card/20 flex flex-col items-start group hover:ring-1 hover:ring-primary/40 h-full cursor-pointer border border-border shadow-md dark:shadow-[0_16px_50px_rgba(0,0,0,0.35)] rounded-lg relative overflow-hidden">
                   {/* Background texture - visible on hover */}
                   <div
@@ -94,15 +43,9 @@ export function Integrations() {
                     {a.status}
                   </span>
                   
-                  {/* Icon - left aligned with headings */}
-                  <div className="h-14 mb-12 opacity-80 group-hover:opacity-100 relative z-10">
-                    {a.logo ? (
-                      <Image src={a.logo} alt={a.name} width={40} height={40} className="dark:invert-0 invert" />
-                    ) : (
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                        <path d="M4 17l6-6-6-6M12 19h8" />
-                      </svg>
-                    )}
+                  {/* Icon - consistent height across all logos */}
+                  <div className="flex items-center h-10 mb-12 opacity-80 group-hover:opacity-100 relative z-10">
+                    <ToolLogo src={a.logo} alt={a.name} size="md" />
                   </div>
                   
                   <h4 className="text-lg font-bold mb-3 tracking-tight text-foreground relative z-10">{a.name}</h4>
