@@ -153,6 +153,16 @@
     --ring: oklch(0.558 0.288 302.321);
   }
 
+  /* Fix fumadocs sidebar/toc columns growing past their intended width.
+     The default grid uses minmax(sidebar, 1fr) which lets sidebar expand
+     on wider viewports. Pin sidebar and toc to their CSS-var widths. */
+  #nd-docs-layout {
+    grid-template-columns:
+      var(--fd-sidebar-col, 0px)
+      minmax(0, 1fr)
+      auto !important;
+  }
+
   @layer base {
     * {
       @apply border-border outline-ring/50;
