@@ -1,16 +1,18 @@
 <svg fill="none" height="100" viewBox="0 0 100 100" width="100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Body -->
-  <path d="M50 8 C27 8 13 29 13 46 C13 63 27 79 38 83 L38 92 L46 92 L46 83 C46 83 50 85 54 83 L54 92 L62 92 L62 83 C75 79 88 63 88 46 C88 29 75 8 50 8Z" fill="#fff"/>
-  <!-- Left Claw -->
-  <path d="M17 38 C4 33 0 42 4 50 C8 58 17 54 21 46 C23 40 21 38 17 38Z" fill="#fff"/>
-  <!-- Right Claw -->
-  <path d="M83 38 C96 33 100 42 96 50 C92 58 83 54 79 46 C77 40 79 38 83 38Z" fill="#fff"/>
-  <!-- Antenna -->
-  <path d="M38 13 Q29 4 25 7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-  <path d="M62 13 Q71 4 75 7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-  <!-- Eyes -->
-  <circle cx="38" cy="29" r="5" fill="#000"/>
-  <circle cx="62" cy="29" r="5" fill="#000"/>
-  <circle cx="39" cy="28" r="2" fill="#fff"/>
-  <circle cx="63" cy="28" r="2" fill="#fff"/>
+  <g transform="translate(50,50) scale(0.35) translate(-50,-48)">
+    <!-- Body -->
+    <path d="M50 8 C27 8 13 29 13 46 C13 63 27 79 38 83 L38 92 L46 92 L46 83 C46 83 50 85 54 83 L54 92 L62 92 L62 83 C75 79 88 63 88 46 C88 29 75 8 50 8Z" fill="#fff"/>
+    <!-- Left Claw -->
+    <path d="M17 38 C4 33 0 42 4 50 C8 58 17 54 21 46 C23 40 21 38 17 38Z" fill="#fff"/>
+    <!-- Right Claw -->
+    <path d="M83 38 C96 33 100 42 96 50 C92 58 83 54 79 46 C77 40 79 38 83 38Z" fill="#fff"/>
+    <!-- Antenna -->
+    <path d="M38 13 Q29 4 25 7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    <path d="M62 13 Q71 4 75 7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    <!-- Eyes -->
+    <circle cx="38" cy="29" r="5" fill="#000"/>
+    <circle cx="62" cy="29" r="5" fill="#000"/>
+    <circle cx="39" cy="28" r="2" fill="#fff"/>
+    <circle cx="63" cy="28" r="2" fill="#fff"/>
+  </g>
 </svg>
