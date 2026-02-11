@@ -268,6 +268,8 @@ async function runMigrations(db: Client): Promise<void> {
     // Index might already exist
   }
 
+  await ensureGraphSchema(db);
+
   // Files table for syncing config files (.agents/, .cursor/, .claude/, etc.)
   await db.execute(
     `CREATE TABLE IF NOT EXISTS files (
@@ -295,4 +297,59 @@ async function runMigrations(db: Client): Promise<void> {
   } catch {
     // Index might already exist
   }
+}
+
+async function ensureGraphSchema(db: Client): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS graph_nodes (
+      id TEXT PRIMARY KEY,
+      node_type TEXT NOT NULL,
+      node_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      metadata TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  );
+
+  await db.execute(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_nodes_type_key
+     ON graph_nodes(node_type, node_key)`
+  );
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_graph_nodes_type ON graph_nodes(node_type)`);
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS graph_edges (
+      id TEXT PRIMARY KEY,
+      from_node_id TEXT NOT NULL,
+      to_node_id TEXT NOT NULL,
+      edge_type TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 1.0,
+      confidence REAL NOT NULL DEFAULT 1.0,
+      evidence_memory_id TEXT,
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  );
+
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_graph_edges_from_node_id ON graph_edges(from_node_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_graph_edges_to_node_id ON graph_edges(to_node_id)`);
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_graph_edges_type_from_node_id ON graph_edges(edge_type, from_node_id)`
+  );
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_graph_edges_expires_at ON graph_edges(expires_at)`);
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_node_links (
+      memory_id TEXT NOT NULL,
+      node_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (memory_id, node_id, role)
+    )`
+  );
+
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_node_links_node_id ON memory_node_links(node_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_node_links_memory_id ON memory_node_links(memory_id)`);
 }

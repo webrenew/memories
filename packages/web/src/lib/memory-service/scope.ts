@@ -202,6 +202,57 @@ export async function resolveTenantTurso(apiKeyHash: string, tenantId: string): 
 
 const userIdSchemaEnsuredClients = new WeakSet<TursoClient>()
 
+async function ensureGraphSchema(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS graph_nodes (
+      id TEXT PRIMARY KEY,
+      node_type TEXT NOT NULL,
+      node_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      metadata TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await turso.execute(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_nodes_type_key ON graph_nodes(node_type, node_key)"
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_nodes_type ON graph_nodes(node_type)")
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS graph_edges (
+      id TEXT PRIMARY KEY,
+      from_node_id TEXT NOT NULL,
+      to_node_id TEXT NOT NULL,
+      edge_type TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 1.0,
+      confidence REAL NOT NULL DEFAULT 1.0,
+      evidence_memory_id TEXT,
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_from_node_id ON graph_edges(from_node_id)")
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_to_node_id ON graph_edges(to_node_id)")
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_graph_edges_type_from_node_id ON graph_edges(edge_type, from_node_id)"
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_expires_at ON graph_edges(expires_at)")
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_node_links (
+      memory_id TEXT NOT NULL,
+      node_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (memory_id, node_id, role)
+    )`
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memory_node_links_node_id ON memory_node_links(node_id)")
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memory_node_links_memory_id ON memory_node_links(memory_id)")
+}
+
 export async function ensureMemoryUserIdSchema(turso: TursoClient): Promise<void> {
   if (userIdSchemaEnsuredClients.has(turso)) {
     return
@@ -249,5 +300,6 @@ export async function ensureMemoryUserIdSchema(turso: TursoClient): Promise<void
     "CREATE INDEX IF NOT EXISTS idx_memories_layer_scope_project ON memories(memory_layer, scope, project_id)"
   )
   await turso.execute("CREATE INDEX IF NOT EXISTS idx_memories_layer_expires ON memories(memory_layer, expires_at)")
+  await ensureGraphSchema(turso)
   userIdSchemaEnsuredClients.add(turso)
 }
