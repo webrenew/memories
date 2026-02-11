@@ -1,22 +1,16 @@
-<svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="lobster-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ff4d4d"/>
-      <stop offset="100%" stop-color="#991b1b"/>
-    </linearGradient>
-  </defs>
+<svg fill="none" height="100" viewBox="0 0 100 100" width="100" xmlns="http://www.w3.org/2000/svg">
   <!-- Body -->
-  <path d="M60 10 C30 10 15 35 15 55 C15 75 30 95 45 100 L45 110 L55 110 L55 100 C55 100 60 102 65 100 L65 110 L75 110 L75 100 C90 95 105 75 105 55 C105 35 90 10 60 10Z" fill="url(#lobster-gradient)"/>
+  <path d="M50 8 C27 8 13 29 13 46 C13 63 27 79 38 83 L38 92 L46 92 L46 83 C46 83 50 85 54 83 L54 92 L62 92 L62 83 C75 79 88 63 88 46 C88 29 75 8 50 8Z" fill="#fff"/>
   <!-- Left Claw -->
-  <path d="M20 45 C5 40 0 50 5 60 C10 70 20 65 25 55 C28 48 25 45 20 45Z" fill="url(#lobster-gradient)"/>
+  <path d="M17 38 C4 33 0 42 4 50 C8 58 17 54 21 46 C23 40 21 38 17 38Z" fill="#fff"/>
   <!-- Right Claw -->
-  <path d="M100 45 C115 40 120 50 115 60 C110 70 100 65 95 55 C92 48 95 45 100 45Z" fill="url(#lobster-gradient)"/>
+  <path d="M83 38 C96 33 100 42 96 50 C92 58 83 54 79 46 C77 40 79 38 83 38Z" fill="#fff"/>
   <!-- Antenna -->
-  <path d="M45 15 Q35 5 30 8" stroke="#ff4d4d" stroke-width="3" stroke-linecap="round"/>
-  <path d="M75 15 Q85 5 90 8" stroke="#ff4d4d" stroke-width="3" stroke-linecap="round"/>
+  <path d="M38 13 Q29 4 25 7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <path d="M62 13 Q71 4 75 7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
   <!-- Eyes -->
-  <circle cx="45" cy="35" r="6" fill="#050810"/>
-  <circle cx="75" cy="35" r="6" fill="#050810"/>
-  <circle cx="46" cy="34" r="2.5" fill="#00e5cc"/>
-  <circle cx="76" cy="34" r="2.5" fill="#00e5cc"/>
+  <circle cx="38" cy="29" r="5" fill="#000"/>
+  <circle cx="62" cy="29" r="5" fill="#000"/>
+  <circle cx="39" cy="28" r="2" fill="#fff"/>
+  <circle cx="63" cy="28" r="2" fill="#fff"/>
 </svg>
