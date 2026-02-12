@@ -1,0 +1,67 @@
+name: Starters Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: starters-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node-starters:
+    name: Node Starter (${{ matrix.starter }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - starter: nextjs
+            path: examples/nextjs-starter
+            smoke: |
+              npm run typecheck
+              npm run build
+          - starter: express
+            path: examples/express-starter
+            smoke: |
+              node --check src/memories-client.js
+              node --check src/server.js
+    defaults:
+      run:
+        working-directory: ${{ matrix.path }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Smoke test
+        run: ${{ matrix.smoke }}
+
+  python-starter:
+    name: Python Starter
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/python-starter
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Smoke test
+        run: |
+          python -m py_compile app.py
+          python -c "import app"

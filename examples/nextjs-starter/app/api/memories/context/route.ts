@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server"
 import { createMemoriesClient, toApiError } from "@/lib/memories"
-import type { ContextMode, ContextStrategy } from "@memories.sh/core"
+import type { ContextMode } from "@memories.sh/core"
 
-const allowedModes = new Set<ContextMode>(["all", "working", "long_term", "rules_only"])
-const allowedStrategies = new Set<ContextStrategy>(["baseline", "hybrid_graph"])
+const allowedModes: ContextMode[] = ["all", "working", "long_term", "rules_only"]
+const allowedStrategies = ["baseline", "hybrid_graph"] as const
+
+function isContextMode(value: string): value is ContextMode {
+  return allowedModes.includes(value as ContextMode)
+}
+
+function isStrategy(value: string): value is (typeof allowedStrategies)[number] {
+  return allowedStrategies.includes(value as (typeof allowedStrategies)[number])
+}
 
 export async function GET(request: Request) {
   try {
@@ -43,14 +51,14 @@ export async function GET(request: Request) {
 
     const modeRaw = url.searchParams.get("mode")
     const mode: ContextMode =
-      modeRaw && allowedModes.has(modeRaw as ContextMode)
-        ? (modeRaw as ContextMode)
+      modeRaw && isContextMode(modeRaw)
+        ? modeRaw
         : "all"
 
     const strategyRaw = url.searchParams.get("strategy")
-    const strategy: ContextStrategy =
-      strategyRaw && allowedStrategies.has(strategyRaw as ContextStrategy)
-        ? (strategyRaw as ContextStrategy)
+    const strategy =
+      strategyRaw && isStrategy(strategyRaw)
+        ? strategyRaw
         : "baseline"
 
     const { client, scope } = createMemoriesClient({
@@ -62,10 +70,7 @@ export async function GET(request: Request) {
     const context = await client.context.get({
       query: q,
       mode,
-      strategy,
       limit,
-      graphDepth,
-      graphLimit,
       projectId: scope.projectId,
     })
 
@@ -73,7 +78,11 @@ export async function GET(request: Request) {
       ok: true,
       rules: context.rules,
       memories: context.memories,
-      trace: context.trace,
+      trace: {
+        requestedStrategy: strategy,
+        requestedGraphDepth: graphDepth,
+        requestedGraphLimit: graphLimit,
+      },
     })
   } catch (error) {
     const apiError = toApiError(error)

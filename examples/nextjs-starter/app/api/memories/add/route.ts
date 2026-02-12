@@ -2,7 +2,11 @@ import { NextResponse } from "next/server"
 import { createMemoriesClient, toApiError } from "@/lib/memories"
 import type { MemoryType } from "@memories.sh/core"
 
-const allowedTypes = new Set<MemoryType>(["rule", "decision", "fact", "note", "skill"])
+const allowedTypes: MemoryType[] = ["rule", "decision", "fact", "note", "skill"]
+
+function isMemoryType(value: string): value is MemoryType {
+  return allowedTypes.includes(value as MemoryType)
+}
 
 type AddPayload = {
   content?: unknown
@@ -33,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     const type: MemoryType =
-      typeof body.type === "string" && allowedTypes.has(body.type)
+      typeof body.type === "string" && isMemoryType(body.type)
         ? body.type
         : "note"
 

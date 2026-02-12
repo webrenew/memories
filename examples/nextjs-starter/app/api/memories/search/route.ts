@@ -2,8 +2,16 @@ import { NextResponse } from "next/server"
 import { createMemoriesClient, toApiError } from "@/lib/memories"
 import type { MemoryLayer, MemoryType } from "@memories.sh/core"
 
-const allowedTypes = new Set<MemoryType>(["rule", "decision", "fact", "note", "skill"])
-const allowedLayers = new Set<MemoryLayer>(["rule", "working", "long_term"])
+const allowedTypes: MemoryType[] = ["rule", "decision", "fact", "note", "skill"]
+const allowedLayers: MemoryLayer[] = ["rule", "working", "long_term"]
+
+function isMemoryType(value: string): value is MemoryType {
+  return allowedTypes.includes(value as MemoryType)
+}
+
+function isMemoryLayer(value: string): value is MemoryLayer {
+  return allowedLayers.includes(value as MemoryLayer)
+}
 
 export async function GET(request: Request) {
   try {
@@ -32,14 +40,14 @@ export async function GET(request: Request) {
 
     const typeRaw = url.searchParams.get("type")
     const type: MemoryType | undefined =
-      typeRaw && allowedTypes.has(typeRaw as MemoryType)
-        ? (typeRaw as MemoryType)
+      typeRaw && isMemoryType(typeRaw)
+        ? typeRaw
         : undefined
 
     const layerRaw = url.searchParams.get("layer")
     const layer: MemoryLayer | undefined =
-      layerRaw && allowedLayers.has(layerRaw as MemoryLayer)
-        ? (layerRaw as MemoryLayer)
+      layerRaw && isMemoryLayer(layerRaw)
+        ? layerRaw
         : undefined
 
     const { client, scope } = createMemoriesClient({

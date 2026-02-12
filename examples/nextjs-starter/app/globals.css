@@ -1,4 +1,6 @@
 :root {
+  --font-heading: "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-body: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --bg: #03040a;
   --panel: rgba(8, 10, 18, 0.88);
   --panel-soft: rgba(6, 8, 15, 0.7);
