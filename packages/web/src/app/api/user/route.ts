@@ -14,6 +14,17 @@ type UserProfileRow = {
   repo_workspace_routing_mode?: "auto" | "active_workspace" | null
 }
 
+type WorkspaceSwitchEventInput = {
+  userId: string
+  fromOrgId: string | null
+  toOrgId: string | null
+  durationMs: number
+  success: boolean
+  errorCode: string | null
+}
+
+type AdminClient = ReturnType<typeof createAdminClient>
+
 function isMissingColumnError(error: unknown, columnName: string): boolean {
   const message =
     typeof error === "object" && error !== null && "message" in error
@@ -25,6 +36,52 @@ function isMissingColumnError(error: unknown, columnName: string): boolean {
     message.includes(columnName.toLowerCase()) &&
     message.includes("does not exist")
   )
+}
+
+function isMissingTableError(error: unknown, tableName: string): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return message.includes(tableName.toLowerCase()) && message.includes("does not exist")
+}
+
+async function readCurrentOrgId(admin: AdminClient, userId: string): Promise<string | null> {
+  const { data, error } = await admin
+    .from("users")
+    .select("current_org_id")
+    .eq("id", userId)
+    .single()
+
+  if (error || !data) return null
+  return (data.current_org_id as string | null) ?? null
+}
+
+async function recordWorkspaceSwitchEvent(admin: AdminClient, event: WorkspaceSwitchEventInput): Promise<void> {
+  try {
+    const { error } = await admin.from("workspace_switch_events").insert({
+      user_id: event.userId,
+      from_org_id: event.fromOrgId,
+      to_org_id: event.toOrgId,
+      duration_ms: Math.max(0, Math.floor(event.durationMs)),
+      success: event.success,
+      source: "dashboard",
+      error_code: event.errorCode,
+    })
+
+    if (error) {
+      if (isMissingTableError(error, "workspace_switch_events")) {
+        return
+      }
+      console.warn("Failed to record workspace switch event:", error)
+    }
+  } catch (error) {
+    if (isMissingTableError(error, "workspace_switch_events")) {
+      return
+    }
+    console.warn("Workspace switch telemetry insert failed:", error)
+  }
 }
 
 export async function GET(request: Request) {
@@ -94,25 +151,45 @@ export async function PATCH(request: Request) {
     updates.repo_workspace_routing_mode = parsed.data.repo_workspace_routing_mode
   }
 
-  if (parsed.data.current_org_id !== undefined) {
-    if (parsed.data.current_org_id === null) {
+  const switchRequested = parsed.data.current_org_id !== undefined
+  const switchStartedAt = switchRequested ? Date.now() : null
+  const switchFromOrgId = switchRequested ? await readCurrentOrgId(admin, auth.userId) : null
+  const switchToOrgId = switchRequested
+    ? (parsed.data.current_org_id as string | null)
+    : null
+
+  if (switchRequested) {
+    const nextOrgId = parsed.data.current_org_id
+
+    if (nextOrgId == null) {
       updates.current_org_id = null
-    } else {
+    } else if (typeof nextOrgId === "string") {
       const { data: membership } = await admin
         .from("org_members")
         .select("id")
-        .eq("org_id", parsed.data.current_org_id)
+        .eq("org_id", nextOrgId)
         .eq("user_id", auth.userId)
         .single()
 
       if (!membership) {
+        if (switchStartedAt !== null) {
+          await recordWorkspaceSwitchEvent(admin, {
+            userId: auth.userId,
+            fromOrgId: switchFromOrgId,
+            toOrgId: switchToOrgId,
+            durationMs: Date.now() - switchStartedAt,
+            success: false,
+            errorCode: "membership_denied",
+          })
+        }
+
         return NextResponse.json(
           { error: "You are not a member of that organization" },
           { status: 403 }
         )
       }
 
-      updates.current_org_id = parsed.data.current_org_id
+      updates.current_org_id = nextOrgId
     }
   }
 
@@ -126,8 +203,30 @@ export async function PATCH(request: Request) {
     .eq("id", auth.userId)
 
   if (error) {
+    if (switchStartedAt !== null) {
+      await recordWorkspaceSwitchEvent(admin, {
+        userId: auth.userId,
+        fromOrgId: switchFromOrgId,
+        toOrgId: switchToOrgId,
+        durationMs: Date.now() - switchStartedAt,
+        success: false,
+        errorCode: "update_failed",
+      })
+    }
+
     console.error("User update error:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (switchStartedAt !== null) {
+    await recordWorkspaceSwitchEvent(admin, {
+      userId: auth.userId,
+      fromOrgId: switchFromOrgId,
+      toOrgId: switchToOrgId,
+      durationMs: Date.now() - switchStartedAt,
+      success: true,
+      errorCode: null,
+    })
   }
 
   return NextResponse.json({ ok: true })

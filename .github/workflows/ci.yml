@@ -80,6 +80,26 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+  workspace-switch-budgets:
+    name: Workspace Switch Budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Enforce workspace-switch p50/p95 budgets
+        run: pnpm --filter @memories.sh/web test src/lib/workspace-switch-performance.test.ts
+
   sdk-contracts:
     name: SDK Contracts
     runs-on: ubuntu-latest
@@ -102,7 +122,7 @@ jobs:
 
   build:
     name: Build
-    needs: [docs-guard, lint, typecheck, test, sdk-contracts]
+    needs: [docs-guard, lint, typecheck, test, workspace-switch-budgets, sdk-contracts]
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_SUPABASE_URL: placeholder

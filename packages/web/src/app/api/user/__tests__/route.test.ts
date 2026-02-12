@@ -103,9 +103,20 @@ describe("/api/user", () => {
 
         if (table === "users") {
           return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { current_org_id: null }, error: null }),
+              }),
+            }),
             update: vi.fn().mockReturnValue({
               eq: vi.fn().mockResolvedValue({ error: null }),
             }),
+          }
+        }
+
+        if (table === "workspace_switch_events") {
+          return {
+            insert: vi.fn().mockResolvedValue({ error: null }),
           }
         }
 
@@ -122,6 +133,7 @@ describe("/api/user", () => {
       const mockUpdate = vi.fn().mockReturnValue({
         eq: vi.fn().mockResolvedValue({ error: null }),
       })
+      const mockInsertSwitchEvent = vi.fn().mockResolvedValue({ error: null })
 
       mockAdminFrom.mockImplementation((table: string) => {
         if (table === "org_members") {
@@ -138,8 +150,17 @@ describe("/api/user", () => {
 
         if (table === "users") {
           return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { current_org_id: null }, error: null }),
+              }),
+            }),
             update: mockUpdate,
           }
+        }
+
+        if (table === "workspace_switch_events") {
+          return { insert: mockInsertSwitchEvent }
         }
 
         return {}
@@ -151,6 +172,14 @@ describe("/api/user", () => {
       expect(response.status).toBe(200)
       expect(body.ok).toBe(true)
       expect(mockUpdate).toHaveBeenCalledWith({ current_org_id: "org-1" })
+      expect(mockInsertSwitchEvent).toHaveBeenCalledTimes(1)
+      expect(mockInsertSwitchEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: "user-1",
+          to_org_id: "org-1",
+          success: true,
+        })
+      )
     })
 
     it("allows clearing current_org_id", async () => {
@@ -159,10 +188,21 @@ describe("/api/user", () => {
       const mockUpdate = vi.fn().mockReturnValue({
         eq: vi.fn().mockResolvedValue({ error: null }),
       })
+      const mockInsertSwitchEvent = vi.fn().mockResolvedValue({ error: null })
 
       mockAdminFrom.mockImplementation((table: string) => {
         if (table === "users") {
-          return { update: mockUpdate }
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { current_org_id: "org-1" }, error: null }),
+              }),
+            }),
+            update: mockUpdate,
+          }
+        }
+        if (table === "workspace_switch_events") {
+          return { insert: mockInsertSwitchEvent }
         }
         return {}
       })
@@ -170,6 +210,15 @@ describe("/api/user", () => {
       const response = await PATCH(makePatchRequest({ current_org_id: null }))
       expect(response.status).toBe(200)
       expect(mockUpdate).toHaveBeenCalledWith({ current_org_id: null })
+      expect(mockInsertSwitchEvent).toHaveBeenCalledTimes(1)
+      expect(mockInsertSwitchEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: "user-1",
+          from_org_id: "org-1",
+          to_org_id: null,
+          success: true,
+        })
+      )
     })
 
     it("updates repo workspace routing mode", async () => {

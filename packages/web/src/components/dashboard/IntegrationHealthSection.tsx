@@ -18,6 +18,15 @@ function percent(value: number | null): string {
   return `${(value * 100).toFixed(1)}%`
 }
 
+function workspaceSwitchLatency(health: IntegrationHealthPayload): string {
+  if (health.workspaceSwitch.status === "unavailable") return "unavailable"
+  if (health.workspaceSwitch.status === "insufficient_data") {
+    return `insufficient data (${health.workspaceSwitch.successCount}/${health.workspaceSwitch.budgets.minSamples})`
+  }
+  if (health.workspaceSwitch.p50Ms === null || health.workspaceSwitch.p95Ms === null) return "n/a"
+  return `${health.workspaceSwitch.p50Ms}ms / ${health.workspaceSwitch.p95Ms}ms`
+}
+
 export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSectionProps) {
   const [health, setHealth] = useState<IntegrationHealthPayload | null>(initialHealth)
   const [loading, setLoading] = useState(false)
@@ -66,6 +75,10 @@ export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSec
       {
         label: "Fallback (24h)",
         value: percent(health.graph.fallbackRate24h),
+      },
+      {
+        label: "Workspace Switch (p50/p95)",
+        value: workspaceSwitchLatency(health),
       },
     ]
   }, [health])
@@ -125,6 +138,19 @@ export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSec
           ) : (
             <p className="mt-4 text-xs text-emerald-400">All integration checks are healthy.</p>
           )}
+
+          {health.workspaceSwitch.alarms.length > 0 ? (
+            <div className="mt-4 border border-red-500/30 bg-red-500/10 px-3 py-3">
+              <p className="text-xs uppercase tracking-[0.14em] font-bold text-red-400">Workspace Switch Alerts</p>
+              <ul className="mt-2 space-y-1.5 text-xs text-red-100/90">
+                {health.workspaceSwitch.alarms.map((alarm) => (
+                  <li key={`${alarm.code}:${alarm.triggeredAt}`}>
+                    - {alarm.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </>
       )}
     </section>

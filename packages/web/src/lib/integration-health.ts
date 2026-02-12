@@ -1,6 +1,13 @@
 import { createClient as createTurso } from "@libsql/client"
 import { getGraphStatusPayload } from "@/lib/memory-service/graph/status"
 import { resolveWorkspaceContext, type WorkspaceContext } from "@/lib/workspace"
+import { createAdminClient } from "@/lib/supabase/admin"
+import {
+  WORKSPACE_SWITCH_BUDGETS,
+  emptyWorkspaceSwitchHealth,
+  evaluateWorkspaceSwitchPerformance,
+  type WorkspaceSwitchHealth,
+} from "@/lib/workspace-switch-performance"
 
 export interface IntegrationHealthPayload {
   status: "ok" | "degraded" | "error"
@@ -20,6 +27,7 @@ export interface IntegrationHealthPayload {
     hasDatabase: boolean
     canProvision: boolean
   }
+  workspaceSwitch: WorkspaceSwitchHealth
   database: {
     ok: boolean
     latencyMs: number | null
@@ -39,14 +47,28 @@ export interface IntegrationHealthPayload {
 }
 
 interface BuildIntegrationHealthInput {
-  admin: unknown
+  admin: ReturnType<typeof createAdminClient>
   userId: string
   email: string
 }
 
+interface WorkspaceSwitchEventRow {
+  duration_ms: number | null
+  success: boolean | null
+  created_at: string | null
+}
+
 function parseError(error: unknown): string {
   if (error instanceof Error) return error.message
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return String((error as { message?: unknown }).message ?? "Unknown error")
+  }
   return String(error)
+}
+
+function isMissingWorkspaceSwitchTableError(error: unknown): boolean {
+  const message = parseError(error).toLowerCase()
+  return message.includes("workspace_switch_events") && message.includes("does not exist")
 }
 
 async function scalarCount(
@@ -81,6 +103,54 @@ function workspaceLabel(workspace: WorkspaceContext): string {
   return "organization"
 }
 
+async function loadWorkspaceSwitchHealth(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  sampledAt: string
+): Promise<WorkspaceSwitchHealth> {
+  const since = new Date(
+    Date.parse(sampledAt) - WORKSPACE_SWITCH_BUDGETS.windowHours * 60 * 60 * 1000
+  ).toISOString()
+
+  const { data, error } = await admin
+    .from("workspace_switch_events")
+    .select("duration_ms, success, created_at")
+    .eq("user_id", userId)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(500)
+
+  if (error) {
+    if (isMissingWorkspaceSwitchTableError(error)) {
+      return emptyWorkspaceSwitchHealth(
+        "unavailable",
+        "workspace switch telemetry table is missing (run latest migration)",
+        { windowHours: WORKSPACE_SWITCH_BUDGETS.windowHours }
+      )
+    }
+    return emptyWorkspaceSwitchHealth("unavailable", parseError(error), {
+      windowHours: WORKSPACE_SWITCH_BUDGETS.windowHours,
+    })
+  }
+
+  const rows = (data ?? []) as WorkspaceSwitchEventRow[]
+  const events = rows
+    .map((row) => ({
+      durationMs: Number(row.duration_ms ?? 0),
+      success: Boolean(row.success),
+      createdAt: row.created_at ?? sampledAt,
+    }))
+    .filter((event) => Number.isFinite(event.durationMs) && event.durationMs >= 0)
+
+  return evaluateWorkspaceSwitchPerformance(events, {
+    nowIso: sampledAt,
+    windowHours: WORKSPACE_SWITCH_BUDGETS.windowHours,
+    minSamples: WORKSPACE_SWITCH_BUDGETS.minSamples,
+    p50BudgetMs: WORKSPACE_SWITCH_BUDGETS.p50Ms,
+    p95BudgetMs: WORKSPACE_SWITCH_BUDGETS.p95Ms,
+  })
+}
+
 export async function buildIntegrationHealthPayload(
   input: BuildIntegrationHealthInput
 ): Promise<IntegrationHealthPayload> {
@@ -107,6 +177,10 @@ export async function buildIntegrationHealthPayload(
         hasDatabase: false,
         canProvision: false,
       },
+      workspaceSwitch: emptyWorkspaceSwitchHealth(
+        "unavailable",
+        "workspace context unavailable"
+      ),
       database: {
         ok: false,
         latencyMs: null,
@@ -144,6 +218,7 @@ export async function buildIntegrationHealthPayload(
       hasDatabase: workspace.hasDatabase,
       canProvision: workspace.canProvision,
     },
+    workspaceSwitch: emptyWorkspaceSwitchHealth("unavailable", null),
     database: {
       ok: false,
       latencyMs: null,
@@ -160,6 +235,29 @@ export async function buildIntegrationHealthPayload(
       fallbackRate24h: null,
     },
     issues,
+  }
+
+  try {
+    payload.workspaceSwitch = await loadWorkspaceSwitchHealth(
+      input.admin,
+      input.userId,
+      sampledAt
+    )
+
+    if (payload.workspaceSwitch.status === "degraded") {
+      for (const alarm of payload.workspaceSwitch.alarms) {
+        issues.push(alarm.message)
+      }
+    } else if (
+      payload.workspaceSwitch.status === "unavailable" &&
+      payload.workspaceSwitch.error
+    ) {
+      issues.push(`Workspace switch telemetry unavailable: ${payload.workspaceSwitch.error}`)
+    }
+  } catch (error) {
+    const message = parseError(error)
+    payload.workspaceSwitch = emptyWorkspaceSwitchHealth("unavailable", message)
+    issues.push(`Workspace switch telemetry unavailable: ${message}`)
   }
 
   if (!workspace.hasDatabase || !workspace.turso_db_url || !workspace.turso_db_token) {
