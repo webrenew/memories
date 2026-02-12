@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/DashboardShell"
 import { resolveWorkspaceContext } from "@/lib/workspace"
 import type { OrgMembership } from "@/components/dashboard/WorkspaceSwitcher"
+import { autoJoinOrganizationsForEmails } from "@/lib/domain-auto-join"
 
 export const metadata = {
   title: "Dashboard",
@@ -18,6 +19,18 @@ export default async function AppLayout({
 
   if (!user) {
     redirect("/login")
+  }
+
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY && user.email) {
+    try {
+      await autoJoinOrganizationsForEmails({
+        userId: user.id,
+        emails: [user.email],
+      })
+    } catch (error) {
+      // Do not block dashboard render when background auto-join fails.
+      console.error("Dashboard auto-join failed:", error)
+    }
   }
 
   const [workspace, profile, membershipRows] = await Promise.all([

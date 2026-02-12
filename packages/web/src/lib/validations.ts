@@ -70,6 +70,8 @@ export const createOrgSchema = z.object({
 
 export const updateOrgSchema = z.object({
   name: z.string().trim().min(1, "Name is required").optional(),
+  domain_auto_join_enabled: z.boolean().optional(),
+  domain_auto_join_domain: z.string().trim().min(1, "Domain is required").nullable().optional(),
 })
 
 // --- Invites ---

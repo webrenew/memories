@@ -24,6 +24,15 @@ interface Organization {
   plan: string
   created_at: string
   role: string
+  domain_auto_join_enabled?: boolean | null
+  domain_auto_join_domain?: string | null
+}
+
+interface OrganizationDetails {
+  id: string
+  domain_auto_join_enabled?: boolean | null
+  domain_auto_join_domain?: string | null
+  updated_at?: string | null
 }
 
 interface Member {
@@ -84,7 +93,13 @@ export function TeamContent({
   })
   const [members, setMembers] = useState<Member[]>([])
   const [invites, setInvites] = useState<Invite[]>([])
+  const [orgDetails, setOrgDetails] = useState<OrganizationDetails | null>(null)
   const [loading, setLoading] = useState(false)
+  const [savingDomainSettings, setSavingDomainSettings] = useState(false)
+  const [domainAutoJoinEnabled, setDomainAutoJoinEnabled] = useState(false)
+  const [domainAutoJoinDomain, setDomainAutoJoinDomain] = useState("")
+  const [domainSettingsError, setDomainSettingsError] = useState<string | null>(null)
+  const [domainSettingsSuccess, setDomainSettingsSuccess] = useState<string | null>(null)
   const [showCreateOrg, setShowCreateOrg] = useState(false)
   const [showInvite, setShowInvite] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -101,15 +116,24 @@ export function TeamContent({
   }, [currentOrgId, organizations])
 
   const selectedOrg = organizations.find(o => o.id === selectedOrgId)
+  const selectedOrgRecord = orgDetails?.id === selectedOrgId && selectedOrg ? { ...selectedOrg, ...orgDetails } : selectedOrg
+  const selectedOrgRecordId = selectedOrgRecord?.id
+  const selectedOrgRecordDomainEnabled = selectedOrgRecord?.domain_auto_join_enabled
+  const selectedOrgRecordDomain = selectedOrgRecord?.domain_auto_join_domain
   const isOwner = selectedOrg?.role === "owner"
   const isAdmin = selectedOrg?.role === "admin" || isOwner
+  const domainSettingsDirty =
+    selectedOrgRecord !== undefined &&
+    (domainAutoJoinEnabled !== Boolean(selectedOrgRecord?.domain_auto_join_enabled) ||
+      domainAutoJoinDomain.trim().toLowerCase() !== (selectedOrgRecord?.domain_auto_join_domain ?? "").toLowerCase())
 
   async function fetchOrgData(orgId: string) {
     setLoading(true)
     try {
-      const [membersRes, invitesRes] = await Promise.all([
+      const [membersRes, invitesRes, orgRes] = await Promise.all([
         fetch(`/api/orgs/${orgId}/members`),
         fetch(`/api/orgs/${orgId}/invites`),
+        fetch(`/api/orgs/${orgId}`),
       ])
       
       if (membersRes.ok) {
@@ -125,6 +149,14 @@ export function TeamContent({
       } else {
         console.error("Failed to fetch invites:", invitesRes.status, await invitesRes.text())
       }
+
+      if (orgRes.ok) {
+        const data = await orgRes.json()
+        setOrgDetails(data.organization ?? null)
+      } else {
+        console.error("Failed to fetch organization:", orgRes.status, await orgRes.text())
+        setOrgDetails(null)
+      }
     } catch (error) {
       console.error("Error fetching org data:", error)
     } finally {
@@ -135,8 +167,18 @@ export function TeamContent({
   useEffect(() => {
     if (selectedOrgId) {
       fetchOrgData(selectedOrgId)
+    } else {
+      setOrgDetails(null)
     }
   }, [selectedOrgId])
+
+  useEffect(() => {
+    if (!selectedOrgRecordId) return
+    setDomainAutoJoinEnabled(Boolean(selectedOrgRecordDomainEnabled))
+    setDomainAutoJoinDomain(selectedOrgRecordDomain ?? "")
+    setDomainSettingsError(null)
+    setDomainSettingsSuccess(null)
+  }, [selectedOrgRecordId, selectedOrgRecordDomainEnabled, selectedOrgRecordDomain])
 
   async function createOrganization() {
     if (!newOrgName.trim()) return
@@ -208,6 +250,42 @@ export function TeamContent({
       }
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  async function saveDomainAutoJoinSettings() {
+    if (!selectedOrgId || !selectedOrgRecord) return
+
+    setSavingDomainSettings(true)
+    setDomainSettingsError(null)
+    setDomainSettingsSuccess(null)
+
+    try {
+      const res = await fetch(`/api/orgs/${selectedOrgId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          domain_auto_join_enabled: domainAutoJoinEnabled,
+          domain_auto_join_domain: domainAutoJoinDomain.trim() || null,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setDomainSettingsError(data.error || "Failed to update domain auto-join settings")
+        return
+      }
+
+      setOrgDetails(data.organization ?? null)
+      setDomainSettingsSuccess("Domain auto-join settings updated.")
+      if (selectedOrgId) {
+        fetchOrgData(selectedOrgId)
+      }
+    } catch (error) {
+      console.error("Failed to update domain auto-join settings:", error)
+      setDomainSettingsError("Failed to update settings. Please try again.")
+    } finally {
+      setSavingDomainSettings(false)
     }
   }
 
@@ -385,6 +463,69 @@ export function TeamContent({
 
               {/* Memory Migration — owners/admins only */}
               {isAdmin && <MemoryMigrationCard orgId={selectedOrg.id} />}
+
+              {isOwner && selectedOrgRecord && (
+                <div className="border border-border bg-card/20 p-4 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-semibold">Domain Auto-Join</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Allow anyone with your company email domain to join this organization as a member.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDomainAutoJoinEnabled((prev) => !prev)}
+                      className={`relative inline-flex h-6 w-11 items-center border transition-colors ${
+                        domainAutoJoinEnabled
+                          ? "bg-primary/20 border-primary/40"
+                          : "bg-muted/30 border-border"
+                      }`}
+                      aria-pressed={domainAutoJoinEnabled}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 bg-foreground transition-transform ${
+                          domainAutoJoinEnabled ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <label className="text-xs uppercase tracking-[0.16em] text-muted-foreground/70">
+                      Allowed Domain
+                    </label>
+                    <input
+                      type="text"
+                      value={domainAutoJoinDomain}
+                      onChange={(event) => setDomainAutoJoinDomain(event.target.value)}
+                      placeholder="company.com"
+                      className="w-full px-3 py-2 bg-muted/30 border border-border text-sm focus:outline-none focus:border-primary"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Users matching this domain can self-join on sign-in. New members count toward paid seats.
+                    </p>
+                  </div>
+
+                  {domainSettingsError ? (
+                    <p className="text-xs text-red-400">{domainSettingsError}</p>
+                  ) : null}
+                  {domainSettingsSuccess ? (
+                    <p className="text-xs text-emerald-400">{domainSettingsSuccess}</p>
+                  ) : null}
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={saveDomainAutoJoinSettings}
+                      disabled={!domainSettingsDirty || savingDomainSettings}
+                      className="px-3 py-1.5 bg-primary/10 border border-primary/30 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
+                    >
+                      {savingDomainSettings ? "Saving..." : "Save Domain Settings"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Invite Modal */}
               {showInvite && selectedOrgId && (

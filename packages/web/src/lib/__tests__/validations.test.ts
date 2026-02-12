@@ -242,6 +242,21 @@ describe("updateOrgSchema", () => {
     const result = updateOrgSchema.safeParse({ name: "Updated" })
     expect(result.success).toBe(true)
   })
+
+  it("should accept domain auto-join settings", () => {
+    const result = updateOrgSchema.safeParse({
+      domain_auto_join_enabled: true,
+      domain_auto_join_domain: "webrenew.io",
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("should accept clearing domain auto-join domain", () => {
+    const result = updateOrgSchema.safeParse({
+      domain_auto_join_domain: null,
+    })
+    expect(result.success).toBe(true)
+  })
 })
 
 describe("createInviteSchema", () => {

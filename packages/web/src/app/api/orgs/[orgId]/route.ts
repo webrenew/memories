@@ -2,6 +2,20 @@ import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, updateOrgSchema } from "@/lib/validations"
+import { normalizeOrgJoinDomain } from "@/lib/org-domain"
+
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return (
+    message.includes("column") &&
+    message.includes(columnName.toLowerCase()) &&
+    message.includes("does not exist")
+  )
+}
 
 // GET /api/orgs/[orgId] - Get organization details
 export async function GET(
@@ -75,10 +89,73 @@ export async function PATCH(
   const parsed = parseBody(updateOrgSchema, await request.json().catch(() => ({})))
   if (!parsed.success) return parsed.response
 
-  const updates: Record<string, string> = {}
+  const updates: Record<string, string | boolean | null> = {}
 
   if (parsed.data.name) {
     updates.name = parsed.data.name
+  }
+
+  const updatesDomainSettings =
+    parsed.data.domain_auto_join_enabled !== undefined ||
+    parsed.data.domain_auto_join_domain !== undefined
+
+  if (updatesDomainSettings && membership.role !== "owner") {
+    return NextResponse.json({ error: "Only the owner can manage domain auto-join" }, { status: 403 })
+  }
+
+  if (parsed.data.domain_auto_join_domain !== undefined) {
+    if (parsed.data.domain_auto_join_domain === null) {
+      updates.domain_auto_join_domain = null
+    } else {
+      const normalizedDomain = normalizeOrgJoinDomain(parsed.data.domain_auto_join_domain)
+      if (!normalizedDomain) {
+        return NextResponse.json({ error: "Enter a valid domain like company.com" }, { status: 400 })
+      }
+      updates.domain_auto_join_domain = normalizedDomain
+    }
+  }
+
+  if (parsed.data.domain_auto_join_enabled !== undefined) {
+    updates.domain_auto_join_enabled = parsed.data.domain_auto_join_enabled
+  }
+
+  if (updatesDomainSettings) {
+    const { data: currentOrg, error: currentOrgError } = await supabase
+      .from("organizations")
+      .select("domain_auto_join_enabled, domain_auto_join_domain")
+      .eq("id", orgId)
+      .single()
+
+    if (
+      currentOrgError &&
+      (isMissingColumnError(currentOrgError, "domain_auto_join_enabled") ||
+        isMissingColumnError(currentOrgError, "domain_auto_join_domain"))
+    ) {
+      return NextResponse.json(
+        { error: "Domain auto-join is not available yet. Run the latest database migration first." },
+        { status: 503 },
+      )
+    }
+
+    if (currentOrgError || !currentOrg) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 })
+    }
+
+    const finalEnabled =
+      typeof updates.domain_auto_join_enabled === "boolean"
+        ? updates.domain_auto_join_enabled
+        : Boolean(currentOrg.domain_auto_join_enabled)
+    const finalDomain =
+      typeof updates.domain_auto_join_domain === "string" || updates.domain_auto_join_domain === null
+        ? updates.domain_auto_join_domain
+        : currentOrg.domain_auto_join_domain
+
+    if (finalEnabled && (!finalDomain || String(finalDomain).trim().length === 0)) {
+      return NextResponse.json(
+        { error: "Set a domain before enabling domain auto-join" },
+        { status: 400 },
+      )
+    }
   }
 
   if (Object.keys(updates).length === 0) {
@@ -93,6 +170,21 @@ export async function PATCH(
     .single()
 
   if (error) {
+    if (
+      isMissingColumnError(error, "domain_auto_join_enabled") ||
+      isMissingColumnError(error, "domain_auto_join_domain")
+    ) {
+      return NextResponse.json(
+        { error: "Domain auto-join is not available yet. Run the latest database migration first." },
+        { status: 503 },
+      )
+    }
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: "That domain is already configured by another organization" },
+        { status: 409 },
+      )
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

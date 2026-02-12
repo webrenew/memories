@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { reconcileUserAccountByEmail } from "@/lib/account-reconciliation"
+import { autoJoinOrganizationsForEmails, extractUserEmails } from "@/lib/domain-auto-join"
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -19,10 +20,16 @@ export async function GET(request: Request) {
 
         if (user) {
           await reconcileUserAccountByEmail(user)
+          if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            await autoJoinOrganizationsForEmails({
+              userId: user.id,
+              emails: extractUserEmails(user),
+            })
+          }
         }
-      } catch (reconciliationError) {
-        // Do not block login on reconciliation failures.
-        console.error("Auth callback reconciliation failed:", reconciliationError)
+      } catch (postLoginError) {
+        // Do not block login on post-auth account hydration failures.
+        console.error("Auth callback post-login setup failed:", postLoginError)
       }
 
       return NextResponse.redirect(`${origin}${next}`)
