@@ -206,7 +206,12 @@ describe("getContextPayload graph retrieval integration", () => {
       })
     )
     expect(payload.data.trace.strategy).toBe("hybrid_graph")
+    expect(payload.data.trace.requestedStrategy).toBe("hybrid_graph")
+    expect(payload.data.trace.rolloutMode).toBe("canary")
+    expect(payload.data.trace.shadowExecuted).toBe(false)
     expect(payload.data.trace.graphExpandedCount).toBe(1)
+    expect(payload.data.trace.fallbackTriggered).toBe(false)
+    expect(payload.data.trace.fallbackReason).toBeNull()
     expect(payload.data.trace.totalCandidates).toBe(3)
   })
 
@@ -228,7 +233,46 @@ describe("getContextPayload graph retrieval integration", () => {
 
     expect(payload.data.memories.map((memory) => memory.id)).toEqual(["w1", "l-base"])
     expect(payload.data.trace.strategy).toBe("baseline")
+    expect(payload.data.trace.requestedStrategy).toBe("hybrid_graph")
+    expect(payload.data.trace.rolloutMode).toBe("off")
+    expect(payload.data.trace.shadowExecuted).toBe(false)
     expect(payload.data.trace.graphExpandedCount).toBe(0)
+    expect(payload.data.trace.fallbackTriggered).toBe(true)
+    expect(payload.data.trace.fallbackReason).toBe("feature_flag_disabled")
     expect(payload.data.trace.totalCandidates).toBe(2)
+  })
+
+  it("runs graph traversal in shadow mode without applying expansion", async () => {
+    const db = await setupDb("memories-queries-graph-shadow")
+    await seedGraphRetrievalFixture(db)
+    const { getContextPayload } = await loadQueriesModule(true)
+    const { setGraphRolloutConfig } = await import("./graph/rollout")
+
+    await setGraphRolloutConfig(db, {
+      mode: "shadow",
+      nowIso: "2026-02-11T10:30:00.000Z",
+      updatedBy: "test-user",
+    })
+
+    const payload = await getContextPayload({
+      turso: db,
+      userId: null,
+      nowIso: "2026-02-11T11:00:00.000Z",
+      query: "",
+      limit: 2,
+      retrievalStrategy: "hybrid_graph",
+      graphDepth: 1,
+      graphLimit: 2,
+    })
+
+    expect(payload.data.memories.map((memory) => memory.id)).toEqual(["w1", "l-base"])
+    expect(payload.data.trace.strategy).toBe("baseline")
+    expect(payload.data.trace.requestedStrategy).toBe("hybrid_graph")
+    expect(payload.data.trace.rolloutMode).toBe("shadow")
+    expect(payload.data.trace.shadowExecuted).toBe(true)
+    expect(payload.data.trace.graphCandidates).toBeGreaterThanOrEqual(1)
+    expect(payload.data.trace.graphExpandedCount).toBe(0)
+    expect(payload.data.trace.fallbackTriggered).toBe(true)
+    expect(payload.data.trace.fallbackReason).toBe("shadow_mode")
   })
 })

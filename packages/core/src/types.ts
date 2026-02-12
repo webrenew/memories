@@ -56,12 +56,17 @@ export interface ContextResult {
   rules: MemoryRecord[]
   memories: MemoryRecord[]
   trace?: {
+    requestedStrategy?: ContextStrategy
     strategy: ContextStrategy
     graphDepth: 0 | 1 | 2
     graphLimit: number
+    rolloutMode?: "off" | "shadow" | "canary"
+    shadowExecuted?: boolean
     baselineCandidates: number
     graphCandidates: number
     graphExpandedCount: number
+    fallbackTriggered?: boolean
+    fallbackReason?: string | null
     totalCandidates: number
   }
   raw: string

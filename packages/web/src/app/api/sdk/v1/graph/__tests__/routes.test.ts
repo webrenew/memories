@@ -7,6 +7,9 @@ const {
   mockResolveActiveMemoryContext,
   mockGetGraphStatusPayload,
   mockGetContextPayload,
+  mockGetGraphRolloutConfig,
+  mockSetGraphRolloutConfig,
+  mockGetGraphRolloutMetricsSummary,
   mockExecute,
 } = vi.hoisted(() => ({
   mockUserSelect: vi.fn(),
@@ -14,6 +17,9 @@ const {
   mockResolveActiveMemoryContext: vi.fn(),
   mockGetGraphStatusPayload: vi.fn(),
   mockGetContextPayload: vi.fn(),
+  mockGetGraphRolloutConfig: vi.fn(),
+  mockSetGraphRolloutConfig: vi.fn(),
+  mockGetGraphRolloutMetricsSummary: vi.fn(),
   mockExecute: vi.fn(),
 }))
 
@@ -66,14 +72,26 @@ vi.mock("@/lib/memory-service/queries", () => ({
   getContextPayload: mockGetContextPayload,
 }))
 
+vi.mock("@/lib/memory-service/graph/rollout", () => ({
+  getGraphRolloutConfig: mockGetGraphRolloutConfig,
+  setGraphRolloutConfig: mockSetGraphRolloutConfig,
+  getGraphRolloutMetricsSummary: mockGetGraphRolloutMetricsSummary,
+}))
+
 import { GET as statusGET, OPTIONS as statusOPTIONS, POST as statusPOST } from "../status/route"
 import { OPTIONS as traceOPTIONS, POST as tracePOST } from "../trace/route"
+import {
+  GET as rolloutGET,
+  OPTIONS as rolloutOPTIONS,
+  PATCH as rolloutPATCH,
+  POST as rolloutPOST,
+} from "../rollout/route"
 
 const VALID_API_KEY = `mcp_${"a".repeat(64)}`
 
-function makeRequest(path: string, method: "GET" | "POST", body?: unknown, apiKey?: string): NextRequest {
+function makeRequest(path: string, method: "GET" | "POST" | "PATCH", body?: unknown, apiKey?: string): NextRequest {
   const headers: Record<string, string> = {}
-  if (method === "POST") {
+  if (method === "POST" || method === "PATCH") {
     headers["content-type"] = "application/json"
   }
   if (apiKey) {
@@ -129,6 +147,26 @@ describe("/api/sdk/v1/graph/*", () => {
         expiredEdges: 2,
         orphanNodes: 1,
       },
+      rollout: {
+        mode: "canary",
+        updatedAt: "2026-02-12T00:00:00.000Z",
+        updatedBy: "user-1",
+      },
+      shadowMetrics: {
+        windowHours: 24,
+        totalRequests: 120,
+        hybridRequested: 96,
+        canaryApplied: 90,
+        shadowExecutions: 6,
+        fallbackCount: 6,
+        fallbackRate: 0.05,
+        graphErrorFallbacks: 1,
+        avgGraphCandidates: 2.5,
+        avgGraphExpandedCount: 1.2,
+        lastFallbackAt: "2026-02-12T00:00:00.000Z",
+        lastFallbackReason: "shadow_mode",
+      },
+      alarms: [],
       topConnectedNodes: [
         {
           nodeType: "topic",
@@ -140,7 +178,35 @@ describe("/api/sdk/v1/graph/*", () => {
           degree: 17,
         },
       ],
+      recentErrors: [],
       sampledAt: "2026-02-12T00:00:00.000Z",
+    })
+
+    mockGetGraphRolloutConfig.mockResolvedValue({
+      mode: "shadow",
+      updatedAt: "2026-02-12T00:00:00.000Z",
+      updatedBy: "user-1",
+    })
+
+    mockSetGraphRolloutConfig.mockResolvedValue({
+      mode: "canary",
+      updatedAt: "2026-02-12T01:00:00.000Z",
+      updatedBy: "user-1",
+    })
+
+    mockGetGraphRolloutMetricsSummary.mockResolvedValue({
+      windowHours: 24,
+      totalRequests: 48,
+      hybridRequested: 32,
+      canaryApplied: 20,
+      shadowExecutions: 12,
+      fallbackCount: 12,
+      fallbackRate: 0.25,
+      graphErrorFallbacks: 2,
+      avgGraphCandidates: 3,
+      avgGraphExpandedCount: 1.4,
+      lastFallbackAt: "2026-02-12T00:55:00.000Z",
+      lastFallbackReason: "shadow_mode",
     })
 
     mockGetContextPayload.mockResolvedValue({
@@ -180,12 +246,17 @@ describe("/api/sdk/v1/graph/*", () => {
           },
         ],
         trace: {
+          requestedStrategy: "hybrid_graph",
           strategy: "hybrid_graph",
           graphDepth: 1,
           graphLimit: 8,
+          rolloutMode: "canary",
+          shadowExecuted: false,
           baselineCandidates: 1,
           graphCandidates: 2,
           graphExpandedCount: 1,
+          fallbackTriggered: false,
+          fallbackReason: null,
           totalCandidates: 2,
         },
       },
@@ -318,6 +389,68 @@ describe("/api/sdk/v1/graph/*", () => {
     expect(body.error.code).toBe("INVALID_REQUEST")
   })
 
+  it("graph/rollout GET returns workspace rollout status", async () => {
+    const response = await rolloutGET(makeRequest("/api/sdk/v1/graph/rollout", "GET", undefined, VALID_API_KEY))
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.ok).toBe(true)
+    expect(body.data.rollout.mode).toBe("shadow")
+    expect(body.data.shadowMetrics.totalRequests).toBe(48)
+    expect(body.data.scope.tenantId).toBeNull()
+    expect(mockGetGraphRolloutConfig).toHaveBeenCalledTimes(1)
+    expect(mockGetGraphRolloutMetricsSummary).toHaveBeenCalledTimes(1)
+  })
+
+  it("graph/rollout POST updates workspace rollout mode", async () => {
+    const response = await rolloutPOST(
+      makeRequest(
+        "/api/sdk/v1/graph/rollout",
+        "POST",
+        {
+          mode: "canary",
+          scope: {
+            userId: "end-user-1",
+          },
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.ok).toBe(true)
+    expect(body.data.rollout.mode).toBe("canary")
+    expect(mockSetGraphRolloutConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        mode: "canary",
+        updatedBy: "user-1",
+      })
+    )
+  })
+
+  it("graph/rollout PATCH updates workspace rollout mode", async () => {
+    const response = await rolloutPATCH(
+      makeRequest(
+        "/api/sdk/v1/graph/rollout",
+        "PATCH",
+        {
+          mode: "off",
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSetGraphRolloutConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        mode: "off",
+      })
+    )
+  })
+
   it("graph/status OPTIONS returns CORS headers", async () => {
     const response = await statusOPTIONS()
     expect(response.status).toBe(204)
@@ -328,5 +461,11 @@ describe("/api/sdk/v1/graph/*", () => {
     const response = await traceOPTIONS()
     expect(response.status).toBe(204)
     expect(response.headers.get("Access-Control-Allow-Methods")).toBe("POST, OPTIONS")
+  })
+
+  it("graph/rollout OPTIONS returns CORS headers", async () => {
+    const response = await rolloutOPTIONS()
+    expect(response.status).toBe(204)
+    expect(response.headers.get("Access-Control-Allow-Methods")).toBe("GET, POST, PATCH, OPTIONS")
   })
 })

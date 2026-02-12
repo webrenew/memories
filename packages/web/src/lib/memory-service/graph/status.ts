@@ -4,6 +4,12 @@ import {
   GRAPH_RETRIEVAL_ENABLED,
   type TursoClient,
 } from "../types"
+import {
+  getGraphRolloutConfig,
+  getGraphRolloutMetricsSummary,
+  type GraphRolloutConfig,
+  type GraphRolloutMetricsSummary,
+} from "./rollout"
 
 interface GraphTopNodeRow {
   node_type: string
@@ -31,6 +37,28 @@ export interface GraphStatusError {
   timestamp: string
 }
 
+export interface GraphStatusAlarm {
+  code: string
+  severity: "info" | "warning" | "critical"
+  message: string
+  triggeredAt: string
+}
+
+export interface GraphStatusShadowMetrics {
+  windowHours: number
+  totalRequests: number
+  hybridRequested: number
+  canaryApplied: number
+  shadowExecutions: number
+  fallbackCount: number
+  fallbackRate: number
+  graphErrorFallbacks: number
+  avgGraphCandidates: number
+  avgGraphExpandedCount: number
+  lastFallbackAt: string | null
+  lastFallbackReason: string | null
+}
+
 export interface GraphStatusPayload {
   enabled: boolean
   flags: {
@@ -52,6 +80,9 @@ export interface GraphStatusPayload {
     expiredEdges: number
     orphanNodes: number
   }
+  rollout: GraphRolloutConfig
+  shadowMetrics: GraphStatusShadowMetrics
+  alarms: GraphStatusAlarm[]
   topConnectedNodes: GraphStatusTopNode[]
   recentErrors: GraphStatusError[]
   sampledAt: string
@@ -100,8 +131,70 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
     graphEdges: await tableExists(turso, "graph_edges"),
     memoryNodeLinks: await tableExists(turso, "memory_node_links"),
   }
-  const hasSchema = tables.graphNodes && tables.graphEdges && tables.memoryNodeLinks
   const recentErrors: GraphStatusError[] = []
+  let rollout: GraphRolloutConfig = {
+    mode: GRAPH_RETRIEVAL_ENABLED ? "canary" : "off",
+    updatedAt: nowIso,
+    updatedBy: null,
+  }
+  let shadowMetrics: GraphRolloutMetricsSummary = {
+    windowHours: 24,
+    totalRequests: 0,
+    hybridRequested: 0,
+    canaryApplied: 0,
+    shadowExecutions: 0,
+    fallbackCount: 0,
+    fallbackRate: 0,
+    graphErrorFallbacks: 0,
+    avgGraphCandidates: 0,
+    avgGraphExpandedCount: 0,
+    lastFallbackAt: null,
+    lastFallbackReason: null,
+  }
+  const alarms: GraphStatusAlarm[] = []
+
+  try {
+    rollout = await getGraphRolloutConfig(turso, nowIso)
+    shadowMetrics = await getGraphRolloutMetricsSummary(turso, {
+      nowIso,
+      windowHours: 24,
+    })
+  } catch (err) {
+    recentErrors.push({
+      code: "GRAPH_ROLLOUT_STATE_UNAVAILABLE",
+      message: "Could not load graph rollout controls or metrics.",
+      source: "rollout",
+      timestamp: nowIso,
+    })
+    console.error("Failed to load graph rollout status:", err)
+  }
+
+  if (shadowMetrics.totalRequests >= 20 && shadowMetrics.fallbackRate >= 0.15) {
+    alarms.push({
+      code: "HIGH_FALLBACK_RATE",
+      severity: "critical",
+      message: `Fallback rate is ${(shadowMetrics.fallbackRate * 100).toFixed(1)}% over last ${shadowMetrics.windowHours}h.`,
+      triggeredAt: nowIso,
+    })
+  } else if (shadowMetrics.totalRequests >= 10 && shadowMetrics.fallbackRate >= 0.05) {
+    alarms.push({
+      code: "ELEVATED_FALLBACK_RATE",
+      severity: "warning",
+      message: `Fallback rate is ${(shadowMetrics.fallbackRate * 100).toFixed(1)}% over last ${shadowMetrics.windowHours}h.`,
+      triggeredAt: nowIso,
+    })
+  }
+
+  if (shadowMetrics.graphErrorFallbacks >= 3) {
+    alarms.push({
+      code: "GRAPH_EXPANSION_ERRORS",
+      severity: "critical",
+      message: `${shadowMetrics.graphErrorFallbacks} graph expansion error fallback${shadowMetrics.graphErrorFallbacks === 1 ? "" : "s"} in last ${shadowMetrics.windowHours}h.`,
+      triggeredAt: nowIso,
+    })
+  }
+
+  const hasSchema = tables.graphNodes && tables.graphEdges && tables.memoryNodeLinks
 
   if (!hasSchema) {
     recentErrors.push({
@@ -123,6 +216,9 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
         expiredEdges: 0,
         orphanNodes: 0,
       },
+      rollout,
+      shadowMetrics,
+      alarms,
       topConnectedNodes: [],
       recentErrors,
       sampledAt: nowIso,
@@ -202,6 +298,15 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
     })
   }
 
+  for (const alarm of alarms) {
+    recentErrors.push({
+      code: alarm.code,
+      message: alarm.message,
+      source: "alarm",
+      timestamp: alarm.triggeredAt,
+    })
+  }
+
   return {
     enabled,
     flags,
@@ -215,6 +320,9 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
       expiredEdges,
       orphanNodes,
     },
+    rollout,
+    shadowMetrics,
+    alarms,
     topConnectedNodes,
     recentErrors,
     sampledAt: nowIso,

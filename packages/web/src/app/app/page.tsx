@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server"
 import { createClient as createTurso } from "@libsql/client"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
 import { MemoriesSection } from "@/components/dashboard/MemoriesSection"
-import { ToolsPanel } from "@/components/dashboard/ToolsPanel"
 import { MemoryGraphSection } from "@/components/dashboard/MemoryGraphSection"
 import type { Memory } from "@/types/memory"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
@@ -56,14 +55,10 @@ export default async function MemoriesPage() {
     connectError = true
   }
 
-  const ruleCount = memories.filter(m => m.type === "rule").length
   const workspaceKey = `${context?.ownerType ?? "user"}:${context?.orgId ?? user.id}`
 
   return (
     <div className="space-y-8">
-      {/* Tools Panel */}
-      <ToolsPanel ruleCount={ruleCount} />
-
       {/* Memory Graph Section */}
       <MemoryGraphSection status={connectError ? null : graphStatus} />
 

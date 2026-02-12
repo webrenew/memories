@@ -95,12 +95,17 @@ export interface GraphExplainability {
 }
 
 export interface ContextTrace {
+  requestedStrategy: ContextRetrievalStrategy
   strategy: ContextRetrievalStrategy
   graphDepth: 0 | 1 | 2
   graphLimit: number
+  rolloutMode: "off" | "shadow" | "canary"
+  shadowExecuted: boolean
   baselineCandidates: number
   graphCandidates: number
   graphExpandedCount: number
+  fallbackTriggered: boolean
+  fallbackReason: string | null
   totalCandidates: number
 }
 

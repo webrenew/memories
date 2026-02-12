@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { ensureGraphTables } from "./upsert"
 import { getGraphStatusPayload } from "./status"
+import { recordGraphRolloutMetric, setGraphRolloutConfig } from "./rollout"
 
 type DbClient = ReturnType<typeof createClient>
 
@@ -170,6 +171,63 @@ describe("getGraphStatusPayload", () => {
         expect.objectContaining({
           code: "EXPIRED_EDGES_PRESENT",
           source: "ttl",
+        }),
+      ])
+    )
+  })
+
+  it("raises fallback alarms when rollout metrics degrade", async () => {
+    const db = await setupDb("memories-graph-status-alarms")
+    await ensureGraphTables(db)
+    await setGraphRolloutConfig(db, {
+      mode: "canary",
+      nowIso: "2026-02-12T00:00:00.000Z",
+      updatedBy: "user-1",
+    })
+
+    for (let index = 0; index < 20; index += 1) {
+      const fallbackTriggered = index < 4
+      await recordGraphRolloutMetric(db, {
+        nowIso: `2026-02-12T00:${index.toString().padStart(2, "0")}:00.000Z`,
+        mode: "canary",
+        requestedStrategy: "hybrid_graph",
+        appliedStrategy: fallbackTriggered ? "baseline" : "hybrid_graph",
+        shadowExecuted: false,
+        baselineCandidates: 3,
+        graphCandidates: 2,
+        graphExpandedCount: fallbackTriggered ? 0 : 1,
+        totalCandidates: fallbackTriggered ? 3 : 4,
+        fallbackTriggered,
+        fallbackReason: fallbackTriggered ? "graph_expansion_error" : null,
+      })
+    }
+
+    const payload = await getGraphStatusPayload({
+      turso: db,
+      nowIso: "2026-02-12T01:00:00.000Z",
+      topNodesLimit: 10,
+    })
+
+    expect(payload.rollout.mode).toBe("canary")
+    expect(payload.shadowMetrics.totalRequests).toBe(20)
+    expect(payload.shadowMetrics.fallbackRate).toBe(0.2)
+    expect(payload.alarms).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "HIGH_FALLBACK_RATE",
+          severity: "critical",
+        }),
+        expect.objectContaining({
+          code: "GRAPH_EXPANSION_ERRORS",
+          severity: "critical",
+        }),
+      ])
+    )
+    expect(payload.recentErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "HIGH_FALLBACK_RATE",
+          source: "alarm",
         }),
       ])
     )

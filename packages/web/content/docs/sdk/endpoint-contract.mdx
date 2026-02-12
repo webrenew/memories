@@ -21,6 +21,9 @@ Runtime endpoints:
 - `POST /api/sdk/v1/memories/list`
 - `POST /api/sdk/v1/memories/edit`
 - `POST /api/sdk/v1/memories/forget`
+- `GET|POST /api/sdk/v1/graph/status`
+- `POST /api/sdk/v1/graph/trace`
+- `GET|POST|PATCH /api/sdk/v1/graph/rollout`
 - `GET /api/sdk/v1/health`
 
 Management endpoints:
@@ -102,6 +105,35 @@ All runtime endpoints accept request scope fields directly or through `scope`:
 - `projectId`: narrow retrieval and writes to a project/repo
 
 If `tenantId` is omitted, the request uses the API key's default workspace database.
+
+## Hybrid Retrieval + Rollout
+
+Hybrid retrieval is controlled by per-request strategy fields and workspace rollout mode:
+
+- Request strategy: `strategy` (`baseline` or `hybrid_graph`)
+- Graph settings: `graphDepth` (`0|1|2`) and `graphLimit` (`1-50`)
+- Workspace rollout mode (`/api/sdk/v1/graph/rollout`): `off` (baseline only), `shadow` (execute graph but do not apply expansion), `canary` (apply expansion for hybrid requests)
+
+`/api/sdk/v1/graph/trace` includes retrieval diagnostics in `trace`:
+
+```json
+{
+  "trace": {
+    "requestedStrategy": "hybrid_graph",
+    "strategy": "baseline",
+    "rolloutMode": "shadow",
+    "shadowExecuted": true,
+    "fallbackTriggered": true,
+    "fallbackReason": "shadow_mode"
+  }
+}
+```
+
+`/api/sdk/v1/graph/status` returns rollout status with shadow metrics and alarms:
+
+- `rollout`: current mode, `updatedAt`, `updatedBy`
+- `shadowMetrics`: request volume, fallback rate, graph error fallbacks, and averages
+- `alarms`: generated safety alarms such as `HIGH_FALLBACK_RATE` and `GRAPH_EXPANSION_ERRORS`
 
 ## Compatibility Notes
 

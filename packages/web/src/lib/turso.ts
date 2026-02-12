@@ -248,4 +248,40 @@ async function ensureGraphSchema(db: ReturnType<typeof createClient>): Promise<v
 
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_node_links_node_id ON memory_node_links(node_id)`)
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_node_links_memory_id ON memory_node_links(memory_id)`)
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS graph_rollout_config (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      mode TEXT NOT NULL DEFAULT 'off',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_by TEXT
+    )`
+  )
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS graph_rollout_metrics (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      requested_strategy TEXT NOT NULL,
+      applied_strategy TEXT NOT NULL,
+      shadow_executed INTEGER NOT NULL DEFAULT 0,
+      baseline_candidates INTEGER NOT NULL DEFAULT 0,
+      graph_candidates INTEGER NOT NULL DEFAULT 0,
+      graph_expanded_count INTEGER NOT NULL DEFAULT 0,
+      total_candidates INTEGER NOT NULL DEFAULT 0,
+      fallback_triggered INTEGER NOT NULL DEFAULT 0,
+      fallback_reason TEXT
+    )`
+  )
+
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_created_at
+     ON graph_rollout_metrics(created_at)`
+  )
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_mode ON graph_rollout_metrics(mode)`)
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_fallback
+     ON graph_rollout_metrics(fallback_triggered, created_at)`
+  )
 }

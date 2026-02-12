@@ -21,6 +21,11 @@ import {
   parseMemoryLayer,
 } from "./scope"
 import { expandMemoryGraph } from "./graph/retrieval"
+import {
+  getGraphRolloutConfig,
+  recordGraphRolloutMetric,
+  type GraphRolloutConfig,
+} from "./graph/rollout"
 
 function dedupeMemories(rows: MemoryRow[]): MemoryRow[] {
   const seen = new Set<string>()
@@ -309,17 +314,46 @@ export async function getContextPayload(params: {
   const resolvedStrategy = normalizeRetrievalStrategy(retrievalStrategy)
   const resolvedGraphDepth = normalizeGraphDepth(graphDepth)
   const resolvedGraphLimit = normalizeGraphLimit(graphLimit)
-  const useHybridGraph =
-    resolvedStrategy === "hybrid_graph" &&
+
+  let rolloutConfig: GraphRolloutConfig = {
+    mode: GRAPH_RETRIEVAL_ENABLED ? "canary" : "off",
+    updatedAt: nowIso,
+    updatedBy: null,
+  }
+  try {
+    rolloutConfig = await getGraphRolloutConfig(turso, nowIso)
+  } catch (err) {
+    console.error("Failed to load graph rollout config; using safe defaults:", err)
+  }
+
+  const requestedHybrid = resolvedStrategy === "hybrid_graph"
+  const graphExecutionEligible =
     GRAPH_RETRIEVAL_ENABLED &&
     resolvedGraphDepth > 0 &&
-    resolvedGraphLimit > 0
+    resolvedGraphLimit > 0 &&
+    relevantMemories.length > 0 &&
+    rolloutConfig.mode !== "off"
+  const runGraphTraversal = graphExecutionEligible && (requestedHybrid || rolloutConfig.mode === "shadow")
+  const applyGraphExpansion = runGraphTraversal && rolloutConfig.mode === "canary" && requestedHybrid
 
   const graphExplainabilityByMemoryId = new Map<string, GraphExplainability>()
   let graphCandidates = 0
   let graphExpandedCount = 0
+  let appliedHybrid = false
+  const shadowExecuted = runGraphTraversal && !applyGraphExpansion
+  let fallbackReason: string | null = null
 
-  if (useHybridGraph && relevantMemories.length > 0) {
+  if (requestedHybrid) {
+    if (!GRAPH_RETRIEVAL_ENABLED) {
+      fallbackReason = "feature_flag_disabled"
+    } else if (rolloutConfig.mode === "off") {
+      fallbackReason = "rollout_off"
+    } else if (rolloutConfig.mode === "shadow") {
+      fallbackReason = "shadow_mode"
+    }
+  }
+
+  if (runGraphTraversal) {
     try {
       const seededIds = new Set(relevantMemories.map((row) => row.id))
       const expansion = await expandMemoryGraph({
@@ -353,7 +387,7 @@ export async function getContextPayload(params: {
 
         const addedRows: MemoryRow[] = []
         for (const row of sortedCandidates) {
-          if (addedRows.length >= resolvedGraphLimit) {
+          if (addedRows.length >= resolvedGraphLimit || !applyGraphExpansion) {
             break
           }
           if (seededIds.has(row.id)) {
@@ -367,26 +401,62 @@ export async function getContextPayload(params: {
           }
         }
 
-        graphExpandedCount = addedRows.length
-        const workingExpanded = addedRows.filter((row) => resolveMemoryLayer(row) === "working")
-        const longTermExpanded = addedRows.filter((row) => resolveMemoryLayer(row) === "long_term")
-        workingMemories = dedupeMemories([...workingMemories, ...workingExpanded])
-        longTermMemories = dedupeMemories([...longTermMemories, ...longTermExpanded])
-        relevantMemories = dedupeMemories([...workingMemories, ...longTermMemories])
+        if (applyGraphExpansion) {
+          appliedHybrid = true
+          graphExpandedCount = addedRows.length
+          const workingExpanded = addedRows.filter((row) => resolveMemoryLayer(row) === "working")
+          const longTermExpanded = addedRows.filter((row) => resolveMemoryLayer(row) === "long_term")
+          workingMemories = dedupeMemories([...workingMemories, ...workingExpanded])
+          longTermMemories = dedupeMemories([...longTermMemories, ...longTermExpanded])
+          relevantMemories = dedupeMemories([...workingMemories, ...longTermMemories])
+        }
+      } else if (applyGraphExpansion) {
+        appliedHybrid = true
       }
     } catch (err) {
+      if (requestedHybrid && applyGraphExpansion) {
+        fallbackReason = "graph_expansion_error"
+      }
       console.error("Graph retrieval expansion failed; serving baseline context:", err)
     }
   }
 
+  const fallbackTriggered = requestedHybrid && !appliedHybrid
+  if (fallbackTriggered && !fallbackReason) {
+    fallbackReason = "rollout_guardrail"
+  }
+
   const trace: ContextTrace = {
-    strategy: useHybridGraph ? "hybrid_graph" : "baseline",
-    graphDepth: useHybridGraph ? resolvedGraphDepth : 0,
-    graphLimit: useHybridGraph ? resolvedGraphLimit : 0,
+    requestedStrategy: resolvedStrategy,
+    strategy: appliedHybrid ? "hybrid_graph" : "baseline",
+    graphDepth: runGraphTraversal ? resolvedGraphDepth : 0,
+    graphLimit: runGraphTraversal ? resolvedGraphLimit : 0,
+    rolloutMode: rolloutConfig.mode,
+    shadowExecuted,
     baselineCandidates,
     graphCandidates,
     graphExpandedCount,
+    fallbackTriggered,
+    fallbackReason: fallbackTriggered ? fallbackReason : null,
     totalCandidates: relevantMemories.length,
+  }
+
+  try {
+    await recordGraphRolloutMetric(turso, {
+      nowIso,
+      mode: rolloutConfig.mode,
+      requestedStrategy: resolvedStrategy,
+      appliedStrategy: trace.strategy,
+      shadowExecuted,
+      baselineCandidates,
+      graphCandidates,
+      graphExpandedCount,
+      totalCandidates: relevantMemories.length,
+      fallbackTriggered,
+      fallbackReason: fallbackTriggered ? fallbackReason : null,
+    })
+  } catch (err) {
+    console.error("Failed to record graph rollout metric:", err)
   }
 
   const toContextMemory = (row: MemoryRow): ReturnType<typeof toStructuredMemory> & { graph?: GraphExplainability } => {
