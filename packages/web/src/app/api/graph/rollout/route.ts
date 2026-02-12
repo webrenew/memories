@@ -1,4 +1,5 @@
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { ensureMemoryUserIdSchema } from "@/lib/memory-service/scope"
 import { getGraphStatusPayload } from "@/lib/memory-service/graph/status"
 import { setGraphRolloutConfig } from "@/lib/memory-service/graph/rollout"
 import { createClient } from "@/lib/supabase/server"
@@ -38,6 +39,7 @@ async function resolveWorkspaceTurso() {
 
 async function readGraphStatus(turso: ReturnType<typeof createTurso>) {
   const nowIso = new Date().toISOString()
+  await ensureMemoryUserIdSchema(turso)
   return getGraphStatusPayload({
     turso,
     nowIso,

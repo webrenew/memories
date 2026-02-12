@@ -8,6 +8,38 @@ interface MemoryGraphSectionProps {
 }
 
 type GraphRolloutMode = GraphStatusPayload["rollout"]["mode"]
+type GraphNodeSelection = {
+  nodeType: string
+  nodeKey: string
+  label: string
+}
+
+interface GraphExplorerEdge {
+  id: string
+  edgeType: string
+  weight: number
+  confidence: number
+  expiresAt: string | null
+  evidenceMemoryId: string | null
+  direction: "outbound" | "inbound"
+  from: GraphNodeSelection
+  to: GraphNodeSelection
+}
+
+interface GraphExplorerMemory {
+  memoryId: string
+  role: string
+  type: string
+  content: string
+  updatedAt: string | null
+}
+
+interface GraphExplorerResponse {
+  node: GraphNodeSelection | null
+  nodes: GraphNodeSelection[]
+  edges: GraphExplorerEdge[]
+  memories: GraphExplorerMemory[]
+}
 
 const ROLLOUT_MODES: Array<{ value: GraphRolloutMode; label: string; description: string }> = [
   { value: "off", label: "Off", description: "Always serve baseline retrieval." },
@@ -38,14 +70,93 @@ function severityClass(severity: "info" | "warning" | "critical"): string {
   return "text-sky-500"
 }
 
+function truncateText(value: string, max = 180): string {
+  if (value.length <= max) return value
+  return `${value.slice(0, max).trim()}...`
+}
+
 export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
   const [localStatus, setLocalStatus] = useState(status)
   const [modeError, setModeError] = useState<string | null>(null)
+  const [selectedNode, setSelectedNode] = useState<GraphNodeSelection | null>(null)
+  const [explorerData, setExplorerData] = useState<GraphExplorerResponse | null>(null)
+  const [explorerError, setExplorerError] = useState<string | null>(null)
+  const [isExplorerLoading, setIsExplorerLoading] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     setLocalStatus(status)
   }, [status])
+
+  useEffect(() => {
+    if (!localStatus || localStatus.topConnectedNodes.length === 0) {
+      setSelectedNode(null)
+      setExplorerData(null)
+      setExplorerError(null)
+      return
+    }
+
+    const stillPresent = selectedNode
+      ? localStatus.topConnectedNodes.some(
+          (node) => node.nodeType === selectedNode.nodeType && node.nodeKey === selectedNode.nodeKey
+        )
+      : false
+
+    if (!stillPresent) {
+      const node = localStatus.topConnectedNodes[0]
+      setSelectedNode({
+        nodeType: node.nodeType,
+        nodeKey: node.nodeKey,
+        label: node.label,
+      })
+    }
+  }, [localStatus, selectedNode])
+
+  useEffect(() => {
+    if (!selectedNode) return
+
+    let cancelled = false
+    setIsExplorerLoading(true)
+    setExplorerError(null)
+
+    void (async () => {
+      try {
+        const params = new URLSearchParams({
+          nodeType: selectedNode.nodeType,
+          nodeKey: selectedNode.nodeKey,
+          limit: "20",
+        })
+        const response = await fetch(`/api/graph/explore?${params.toString()}`)
+        const body = (await response.json().catch(() => ({}))) as GraphExplorerResponse & {
+          error?: string
+        }
+        if (!response.ok) {
+          if (!cancelled) {
+            setExplorerError(body.error ?? "Failed to load graph explorer data.")
+            setExplorerData(null)
+          }
+          return
+        }
+
+        if (!cancelled) {
+          setExplorerData(body)
+        }
+      } catch {
+        if (!cancelled) {
+          setExplorerError("Network error while loading graph explorer data.")
+          setExplorerData(null)
+        }
+      } finally {
+        if (!cancelled) {
+          setIsExplorerLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedNode])
 
   const activeStatus = localStatus
   const fallbackRate = activeStatus?.shadowMetrics.fallbackRate ?? 0
@@ -222,13 +333,30 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
 
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="border border-border bg-card/5 p-4">
-              <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-muted-foreground mb-4">Top Nodes</h3>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-muted-foreground">Top Nodes</h3>
+                <p className="text-[11px] text-muted-foreground">Click a node to explore connections</p>
+              </div>
               {activeStatus.topConnectedNodes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No connected nodes yet.</p>
               ) : (
                 <div className="space-y-2">
                   {activeStatus.topConnectedNodes.slice(0, 6).map((node) => (
-                    <div key={`${node.nodeType}:${node.nodeKey}`} className="flex items-center justify-between text-sm">
+                    <button
+                      key={`${node.nodeType}:${node.nodeKey}`}
+                      type="button"
+                      onClick={() =>
+                        setSelectedNode({
+                          nodeType: node.nodeType,
+                          nodeKey: node.nodeKey,
+                          label: node.label,
+                        })}
+                      className={`w-full flex items-center justify-between text-sm border p-2 text-left transition-colors ${
+                        selectedNode?.nodeType === node.nodeType && selectedNode?.nodeKey === node.nodeKey
+                          ? "border-primary/40 bg-primary/10"
+                          : "border-border bg-card/10 hover:bg-card/30"
+                      }`}
+                    >
                       <div className="min-w-0">
                         <p className="font-medium truncate">{node.label}</p>
                         <p className="text-[11px] text-muted-foreground font-mono">
@@ -239,7 +367,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
                         <p className="font-mono font-bold">{node.degree}</p>
                         <p className="text-[11px] text-muted-foreground">degree</p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -263,6 +391,92 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="border border-border bg-card/5 p-4 space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-muted-foreground">Graph Explorer</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Traverse adjacent edges and linked memories for a selected node.
+                </p>
+              </div>
+              {selectedNode ? (
+                <p className="text-[11px] font-mono text-foreground">
+                  {selectedNode.nodeType}:{selectedNode.nodeKey}
+                </p>
+              ) : null}
+            </div>
+
+            {!selectedNode ? (
+              <p className="text-sm text-muted-foreground">
+                Select a node from Top Nodes to start exploration.
+              </p>
+            ) : isExplorerLoading ? (
+              <p className="text-sm text-muted-foreground">Loading graph neighborhood...</p>
+            ) : explorerError ? (
+              <p className="text-sm text-red-500">{explorerError}</p>
+            ) : !explorerData ? (
+              <p className="text-sm text-muted-foreground">No explorer data available.</p>
+            ) : (
+              <div className="grid lg:grid-cols-2 gap-4">
+                <div className="border border-border bg-card/10 p-3">
+                  <h4 className="text-[11px] uppercase tracking-[0.18em] font-bold text-muted-foreground mb-3">
+                    Adjacent Edges
+                  </h4>
+                  {explorerData.edges.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No active edges for this node.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {explorerData.edges.slice(0, 12).map((edge) => (
+                        <div key={edge.id} className="border border-border bg-card/20 p-2">
+                          <p className="text-[11px] font-mono">
+                            {edge.from.nodeType}:{edge.from.nodeKey}{" "}
+                            <span className="text-muted-foreground">{edge.direction === "outbound" ? "->" : "<-"}</span>{" "}
+                            {edge.to.nodeType}:{edge.to.nodeKey}
+                          </p>
+                          <p className="text-xs mt-1">
+                            <span className="font-mono">{edge.edgeType}</span>{" "}
+                            <span className="text-muted-foreground">
+                              (w={edge.weight.toFixed(2)}, c={edge.confidence.toFixed(2)})
+                            </span>
+                          </p>
+                          {edge.evidenceMemoryId ? (
+                            <p className="text-[11px] text-muted-foreground font-mono mt-1">
+                              evidence: {edge.evidenceMemoryId}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border border-border bg-card/10 p-3">
+                  <h4 className="text-[11px] uppercase tracking-[0.18em] font-bold text-muted-foreground mb-3">
+                    Linked Memories
+                  </h4>
+                  {explorerData.memories.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No memory links for this node.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {explorerData.memories.slice(0, 12).map((memory) => (
+                        <div key={`${memory.memoryId}:${memory.role}`} className="border border-border bg-card/20 p-2">
+                          <p className="text-[11px] font-mono">
+                            {memory.type} • {memory.role}
+                          </p>
+                          <p className="text-sm mt-1">{truncateText(memory.content || "[memory not available]")}</p>
+                          <p className="text-[11px] text-muted-foreground font-mono mt-1">
+                            {memory.memoryId}
+                            {memory.updatedAt ? ` • ${new Date(memory.updatedAt).toLocaleString()}` : ""}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

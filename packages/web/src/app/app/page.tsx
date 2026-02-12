@@ -6,6 +6,7 @@ import { MemoryGraphSection } from "@/components/dashboard/MemoryGraphSection"
 import type { Memory } from "@/types/memory"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { getGraphStatusPayload, type GraphStatusPayload } from "@/lib/memory-service/graph/status"
+import { ensureMemoryUserIdSchema } from "@/lib/memory-service/scope"
 
 export default async function MemoriesPage() {
   const supabase = await createClient()
@@ -26,6 +27,8 @@ export default async function MemoriesPage() {
 
   try {
     const turso = createTurso({ url: context.turso_db_url!, authToken: context.turso_db_token! })
+    await ensureMemoryUserIdSchema(turso)
+
     const [result, graphStatusResult] = await Promise.all([
       turso.execute(
         "SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
