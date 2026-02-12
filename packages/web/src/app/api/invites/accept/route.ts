@@ -4,6 +4,7 @@ import { addTeamSeat } from "@/lib/stripe/teams"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, acceptInviteSchema } from "@/lib/validations"
+import { getInviteTokenCandidates } from "@/lib/team-invites"
 
 // POST /api/invites/accept - Accept an invite
 export async function POST(request: Request) {
@@ -20,7 +21,8 @@ export async function POST(request: Request) {
   const parsed = parseBody(acceptInviteSchema, await request.json().catch(() => ({})))
   if (!parsed.success) return parsed.response
   const { token, billing } = parsed.data
-  const inviteToken = token.trim()
+  const tokenCandidates = getInviteTokenCandidates(token)
+  const inviteToken = tokenCandidates[0] ?? token.trim()
   const adminSupabase = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : null
   const inviteLookup = adminSupabase ?? supabase
 
@@ -28,12 +30,19 @@ export async function POST(request: Request) {
   const { data: invite, error: inviteError } = await inviteLookup
     .from("org_invites")
     .select("*, organization:organizations(id, name, slug, stripe_customer_id, stripe_subscription_id)")
-    .eq("token", inviteToken)
+    .in("token", tokenCandidates)
     .is("accepted_at", null)
     .gt("expires_at", new Date().toISOString())
-    .single()
+    .maybeSingle()
 
   if (inviteError || !invite) {
+    if (inviteError) {
+      console.error("Invite accept lookup failed", {
+        message: inviteError.message,
+        code: inviteError.code,
+        tokenPrefix: inviteToken.slice(0, 8),
+      })
+    }
     return NextResponse.json({ error: "Invalid or expired invite" }, { status: 400 })
   }
 

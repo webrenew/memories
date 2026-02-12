@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getInviteTokenCandidates } from "@/lib/team-invites"
 import { redirect } from "next/navigation"
 import { AcceptInviteContent } from "./accept-content"
 
@@ -18,24 +19,34 @@ export default async function AcceptInvitePage({
     redirect("/")
   }
 
-  const inviteToken = token.trim()
+  const tokenCandidates = getInviteTokenCandidates(token)
+  const inviteToken = tokenCandidates[0] ?? token.trim()
   const adminSupabase = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : null
   const supabase = await createClient()
   
   // Get invite details
   const inviteLookup = adminSupabase ?? supabase
-  const { data: invite } = await inviteLookup
+  const { data: invite, error: inviteError } = await inviteLookup
     .from("org_invites")
     .select(`
       id,
+      token,
       email,
       role,
       expires_at,
       accepted_at,
       organization:organizations(id, name, slug)
     `)
-    .eq("token", inviteToken)
-    .single()
+    .in("token", tokenCandidates)
+    .maybeSingle()
+
+  if (inviteError) {
+    console.error("Invite lookup failed on accept page", {
+      message: inviteError.message,
+      code: inviteError.code,
+      tokenPrefix: inviteToken.slice(0, 8),
+    })
+  }
 
   if (!invite) {
     return (
@@ -106,7 +117,7 @@ export default async function AcceptInvitePage({
 
   return (
     <AcceptInviteContent
-      token={inviteToken}
+      token={invite.token}
       orgName={org.name}
       role={invite.role}
       email={invite.email}
