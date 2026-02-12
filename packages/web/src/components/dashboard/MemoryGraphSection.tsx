@@ -1,6 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import {
+  type PointerEvent,
+  type WheelEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react"
 import type { GraphStatusPayload } from "@/lib/memory-service/graph/status"
 
 interface MemoryGraphSectionProps {
@@ -71,6 +80,21 @@ const ROLLOUT_MODES: Array<{ value: GraphRolloutMode; label: string; description
 
 const GRAPH_WIDTH = 1080
 const GRAPH_HEIGHT = 620
+const GRAPH_ZOOM_MIN = 0.55
+const GRAPH_ZOOM_MAX = 2.6
+const GRAPH_ZOOM_STEP = 0.16
+
+interface GraphViewport {
+  scale: number
+  x: number
+  y: number
+}
+
+const DEFAULT_GRAPH_VIEWPORT: GraphViewport = {
+  scale: 1,
+  x: 0,
+  y: 0,
+}
 
 const NODE_TYPE_STYLES: Record<string, { fill: string; stroke: string; text: string }> = {
   repo: { fill: "rgba(56, 189, 248, 0.16)", stroke: "#38bdf8", text: "#d8f3ff" },
@@ -78,6 +102,10 @@ const NODE_TYPE_STYLES: Record<string, { fill: string; stroke: string; text: str
   category: { fill: "rgba(245, 158, 11, 0.16)", stroke: "#f59e0b", text: "#fef3c7" },
   user: { fill: "rgba(168, 85, 247, 0.16)", stroke: "#a855f7", text: "#f3e8ff" },
   memory_type: { fill: "rgba(99, 102, 241, 0.18)", stroke: "#6366f1", text: "#e0e7ff" },
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function metricCard(
@@ -292,7 +320,11 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [explorerError, setExplorerError] = useState<string | null>(null)
   const [isExplorerLoading, setIsExplorerLoading] = useState(false)
+  const [graphViewport, setGraphViewport] = useState<GraphViewport>(DEFAULT_GRAPH_VIEWPORT)
+  const [isPanning, setIsPanning] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const graphViewportRef = useRef<HTMLDivElement | null>(null)
+  const panStartRef = useRef<{ pointerId: number; clientX: number; clientY: number } | null>(null)
 
   useEffect(() => {
     setLocalStatus(status)
@@ -368,6 +400,12 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
     }
   }, [selectedNode])
 
+  useEffect(() => {
+    setGraphViewport(DEFAULT_GRAPH_VIEWPORT)
+    setIsPanning(false)
+    panStartRef.current = null
+  }, [selectedNode?.nodeType, selectedNode?.nodeKey])
+
   const activeStatus = localStatus
   const fallbackRate = activeStatus?.shadowMetrics.fallbackRate ?? 0
   const fallbackTone = fallbackRate >= 0.15 ? "danger" : fallbackRate === 0 ? "success" : "neutral"
@@ -380,6 +418,142 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
     if (!selectedEdgeId) return explorerData.edges[0]
     return explorerData.edges.find((edge) => edge.id === selectedEdgeId) ?? explorerData.edges[0]
   }, [explorerData, selectedEdgeId])
+  const selectedNodeStats = useMemo(() => {
+    if (!explorerData) {
+      return {
+        outbound: 0,
+        inbound: 0,
+        expiring: 0,
+        withEvidence: 0,
+      }
+    }
+
+    let outbound = 0
+    let inbound = 0
+    let expiring = 0
+    let withEvidence = 0
+    for (const edge of explorerData.edges) {
+      if (edge.direction === "outbound") {
+        outbound += 1
+      } else {
+        inbound += 1
+      }
+      if (edge.expiresAt) {
+        expiring += 1
+      }
+      if (edge.evidenceMemoryId) {
+        withEvidence += 1
+      }
+    }
+
+    return {
+      outbound,
+      inbound,
+      expiring,
+      withEvidence,
+    }
+  }, [explorerData])
+
+  const applyScaleAtPoint = useCallback((nextScale: number, anchor: { x: number; y: number }) => {
+    setGraphViewport((current) => {
+      const clampedScale = clamp(nextScale, GRAPH_ZOOM_MIN, GRAPH_ZOOM_MAX)
+      if (clampedScale === current.scale) {
+        return current
+      }
+
+      const ratio = clampedScale / current.scale
+      return {
+        scale: clampedScale,
+        x: anchor.x - (anchor.x - current.x) * ratio,
+        y: anchor.y - (anchor.y - current.y) * ratio,
+      }
+    })
+  }, [])
+
+  const zoomFromCenter = useCallback((scaleMultiplier: number) => {
+    const anchor = { x: GRAPH_WIDTH / 2, y: GRAPH_HEIGHT / 2 }
+    setGraphViewport((current) => {
+      const clampedScale = clamp(current.scale * scaleMultiplier, GRAPH_ZOOM_MIN, GRAPH_ZOOM_MAX)
+      if (clampedScale === current.scale) {
+        return current
+      }
+
+      const ratio = clampedScale / current.scale
+      return {
+        scale: clampedScale,
+        x: anchor.x - (anchor.x - current.x) * ratio,
+        y: anchor.y - (anchor.y - current.y) * ratio,
+      }
+    })
+  }, [])
+
+  const resetViewport = useCallback(() => {
+    setGraphViewport(DEFAULT_GRAPH_VIEWPORT)
+    setIsPanning(false)
+    panStartRef.current = null
+  }, [])
+
+  const handleGraphWheel = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      const container = graphViewportRef.current
+      if (!container) return
+
+      const rect = container.getBoundingClientRect()
+      const px = ((event.clientX - rect.left) / rect.width) * GRAPH_WIDTH
+      const py = ((event.clientY - rect.top) / rect.height) * GRAPH_HEIGHT
+      const direction = event.deltaY > 0 ? -1 : 1
+      const scaleMultiplier = 1 + GRAPH_ZOOM_STEP * direction
+      const nextScale = graphViewport.scale * scaleMultiplier
+      applyScaleAtPoint(nextScale, { x: px, y: py })
+    },
+    [applyScaleAtPoint, graphViewport.scale]
+  )
+
+  const stopPanning = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const panState = panStartRef.current
+    if (panState && event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    panStartRef.current = null
+    setIsPanning(false)
+  }, [])
+
+  const handleGraphPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    panStartRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setIsPanning(true)
+  }, [])
+
+  const handleGraphPointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const panState = panStartRef.current
+    if (!panState || panState.pointerId !== event.pointerId) return
+
+    const container = graphViewportRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return
+
+    const deltaX = ((event.clientX - panState.clientX) / rect.width) * GRAPH_WIDTH
+    const deltaY = ((event.clientY - panState.clientY) / rect.height) * GRAPH_HEIGHT
+
+    setGraphViewport((current) => ({
+      ...current,
+      x: current.x + deltaX,
+      y: current.y + deltaY,
+    }))
+
+    panStartRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    }
+  }, [])
 
   const updateRolloutMode = (mode: GraphRolloutMode) => {
     if (!activeStatus || activeStatus.rollout.mode === mode) {
@@ -616,18 +790,21 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
             </div>
           </div>
 
-          <div className="border border-border bg-card/5 p-4 space-y-4">
+          <div className="rounded-xl bg-card/5 ring-1 ring-border/45 p-5 space-y-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-muted-foreground">Graph Explorer</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Traverse adjacent edges and linked memories for a selected node.
+                  Traverse adjacent edges and linked memories for a selected node. Scroll to zoom and drag to pan.
                 </p>
               </div>
               {selectedNode ? (
-                <p className="text-[11px] font-mono text-foreground">
-                  {selectedNode.nodeType}:{selectedNode.nodeKey}
-                </p>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Selected Node</p>
+                  <p className="text-[11px] font-mono text-foreground mt-1">
+                    {selectedNode.nodeType}:{selectedNode.nodeKey}
+                  </p>
+                </div>
               ) : null}
             </div>
 
@@ -643,14 +820,59 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
               <p className="text-sm text-muted-foreground">No explorer data available.</p>
             ) : (
               <div className="grid xl:grid-cols-[2fr_1fr] gap-4">
-                <div className="border border-border bg-card/10 p-3 space-y-3">
+                <div className="rounded-xl bg-card/15 ring-1 ring-border/35 p-4 space-y-4">
                   <div className="flex items-center justify-between gap-3">
-                    <h4 className="text-[11px] uppercase tracking-[0.18em] font-bold text-muted-foreground">
-                      Relationship Graph
-                    </h4>
-                    <p className="text-[11px] font-mono text-muted-foreground">
-                      {graphCanvas.nodes.length} nodes • {graphCanvas.edges.length} edges
-                    </p>
+                    <div>
+                      <h4 className="text-[11px] uppercase tracking-[0.18em] font-bold text-muted-foreground">
+                        Relationship Graph
+                      </h4>
+                      <p className="text-[11px] font-mono text-muted-foreground mt-1">
+                        {graphCanvas.nodes.length} nodes • {graphCanvas.edges.length} edges • zoom {(graphViewport.scale * 100).toFixed(0)}%
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => zoomFromCenter(1 + GRAPH_ZOOM_STEP)}
+                        className="h-8 min-w-8 px-2 rounded-md ring-1 ring-border/50 bg-card/40 text-xs font-bold hover:bg-card/70 transition-colors"
+                        aria-label="Zoom in"
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => zoomFromCenter(1 - GRAPH_ZOOM_STEP)}
+                        className="h-8 min-w-8 px-2 rounded-md ring-1 ring-border/50 bg-card/40 text-xs font-bold hover:bg-card/70 transition-colors"
+                        aria-label="Zoom out"
+                      >
+                        −
+                      </button>
+                      <button
+                        type="button"
+                        onClick={resetViewport}
+                        className="h-8 px-2 rounded-md ring-1 ring-border/50 bg-card/40 text-[10px] uppercase tracking-[0.12em] font-bold hover:bg-card/70 transition-colors"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.14em] font-bold">
+                    <span className="px-2 py-1 rounded-md bg-card/25 ring-1 ring-border/40 text-muted-foreground">
+                      outbound {selectedNodeStats.outbound}
+                    </span>
+                    <span className="px-2 py-1 rounded-md bg-card/25 ring-1 ring-border/40 text-muted-foreground">
+                      inbound {selectedNodeStats.inbound}
+                    </span>
+                    <span className="px-2 py-1 rounded-md bg-card/25 ring-1 ring-border/40 text-muted-foreground">
+                      expiring {selectedNodeStats.expiring}
+                    </span>
+                    <span className="px-2 py-1 rounded-md bg-card/25 ring-1 ring-border/40 text-muted-foreground">
+                      evidence links {selectedNodeStats.withEvidence}
+                    </span>
+                    <span className="px-2 py-1 rounded-md bg-card/25 ring-1 ring-border/40 text-muted-foreground">
+                      linked memories {explorerData.memories.length}
+                    </span>
                   </div>
 
                   {graphCanvas.edges.length === 0 ? (
@@ -658,7 +880,18 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
                       No active edges for this node yet.
                     </p>
                   ) : (
-                    <div className="relative overflow-hidden border border-border bg-[radial-gradient(110%_100%_at_50%_0%,rgba(99,102,241,0.12),rgba(15,23,42,0.1)_45%,rgba(2,6,23,0.4))]">
+                    <div
+                      ref={graphViewportRef}
+                      className={`relative overflow-hidden rounded-lg ring-1 ring-border/35 touch-none select-none bg-[radial-gradient(110%_100%_at_50%_0%,rgba(59,130,246,0.16),rgba(15,23,42,0.08)_44%,rgba(2,6,23,0.45))] ${
+                        isPanning ? "cursor-grabbing" : "cursor-grab"
+                      }`}
+                      onWheel={handleGraphWheel}
+                      onPointerDown={handleGraphPointerDown}
+                      onPointerMove={handleGraphPointerMove}
+                      onPointerUp={stopPanning}
+                      onPointerCancel={stopPanning}
+                      onPointerLeave={stopPanning}
+                    >
                       <svg viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`} className="w-full h-[420px] sm:h-[500px]">
                         <defs>
                           <marker
@@ -674,101 +907,110 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
                           </marker>
                         </defs>
 
-                        {graphCanvas.edges.map((edge) => {
-                          const isSelectedEdge = selectedEdge?.id === edge.id
-                          return (
-                            <g key={edge.id}>
-                              <path
-                                d={edge.path}
-                                fill="none"
-                                stroke={isSelectedEdge ? "#f43f5e" : "#64748b"}
-                                strokeOpacity={isSelectedEdge ? 0.95 : 0.58}
-                                strokeWidth={isSelectedEdge ? 2.5 : 1.4}
-                                strokeDasharray={edge.expiresAt ? "5 4" : undefined}
-                                markerEnd="url(#graph-arrow-head)"
-                                className="cursor-pointer transition-all duration-200"
-                                onClick={() => setSelectedEdgeId(edge.id)}
-                              />
-                              <text
-                                x={edge.labelX}
-                                y={edge.labelY}
-                                textAnchor="middle"
-                                fill={isSelectedEdge ? "#fda4af" : "#94a3b8"}
-                                fontSize={11}
-                                fontFamily="var(--font-geist-mono)"
-                                pointerEvents="none"
-                              >
-                                {edge.edgeType}
-                              </text>
-                            </g>
-                          )
-                        })}
-
-                        {graphCanvas.nodes.map((node) => {
-                          const style = getNodeStyle(node.nodeType)
-                          const radius = node.isSelected
-                            ? 18
-                            : Math.min(16, 10 + Math.log2((node.degree || 0) + 1) * 2.3)
-                          const showLabel = node.isSelected || graphCanvas.nodes.length <= 14 || node.degree > 1
-
-                          return (
-                            <g
-                              key={node.id}
-                              className="cursor-pointer"
-                              onClick={() =>
-                                setSelectedNode({
-                                  nodeType: node.nodeType,
-                                  nodeKey: node.nodeKey,
-                                  label: node.label,
-                                })}
-                            >
-                              <circle
-                                cx={node.x}
-                                cy={node.y}
-                                r={radius + (node.isSelected ? 4 : 2)}
-                                fill="transparent"
-                                stroke={style.stroke}
-                                strokeOpacity={node.isSelected ? 0.55 : 0.25}
-                                strokeWidth={1}
-                              />
-                              <circle
-                                cx={node.x}
-                                cy={node.y}
-                                r={radius}
-                                fill={style.fill}
-                                stroke={style.stroke}
-                                strokeWidth={node.isSelected ? 2.3 : 1.4}
-                              />
-                              {showLabel ? (
-                                <>
+                        <g transform={`translate(${graphViewport.x} ${graphViewport.y}) scale(${graphViewport.scale})`}>
+                          {graphCanvas.edges.map((edge) => {
+                            const isSelectedEdge = selectedEdge?.id === edge.id
+                            const showEdgeLabel = isSelectedEdge || graphViewport.scale >= 0.92
+                            return (
+                              <g key={edge.id}>
+                                <path
+                                  d={edge.path}
+                                  fill="none"
+                                  stroke={isSelectedEdge ? "#f43f5e" : "#64748b"}
+                                  strokeOpacity={isSelectedEdge ? 0.95 : 0.55}
+                                  strokeWidth={isSelectedEdge ? 2.3 : 1.35}
+                                  strokeDasharray={edge.expiresAt ? "5 4" : undefined}
+                                  markerEnd="url(#graph-arrow-head)"
+                                  className="cursor-pointer transition-all duration-200"
+                                  onClick={() => setSelectedEdgeId(edge.id)}
+                                >
+                                  <title>{`${edge.from.nodeType}:${edge.from.nodeKey} -> ${edge.to.nodeType}:${edge.to.nodeKey} | ${edge.edgeType} | ${edge.direction} | weight ${edge.weight.toFixed(2)} | confidence ${edge.confidence.toFixed(2)}`}</title>
+                                </path>
+                                {showEdgeLabel ? (
                                   <text
-                                    x={node.x}
-                                    y={node.y + radius + 14}
+                                    x={edge.labelX}
+                                    y={edge.labelY}
                                     textAnchor="middle"
-                                    fill={style.text}
+                                    fill={isSelectedEdge ? "#fda4af" : "#94a3b8"}
                                     fontSize={11}
-                                    fontWeight={node.isSelected ? 700 : 600}
                                     fontFamily="var(--font-geist-mono)"
                                     pointerEvents="none"
                                   >
-                                    {trimMiddle(formatNodeLabel(node), 24)}
+                                    {edge.edgeType}
                                   </text>
-                                  <text
-                                    x={node.x}
-                                    y={node.y + radius + 28}
-                                    textAnchor="middle"
-                                    fill="#94a3b8"
-                                    fontSize={9}
-                                    fontFamily="var(--font-geist-mono)"
-                                    pointerEvents="none"
-                                  >
-                                    {node.nodeType}
-                                  </text>
-                                </>
-                              ) : null}
-                            </g>
-                          )
-                        })}
+                                ) : null}
+                              </g>
+                            )
+                          })}
+
+                          {graphCanvas.nodes.map((node) => {
+                            const style = getNodeStyle(node.nodeType)
+                            const radius = node.isSelected
+                              ? 18
+                              : Math.min(16, 10 + Math.log2((node.degree || 0) + 1) * 2.3)
+                            const showLabel = node.isSelected || graphCanvas.nodes.length <= 14 || node.degree > 1
+
+                            return (
+                              <g
+                                key={node.id}
+                                className="cursor-pointer"
+                                onClick={() =>
+                                  setSelectedNode({
+                                    nodeType: node.nodeType,
+                                    nodeKey: node.nodeKey,
+                                    label: node.label,
+                                  })}
+                              >
+                                <circle
+                                  cx={node.x}
+                                  cy={node.y}
+                                  r={radius + (node.isSelected ? 4 : 2)}
+                                  fill="transparent"
+                                  stroke={style.stroke}
+                                  strokeOpacity={node.isSelected ? 0.55 : 0.22}
+                                  strokeWidth={1}
+                                />
+                                <circle
+                                  cx={node.x}
+                                  cy={node.y}
+                                  r={radius}
+                                  fill={style.fill}
+                                  stroke={style.stroke}
+                                  strokeWidth={node.isSelected ? 2.3 : 1.4}
+                                >
+                                  <title>{`${node.nodeType}:${node.nodeKey} | label ${node.label} | degree ${node.degree}`}</title>
+                                </circle>
+                                {showLabel ? (
+                                  <>
+                                    <text
+                                      x={node.x}
+                                      y={node.y + radius + 14}
+                                      textAnchor="middle"
+                                      fill={style.text}
+                                      fontSize={11}
+                                      fontWeight={node.isSelected ? 700 : 600}
+                                      fontFamily="var(--font-geist-mono)"
+                                      pointerEvents="none"
+                                    >
+                                      {trimMiddle(formatNodeLabel(node), 24)}
+                                    </text>
+                                    <text
+                                      x={node.x}
+                                      y={node.y + radius + 28}
+                                      textAnchor="middle"
+                                      fill="#94a3b8"
+                                      fontSize={9}
+                                      fontFamily="var(--font-geist-mono)"
+                                      pointerEvents="none"
+                                    >
+                                      {node.nodeType}
+                                    </text>
+                                  </>
+                                ) : null}
+                              </g>
+                            )
+                          })}
+                        </g>
                       </svg>
                     </div>
                   )}
@@ -780,9 +1022,9 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
                         return (
                           <span
                             key={nodeType}
-                            className="text-[10px] uppercase tracking-[0.16em] font-bold px-2 py-1 border"
+                            className="text-[10px] uppercase tracking-[0.16em] font-bold px-2 py-1 rounded-md ring-1"
                             style={{
-                              borderColor: style.stroke,
+                              boxShadow: `inset 0 0 0 1px ${style.stroke}`,
                               color: style.text,
                               background: style.fill,
                             }}
@@ -796,35 +1038,76 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="border border-border bg-card/10 p-3">
+                  <div className="rounded-xl bg-card/15 ring-1 ring-border/35 p-4">
                     <h4 className="text-[11px] uppercase tracking-[0.18em] font-bold text-muted-foreground mb-3">
                       Selected Edge
                     </h4>
                     {!selectedEdge ? (
                       <p className="text-sm text-muted-foreground">Select an edge to inspect relationship metadata.</p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <p className="text-xs font-mono">
                           {selectedEdge.from.nodeType}:{trimMiddle(selectedEdge.from.nodeKey, 24)}{" "}
                           <span className="text-muted-foreground">→</span>{" "}
                           {selectedEdge.to.nodeType}:{trimMiddle(selectedEdge.to.nodeKey, 24)}
                         </p>
-                        <p className="text-sm">
-                          <span className="font-mono">{selectedEdge.edgeType}</span>{" "}
-                          <span className="text-muted-foreground">
-                            (w={selectedEdge.weight.toFixed(2)}, c={selectedEdge.confidence.toFixed(2)})
-                          </span>
-                        </p>
-                        {selectedEdge.evidenceMemoryId ? (
-                          <p className="text-[11px] text-muted-foreground font-mono">
-                            evidence: {selectedEdge.evidenceMemoryId}
-                          </p>
-                        ) : null}
+                        <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                          <p className="text-muted-foreground">type</p>
+                          <p>{selectedEdge.edgeType}</p>
+                          <p className="text-muted-foreground">direction</p>
+                          <p>{selectedEdge.direction}</p>
+                          <p className="text-muted-foreground">weight</p>
+                          <p>{selectedEdge.weight.toFixed(2)}</p>
+                          <p className="text-muted-foreground">confidence</p>
+                          <p>{selectedEdge.confidence.toFixed(2)}</p>
+                          <p className="text-muted-foreground">expires</p>
+                          <p>{selectedEdge.expiresAt ? new Date(selectedEdge.expiresAt).toLocaleString() : "never"}</p>
+                          <p className="text-muted-foreground">evidence</p>
+                          <p>{selectedEdge.evidenceMemoryId ?? "none"}</p>
+                        </div>
                       </div>
                     )}
                   </div>
 
-                  <div className="border border-border bg-card/10 p-3">
+                  <div className="rounded-xl bg-card/15 ring-1 ring-border/35 p-4">
+                    <h4 className="text-[11px] uppercase tracking-[0.18em] font-bold text-muted-foreground mb-3">
+                      Relationships
+                    </h4>
+                    {graphCanvas.edges.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No relationships for this node.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-[210px] overflow-y-auto pr-1">
+                        {graphCanvas.edges.map((edge) => {
+                          const isActive = selectedEdge?.id === edge.id
+                          return (
+                            <button
+                              key={edge.id}
+                              type="button"
+                              onClick={() => setSelectedEdgeId(edge.id)}
+                              className={`w-full text-left rounded-lg p-2 transition-colors ring-1 ${
+                                isActive
+                                  ? "ring-primary/55 bg-primary/10"
+                                  : "ring-border/30 bg-card/20 hover:bg-card/35"
+                              }`}
+                            >
+                              <p className="text-[11px] font-mono">
+                                {edge.edgeType} • {edge.direction}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground font-mono mt-1">
+                                {trimMiddle(edge.from.nodeKey, 18)} → {trimMiddle(edge.to.nodeKey, 18)}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground font-mono mt-1">
+                                w={edge.weight.toFixed(2)} c={edge.confidence.toFixed(2)}
+                                {edge.expiresAt ? " • expiring" : ""}
+                              </p>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl bg-card/15 ring-1 ring-border/35 p-4">
                     <h4 className="text-[11px] uppercase tracking-[0.18em] font-bold text-muted-foreground mb-3">
                       Linked Memories
                     </h4>
@@ -832,18 +1115,38 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
                       <p className="text-sm text-muted-foreground">No memory links for this node.</p>
                     ) : (
                       <div className="space-y-2 max-h-[330px] overflow-y-auto pr-1">
-                        {explorerData.memories.slice(0, 14).map((memory) => (
-                          <div key={`${memory.memoryId}:${memory.role}`} className="border border-border bg-card/20 p-2">
-                            <p className="text-[11px] font-mono">
-                              {memory.type} • {memory.role}
-                            </p>
-                            <p className="text-sm mt-1">{truncateText(memory.content || "[memory not available]")}</p>
-                            <p className="text-[11px] text-muted-foreground font-mono mt-1">
-                              {memory.memoryId}
-                              {memory.updatedAt ? ` • ${new Date(memory.updatedAt).toLocaleString()}` : ""}
-                            </p>
-                          </div>
-                        ))}
+                        {explorerData.memories.slice(0, 20).map((memory) => {
+                          const isEvidence = Boolean(
+                            selectedEdge?.evidenceMemoryId &&
+                              memory.memoryId === selectedEdge.evidenceMemoryId
+                          )
+                          return (
+                            <div
+                              key={`${memory.memoryId}:${memory.role}`}
+                              className={`rounded-lg p-2 ring-1 ${
+                                isEvidence
+                                  ? "bg-primary/8 ring-primary/40"
+                                  : "bg-card/20 ring-border/30"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] font-mono">
+                                  {memory.type} • {memory.role}
+                                </p>
+                                {isEvidence ? (
+                                  <span className="text-[10px] uppercase tracking-[0.12em] text-primary font-bold">
+                                    edge evidence
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="text-sm mt-1">{truncateText(memory.content || "[memory not available]")}</p>
+                              <p className="text-[11px] text-muted-foreground font-mono mt-1">
+                                {memory.memoryId}
+                                {memory.updatedAt ? ` • ${new Date(memory.updatedAt).toLocaleString()}` : ""}
+                              </p>
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
