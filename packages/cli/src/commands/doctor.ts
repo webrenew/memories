@@ -5,6 +5,7 @@ import { getDb, getConfigDir, repairFtsSchema } from "../lib/db.js";
 import { getProjectId } from "../lib/git.js";
 import { join } from "node:path";
 import type { Client } from "@libsql/client";
+import { getApiClient, readAuth } from "../lib/auth.js";
 
 interface Check {
   name: string;
@@ -143,6 +144,70 @@ export const doctorCommand = new Command("doctor")
           run: async () => {
             const db = await getDb();
             return checkWritePath(db);
+          },
+        },
+        {
+          name: "Cloud integration",
+          run: async () => {
+            const auth = await readAuth();
+            if (!auth) {
+              return { ok: true, message: "Not logged in (local-only mode). Run 'memories login' for cloud checks" };
+            }
+
+            try {
+              const apiFetch = getApiClient(auth);
+              const response = await apiFetch("/api/integration/health", {
+                method: "GET",
+              });
+
+              if (!response.ok) {
+                const text = await response.text();
+                if (response.status === 404) {
+                  return {
+                    ok: true,
+                    message: "Health endpoint unavailable on server (expected before latest web deploy)",
+                  };
+                }
+                return {
+                  ok: false,
+                  message: `Health endpoint failed (${response.status}): ${text || response.statusText}`,
+                };
+              }
+
+              const body = (await response.json()) as {
+                health?: {
+                  status?: "ok" | "degraded" | "error";
+                  workspace?: { label?: string };
+                  database?: { latencyMs?: number | null };
+                  graph?: { health?: string };
+                  issues?: string[];
+                };
+              };
+
+              const health = body.health;
+              if (!health) {
+                return { ok: false, message: "Health endpoint returned malformed payload" };
+              }
+
+              const workspace = health.workspace?.label ?? "unknown";
+              const latency =
+                typeof health.database?.latencyMs === "number" ? `${health.database.latencyMs}ms` : "n/a";
+              const graph = health.graph?.health ?? "unavailable";
+              const issueCount = Array.isArray(health.issues) ? health.issues.length : 0;
+              const status = health.status ?? "error";
+              const ok = status === "ok";
+              const issueSuffix = issueCount > 0 ? `, ${issueCount} issue(s)` : "";
+
+              return {
+                ok,
+                message: `status=${status}, workspace=${workspace}, db=${latency}, graph=${graph}${issueSuffix}`,
+              };
+            } catch (error) {
+              return {
+                ok: false,
+                message: `Cloud integration check failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+              };
+            }
           },
         },
         {

@@ -1,0 +1,89 @@
+import { beforeEach, describe, expect, it, vi } from "vitest"
+
+const { mockAuthenticateRequest, mockCheckRateLimit, mockBuildIntegrationHealthPayload } = vi.hoisted(() => ({
+  mockAuthenticateRequest: vi.fn(),
+  mockCheckRateLimit: vi.fn(),
+  mockBuildIntegrationHealthPayload: vi.fn(),
+}))
+
+vi.mock("@/lib/auth", () => ({
+  authenticateRequest: mockAuthenticateRequest,
+}))
+
+vi.mock("@/lib/rate-limit", () => ({
+  apiRateLimit: { limit: vi.fn() },
+  checkRateLimit: mockCheckRateLimit,
+}))
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(() => ({})),
+}))
+
+vi.mock("@/lib/integration-health", () => ({
+  buildIntegrationHealthPayload: mockBuildIntegrationHealthPayload,
+}))
+
+import { GET } from "../route"
+
+describe("/api/integration/health", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue(null)
+  })
+
+  it("returns 401 when unauthenticated", async () => {
+    mockAuthenticateRequest.mockResolvedValue(null)
+
+    const response = await GET(new Request("https://example.com/api/integration/health"))
+    expect(response.status).toBe(401)
+  })
+
+  it("returns integration health payload", async () => {
+    mockAuthenticateRequest.mockResolvedValue({
+      userId: "user-1",
+      email: "charles@webrenew.io",
+    })
+    mockBuildIntegrationHealthPayload.mockResolvedValue({
+      status: "ok",
+      sampledAt: "2026-02-12T00:00:00.000Z",
+      auth: { ok: true, userId: "user-1", email: "charles@webrenew.io" },
+      workspace: {
+        ok: true,
+        label: "personal",
+        ownerType: "user",
+        orgId: null,
+        orgRole: null,
+        plan: "pro",
+        hasDatabase: true,
+        canProvision: true,
+      },
+      database: {
+        ok: true,
+        latencyMs: 42,
+        memoriesCount: 100,
+        error: null,
+      },
+      graph: {
+        ok: true,
+        health: "ok",
+        nodes: 20,
+        edges: 40,
+        memoryLinks: 60,
+        rolloutMode: "canary",
+        fallbackRate24h: 0.01,
+      },
+      issues: [],
+    })
+
+    const response = await GET(new Request("https://example.com/api/integration/health"))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.health.status).toBe("ok")
+    expect(body.health.database.latencyMs).toBe(42)
+    expect(mockBuildIntegrationHealthPayload).toHaveBeenCalledWith({
+      admin: {},
+      userId: "user-1",
+      email: "charles@webrenew.io",
+    })
+  })
+})

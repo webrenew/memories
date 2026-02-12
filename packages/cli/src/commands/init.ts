@@ -10,6 +10,7 @@ import * as ui from "../lib/ui.js";
 import { execSync } from "node:child_process";
 
 export const initCommand = new Command("init")
+  .alias("setup")
   .description("Initialize memories - set up MCP and instruction files for your AI tools")
   .option("-g, --global", "Initialize global rules (apply to all projects)")
   .option("-r, --rule <rule>", "Add an initial rule", (val, acc: string[]) => [...acc, val], [])

@@ -3,10 +3,13 @@ import { createClient as createTurso } from "@libsql/client"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
 import { MemoriesSection } from "@/components/dashboard/MemoriesSection"
 import { MemoryGraphSection } from "@/components/dashboard/MemoryGraphSection"
+import { IntegrationHealthSection } from "@/components/dashboard/IntegrationHealthSection"
 import type { Memory } from "@/types/memory"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { getGraphStatusPayload, type GraphStatusPayload } from "@/lib/memory-service/graph/status"
 import { ensureMemoryUserIdSchema } from "@/lib/memory-service/scope"
+import { createAdminClient } from "@/lib/supabase/admin"
+import { buildIntegrationHealthPayload, type IntegrationHealthPayload } from "@/lib/integration-health"
 
 function isMissingDeletedAtColumnError(error: unknown): boolean {
   const message = error instanceof Error ? error.message.toLowerCase() : ""
@@ -44,6 +47,7 @@ export default async function MemoriesPage() {
 
   let memories: Memory[] = []
   let graphStatus: GraphStatusPayload | null = null
+  let integrationHealth: IntegrationHealthPayload | null = null
   let connectError = false
 
   try {
@@ -96,10 +100,24 @@ export default async function MemoriesPage() {
     connectError = true
   }
 
+  try {
+    const admin = createAdminClient()
+    integrationHealth = await buildIntegrationHealthPayload({
+      admin,
+      userId: user.id,
+      email: user.email ?? "",
+    })
+  } catch (healthError) {
+    console.error("Failed to load integration health for dashboard:", healthError)
+    integrationHealth = null
+  }
+
   const workspaceKey = `${context?.ownerType ?? "user"}:${context?.orgId ?? user.id}`
 
   return (
     <div className="space-y-8">
+      <IntegrationHealthSection initialHealth={integrationHealth} />
+
       {/* Memory Graph Section */}
       <MemoryGraphSection status={connectError ? null : graphStatus} />
 
