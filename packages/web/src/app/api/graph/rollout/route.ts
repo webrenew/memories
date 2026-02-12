@@ -30,6 +30,7 @@ async function resolveWorkspaceTurso() {
 
   return {
     userId: user.id,
+    schemaCacheKey: context.turso_db_name ?? context.turso_db_url,
     turso: createTurso({
       url: context.turso_db_url,
       authToken: context.turso_db_token,
@@ -37,10 +38,13 @@ async function resolveWorkspaceTurso() {
   }
 }
 
-async function readGraphStatus(turso: ReturnType<typeof createTurso>) {
+async function readGraphStatus(
+  turso: ReturnType<typeof createTurso>,
+  schemaCacheKey: string | null
+) {
   const nowIso = new Date().toISOString()
   try {
-    await ensureMemoryUserIdSchema(turso)
+    await ensureMemoryUserIdSchema(turso, { cacheKey: schemaCacheKey })
   } catch (error) {
     console.warn("Graph rollout status schema init skipped:", error)
   }
@@ -48,6 +52,7 @@ async function readGraphStatus(turso: ReturnType<typeof createTurso>) {
     turso,
     nowIso,
     topNodesLimit: DEFAULT_TOP_NODES_LIMIT,
+    syncMappings: false,
   })
 }
 
@@ -58,7 +63,7 @@ export async function GET() {
       return resolved
     }
 
-    const status = await readGraphStatus(resolved.turso)
+    const status = await readGraphStatus(resolved.turso, resolved.schemaCacheKey)
     return NextResponse.json({ status })
   } catch (error) {
     console.error("Failed to load graph rollout status:", error)
@@ -86,7 +91,7 @@ async function updateRolloutMode(request: NextRequest) {
       updatedBy: resolved.userId,
     })
 
-    const status = await readGraphStatus(resolved.turso)
+    const status = await readGraphStatus(resolved.turso, resolved.schemaCacheKey)
     return NextResponse.json({ status })
   } catch (error) {
     console.error("Failed to update graph rollout mode:", error)

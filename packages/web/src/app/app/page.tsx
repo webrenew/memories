@@ -50,7 +50,9 @@ export default async function MemoriesPage() {
     const turso = createTurso({ url: context.turso_db_url!, authToken: context.turso_db_token! })
 
     try {
-      await ensureMemoryUserIdSchema(turso)
+      await ensureMemoryUserIdSchema(turso, {
+        cacheKey: context.turso_db_name ?? context.turso_db_url,
+      })
     } catch (schemaError) {
       console.warn("Dashboard schema init skipped; continuing with read-only queries:", schemaError)
     }
@@ -61,6 +63,7 @@ export default async function MemoriesPage() {
         turso,
         nowIso: new Date().toISOString(),
         topNodesLimit: 10,
+        syncMappings: false,
       }),
     ])
 

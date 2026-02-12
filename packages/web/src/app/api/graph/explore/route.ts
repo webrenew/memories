@@ -45,19 +45,23 @@ async function resolveWorkspaceTurso() {
     return NextResponse.json({ error: "Turso not configured" }, { status: 400 })
   }
 
-  return createTurso({
-    url: context.turso_db_url,
-    authToken: context.turso_db_token,
-  })
+  return {
+    schemaCacheKey: context.turso_db_name ?? context.turso_db_url,
+    turso: createTurso({
+      url: context.turso_db_url,
+      authToken: context.turso_db_token,
+    }),
+  }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const turso = await resolveWorkspaceTurso()
-    if (turso instanceof NextResponse) return turso
+    const resolved = await resolveWorkspaceTurso()
+    if (resolved instanceof NextResponse) return resolved
+    const { turso, schemaCacheKey } = resolved
 
     try {
-      await ensureMemoryUserIdSchema(turso)
+      await ensureMemoryUserIdSchema(turso, { cacheKey: schemaCacheKey })
     } catch (error) {
       console.warn("Graph explorer schema init skipped:", error)
     }

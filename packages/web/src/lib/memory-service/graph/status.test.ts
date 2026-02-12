@@ -241,6 +241,62 @@ describe("getGraphStatusPayload", () => {
     expect(Number(linksResult.rows[0]?.count ?? 0)).toBeGreaterThan(0)
   })
 
+  it("can skip opportunistic mapping sync for faster read-only status", async () => {
+    const db = await setupDb("memories-graph-status-no-sync")
+    await ensureGraphTables(db)
+
+    await db.execute(
+      `CREATE TABLE memories (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        memory_layer TEXT,
+        expires_at TEXT,
+        project_id TEXT,
+        user_id TEXT,
+        tags TEXT,
+        category TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT
+      )`
+    )
+
+    await db.execute({
+      sql: `INSERT INTO memories (
+              id, type, memory_layer, expires_at, project_id, user_id, tags, category, created_at, updated_at, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        "mem-unmapped-no-sync",
+        "rule",
+        null,
+        null,
+        "github.com/WebRenew/memories",
+        null,
+        "graph,rollout,hybrid_graph",
+        "graph-ui",
+        "2026-02-12T00:00:00.000Z",
+        "2026-02-12T00:00:00.000Z",
+        null,
+      ],
+    })
+
+    const payload = await getGraphStatusPayload({
+      turso: db,
+      nowIso: "2026-02-12T00:10:00.000Z",
+      topNodesLimit: 10,
+      syncMappings: false,
+    })
+
+    expect(payload.health).toBe("ok")
+    expect(payload.counts.memoryLinks).toBe(0)
+
+    const linksResult = await db.execute({
+      sql: "SELECT COUNT(*) as count FROM memory_node_links WHERE memory_id = ?",
+      args: ["mem-unmapped-no-sync"],
+    })
+    expect(Number(linksResult.rows[0]?.count ?? 0)).toBe(0)
+  })
+
   it("raises fallback alarms when rollout metrics degrade", async () => {
     const db = await setupDb("memories-graph-status-alarms")
     await ensureGraphTables(db)

@@ -201,6 +201,9 @@ export async function resolveTenantTurso(apiKeyHash: string, tenantId: string): 
 }
 
 const userIdSchemaEnsuredClients = new WeakSet<TursoClient>()
+const userIdSchemaEnsuredKeys = new Set<string>()
+const MEMORY_SCHEMA_STATE_TABLE = "memory_schema_state"
+const MEMORY_SCHEMA_STATE_KEY = "memory_user_id_v1"
 
 async function ensureGraphSchema(turso: TursoClient): Promise<void> {
   await turso.execute(
@@ -287,36 +290,91 @@ async function ensureGraphSchema(turso: TursoClient): Promise<void> {
   )
 }
 
-export async function ensureMemoryUserIdSchema(turso: TursoClient): Promise<void> {
+async function ensureSchemaStateTable(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS ${MEMORY_SCHEMA_STATE_TABLE} (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+}
+
+async function isMemorySchemaMarked(turso: TursoClient): Promise<boolean> {
+  const result = await turso.execute({
+    sql: `SELECT value
+          FROM ${MEMORY_SCHEMA_STATE_TABLE}
+          WHERE key = ?
+          LIMIT 1`,
+    args: [MEMORY_SCHEMA_STATE_KEY],
+  })
+  const rows = Array.isArray(result.rows) ? result.rows : []
+  return String(rows[0]?.value ?? "") === "1"
+}
+
+async function markMemorySchemaApplied(turso: TursoClient): Promise<void> {
+  await turso.execute({
+    sql: `INSERT OR REPLACE INTO ${MEMORY_SCHEMA_STATE_TABLE} (key, value, updated_at)
+          VALUES (?, '1', datetime('now'))`,
+    args: [MEMORY_SCHEMA_STATE_KEY],
+  })
+}
+
+async function memoryColumns(turso: TursoClient): Promise<Set<string>> {
+  const result = await turso.execute("PRAGMA table_info(memories)")
+  const columns = new Set<string>()
+  const rows = Array.isArray(result.rows) ? result.rows : []
+  for (const row of rows) {
+    const name = row.name
+    if (typeof name === "string" && name.length > 0) {
+      columns.add(name)
+    }
+  }
+  return columns
+}
+
+interface EnsureMemoryUserIdSchemaOptions {
+  cacheKey?: string | null
+}
+
+export async function ensureMemoryUserIdSchema(
+  turso: TursoClient,
+  options: EnsureMemoryUserIdSchemaOptions = {}
+): Promise<void> {
+  const normalizedCacheKey =
+    typeof options.cacheKey === "string" && options.cacheKey.trim().length > 0
+      ? options.cacheKey.trim()
+      : null
+
   if (userIdSchemaEnsuredClients.has(turso)) {
     return
   }
+  if (normalizedCacheKey && userIdSchemaEnsuredKeys.has(normalizedCacheKey)) {
+    userIdSchemaEnsuredClients.add(turso)
+    return
+  }
 
-  try {
+  await ensureSchemaStateTable(turso)
+  if (await isMemorySchemaMarked(turso)) {
+    userIdSchemaEnsuredClients.add(turso)
+    if (normalizedCacheKey) {
+      userIdSchemaEnsuredKeys.add(normalizedCacheKey)
+    }
+    return
+  }
+
+  const columns = await memoryColumns(turso)
+
+  if (!columns.has("user_id")) {
     await turso.execute("ALTER TABLE memories ADD COLUMN user_id TEXT")
-  } catch (err) {
-    const message = err instanceof Error ? err.message.toLowerCase() : ""
-    if (!message.includes("duplicate column name")) {
-      throw err
-    }
   }
 
-  try {
+  if (!columns.has("memory_layer")) {
     await turso.execute("ALTER TABLE memories ADD COLUMN memory_layer TEXT NOT NULL DEFAULT 'long_term'")
-  } catch (err) {
-    const message = err instanceof Error ? err.message.toLowerCase() : ""
-    if (!message.includes("duplicate column name")) {
-      throw err
-    }
   }
 
-  try {
+  if (!columns.has("expires_at")) {
     await turso.execute("ALTER TABLE memories ADD COLUMN expires_at TEXT")
-  } catch (err) {
-    const message = err instanceof Error ? err.message.toLowerCase() : ""
-    if (!message.includes("duplicate column name")) {
-      throw err
-    }
   }
 
   await turso.execute(
@@ -335,5 +393,9 @@ export async function ensureMemoryUserIdSchema(turso: TursoClient): Promise<void
   )
   await turso.execute("CREATE INDEX IF NOT EXISTS idx_memories_layer_expires ON memories(memory_layer, expires_at)")
   await ensureGraphSchema(turso)
+  await markMemorySchemaApplied(turso)
   userIdSchemaEnsuredClients.add(turso)
+  if (normalizedCacheKey) {
+    userIdSchemaEnsuredKeys.add(normalizedCacheKey)
+  }
 }

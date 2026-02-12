@@ -106,6 +106,7 @@ interface GraphStatusInput {
   turso: TursoClient
   nowIso: string
   topNodesLimit: number
+  syncMappings?: boolean
 }
 
 const GRAPH_STATUS_SYNC_BATCH_LIMIT = 250
@@ -293,6 +294,7 @@ async function opportunisticGraphSync(
 export async function getGraphStatusPayload(input: GraphStatusInput): Promise<GraphStatusPayload> {
   const { turso, nowIso } = input
   const topNodesLimit = normalizeTopNodesLimit(input.topNodesLimit)
+  const syncMappings = input.syncMappings ?? true
   const flags = {
     mappingEnabled: GRAPH_MAPPING_ENABLED,
     retrievalEnabled: GRAPH_RETRIEVAL_ENABLED,
@@ -399,16 +401,18 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
     }
   }
 
-  try {
-    await opportunisticGraphSync(turso, recentErrors)
-  } catch (error) {
-    recentErrors.push({
-      code: "GRAPH_MAPPING_SYNC_UNAVAILABLE",
-      message: "Graph mapping sync did not complete for this status sample.",
-      source: "mapping",
-      timestamp: nowIso,
-    })
-    console.error("Failed opportunistic graph sync:", error)
+  if (syncMappings) {
+    try {
+      await opportunisticGraphSync(turso, recentErrors)
+    } catch (error) {
+      recentErrors.push({
+        code: "GRAPH_MAPPING_SYNC_UNAVAILABLE",
+        message: "Graph mapping sync did not complete for this status sample.",
+        source: "mapping",
+        timestamp: nowIso,
+      })
+      console.error("Failed opportunistic graph sync:", error)
+    }
   }
 
   const nodes = await scalarCount(turso, "SELECT COUNT(*) as count FROM graph_nodes")
