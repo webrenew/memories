@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const {
   mockGetUser,
   mockAdminFrom,
+  mockAdminGetUserById,
   mockCheckRateLimit,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
   mockAdminFrom: vi.fn(),
+  mockAdminGetUserById: vi.fn(),
   mockCheckRateLimit: vi.fn(),
 }))
 
@@ -21,6 +23,11 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
     from: mockAdminFrom,
+    auth: {
+      admin: {
+        getUserById: mockAdminGetUserById,
+      },
+    },
   })),
 }))
 
@@ -35,6 +42,10 @@ describe("/api/orgs/[orgId]/members", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue(null)
+    mockAdminGetUserById.mockResolvedValue({
+      data: { user: { last_sign_in_at: "2026-02-12T10:00:00.000Z" } },
+      error: null,
+    })
   })
 
   it("returns 401 when unauthenticated", async () => {
@@ -97,6 +108,19 @@ describe("/api/orgs/[orgId]/members", () => {
         }
       }
 
+      if (table === "organizations") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { turso_db_url: null, turso_db_token: null },
+                error: null,
+              }),
+            }),
+          })),
+        }
+      }
+
       return {
         select: vi.fn(() => ({ eq: vi.fn(), in: vi.fn(), single: vi.fn(), order: vi.fn() })),
       }
@@ -112,6 +136,9 @@ describe("/api/orgs/[orgId]/members", () => {
     expect(body.members).toHaveLength(1)
     expect(body.members[0].role).toBe("owner")
     expect(body.members[0].user.email).toBe("charles@webrenew.io")
+    expect(body.members[0].last_login_at).toBe("2026-02-12T10:00:00.000Z")
+    expect(body.members[0].memory_count).toBe(0)
+    expect(body.members[0].user_memory_count).toBe(0)
   })
 
   it("falls back when created_at is missing from org_members", async () => {
@@ -165,6 +192,19 @@ describe("/api/orgs/[orgId]/members", () => {
         }
       }
 
+      if (table === "organizations") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { turso_db_url: null, turso_db_token: null },
+                error: null,
+              }),
+            }),
+          })),
+        }
+      }
+
       return {
         select: vi.fn(() => ({ eq: vi.fn(), in: vi.fn(), single: vi.fn(), order: vi.fn() })),
       }
@@ -180,5 +220,6 @@ describe("/api/orgs/[orgId]/members", () => {
     expect(body.members).toHaveLength(1)
     expect(body.members[0].joined_at).toBeNull()
     expect(body.members[0].user.email).toBe("charles@webrenew.io")
+    expect(body.members[0].memory_count).toBe(0)
   })
 })

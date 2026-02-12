@@ -29,7 +29,10 @@ interface Organization {
 interface Member {
   id: string
   role: string
-  joined_at: string
+  joined_at: string | null
+  last_login_at: string | null
+  memory_count: number
+  user_memory_count: number
   user: {
     id: string
     email: string
@@ -56,6 +59,13 @@ function roleIcon(role: string) {
     case "admin": return <Shield className="h-3 w-3 text-blue-400" />
     default: return <User className="h-3 w-3 text-muted-foreground" />
   }
+}
+
+function formatLastLogin(lastLoginAt: string | null): string {
+  if (!lastLoginAt) return "Never"
+  const date = new Date(lastLoginAt)
+  if (Number.isNaN(date.getTime())) return "Unknown"
+  return date.toLocaleString()
 }
 
 export function TeamContent({ 
@@ -392,62 +402,112 @@ export function TeamContent({
                 <div className="p-4 border-b border-border">
                   <h3 className="font-semibold">Members</h3>
                 </div>
+                <div className="hidden md:grid md:grid-cols-[minmax(0,2fr)_130px_220px_220px_auto] gap-3 px-4 py-2 border-b border-border text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                  <span>Member</span>
+                  <span>Role</span>
+                  <span>Last Login</span>
+                  <span>Memory</span>
+                  <span className="text-right">Actions</span>
+                </div>
                 <div className="divide-y divide-border">
-                  {members.map(member => (
-                    <div key={member.id} className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {member.user.avatar_url ? (
-                          <Image
-                            src={member.user.avatar_url}
-                            alt=""
-                            width={36}
-                            height={36}
-                            className="rounded-full border border-border"
-                          />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-bold">
-                            {(member.user.name || member.user.email)[0]?.toUpperCase()}
+                  {members.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground">No members found for this organization yet.</div>
+                  ) : (
+                    members.map((member) => (
+                      <div
+                        key={member.id}
+                        className="p-4 grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_130px_220px_220px_auto] gap-3 md:items-center"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {member.user.avatar_url ? (
+                            <Image
+                              src={member.user.avatar_url}
+                              alt=""
+                              width={36}
+                              height={36}
+                              className="rounded-full border border-border"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-bold">
+                              {(member.user.name || member.user.email)[0]?.toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {member.user.name || member.user.email.split("@")[0]}
+                              {member.user.id === userId && (
+                                <span className="text-xs text-muted-foreground ml-2">(you)</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">{member.user.email}</p>
                           </div>
-                        )}
-                        <div>
-                          <p className="text-sm font-medium">
-                            {member.user.name || member.user.email.split("@")[0]}
-                            {member.user.id === userId && (
-                              <span className="text-xs text-muted-foreground ml-2">(you)</span>
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{member.user.email}</p>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5 px-2 py-1 bg-muted/30 border border-border">
-                          {roleIcon(member.role)}
-                          <span className="text-xs capitalize">{member.role}</span>
+
+                        <div className="flex md:block items-center gap-2">
+                          <span className="md:hidden text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+                            Role
+                          </span>
+                          <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-muted/30 border border-border">
+                            {roleIcon(member.role)}
+                            <span className="text-xs capitalize">{member.role}</span>
+                          </div>
                         </div>
-                        {isAdmin && member.role !== "owner" && member.user.id !== userId && (
-                          <div className="flex items-center gap-1">
-                            {isOwner && (
-                              <select
-                                value={member.role}
-                                onChange={(e) => updateRole(member.user.id, e.target.value)}
-                                className="px-2 py-1 bg-muted/30 border border-border text-xs focus:outline-none"
+
+                        <div className="text-xs text-muted-foreground">
+                          <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] mb-1 text-muted-foreground/70">
+                            Last Login
+                          </span>
+                          <span>{formatLastLogin(member.last_login_at)}</span>
+                        </div>
+
+                        <div className="text-xs text-muted-foreground">
+                          <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] mb-1 text-muted-foreground/70">
+                            Memory
+                          </span>
+                          <div className="space-y-0.5">
+                            <p>
+                              Workspace:{" "}
+                              <span className="text-foreground font-medium">
+                                {(member.memory_count ?? 0).toLocaleString()}
+                              </span>
+                            </p>
+                            <p>
+                              User-scoped:{" "}
+                              <span className="text-foreground font-medium">
+                                {(member.user_memory_count ?? 0).toLocaleString()}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 md:justify-end">
+                          {isAdmin && member.role !== "owner" && member.user.id !== userId ? (
+                            <>
+                              {isOwner && (
+                                <select
+                                  value={member.role}
+                                  onChange={(e) => updateRole(member.user.id, e.target.value)}
+                                  className="px-2 py-1 bg-muted/30 border border-border text-xs focus:outline-none"
+                                >
+                                  <option value="member">Member</option>
+                                  <option value="admin">Admin</option>
+                                </select>
+                              )}
+                              <button
+                                onClick={() => removeMember(member.user.id)}
+                                className="p-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
+                                title="Remove member"
                               >
-                                <option value="member">Member</option>
-                                <option value="admin">Admin</option>
-                              </select>
-                            )}
-                            <button
-                              onClick={() => removeMember(member.user.id)}
-                              className="p-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
-                              title="Remove member"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        )}
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 

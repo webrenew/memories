@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { removeTeamSeat } from "@/lib/stripe/teams"
+import { createClient as createTurso } from "@libsql/client"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, updateMemberRoleSchema } from "@/lib/validations"
@@ -17,6 +18,11 @@ interface UserRow {
   email: string | null
   name: string | null
   avatar_url: string | null
+}
+
+interface OrganizationTursoRow {
+  turso_db_url: string | null
+  turso_db_token: string | null
 }
 
 function isMissingColumnError(error: unknown, columnName: string): boolean {
@@ -92,6 +98,9 @@ export async function GET(
 
   const userIds = [...new Set(memberRows.map((row) => row.user_id).filter(Boolean))]
   let usersById = new Map<string, UserRow>()
+  const lastLoginByUserId = new Map<string, string | null>()
+  const userScopedMemoryCounts = new Map<string, number>()
+  let workspaceMemoryCount = 0
 
   if (userIds.length > 0) {
     const { data: users, error: usersError } = await admin
@@ -104,6 +113,63 @@ export async function GET(
     }
 
     usersById = new Map((users as UserRow[] | null | undefined)?.map((row) => [row.id, row]) ?? [])
+
+    // Auth-level last login metadata is useful for workspace owners.
+    const loginLookups = await Promise.allSettled(
+      userIds.map(async (memberUserId) => {
+        const { data, error } = await admin.auth.admin.getUserById(memberUserId)
+        if (error || !data.user) {
+          return { userId: memberUserId, lastLoginAt: null }
+        }
+
+        return { userId: memberUserId, lastLoginAt: data.user.last_sign_in_at ?? null }
+      })
+    )
+
+    for (const lookup of loginLookups) {
+      if (lookup.status === "fulfilled") {
+        lastLoginByUserId.set(lookup.value.userId, lookup.value.lastLoginAt)
+      }
+    }
+  }
+
+  // Team-level memory metrics come from the org workspace Turso database.
+  const { data: orgTursoData } = await admin
+    .from("organizations")
+    .select("turso_db_url, turso_db_token")
+    .eq("id", orgId)
+    .single()
+
+  const orgTurso = orgTursoData as OrganizationTursoRow | null
+  if (orgTurso?.turso_db_url && orgTurso?.turso_db_token) {
+    try {
+      const turso = createTurso({
+        url: orgTurso.turso_db_url,
+        authToken: orgTurso.turso_db_token,
+      })
+
+      const workspaceCountResult = await turso
+        .execute("SELECT COUNT(*) as count FROM memories WHERE deleted_at IS NULL")
+        .catch(() => turso.execute("SELECT COUNT(*) as count FROM memories"))
+
+      workspaceMemoryCount = Number(workspaceCountResult.rows[0]?.count ?? 0)
+
+      const userCountResult = await turso
+        .execute(
+          "SELECT user_id, COUNT(*) as count FROM memories WHERE deleted_at IS NULL AND user_id IS NOT NULL GROUP BY user_id"
+        )
+        .catch(() =>
+          turso.execute("SELECT user_id, COUNT(*) as count FROM memories WHERE user_id IS NOT NULL GROUP BY user_id")
+        )
+
+      for (const row of userCountResult.rows) {
+        const rowUserId = typeof row.user_id === "string" ? row.user_id : null
+        if (!rowUserId) continue
+        userScopedMemoryCounts.set(rowUserId, Number(row.count ?? 0))
+      }
+    } catch (error) {
+      console.error("Failed to load org member memory stats:", { orgId, error })
+    }
   }
 
   const normalizedMembers = memberRows.map((member) => {
@@ -112,6 +178,9 @@ export async function GET(
       id: member.id,
       role: member.role,
       joined_at: member.created_at ?? null,
+      last_login_at: lastLoginByUserId.get(member.user_id) ?? null,
+      memory_count: workspaceMemoryCount,
+      user_memory_count: userScopedMemoryCounts.get(member.user_id) ?? 0,
       user: {
         id: foundUser?.id ?? member.user_id,
         email: foundUser?.email ?? `${member.user_id}@unknown.local`,
