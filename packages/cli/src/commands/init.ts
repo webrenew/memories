@@ -6,6 +6,8 @@ import { getProjectId, getGitRoot } from "../lib/git.js";
 import { addMemory, listMemories } from "../lib/memory.js";
 import { readAuth } from "../lib/auth.js";
 import { detectTools, getAllTools, setupMcp, type DetectedTool } from "../lib/setup.js";
+import { initConfig } from "../lib/config.js";
+import { runDoctorChecks } from "./doctor.js";
 import * as ui from "../lib/ui.js";
 import { execSync } from "node:child_process";
 
@@ -16,23 +18,28 @@ export const initCommand = new Command("init")
   .option("-r, --rule <rule>", "Add an initial rule", (val, acc: string[]) => [...acc, val], [])
   .option("--skip-mcp", "Skip MCP configuration")
   .option("--skip-generate", "Skip generating instruction files")
+  .option("--skip-verify", "Skip post-setup verification checks")
   .option("-y, --yes", "Auto-confirm all prompts")
-  .action(async (opts: { global?: boolean; rule?: string[]; skipMcp?: boolean; skipGenerate?: boolean; yes?: boolean }) => {
+  .action(async (opts: { global?: boolean; rule?: string[]; skipMcp?: boolean; skipGenerate?: boolean; skipVerify?: boolean; yes?: boolean }) => {
     try {
       ui.banner();
       
       console.log(chalk.dim("  One place for your rules. Works with every tool.\n"));
 
+      const totalSteps = opts.skipVerify ? 4 : 5;
+      const cwd = process.cwd();
+
       // Step 1: Database
-      ui.step(1, 4, "Setting up local storage...");
+      ui.step(1, totalSteps, "Setting up local storage...");
       await getDb();
+      const configPath = await initConfig(cwd);
       const configDir = getConfigDir();
       ui.dim(`Database: ${configDir}/local.db`);
+      ui.dim(`Config: ${configPath}`);
 
       // Step 2: Scope detection
-      ui.step(2, 4, "Detecting scope...");
+      ui.step(2, totalSteps, "Detecting scope...");
       let useGlobal = opts.global;
-      const cwd = process.cwd();
       
       if (!useGlobal) {
         const projectId = getProjectId();
@@ -51,7 +58,7 @@ export const initCommand = new Command("init")
       }
 
       // Step 3: Detect and configure tools
-      ui.step(3, 4, "Detecting AI coding tools...");
+      ui.step(3, totalSteps, "Detecting AI coding tools...");
       let detected = detectTools(cwd);
       
       if (detected.length === 0) {
@@ -148,7 +155,7 @@ export const initCommand = new Command("init")
       }
 
       // Step 4: Add initial rules if provided
-      ui.step(4, 4, "Finalizing...");
+      ui.step(4, totalSteps, "Finalizing...");
       if (opts.rule?.length) {
         ui.info("Adding rules...");
         for (const rule of opts.rule) {
@@ -168,6 +175,36 @@ export const initCommand = new Command("init")
         ui.dim("Local only. Run " + chalk.cyan("memories login") + " to sync across machines.");
       }
 
+      if (!opts.skipVerify) {
+        ui.step(5, totalSteps, "Running integration verification...");
+        const report = await runDoctorChecks();
+        const problematicChecks = report.checks.filter((check) => check.status !== "pass");
+
+        if (report.summary.failed > 0) {
+          ui.warn(
+            `Verification found ${report.summary.failed} failure(s) and ${report.summary.warned} warning(s).`,
+          );
+        } else if (report.summary.warned > 0) {
+          ui.warn(`Verification passed with ${report.summary.warned} warning(s).`);
+        } else {
+          ui.success("Verification passed (auth, DB, MCP, and graph health checks).");
+        }
+
+        if (problematicChecks.length > 0) {
+          console.log("");
+          console.log(chalk.bold("  Verification fixes:"));
+          for (const check of problematicChecks) {
+            const icon = check.status === "warn" ? chalk.yellow("⚠") : chalk.red("✗");
+            console.log(`  ${icon} ${chalk.bold(check.name)}: ${check.message}`);
+            if (check.remediation && check.remediation.length > 0) {
+              for (const step of check.remediation) {
+                console.log(chalk.dim(`     ↳ ${step}`));
+              }
+            }
+          }
+        }
+      }
+
       // Quick start guide
       console.log("");
       console.log(chalk.bold("  Quick Start:"));
@@ -177,6 +214,9 @@ export const initCommand = new Command("init")
       console.log("");
       console.log(chalk.dim("  Regenerate instruction files after adding rules:"));
       console.log(`     ${chalk.cyan("memories generate all")}`);
+      console.log("");
+      console.log(chalk.dim("  Run full health checks any time:"));
+      console.log(`     ${chalk.cyan("memories doctor --fix")}`);
       console.log("");
       console.log(chalk.dim("  Your rules will be available via MCP and in generated files."));
       console.log("");
