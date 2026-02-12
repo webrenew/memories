@@ -1,0 +1,145 @@
+:root {
+  --bg: #03040a;
+  --panel: rgba(8, 10, 18, 0.88);
+  --panel-soft: rgba(6, 8, 15, 0.7);
+  --line: rgba(173, 195, 255, 0.25);
+  --text: #f6f8ff;
+  --muted: #99a4c5;
+  --accent: #5be4ff;
+  --accent-2: #2de39f;
+  --danger: #ff7f94;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at 15% 15%, #0d1941 0%, transparent 45%),
+    radial-gradient(circle at 85% 20%, #0a2e2a 0%, transparent 42%),
+    linear-gradient(160deg, #02030a 0%, #040915 52%, #01030a 100%);
+  color: var(--text);
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-body), monospace;
+}
+
+main {
+  width: min(1200px, 100% - 2rem);
+  margin: 2rem auto;
+  display: grid;
+  gap: 1.25rem;
+}
+
+header {
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  backdrop-filter: blur(8px);
+  padding: 1.25rem;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading), sans-serif;
+  margin: 0;
+  letter-spacing: 0.03em;
+}
+
+h1 {
+  font-size: clamp(1.6rem, 2.2vw, 2.5rem);
+}
+
+p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 1rem;
+  display: grid;
+  gap: 0.8rem;
+  min-height: 340px;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+input,
+textarea,
+select,
+button {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: rgba(3, 6, 14, 0.9);
+  color: var(--text);
+  font: inherit;
+  padding: 0.7rem 0.75rem;
+}
+
+textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+button {
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  background: linear-gradient(90deg, rgba(91, 228, 255, 0.18), rgba(45, 227, 159, 0.16));
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.output {
+  border: 1px solid rgba(173, 195, 255, 0.3);
+  background: rgba(4, 8, 16, 0.9);
+  padding: 0.75rem;
+  overflow: auto;
+  max-height: 260px;
+  font-size: 0.85rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  border: 1px solid var(--line);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
