@@ -3,8 +3,10 @@ import { createClient as createTurso } from "@libsql/client"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
 import { MemoriesSection } from "@/components/dashboard/MemoriesSection"
 import { ToolsPanel } from "@/components/dashboard/ToolsPanel"
+import { MemoryGraphSection } from "@/components/dashboard/MemoryGraphSection"
 import type { Memory } from "@/types/memory"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { getGraphStatusPayload, type GraphStatusPayload } from "@/lib/memory-service/graph/status"
 
 export default async function MemoriesPage() {
   const supabase = await createClient()
@@ -20,13 +22,21 @@ export default async function MemoriesPage() {
   }
 
   let memories: Memory[] = []
+  let graphStatus: GraphStatusPayload | null = null
   let connectError = false
 
   try {
     const turso = createTurso({ url: context.turso_db_url!, authToken: context.turso_db_token! })
-    const result = await turso.execute(
-      "SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
-    )
+    const [result, graphStatusResult] = await Promise.all([
+      turso.execute(
+        "SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
+      ),
+      getGraphStatusPayload({
+        turso,
+        nowIso: new Date().toISOString(),
+        topNodesLimit: 10,
+      }),
+    ])
     memories = result.rows.map(row => ({
       id: row.id as string,
       content: row.content as string,
@@ -40,6 +50,7 @@ export default async function MemoriesPage() {
       created_at: row.created_at as string,
       updated_at: (row.updated_at as string) ?? (row.created_at as string),
     }))
+    graphStatus = graphStatusResult
   } catch (err) {
     console.error("Turso connection error:", err)
     connectError = true
@@ -52,6 +63,9 @@ export default async function MemoriesPage() {
     <div className="space-y-8">
       {/* Tools Panel */}
       <ToolsPanel ruleCount={ruleCount} />
+
+      {/* Memory Graph Section */}
+      <MemoryGraphSection status={connectError ? null : graphStatus} />
 
       {/* Memories Section with filters */}
       {connectError ? (

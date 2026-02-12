@@ -43,6 +43,14 @@ describe("getGraphStatusPayload", () => {
     expect(payload.counts.edges).toBe(0)
     expect(payload.counts.memoryLinks).toBe(0)
     expect(payload.topConnectedNodes).toEqual([])
+    expect(payload.recentErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "GRAPH_SCHEMA_MISSING",
+          source: "schema",
+        }),
+      ])
+    )
   })
 
   it("reports counts and top connected nodes when schema exists", async () => {
@@ -157,5 +165,13 @@ describe("getGraphStatusPayload", () => {
       inboundEdges: 0,
       degree: 3,
     })
+    expect(payload.recentErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "EXPIRED_EDGES_PRESENT",
+          source: "ttl",
+        }),
+      ])
+    )
   })
 })

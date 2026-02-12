@@ -24,6 +24,13 @@ export interface GraphStatusTopNode {
   degree: number
 }
 
+export interface GraphStatusError {
+  code: string
+  message: string
+  source: string
+  timestamp: string
+}
+
 export interface GraphStatusPayload {
   enabled: boolean
   flags: {
@@ -46,6 +53,7 @@ export interface GraphStatusPayload {
     orphanNodes: number
   }
   topConnectedNodes: GraphStatusTopNode[]
+  recentErrors: GraphStatusError[]
   sampledAt: string
 }
 
@@ -93,8 +101,15 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
     memoryNodeLinks: await tableExists(turso, "memory_node_links"),
   }
   const hasSchema = tables.graphNodes && tables.graphEdges && tables.memoryNodeLinks
+  const recentErrors: GraphStatusError[] = []
 
   if (!hasSchema) {
+    recentErrors.push({
+      code: "GRAPH_SCHEMA_MISSING",
+      message: "Graph tables are missing in this workspace database.",
+      source: "schema",
+      timestamp: nowIso,
+    })
     return {
       enabled,
       flags,
@@ -109,6 +124,7 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
         orphanNodes: 0,
       },
       topConnectedNodes: [],
+      recentErrors,
       sampledAt: nowIso,
     }
   }
@@ -168,6 +184,24 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
     }
   })
 
+  if (orphanNodes > 0) {
+    recentErrors.push({
+      code: "ORPHAN_NODES_DETECTED",
+      message: `${orphanNodes} orphan graph node${orphanNodes === 1 ? "" : "s"} detected.`,
+      source: "consistency",
+      timestamp: nowIso,
+    })
+  }
+
+  if (expiredEdges > 0) {
+    recentErrors.push({
+      code: "EXPIRED_EDGES_PRESENT",
+      message: `${expiredEdges} expired graph edge${expiredEdges === 1 ? "" : "s"} pending cleanup.`,
+      source: "ttl",
+      timestamp: nowIso,
+    })
+  }
+
   return {
     enabled,
     flags,
@@ -182,6 +216,7 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
       orphanNodes,
     },
     topConnectedNodes,
+    recentErrors,
     sampledAt: nowIso,
   }
 }
