@@ -163,7 +163,7 @@ export function DashboardShell({
       {/* Content area with sidebar */}
       <div className={`flex ${plan === "past_due" ? "pt-[6.25rem]" : "pt-16"}`}>
         {/* Sidebar */}
-        <aside className={`hidden md:flex flex-col w-56 shrink-0 border-r border-border sticky ${sidebarOffsetClass} p-4 overflow-hidden`}>
+        <aside className={`hidden md:fixed md:left-0 md:z-40 md:flex flex-col w-56 border-r border-border ${sidebarOffsetClass} p-4 overflow-hidden bg-background`}>
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 space-y-1">
             {navItems.map((item) => {
               const isActive =
@@ -201,6 +201,9 @@ export function DashboardShell({
             </form>
           </div>
         </aside>
+
+        {/* Sidebar spacer for desktop fixed rail */}
+        <div className="hidden md:block w-56 shrink-0" aria-hidden />
 
         {/* Mobile nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-2xl border-t border-border">
