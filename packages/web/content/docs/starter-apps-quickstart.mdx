@@ -1,0 +1,120 @@
+---
+title: Starter Apps Quickstart
+description: Launch Next.js, Express, or Python starter apps and run add/search/context flows in under 10 minutes.
+---
+
+## What You Get
+
+The repository ships three starter apps that all demonstrate the same integration flow:
+
+1. Add memory
+2. Search memories
+3. Fetch context
+
+| Starter | Stack | Location |
+|---|---|---|
+| Next.js | Next.js `16.1.6` + React 19 | `examples/nextjs-starter` |
+| Express | Express 5 (Node 20+) | `examples/express-starter` |
+| Python | FastAPI + HTTPX | `examples/python-starter` |
+
+## Prerequisites
+
+- A memories API key
+- Node.js 20+ (Next.js and Express starters)
+- Python 3.11+ (Python starter)
+
+## Shared Environment Variables
+
+Each starter accepts the same core variables:
+
+```bash
+MEMORIES_API_KEY=mem_xxx
+MEMORIES_BASE_URL=https://memories.sh
+MEMORIES_TENANT_ID=acme-workspace      # optional
+MEMORIES_USER_ID=user_123              # optional
+MEMORIES_PROJECT_ID=starter-demo       # optional
+```
+
+`MEMORIES_API_KEY` is required. The others are optional scope defaults.
+
+## Option A: Next.js Starter (`next@16.1.6`)
+
+```bash
+cd examples/nextjs-starter
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to use the built-in demo UI.
+
+API routes exposed by this starter:
+
+- `POST /api/memories/add`
+- `GET /api/memories/search`
+- `GET /api/memories/context`
+
+## Option B: Express Starter
+
+```bash
+cd examples/express-starter
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Server default: [http://localhost:8787](http://localhost:8787)
+
+API routes exposed by this starter:
+
+- `POST /memories/add`
+- `GET /memories/search`
+- `GET /context`
+
+## Option C: Python Starter
+
+```bash
+cd examples/python-starter
+cp .env.example .env
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --reload --port 8000
+```
+
+Server default: [http://localhost:8000](http://localhost:8000)
+
+API routes exposed by this starter:
+
+- `POST /memories/add`
+- `GET /memories/search`
+- `GET /context`
+
+## Verify The Flow (Works On All Starters)
+
+Use your starter's base URL (`:3000`, `:8787`, or `:8000`) and run:
+
+```bash
+# 1) Add
+curl -X POST http://localhost:8787/memories/add \
+  -H "content-type: application/json" \
+  -d '{"content":"Team release notes must include exact dates.","type":"rule","tags":["docs","release"]}'
+
+# 2) Search
+curl "http://localhost:8787/memories/search?q=release+notes"
+
+# 3) Context
+curl "http://localhost:8787/context?q=What+are+our+release+note+rules%3F&mode=all"
+```
+
+For Next.js routes, replace endpoints with:
+
+- `/api/memories/add`
+- `/api/memories/search`
+- `/api/memories/context`
+
+## Next Steps
+
+- [SDK Client Reference](/docs/sdk/client)
+- [SDK Endpoint Contract](/docs/sdk/endpoint-contract)
+- [MCP Server Overview](/docs/mcp-server)
