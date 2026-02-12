@@ -206,6 +206,21 @@ memories files apply --global --force
 
 This syncs files from `.agents/`, `.claude/`, `.cursor/`, `.codex/`, `.windsurf/`, and other tool directories. See [Files Sync](/docs/cli/files) for details.
 
+## GitHub Capture Queue
+
+Capture GitHub activity automatically and review before insertion:
+
+```bash
+# 1) Configure webhook secret in your web app env
+GITHUB_WEBHOOK_SECRET=your-secret
+
+# 2) Point GitHub webhook to:
+#    POST /api/github/webhook
+#    Events: pull_request, issues, push
+```
+
+Captured items appear in dashboard **GitHub Capture Queue**. Approve to write into workspace memory (with graph sync), or reject to discard.
+
 ## Next Steps
 
 - [Starter Apps Quickstart](/docs/starter-apps-quickstart) — Next.js, Express, and Python templates

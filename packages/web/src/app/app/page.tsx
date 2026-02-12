@@ -4,6 +4,7 @@ import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
 import { MemoriesSection } from "@/components/dashboard/MemoriesSection"
 import { MemoryGraphSection } from "@/components/dashboard/MemoryGraphSection"
 import { IntegrationHealthSection } from "@/components/dashboard/IntegrationHealthSection"
+import { GithubCaptureQueueSection } from "@/components/dashboard/GithubCaptureQueueSection"
 import type { Memory } from "@/types/memory"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { getGraphStatusPayload, type GraphStatusPayload } from "@/lib/memory-service/graph/status"
@@ -117,6 +118,8 @@ export default async function MemoriesPage() {
   return (
     <div className="space-y-8">
       <IntegrationHealthSection initialHealth={integrationHealth} />
+
+      <GithubCaptureQueueSection />
 
       {/* Memory Graph Section */}
       <MemoryGraphSection status={connectError ? null : graphStatus} />

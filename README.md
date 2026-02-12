@@ -71,6 +71,7 @@ memories generate
 - **MCP server** — fallback MCP server for agents that need real-time access beyond static configs
 - **Auto-setup** — `memories setup` (`init` alias) detects installed tools and configures MCP automatically
 - **Cloud sync** — optional sync via Turso embedded replicas (local speed, cloud backup)
+- **GitHub capture queue** — ingest PRs/issues/commits via webhook and approve before writing memories
 - **Import/Export** — ingest existing rule files, export to YAML for sharing
 
 ## Supported Tools

@@ -117,3 +117,10 @@ export const updateUserSchema = z.object({
   current_org_id: z.string().min(1, "Organization id is required").nullable().optional(),
   repo_workspace_routing_mode: z.enum(["auto", "active_workspace"]).optional(),
 })
+
+// --- GitHub Capture Queue ---
+
+export const githubCaptureDecisionSchema = z.object({
+  action: z.enum(["approve", "reject"]),
+  note: z.string().trim().max(500).optional(),
+})

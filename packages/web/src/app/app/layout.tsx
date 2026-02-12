@@ -4,6 +4,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell"
 import { resolveWorkspaceContext } from "@/lib/workspace"
 import type { OrgMembership } from "@/components/dashboard/WorkspaceSwitcher"
 import { autoJoinOrganizationsForEmails } from "@/lib/domain-auto-join"
+import { syncGithubAccountLink } from "@/lib/github-account-links"
 
 export const metadata = {
   title: "Dashboard",
@@ -30,6 +31,13 @@ export default async function AppLayout({
     } catch (error) {
       // Do not block dashboard render when background auto-join fails.
       console.error("Dashboard auto-join failed:", error)
+    }
+
+    try {
+      await syncGithubAccountLink(user)
+    } catch (error) {
+      // Keep dashboard available when account link sync fails.
+      console.error("Dashboard github account link sync failed:", error)
     }
   }
 
