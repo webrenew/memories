@@ -34,7 +34,7 @@ export function Footer() {
               <h5 className="font-mono text-[10px] sm:text-xs uppercase tracking-wider text-foreground/50">Network</h5>
               <div className="flex flex-col gap-4 text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.15em]">
                 <a href="https://discord.gg/2K7rhuwc" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Discord</a>
-                <a href="https://x.com/WebRenew_" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">X (Twitter)</a>
+                <a href="https://x.com/memoriesdotsh" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">X (Twitter)</a>
               </div>
             </div>
             <div className="flex flex-col gap-6">
@@ -52,7 +52,7 @@ export function Footer() {
             href="/"
             className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.2em] font-bold hover:text-muted-foreground transition-colors"
           >
-            © 2026 memories.sh
+            memories.sh
           </Link>
           <div className="flex items-center gap-8">
             <ThemeSwitcher />
