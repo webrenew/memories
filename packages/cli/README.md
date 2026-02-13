@@ -16,7 +16,7 @@ Requires Node.js >= 20.
 ## Quick Start
 
 ```bash
-# Initialize in your project (auto-detects tools, configures MCP)
+# Initialize in your project (auto-detects tools, configures MCP, imports existing project skills)
 memories setup
 
 # Add memories

@@ -15,6 +15,12 @@ import {
   type Tool,
 } from "../lib/setup.js";
 import { initConfig } from "../lib/config.js";
+import {
+  dedupKey,
+  ingestSkills,
+  PROJECT_SKILLS_DIRS,
+  type IngestResult,
+} from "../lib/ingest-helpers.js";
 import { runDoctorChecks } from "./doctor.js";
 import * as ui from "../lib/ui.js";
 import { execFileSync } from "node:child_process";
@@ -144,6 +150,32 @@ function parseSetupMode(rawMode: string | undefined): SetupMode {
   throw new Error(`Invalid setup mode "${rawMode}". Use one of: auto, local, cloud.`);
 }
 
+async function buildExistingMemoryDedupSet(): Promise<Set<string>> {
+  const set = new Set<string>();
+  const db = await getDb();
+  const result = await db.execute("SELECT content, paths FROM memories WHERE deleted_at IS NULL");
+
+  for (const row of result.rows) {
+    const content = String(row.content);
+    const pathsStr = row.paths ? String(row.paths) : null;
+    const paths = pathsStr
+      ? pathsStr.split(",").map((p) => p.trim()).filter(Boolean)
+      : undefined;
+
+    set.add(dedupKey(content));
+    if (paths && paths.length > 0) {
+      set.add(dedupKey(content, paths));
+    }
+  }
+
+  return set;
+}
+
+async function importProjectSkillsAsMemories(cwd: string): Promise<IngestResult> {
+  const existingSet = await buildExistingMemoryDedupSet();
+  return ingestSkills(cwd, PROJECT_SKILLS_DIRS, { existingSet, silent: true });
+}
+
 function selectedTool(tool: Tool): DetectedTool {
   return {
     tool,
@@ -224,6 +256,7 @@ export const initCommand = new Command("init")
   .option("--mode <mode>", "Setup mode: auto | local | cloud", "auto")
   .option("--skip-mcp", "Skip MCP configuration")
   .option("--skip-generate", "Skip generating instruction files")
+  .option("--skip-skill-ingest", "Skip importing existing project skills into memories")
   .option("--skip-auth", "Skip guided login for cloud sync")
   .option("--skip-workspace", "Skip guided workspace selection/provisioning")
   .option("--workspace <target>", "Set active workspace (org slug/id/name, or 'personal')")
@@ -236,6 +269,7 @@ export const initCommand = new Command("init")
     mode?: string;
     skipMcp?: boolean;
     skipGenerate?: boolean;
+    skipSkillIngest?: boolean;
     skipAuth?: boolean;
     skipWorkspace?: boolean;
     workspace?: string;
@@ -445,6 +479,28 @@ export const initCommand = new Command("init")
 
       // Step 4: Add initial rules if provided
       ui.step(4, totalSteps, "Finalizing...");
+
+      // Project setup default: ingest existing agent skills into memories.
+      if (!useGlobal && !opts.skipSkillIngest) {
+        const skillImportResult = await importProjectSkillsAsMemories(cwd);
+        if (skillImportResult.errors.length > 0) {
+          ui.warn(`Skill import completed with ${skillImportResult.errors.length} error(s).`);
+          for (const error of skillImportResult.errors) {
+            ui.dim(error);
+          }
+        }
+
+        if (skillImportResult.imported > 0) {
+          ui.success(`Imported ${skillImportResult.imported} project skill memory${skillImportResult.imported === 1 ? "" : "ies"}.`);
+        } else if (skillImportResult.skipped > 0) {
+          ui.dim(`Project skill memories already up to date (${skillImportResult.skipped} duplicates skipped).`);
+        } else {
+          ui.dim("No existing project skills found to import.");
+        }
+      } else if (useGlobal) {
+        ui.dim("Skipping project skill import for global setup.");
+      }
+
       if (opts.rule?.length) {
         ui.info("Adding rules...");
         for (const rule of opts.rule) {

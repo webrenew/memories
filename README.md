@@ -45,7 +45,7 @@ Requires Node.js >= 20. Also available via `pnpm add -g @memories.sh/cli`.
 ## Quick Start
 
 ```bash
-# Initialize in your project (auto-detects tools, configures MCP)
+# Initialize in your project (auto-detects tools, configures MCP, imports existing project skills)
 memories setup
 
 # Add memories
@@ -69,7 +69,7 @@ memories generate
 - **`.agents/` canonical directory** — tool-agnostic intermediate format, checked into git
 - **Semantic search** — AI-powered embeddings find related memories, not just keyword matches
 - **MCP server** — fallback MCP server for agents that need real-time access beyond static configs
-- **Auto-setup** — `memories setup` (`init` alias) detects installed tools and configures MCP automatically
+- **Auto-setup** — `memories setup` (`init` alias) detects installed tools, configures MCP, and imports existing project skills automatically
 - **Cloud sync** — optional sync via Turso embedded replicas (local speed, cloud backup)
 - **GitHub capture queue** — ingest PRs/issues/commits via webhook and approve before writing memories
 - **Import/Export** — ingest existing rule files, export to YAML for sharing

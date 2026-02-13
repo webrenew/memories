@@ -22,7 +22,8 @@ Initialize the memories database and automatically set up MCP integration for de
 3. **Detects installed AI tools** by checking for their config directories
 4. **Configures MCP** for each detected tool (with your permission)
 5. **Generates instruction files** (including a baseline harness when no memories exist yet)
-6. **Shows sync status** if you're logged in
+6. **Imports existing project skill configs** (for example from `.claude/skills`, `.codex/skills`) into memories
+7. **Shows sync status** if you're logged in
 
 ## Options
 
@@ -33,6 +34,7 @@ Initialize the memories database and automatically set up MCP integration for de
 | `--mode <mode>` | Setup mode: `auto`, `local`, or `cloud` |
 | `--skip-mcp` | Skip automatic MCP configuration |
 | `--skip-generate` | Skip generating instruction files |
+| `--skip-skill-ingest` | Skip importing existing project skills into memories |
 | `-y, --yes` | Auto-confirm all prompts |
 
 ### Setup mode
@@ -107,8 +109,8 @@ Auto-confirms all prompts — useful for scripts or CI.
 ### Skip automatic setup
 
 ```bash
-# Only create database, don't configure tools
-memories setup --skip-mcp --skip-generate
+# Only create database, don't configure tools or skill import
+memories setup --skip-mcp --skip-generate --skip-skill-ingest
 ```
 
 ### Initialize with starter rules

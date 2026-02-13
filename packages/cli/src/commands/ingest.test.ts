@@ -15,6 +15,7 @@ import {
   ingestClaudeRules,
   ingestCursorRules,
   ingestSkills,
+  PROJECT_SKILLS_DIRS,
 } from "../lib/ingest-helpers.js";
 
 function normalize(s: string): string {
@@ -246,6 +247,14 @@ describe("dedupKey", () => {
     const keyNoPaths = dedupKey("Always validate input");
     const keyWithPaths = dedupKey("Always validate input", ["src/api/**"]);
     expect(keyNoPaths).not.toBe(keyWithPaths);
+  });
+});
+
+describe("PROJECT_SKILLS_DIRS", () => {
+  it("includes Codex and other agent skill directories", () => {
+    expect(PROJECT_SKILLS_DIRS).toContain(".codex/skills");
+    expect(PROJECT_SKILLS_DIRS).toContain(".claude/skills");
+    expect(PROJECT_SKILLS_DIRS).toContain(".agents/skills");
   });
 });
 

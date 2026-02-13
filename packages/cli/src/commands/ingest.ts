@@ -10,6 +10,7 @@ import {
   ingestCursorRules,
   ingestSkills,
   ingestAgentsDir,
+  PROJECT_SKILLS_DIRS,
   type IngestResult,
 } from "../lib/ingest-helpers.js";
 
@@ -46,12 +47,10 @@ const DIRECTORY_PATH_PATTERNS: Array<{ pattern: string; handler: string }> = [
   { pattern: ".claude/rules", handler: "claude-rules" },
   { pattern: ".cursor/rules/", handler: "cursor-rules" },
   { pattern: ".cursor/rules", handler: "cursor-rules" },
-  { pattern: ".agents/skills/", handler: "skills" },
-  { pattern: ".agents/skills", handler: "skills" },
-  { pattern: ".claude/skills/", handler: "skills" },
-  { pattern: ".claude/skills", handler: "skills" },
-  { pattern: ".cursor/skills/", handler: "skills" },
-  { pattern: ".cursor/skills", handler: "skills" },
+  ...PROJECT_SKILLS_DIRS.flatMap((dir) => ([
+    { pattern: `${dir}/`, handler: "skills" },
+    { pattern: dir, handler: "skills" },
+  ])),
   { pattern: ".agents/", handler: "agents-dir" },
   { pattern: ".agents", handler: "agents-dir" },
 ];
@@ -163,7 +162,7 @@ async function runDirectoryIngest(
     case "cursor-rules":
       return ingestCursorRules(cwd, opts);
     case "skills":
-      return ingestSkills(cwd, [".agents/skills", ".claude/skills", ".cursor/skills"], opts);
+      return ingestSkills(cwd, PROJECT_SKILLS_DIRS, opts);
     case "agents-dir":
       return ingestAgentsDir(cwd, opts);
     default:

@@ -21,7 +21,7 @@ memories.sh solves this by being the **single source of truth**:
 - **Local-first** — Your data stays on your machine, runs entirely offline
 - **AI-powered search** — Semantic search finds related memories, not just keyword matches
 - **MCP server** — Fallback for agents that need real-time access beyond static configs
-- **Auto-setup** — Detects your tools and configures MCP automatically
+- **Auto-setup** — Detects your tools, configures MCP, and imports existing project skills automatically
 - **Sync config files** — Your skills, commands, and rules follow you everywhere
 
 ## Quick Start
@@ -30,7 +30,7 @@ memories.sh solves this by being the **single source of truth**:
 # Install
 pnpm add -g @memories.sh/cli
 
-# Initialize (auto-configures MCP for detected tools)
+# Initialize (auto-configures MCP and imports project skills for detected tools)
 memories setup
 
 # Add your first rule
@@ -51,6 +51,7 @@ When you run `memories setup` (alias: `memories init`), it:
 2. Detects installed AI tools (Cursor, Claude Code, Windsurf, VS Code)
 3. Configures MCP for each detected tool
 4. Generates instruction files with your existing memories
+5. Imports existing project skills (for example from `.claude/skills` and `.codex/skills`) into memories
 
 ```
 [1/4] Setting up local storage...
