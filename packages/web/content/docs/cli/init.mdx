@@ -32,6 +32,7 @@ Initialize the memories database and automatically set up MCP integration for de
 | `-g, --global` | Initialize global memories (apply to all projects) |
 | `-r, --rule <rule>` | Add an initial rule (can be repeated) |
 | `--mode <mode>` | Setup mode: `auto`, `local`, or `cloud` |
+| `--scope <scope>` | Memory scope: `auto`, `project`, or `global` |
 | `--skip-mcp` | Skip automatic MCP configuration |
 | `--skip-generate` | Skip generating instruction files |
 | `--skip-skill-ingest` | Skip importing existing project skills into memories |
@@ -43,6 +44,12 @@ Initialize the memories database and automatically set up MCP integration for de
 - `local`: skips login/workspace provisioning prompts
 - `cloud`: runs guided login + workspace checks/provisioning
 
+### Memory scope
+
+- `auto` (default): choose interactively in TTY sessions, fallback to project when available
+- `project`: force project-scoped memories for this setup
+- `global`: force global-scoped memories for this setup
+
 ## Detected Tools
 
 The init command looks for these AI coding tools:
@@ -53,8 +60,15 @@ The init command looks for these AI coding tools:
 | Claude Code | `.claude/`, `CLAUDE.md` | `.mcp.json` (project root) |
 | Windsurf | `.windsurf/`, `.windsurfrules` | `.windsurf/mcp.json` |
 | VS Code | `.vscode/` | `.vscode/mcp.json` |
-| OpenCode | `.opencode/` | `.opencode/mcp.json` |
+| OpenCode | `.opencode/`, `opencode.json` | `opencode.json` (project) / `~/.config/opencode/opencode.json` (global) |
 | Factory | `.factory/` | `.factory/mcp.json` |
+| Kiro | `.kiro/`, `.kiro/settings/mcp.json` | `.kiro/settings/mcp.json` |
+| Kilo | `.kilo/`, `.kilo/mcp.json` | `.kilo/mcp.json` |
+| Trae | `.trae/`, `.trae/mcp.json` | `.trae/mcp.json` |
+| Antigravity | `.antigravity/`, `mcp_config.json` | `.antigravity/mcp.json` (project) / `~/.gemini/antigravity/mcp_config.json` (global) |
+| Goose | `.goose/` | — |
+| OpenClaw | `~/.openclaw/workspace/AGENTS.md` | — |
+| Blackbox CLI | `blackbox` command | Managed by `blackbox mcp` commands |
 | Amp | `.amp/` | `.amp/mcp.json` |
 | Agents harness (.agents/Codex) | `.agents/`, `AGENTS.md`, `.codex/` | — |
 | GitHub Copilot | `.github/copilot-instructions.md` | — |
@@ -66,6 +80,8 @@ For each detected tool, init will:
 1. Check if MCP is already configured
 2. Offer to add the memories MCP server if not
 3. Generate instruction files when supported (or baseline harness files for new projects)
+
+On first-time setup, init also offers global MCP onboarding so local and cloud IDE workflows can share the same memory layer.
 
 ## Examples
 

@@ -48,6 +48,9 @@ Requires Node.js >= 20. Also available via `pnpm add -g @memories.sh/cli`.
 # Initialize in your project (auto-detects tools, configures MCP, imports existing project skills)
 memories setup
 
+# Optional: force setup scope
+memories setup --scope project   # or --scope global
+
 # Add memories
 memories add --rule "Always use TypeScript strict mode"
 memories add --decision "Chose Supabase for auth — built-in RLS, generous free tier"

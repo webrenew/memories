@@ -24,10 +24,13 @@ import {
 import { runDoctorChecks } from "./doctor.js";
 import * as ui from "../lib/ui.js";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 const DEFAULT_API_URL = "https://memories.sh";
 const PERSONAL_WORKSPACE_VALUE = "__personal_workspace__";
 type SetupMode = "auto" | "local" | "cloud";
+type SetupScope = "auto" | "project" | "global";
 
 interface SetupOrganization {
   id: string;
@@ -150,6 +153,15 @@ function parseSetupMode(rawMode: string | undefined): SetupMode {
   throw new Error(`Invalid setup mode "${rawMode}". Use one of: auto, local, cloud.`);
 }
 
+function parseSetupScope(rawScope: string | undefined): SetupScope {
+  if (!rawScope) return "auto";
+  const normalized = rawScope.trim().toLowerCase();
+  if (normalized === "auto" || normalized === "project" || normalized === "global") {
+    return normalized;
+  }
+  throw new Error(`Invalid scope "${rawScope}". Use one of: auto, project, global.`);
+}
+
 async function buildExistingMemoryDedupSet(): Promise<Set<string>> {
   const set = new Set<string>();
   const db = await getDb();
@@ -254,6 +266,7 @@ export const initCommand = new Command("init")
   .option("-r, --rule <rule>", "Add an initial rule", (val, acc: string[]) => [...acc, val], [])
   .option("--api-url <url>", "API base URL for guided login", DEFAULT_API_URL)
   .option("--mode <mode>", "Setup mode: auto | local | cloud", "auto")
+  .option("--scope <scope>", "Memory scope: auto | project | global", "auto")
   .option("--skip-mcp", "Skip MCP configuration")
   .option("--skip-generate", "Skip generating instruction files")
   .option("--skip-skill-ingest", "Skip importing existing project skills into memories")
@@ -267,6 +280,7 @@ export const initCommand = new Command("init")
     rule?: string[];
     apiUrl?: string;
     mode?: string;
+    scope?: string;
     skipMcp?: boolean;
     skipGenerate?: boolean;
     skipSkillIngest?: boolean;
@@ -282,6 +296,7 @@ export const initCommand = new Command("init")
       console.log(chalk.dim("  One place for your rules. Works with every tool.\n"));
 
       let setupMode = parseSetupMode(opts.mode);
+      const setupScope = parseSetupScope(opts.scope);
       if (
         setupMode === "auto" &&
         !opts.yes &&
@@ -311,12 +326,20 @@ export const initCommand = new Command("init")
         !effectiveSkipAuth || !effectiveSkipWorkspace || Boolean(opts.workspace);
       const totalSteps = 4 + (shouldRunCloudGuidance ? 1 : 0) + (opts.skipVerify ? 0 : 1);
       const cwd = process.cwd();
+      const initialConfigDir = getConfigDir();
+      const firstInstall = !existsSync(join(initialConfigDir, "local.db"));
 
       ui.dim(
         shouldRunCloudGuidance
           ? "Setup mode: cloud + workspace guidance"
           : "Setup mode: local only",
       );
+
+      if (firstInstall) {
+        ui.info("First-time setup detected.");
+        ui.dim("Global memories sync two ways across local tools and cloud IDEs (for example v0).");
+        ui.dim("Create a global memory here and it appears there after sync, and vice versa.");
+      }
 
       // Step 1: Database
       ui.step(1, totalSteps, "Setting up local storage...");
@@ -328,28 +351,54 @@ export const initCommand = new Command("init")
 
       // Step 2: Scope detection
       ui.step(2, totalSteps, "Detecting scope...");
-      let useGlobal = opts.global;
-      
-      if (!useGlobal) {
-        const projectId = getProjectId();
-        const gitRoot = getGitRoot();
+      const projectId = getProjectId();
+      const gitRoot = getGitRoot();
+      let useGlobal = Boolean(opts.global);
 
-        if (!projectId) {
+      if (!opts.global) {
+        if (setupScope === "global") {
           useGlobal = true;
-          ui.success("Global scope (rules apply to all projects)");
+        } else if (setupScope === "project") {
+          if (!projectId) {
+            useGlobal = true;
+            ui.warn("Project scope requested, but no git project was detected. Falling back to global scope.");
+          } else {
+            useGlobal = false;
+          }
+        } else if (!opts.yes && projectId) {
+          const selectedScope = await select<"project" | "global">({
+            message: "Choose memory scope for setup:",
+            choices: [
+              {
+                name: `Project scope (recommended) — ${projectId}`,
+                value: "project",
+              },
+              {
+                name: "Global scope — shared across projects and cloud IDE workflows",
+                value: "global",
+              },
+            ],
+            default: "project",
+          });
+          useGlobal = selectedScope === "global";
         } else {
-          ui.success("Project scope detected");
-          ui.dim(`Project: ${projectId}`);
-          ui.dim(`Root: ${gitRoot}`);
+          useGlobal = !projectId;
         }
-      } else {
+      }
+
+      if (useGlobal) {
         ui.success("Global scope (rules apply to all projects)");
+      } else {
+        ui.success("Project scope detected");
+        if (projectId) ui.dim(`Project: ${projectId}`);
+        if (gitRoot) ui.dim(`Root: ${gitRoot}`);
       }
 
       // Step 3: Detect and configure tools
       ui.step(3, totalSteps, "Detecting AI coding tools...");
       const allTools = getAllTools();
       let detected = detectTools(cwd);
+      let preferGlobalMcpSetup = false;
 
       const detectedNames = new Set(detected.map((item) => item.tool.name));
 
@@ -381,6 +430,20 @@ export const initCommand = new Command("init")
         }
       }
 
+      if (firstInstall && !opts.skipMcp) {
+        if (opts.yes) {
+          preferGlobalMcpSetup = true;
+        } else {
+          console.log("");
+          ui.info("Optional onboarding: initialize integration MCP configs globally.");
+          ui.dim("This keeps memories available across local projects and cloud IDE workflows.");
+          preferGlobalMcpSetup = await confirm({
+            message: "Write MCP config to home-directory locations where supported?",
+            default: true,
+          });
+        }
+      }
+
       if (detected.length === 0) {
         ui.dim("No tools selected. MCP will work with any tool that supports it.");
       } else {
@@ -393,6 +456,9 @@ export const initCommand = new Command("init")
             ? (d.hasInstructions ? chalk.green("✓ Rules") : chalk.dim("○ Rules"))
             : chalk.dim("— Rules");
           console.log(`  ${chalk.white(d.tool.name)}${scope} ${mcpStatus} ${rulesStatus}`);
+          if (d.tool.setupHint) {
+            ui.dim(`${d.tool.name}: ${d.tool.setupHint}`);
+          }
         }
 
         // Configure MCP for detected tools
@@ -408,9 +474,13 @@ export const initCommand = new Command("init")
 
             if (shouldSetupMcp) {
               for (const d of toolsNeedingMcp) {
+                const supportsGlobalMcp = Boolean(
+                  d.tool.globalMcpConfigPath || (d.tool.globalDetectPaths ?? []).length > 0,
+                );
+                const writeGlobal = d.globalConfig || ((preferGlobalMcpSetup || useGlobal) && supportsGlobalMcp);
                 const result = await setupMcp(d.tool, { 
                   cwd, 
-                  global: d.globalConfig,
+                  global: writeGlobal,
                 });
                 if (result.success) {
                   ui.success(`${d.tool.name}: ${result.message}`);
@@ -491,7 +561,7 @@ export const initCommand = new Command("init")
         }
 
         if (skillImportResult.imported > 0) {
-          ui.success(`Imported ${skillImportResult.imported} project skill memory${skillImportResult.imported === 1 ? "" : "ies"}.`);
+          ui.success(`Imported ${skillImportResult.imported} project skill ${skillImportResult.imported === 1 ? "memory" : "memories"}.`);
         } else if (skillImportResult.skipped > 0) {
           ui.dim(`Project skill memories already up to date (${skillImportResult.skipped} duplicates skipped).`);
         } else {

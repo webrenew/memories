@@ -19,6 +19,9 @@ Requires Node.js >= 20.
 # Initialize in your project (auto-detects tools, configures MCP, imports existing project skills)
 memories setup
 
+# Pick scope explicitly when needed
+memories setup --scope project   # or --scope global
+
 # Add memories
 memories add --rule "Always use TypeScript strict mode"
 memories add --decision "Chose Supabase for auth — built-in RLS"

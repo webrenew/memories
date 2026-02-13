@@ -3,7 +3,7 @@ title: OpenCode
 description: Integrate memories.sh with OpenCode CLI.
 ---
 
-[OpenCode](https://opencode.ai/) is an open-source AI coding assistant that runs in your terminal. It reads instructions from `instructions.md` and supports MCP servers.
+[OpenCode](https://opencode.ai/) is an open-source AI coding assistant that runs in your terminal. It works well with the canonical `.agents/` harness and supports MCP servers via `opencode.json`.
 
 ## Quick Setup
 
@@ -25,7 +25,7 @@ This automatically:
 memories generate agents
 ```
 
-This creates the canonical `.agents/` directory. To create a dedicated OpenCode instructions file:
+This creates the canonical `.agents/` directory used across agent tools. If you want a dedicated OpenCode instructions file too:
 
 ```bash
 memories generate claude -o .opencode/instructions.md
@@ -33,20 +33,21 @@ memories generate claude -o .opencode/instructions.md
 
 ### Option 2: MCP Server
 
-Add memories.sh to OpenCode's MCP configuration. Create or edit `.opencode/mcp.json`:
+Add memories.sh to OpenCode's MCP configuration. Create or edit `opencode.json`:
 
 ```json
 {
-  "mcpServers": {
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
     "memories": {
-      "command": "npx",
-      "args": ["-y", "@memories.sh/cli", "serve"]
+      "type": "local",
+      "command": ["npx", "-y", "@memories.sh/cli", "serve"]
     }
   }
 }
 ```
 
-Or for global configuration, add to `~/.opencode/mcp.json`.
+Or for global configuration, add to `~/.config/opencode/opencode.json`.
 
 ### Recommended: Use Both
 
@@ -68,6 +69,8 @@ memories files apply --global --force
 ```
 
 This syncs:
+- `opencode.json` / `.config/opencode/opencode.json` — OpenCode MCP configuration
+- `.agents/**/*` — Canonical shared harness files
 - `.opencode/instructions.md` — Your instruction files
 - `.opencode/skills/**/*` — Any skills you've created
 
@@ -75,7 +78,7 @@ This syncs:
 
 ### Custom Instructions
 
-OpenCode reads from `.opencode/instructions.md` at the project level. Generate this file with:
+OpenCode can read `.opencode/instructions.md` at the project level. Generate this file with:
 
 ```bash
 memories generate claude -o .opencode/instructions.md

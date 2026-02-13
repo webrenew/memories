@@ -57,6 +57,26 @@ const SYNC_TARGETS = [
   { dir: ".codex/rules", pattern: /\.(md|rules)$/ },
   { dir: ".codex/tasks", pattern: /\.(md|txt)$/ },
   { dir: ".codex/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
+
+  // Kiro config
+  { dir: ".kiro/settings", files: ["mcp.json"] },
+  { dir: ".kiro/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
+
+  // Kilo config
+  { dir: ".kilo", files: ["mcp.json"] },
+  { dir: ".kilo/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
+
+  // Trae config
+  { dir: ".trae", files: ["mcp.json"] },
+  { dir: ".trae/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
+
+  // Antigravity config
+  { dir: ".antigravity", files: ["mcp.json", "mcp_config.json"] },
+  { dir: ".antigravity/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
+
+  // Goose config
+  { dir: ".goose/rules", pattern: /\.(md|txt)$/ },
+  { dir: ".goose/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
   
   // .windsurf - Windsurf rules
   { dir: ".windsurf", files: ["rules.md", "cascade.json"] },
@@ -86,6 +106,8 @@ const SYNC_TARGETS = [
   { dir: ".amp/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
   
   // .opencode - OpenCode instructions
+  { dir: ".", files: ["opencode.json", "opencode.jsonc"] },
+  { dir: ".config/opencode", files: ["opencode.json"] },
   { dir: ".opencode", files: ["instructions.md"] },
   { dir: ".opencode/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
   
@@ -94,6 +116,10 @@ const SYNC_TARGETS = [
   { dir: ".factory/droids", pattern: /\.(md|yaml|yml)$/ },
   { dir: ".factory/tasks", pattern: /\.(md|txt)$/ },
   { dir: ".factory/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
+
+  // OpenClaw workspace artifacts
+  { dir: ".openclaw/workspace", files: ["AGENTS.md"] },
+  { dir: ".openclaw/workspace/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
 ];
 
 interface SyncTarget {
@@ -110,7 +136,10 @@ async function scanTarget(baseDir: string, target: SyncTarget, relativeTo: strin
   if (!existsSync(targetDir)) return results;
   
   // Get tool name from first part of dir (e.g., ".agents" -> "Agents")
-  const source = target.dir.split("/")[0].replace(/^\./, "").replace(/^(.)/, (_, c) => c.toUpperCase());
+  const sourceRoot = target.dir.split("/")[0].replace(/^\./, "");
+  const source = sourceRoot
+    ? sourceRoot.replace(/^(.)/, (_, c) => c.toUpperCase())
+    : "Project";
   
   // If specific files are listed, just check for those
   if (target.files) {

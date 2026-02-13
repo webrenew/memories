@@ -2,17 +2,21 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { execSync } from "node:child_process";
 import chalk from "chalk";
 
 export interface Tool {
   name: string;
   detectPaths: string[];
+  detectCommands?: string[];
   globalDetectPaths?: string[];
   mcpConfigPath?: string;
-  mcpConfigFormat?: "cursor" | "claude" | "vscode";
+  globalMcpConfigPath?: string;
+  mcpConfigFormat?: "cursor" | "claude" | "vscode" | "opencode";
   instructionFile?: string;
   generateCmd?: string;
   generateArgs?: string[];
+  setupHint?: string;
 }
 
 // Tool definitions with their config locations
@@ -53,13 +57,15 @@ const TOOLS: Tool[] = [
   },
   {
     name: "OpenCode",
-    detectPaths: [".opencode", ".opencode/instructions.md", ".opencode/mcp.json"],
-    globalDetectPaths: [".opencode"],
-    mcpConfigPath: ".opencode/mcp.json",
-    mcpConfigFormat: "cursor",
-    instructionFile: ".opencode/instructions.md",
-    generateCmd: "claude",
-    generateArgs: ["--output", ".opencode/instructions.md"],
+    detectPaths: [".opencode", ".opencode/instructions.md", "opencode.json", ".opencode/mcp.json"],
+    detectCommands: ["opencode"],
+    globalDetectPaths: [".config/opencode/opencode.json", ".opencode"],
+    mcpConfigPath: "opencode.json",
+    globalMcpConfigPath: ".config/opencode/opencode.json",
+    mcpConfigFormat: "opencode",
+    instructionFile: ".agents/instructions.md",
+    generateCmd: "agents",
+    setupHint: "OpenCode supports both .agents/ and opencode.json MCP configuration.",
   },
   {
     name: "Factory",
@@ -70,6 +76,71 @@ const TOOLS: Tool[] = [
     instructionFile: ".factory/instructions.md",
     generateCmd: "claude",
     generateArgs: ["--output", ".factory/instructions.md"],
+  },
+  {
+    name: "Kiro",
+    detectPaths: [".kiro", ".kiro/settings/mcp.json", ".kiro/mcp.json"],
+    detectCommands: ["kiro"],
+    globalDetectPaths: [".kiro", ".kiro/settings/mcp.json"],
+    mcpConfigPath: ".kiro/settings/mcp.json",
+    mcpConfigFormat: "cursor",
+    instructionFile: ".agents/instructions.md",
+    generateCmd: "agents",
+  },
+  {
+    name: "Kilo",
+    detectPaths: [".kilo", ".kilo/mcp.json"],
+    detectCommands: ["kilo"],
+    globalDetectPaths: [".kilo", ".kilo/mcp.json"],
+    mcpConfigPath: ".kilo/mcp.json",
+    mcpConfigFormat: "cursor",
+    instructionFile: ".agents/instructions.md",
+    generateCmd: "agents",
+  },
+  {
+    name: "Trae",
+    detectPaths: [".trae", ".trae/mcp.json"],
+    detectCommands: ["trae"],
+    globalDetectPaths: [".trae", ".trae/mcp.json"],
+    mcpConfigPath: ".trae/mcp.json",
+    mcpConfigFormat: "cursor",
+    instructionFile: ".agents/instructions.md",
+    generateCmd: "agents",
+  },
+  {
+    name: "Antigravity",
+    detectPaths: [".antigravity", ".antigravity/mcp.json", "mcp_config.json"],
+    detectCommands: ["antigravity"],
+    globalDetectPaths: [".gemini/antigravity/mcp_config.json", ".antigravity"],
+    mcpConfigPath: ".antigravity/mcp.json",
+    globalMcpConfigPath: ".gemini/antigravity/mcp_config.json",
+    mcpConfigFormat: "cursor",
+    instructionFile: ".agents/instructions.md",
+    generateCmd: "agents",
+  },
+  {
+    name: "Goose",
+    detectPaths: [".goose", ".goose/rules"],
+    detectCommands: ["goose"],
+    globalDetectPaths: [".goose"],
+    instructionFile: ".agents/instructions.md",
+    generateCmd: "agents",
+    setupHint: "Configure Goose MCP in Goose settings if you need live memory access.",
+  },
+  {
+    name: "OpenClaw",
+    detectPaths: [".openclaw/workspace/AGENTS.md", ".openclaw/workspace/skills"],
+    detectCommands: ["openclaw"],
+    globalDetectPaths: [".openclaw/workspace/AGENTS.md", ".openclaw/workspace/skills"],
+    instructionFile: ".agents/instructions.md",
+    generateCmd: "agents",
+    setupHint: "OpenClaw uses workspace artifacts (AGENTS.md + skills) under ~/.openclaw/workspace.",
+  },
+  {
+    name: "Blackbox CLI",
+    detectPaths: [],
+    detectCommands: ["blackbox"],
+    setupHint: "Add memories manually: blackbox mcp add memories http://127.0.0.1:3030/mcp -t http",
   },
   {
     name: "GitHub Copilot",
@@ -106,7 +177,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "Agent Harness (.agents)",
-    detectPaths: [".agents", ".agents/instructions.md", "AGENTS.md", ".codex"],
+    detectPaths: [".agents", ".agents/instructions.md", "AGENTS.md", ".codex", ".opencode"],
     instructionFile: ".agents/instructions.md",
     generateCmd: "agents",
   },
@@ -118,9 +189,16 @@ const MEMORIES_MCP_CONFIG = {
   args: ["-y", "@memories.sh/cli", "serve"],
 };
 
+const MEMORIES_MCP_CONFIG_OPENCODE = {
+  type: "local" as const,
+  command: ["npx", "-y", "@memories.sh/cli", "serve"],
+};
+
 interface McpConfig {
   mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
   servers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
+  mcp?: Record<string, { type: string; command?: string[]; url?: string; headers?: Record<string, string> }>;
+  [key: string]: unknown;
 }
 
 export interface DetectedTool {
@@ -133,7 +211,7 @@ export interface DetectedTool {
 
 export function toolSupportsMcp(
   tool: Tool,
-): tool is Tool & { mcpConfigPath: string; mcpConfigFormat: "cursor" | "claude" | "vscode" } {
+): tool is Tool & { mcpConfigPath: string; mcpConfigFormat: "cursor" | "claude" | "vscode" | "opencode" } {
   return Boolean(tool.mcpConfigPath && tool.mcpConfigFormat);
 }
 
@@ -141,6 +219,30 @@ export function toolSupportsGeneration(
   tool: Tool,
 ): tool is Tool & { generateCmd: string; generateArgs?: string[] } {
   return Boolean(tool.generateCmd);
+}
+
+function commandExists(command: string): boolean {
+  try {
+    if (process.platform === "win32") {
+      execSync(`where ${command}`, { stdio: "ignore" });
+    } else {
+      execSync(`command -v ${command}`, { stdio: "ignore" });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parseConfigFile(content: string): McpConfig {
+  try {
+    return JSON.parse(content) as McpConfig;
+  } catch {
+    // Basic JSONC compatibility for configs that include comments.
+    const withoutBlockComments = content.replace(/\/\*[\s\S]*?\*\//g, "");
+    const withoutLineComments = withoutBlockComments.replace(/^\s*\/\/.*$/gm, "");
+    return JSON.parse(withoutLineComments) as McpConfig;
+  }
 }
 
 /**
@@ -159,24 +261,34 @@ export function detectTools(cwd: string = process.cwd()): DetectedTool[] {
 
   for (const tool of TOOLS) {
     const hasProjectConfig = tool.detectPaths.some((path) => existsSync(join(cwd, path)));
+    const hasCommandConfig = (tool.detectCommands ?? []).some((command) => commandExists(command));
     const globalDetectPaths = tool.globalDetectPaths ?? [];
     const hasGlobalConfig = globalDetectPaths.some((path) => existsSync(join(home, path)));
 
     const hasProjectMcp = tool.mcpConfigPath ? existsSync(join(cwd, tool.mcpConfigPath)) : false;
-    const hasGlobalMcp = tool.mcpConfigPath ? existsSync(join(home, tool.mcpConfigPath)) : false;
+    const globalMcpConfigPath = tool.globalMcpConfigPath ?? tool.mcpConfigPath;
+    const hasGlobalMcp = globalMcpConfigPath ? existsSync(join(home, globalMcpConfigPath)) : false;
     const hasMcp = hasProjectMcp || hasGlobalMcp;
 
     const hasInstructions = tool.instructionFile
       ? existsSync(join(cwd, tool.instructionFile))
       : false;
+    const instructionSignalsTool = tool.instructionFile
+      ? tool.detectPaths.includes(tool.instructionFile)
+      : false;
+    const shouldDetect = hasProjectConfig
+      || hasGlobalConfig
+      || hasMcp
+      || hasCommandConfig
+      || (instructionSignalsTool && hasInstructions);
 
-    if (hasProjectConfig || hasGlobalConfig || hasMcp || hasInstructions) {
+    if (shouldDetect) {
       detected.push({
         tool,
-        hasConfig: hasProjectConfig || hasGlobalConfig || hasMcp || hasInstructions,
+        hasConfig: shouldDetect,
         hasMcp,
         hasInstructions,
-        globalConfig: !hasProjectConfig && (hasGlobalConfig || hasGlobalMcp),
+        globalConfig: !hasProjectConfig && !hasCommandConfig && (hasGlobalConfig || hasGlobalMcp),
       });
     }
   }
@@ -202,9 +314,10 @@ export async function setupMcp(
   }
   
   // Determine config path
-  const configPath = useGlobal 
-    ? join(home, tool.mcpConfigPath)
-    : join(cwd, tool.mcpConfigPath);
+  const resolvedMcpPath = useGlobal
+    ? (tool.globalMcpConfigPath ?? tool.mcpConfigPath)
+    : tool.mcpConfigPath;
+  const configPath = useGlobal ? join(home, resolvedMcpPath) : join(cwd, resolvedMcpPath);
 
   try {
     let config: McpConfig = {};
@@ -212,26 +325,46 @@ export async function setupMcp(
     // Read existing config if it exists
     if (existsSync(configPath)) {
       const content = await readFile(configPath, "utf-8");
-      config = JSON.parse(content);
+      config = parseConfigFile(content);
     }
 
-    // Check if memories is already configured
-    const serversKey = tool.mcpConfigFormat === "vscode" ? "servers" : "mcpServers";
-    const servers = config[serversKey] ?? {};
-    
-    if (servers.memories) {
-      return { 
-        success: true, 
-        message: "MCP already configured",
-        path: configPath,
+    if (tool.mcpConfigFormat === "opencode") {
+      const mcp = config.mcp ?? {};
+      if (mcp.memories) {
+        return {
+          success: true,
+          message: "MCP already configured",
+          path: configPath,
+        };
+      }
+
+      config.mcp = {
+        ...mcp,
+        memories: MEMORIES_MCP_CONFIG_OPENCODE,
+      };
+
+      if (typeof config.$schema !== "string") {
+        config.$schema = "https://opencode.ai/config.json";
+      }
+    } else {
+      // Check if memories is already configured
+      const serversKey = tool.mcpConfigFormat === "vscode" ? "servers" : "mcpServers";
+      const servers = config[serversKey] ?? {};
+      
+      if (servers.memories) {
+        return { 
+          success: true, 
+          message: "MCP already configured",
+          path: configPath,
+        };
+      }
+
+      // Add memories server
+      config[serversKey] = {
+        ...servers,
+        memories: MEMORIES_MCP_CONFIG,
       };
     }
-
-    // Add memories server
-    config[serversKey] = {
-      ...servers,
-      memories: MEMORIES_MCP_CONFIG,
-    };
 
     if (dryRun) {
       return {
