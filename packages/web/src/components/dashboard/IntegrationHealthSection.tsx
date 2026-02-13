@@ -27,6 +27,23 @@ function workspaceSwitchLatency(health: IntegrationHealthPayload): string {
   return `${health.workspaceSwitch.p50Ms}ms / ${health.workspaceSwitch.p95Ms}ms`
 }
 
+function workspaceSwitchProfilingLatency(health: IntegrationHealthPayload): string {
+  const profiling = health.workspaceSwitch.profiling
+  if (profiling.status === "unavailable") return "unavailable"
+  if (profiling.status === "insufficient_data") {
+    return `insufficient data (${profiling.profiledSampleCount}/${profiling.sampleCount})`
+  }
+  if (profiling.p95ClientTotalMs === null) return "n/a"
+  if (profiling.p95LargeTenantClientTotalMs === null) return `${profiling.p95ClientTotalMs}ms`
+  return `${profiling.p95ClientTotalMs}ms / large ${profiling.p95LargeTenantClientTotalMs}ms`
+}
+
+function workspaceSwitchLargeTenantCoverage(health: IntegrationHealthPayload): string {
+  const profiling = health.workspaceSwitch.profiling
+  if (profiling.status === "unavailable") return "unavailable"
+  return `${profiling.largeTenantSampleCount}/${profiling.profiledSampleCount}`
+}
+
 export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSectionProps) {
   const [health, setHealth] = useState<IntegrationHealthPayload | null>(initialHealth)
   const [loading, setLoading] = useState(false)
@@ -79,6 +96,14 @@ export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSec
       {
         label: "Workspace Switch (p50/p95)",
         value: workspaceSwitchLatency(health),
+      },
+      {
+        label: "Switch Profiling (p95)",
+        value: workspaceSwitchProfilingLatency(health),
+      },
+      {
+        label: "Large-Tenant Coverage",
+        value: workspaceSwitchLargeTenantCoverage(health),
       },
     ]
   }, [health])
@@ -147,6 +172,19 @@ export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSec
                   <li key={`${alarm.code}:${alarm.triggeredAt}`}>
                     - {alarm.message}
                   </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {health.workspaceSwitch.profiling.warnings.length > 0 ? (
+            <div className="mt-4 border border-amber-500/30 bg-amber-500/10 px-3 py-3">
+              <p className="text-xs uppercase tracking-[0.14em] font-bold text-amber-400">
+                Workspace Switch Profiling
+              </p>
+              <ul className="mt-2 space-y-1.5 text-xs text-amber-100/90">
+                {health.workspaceSwitch.profiling.warnings.map((warning) => (
+                  <li key={warning}>- {warning}</li>
                 ))}
               </ul>
             </div>

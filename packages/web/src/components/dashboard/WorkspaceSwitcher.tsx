@@ -42,10 +42,26 @@ interface WorkspaceSummariesResponse {
   }
 }
 
+interface WorkspacePrefetchMetrics {
+  totalMs: number
+  queryMs: number | null
+  orgCount: number | null
+  workspaceCount: number | null
+  responseBytes: number
+  cacheMode: "force-cache" | "default" | "no-store"
+  includeSummaries: boolean
+}
+
 const PERSONAL_KEY = "__personal_workspace__"
 
 function workspaceSummaryKey(orgId: string | null): string {
   return orgId ?? PERSONAL_KEY
+}
+
+function parseHeaderNumber(value: string | null): number | null {
+  if (!value) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 const roleIcon = (role: string) => {
@@ -88,18 +104,33 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [isOpen])
 
-  async function prefetchWorkspaceSummaries(options?: { force?: boolean }) {
+  async function prefetchWorkspaceSummaries(options?: {
+    force?: boolean
+    cacheBustKey?: string | null
+  }): Promise<WorkspacePrefetchMetrics | null> {
     setIsPrefetching(true)
-    try {
-      const response = await fetch("/api/workspace?includeSummaries=1", {
-        method: "GET",
-        cache: options?.force ? "no-store" : "force-cache",
-      })
-      if (!response.ok) return
+    const cacheMode: WorkspacePrefetchMetrics["cacheMode"] = options?.force
+      ? "default"
+      : "force-cache"
+    const url = new URL("/api/workspace", window.location.origin)
+    url.searchParams.set("includeSummaries", "1")
+    url.searchParams.set("profile", "1")
+    if (options?.cacheBustKey) {
+      url.searchParams.set("cacheBust", options.cacheBustKey)
+    }
 
-      const payload = (await response.json().catch(() => ({}))) as WorkspaceSummariesResponse
+    const startedAt = performance.now()
+    try {
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        cache: cacheMode,
+      })
+      if (!response.ok) return null
+
+      const rawPayload = await response.text()
+      const payload = (JSON.parse(rawPayload || "{}") ?? {}) as WorkspaceSummariesResponse
       const summaries = payload.summaries
-      if (!summaries) return
+      if (!summaries) return null
 
       const nextMap: Record<string, WorkspaceSummary> = {
         [PERSONAL_KEY]: summaries.personal,
@@ -108,8 +139,25 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
         nextMap[item.id] = item.workspace
       }
       setWorkspaceSummaryById(nextMap)
+
+      const queryMs = parseHeaderNumber(response.headers.get("X-Workspace-Profile-Summary-Query-Ms"))
+      const orgCountHeader = parseHeaderNumber(response.headers.get("X-Workspace-Profile-Org-Count"))
+      const workspaceCountHeader = parseHeaderNumber(
+        response.headers.get("X-Workspace-Profile-Workspace-Count"),
+      )
+
+      return {
+        totalMs: Math.max(0, Math.round(performance.now() - startedAt)),
+        queryMs,
+        orgCount: orgCountHeader ?? summaries.organizations.length,
+        workspaceCount: workspaceCountHeader ?? summaries.organizations.length + 1,
+        responseBytes: new TextEncoder().encode(rawPayload).length,
+        cacheMode,
+        includeSummaries: true,
+      }
     } catch {
       // Best-effort prefetch only.
+      return null
     } finally {
       setIsPrefetching(false)
     }
@@ -120,6 +168,51 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
     void prefetchWorkspaceSummaries()
   }, [isOpen])
 
+  async function recordWorkspaceSwitchProfile(payload: {
+    fromOrgId: string | null
+    toOrgId: string | null
+    success: boolean
+    errorCode?: string | null
+    clientTotalMs?: number
+    userPatchMs?: number
+    workspacePrefetchMs?: number
+    integrationHealthPrefetchMs?: number
+    workspaceSummaryTotalMs?: number
+    workspaceSummaryQueryMs?: number | null
+    workspaceSummaryOrgCount?: number | null
+    workspaceSummaryWorkspaceCount?: number | null
+    workspaceSummaryResponseBytes?: number
+    includeSummaries?: boolean
+    cacheMode?: WorkspacePrefetchMetrics["cacheMode"]
+  }) {
+    try {
+      await fetch("/api/workspace/switch-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from_org_id: payload.fromOrgId,
+          to_org_id: payload.toOrgId,
+          success: payload.success,
+          error_code: payload.errorCode ?? null,
+          source: "dashboard",
+          client_total_ms: payload.clientTotalMs,
+          user_patch_ms: payload.userPatchMs,
+          workspace_prefetch_ms: payload.workspacePrefetchMs,
+          integration_health_prefetch_ms: payload.integrationHealthPrefetchMs,
+          workspace_summary_total_ms: payload.workspaceSummaryTotalMs,
+          workspace_summary_query_ms: payload.workspaceSummaryQueryMs,
+          workspace_summary_org_count: payload.workspaceSummaryOrgCount,
+          workspace_summary_workspace_count: payload.workspaceSummaryWorkspaceCount,
+          workspace_summary_response_bytes: payload.workspaceSummaryResponseBytes,
+          include_summaries: payload.includeSummaries,
+          cache_mode: payload.cacheMode,
+        }),
+      })
+    } catch {
+      // Best-effort telemetry only.
+    }
+  }
+
   async function switchWorkspace(nextOrgId: string | null) {
     if (nextOrgId === currentOrgId) {
       setIsOpen(false)
@@ -128,32 +221,91 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
 
     setIsSwitching(true)
     setError(null)
+    const switchStartedAt = performance.now()
+    let userPatchMs: number | null = null
+    let workspacePrefetchMs: number | null = null
+    let integrationHealthPrefetchMs: number | null = null
 
     try {
+      const userPatchStartedAt = performance.now()
       const res = await fetch("/api/user", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current_org_id: nextOrgId }),
       })
+      userPatchMs = Math.max(0, Math.round(performance.now() - userPatchStartedAt))
+
+      const data = await res.json().catch(() => ({}))
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
         throw new Error(data.error || "Failed to switch workspace")
       }
 
+      const cacheBustKey =
+        typeof data?.workspace_cache_bust_key === "string"
+          ? data.workspace_cache_bust_key
+          : null
+
       // Warm short-lived workspace summaries + health payload for the next render.
-      await Promise.all([
-        prefetchWorkspaceSummaries({ force: true }),
-        fetch("/api/integration/health", { method: "GET", cache: "force-cache" }).catch(
-          () => undefined,
-        ),
+      const [resolvedPrefetchMetrics] = await Promise.all([
+        (async () => {
+          const startedAt = performance.now()
+          const metrics = await prefetchWorkspaceSummaries({
+            force: true,
+            cacheBustKey,
+          })
+          workspacePrefetchMs = Math.max(0, Math.round(performance.now() - startedAt))
+          return metrics
+        })(),
+        (async () => {
+          const startedAt = performance.now()
+          await fetch("/api/integration/health", { method: "GET", cache: "force-cache" }).catch(
+            () => undefined,
+          )
+          integrationHealthPrefetchMs = Math.max(0, Math.round(performance.now() - startedAt))
+          return null
+        })(),
       ])
+
+      void recordWorkspaceSwitchProfile({
+        fromOrgId: currentOrgId,
+        toOrgId: nextOrgId,
+        success: true,
+        clientTotalMs: Math.max(0, Math.round(performance.now() - switchStartedAt)),
+        userPatchMs: userPatchMs ?? undefined,
+        workspacePrefetchMs: workspacePrefetchMs ?? undefined,
+        integrationHealthPrefetchMs: integrationHealthPrefetchMs ?? undefined,
+        workspaceSummaryTotalMs: resolvedPrefetchMetrics?.totalMs,
+        workspaceSummaryQueryMs: resolvedPrefetchMetrics?.queryMs,
+        workspaceSummaryOrgCount: resolvedPrefetchMetrics?.orgCount,
+        workspaceSummaryWorkspaceCount: resolvedPrefetchMetrics?.workspaceCount,
+        workspaceSummaryResponseBytes: resolvedPrefetchMetrics?.responseBytes,
+        includeSummaries: resolvedPrefetchMetrics?.includeSummaries,
+        cacheMode: resolvedPrefetchMetrics?.cacheMode,
+      })
 
       setIsOpen(false)
       router.refresh()
     } catch (err) {
       console.error("Workspace switch failed:", err)
-      setError(err instanceof Error ? err.message : "Failed to switch workspace")
+      const message = err instanceof Error ? err.message : "Failed to switch workspace"
+      setError(message)
+
+      const normalizedErrorCode =
+        message.toLowerCase().includes("not a member") || message.toLowerCase().includes("member")
+          ? "membership_denied"
+          : "switch_failed"
+
+      void recordWorkspaceSwitchProfile({
+        fromOrgId: currentOrgId,
+        toOrgId: nextOrgId,
+        success: false,
+        errorCode: normalizedErrorCode,
+        clientTotalMs: Math.max(0, Math.round(performance.now() - switchStartedAt)),
+        userPatchMs: userPatchMs ?? undefined,
+        workspacePrefetchMs: workspacePrefetchMs ?? undefined,
+        integrationHealthPrefetchMs: integrationHealthPrefetchMs ?? undefined,
+      })
     } finally {
       setIsSwitching(false)
     }

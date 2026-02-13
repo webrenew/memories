@@ -8,6 +8,16 @@ import {
   evaluateWorkspaceSwitchPerformance,
   type WorkspaceSwitchHealth,
 } from "@/lib/workspace-switch-performance"
+import {
+  WORKSPACE_SWITCH_PROFILE_BUDGETS,
+  emptyWorkspaceSwitchProfiling,
+  evaluateWorkspaceSwitchProfiling,
+  type WorkspaceSwitchProfilingHealth,
+} from "@/lib/workspace-switch-profiling"
+
+type WorkspaceSwitchHealthWithProfiling = WorkspaceSwitchHealth & {
+  profiling: WorkspaceSwitchProfilingHealth
+}
 
 export interface IntegrationHealthPayload {
   status: "ok" | "degraded" | "error"
@@ -27,7 +37,7 @@ export interface IntegrationHealthPayload {
     hasDatabase: boolean
     canProvision: boolean
   }
-  workspaceSwitch: WorkspaceSwitchHealth
+  workspaceSwitch: WorkspaceSwitchHealthWithProfiling
   database: {
     ok: boolean
     latencyMs: number | null
@@ -58,6 +68,20 @@ interface WorkspaceSwitchEventRow {
   created_at: string | null
 }
 
+interface WorkspaceSwitchProfileEventRow {
+  success: boolean | null
+  created_at: string | null
+  client_total_ms: number | null
+  user_patch_ms: number | null
+  workspace_prefetch_ms: number | null
+  integration_health_prefetch_ms: number | null
+  workspace_summary_total_ms: number | null
+  workspace_summary_query_ms: number | null
+  workspace_summary_org_count: number | null
+  workspace_summary_workspace_count: number | null
+  workspace_summary_response_bytes: number | null
+}
+
 function parseError(error: unknown): string {
   if (error instanceof Error) return error.message
   if (typeof error === "object" && error !== null && "message" in error) {
@@ -66,9 +90,27 @@ function parseError(error: unknown): string {
   return String(error)
 }
 
-function isMissingWorkspaceSwitchTableError(error: unknown): boolean {
+function isMissingTableError(error: unknown, tableName: string): boolean {
   const message = parseError(error).toLowerCase()
-  return message.includes("workspace_switch_events") && message.includes("does not exist")
+  return (
+    message.includes(tableName.toLowerCase()) &&
+    (message.includes("does not exist") || message.includes("could not find the table"))
+  )
+}
+
+function isMissingWorkspaceSwitchTableError(error: unknown): boolean {
+  return isMissingTableError(error, "workspace_switch_events")
+}
+
+function isMissingWorkspaceSwitchProfileTableError(error: unknown): boolean {
+  return isMissingTableError(error, "workspace_switch_profile_events")
+}
+
+function toNullableNumber(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return null
+  if (!Number.isFinite(value)) return null
+  if (value < 0) return null
+  return value
 }
 
 async function scalarCount(
@@ -151,6 +193,61 @@ async function loadWorkspaceSwitchHealth(
   })
 }
 
+async function loadWorkspaceSwitchProfiling(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  sampledAt: string,
+): Promise<WorkspaceSwitchProfilingHealth> {
+  const since = new Date(
+    Date.parse(sampledAt) - WORKSPACE_SWITCH_PROFILE_BUDGETS.windowHours * 60 * 60 * 1000,
+  ).toISOString()
+
+  const { data, error } = await admin
+    .from("workspace_switch_profile_events")
+    .select(
+      "success, created_at, client_total_ms, user_patch_ms, workspace_prefetch_ms, integration_health_prefetch_ms, workspace_summary_total_ms, workspace_summary_query_ms, workspace_summary_org_count, workspace_summary_workspace_count, workspace_summary_response_bytes",
+    )
+    .eq("user_id", userId)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1000)
+
+  if (error) {
+    if (isMissingWorkspaceSwitchProfileTableError(error)) {
+      return emptyWorkspaceSwitchProfiling(
+        "unavailable",
+        "workspace switch profiling table is missing (run latest migration)",
+      )
+    }
+    return emptyWorkspaceSwitchProfiling("unavailable", parseError(error))
+  }
+
+  const rows = (data ?? []) as WorkspaceSwitchProfileEventRow[]
+  const events = rows.map((row) => ({
+    success: Boolean(row.success),
+    createdAt: row.created_at ?? sampledAt,
+    clientTotalMs: toNullableNumber(row.client_total_ms),
+    userPatchMs: toNullableNumber(row.user_patch_ms),
+    workspacePrefetchMs: toNullableNumber(row.workspace_prefetch_ms),
+    integrationHealthPrefetchMs: toNullableNumber(row.integration_health_prefetch_ms),
+    workspaceSummaryTotalMs: toNullableNumber(row.workspace_summary_total_ms),
+    workspaceSummaryQueryMs: toNullableNumber(row.workspace_summary_query_ms),
+    workspaceSummaryOrgCount: toNullableNumber(row.workspace_summary_org_count),
+    workspaceSummaryWorkspaceCount: toNullableNumber(row.workspace_summary_workspace_count),
+    workspaceSummaryResponseBytes: toNullableNumber(row.workspace_summary_response_bytes),
+  }))
+
+  return evaluateWorkspaceSwitchProfiling(events, {
+    minSamples: WORKSPACE_SWITCH_PROFILE_BUDGETS.minSamples,
+    p95ClientTotalBudgetMs: WORKSPACE_SWITCH_PROFILE_BUDGETS.p95ClientTotalMs,
+    p95LargeTenantClientTotalBudgetMs: WORKSPACE_SWITCH_PROFILE_BUDGETS.p95LargeTenantClientTotalMs,
+    p95SummaryTotalBudgetMs: WORKSPACE_SWITCH_PROFILE_BUDGETS.p95SummaryTotalMs,
+    p95SummaryQueryBudgetMs: WORKSPACE_SWITCH_PROFILE_BUDGETS.p95SummaryQueryMs,
+    largeTenantOrgCount: WORKSPACE_SWITCH_PROFILE_BUDGETS.largeTenantOrgCount,
+    largeTenantResponseBytes: WORKSPACE_SWITCH_PROFILE_BUDGETS.largeTenantResponseBytes,
+  })
+}
+
 export async function buildIntegrationHealthPayload(
   input: BuildIntegrationHealthInput
 ): Promise<IntegrationHealthPayload> {
@@ -177,10 +274,10 @@ export async function buildIntegrationHealthPayload(
         hasDatabase: false,
         canProvision: false,
       },
-      workspaceSwitch: emptyWorkspaceSwitchHealth(
-        "unavailable",
-        "workspace context unavailable"
-      ),
+      workspaceSwitch: {
+        ...emptyWorkspaceSwitchHealth("unavailable", "workspace context unavailable"),
+        profiling: emptyWorkspaceSwitchProfiling("unavailable", "workspace context unavailable"),
+      },
       database: {
         ok: false,
         latencyMs: null,
@@ -218,7 +315,10 @@ export async function buildIntegrationHealthPayload(
       hasDatabase: workspace.hasDatabase,
       canProvision: workspace.canProvision,
     },
-    workspaceSwitch: emptyWorkspaceSwitchHealth("unavailable", null),
+    workspaceSwitch: {
+      ...emptyWorkspaceSwitchHealth("unavailable", null),
+      profiling: emptyWorkspaceSwitchProfiling("unavailable", null),
+    },
     database: {
       ok: false,
       latencyMs: null,
@@ -237,27 +337,42 @@ export async function buildIntegrationHealthPayload(
     issues,
   }
 
-  try {
-    payload.workspaceSwitch = await loadWorkspaceSwitchHealth(
-      input.admin,
-      input.userId,
-      sampledAt
-    )
+  const [workspaceSwitchResult, workspaceSwitchProfilingResult] = await Promise.allSettled([
+    loadWorkspaceSwitchHealth(input.admin, input.userId, sampledAt),
+    loadWorkspaceSwitchProfiling(input.admin, input.userId, sampledAt),
+  ])
 
-    if (payload.workspaceSwitch.status === "degraded") {
-      for (const alarm of payload.workspaceSwitch.alarms) {
-        issues.push(alarm.message)
-      }
-    } else if (
-      payload.workspaceSwitch.status === "unavailable" &&
-      payload.workspaceSwitch.error
-    ) {
-      issues.push(`Workspace switch telemetry unavailable: ${payload.workspaceSwitch.error}`)
+  const workspaceSwitchHealth =
+    workspaceSwitchResult.status === "fulfilled"
+      ? workspaceSwitchResult.value
+      : emptyWorkspaceSwitchHealth("unavailable", parseError(workspaceSwitchResult.reason))
+  const workspaceSwitchProfiling =
+    workspaceSwitchProfilingResult.status === "fulfilled"
+      ? workspaceSwitchProfilingResult.value
+      : emptyWorkspaceSwitchProfiling(
+          "unavailable",
+          parseError(workspaceSwitchProfilingResult.reason),
+        )
+
+  payload.workspaceSwitch = {
+    ...workspaceSwitchHealth,
+    profiling: workspaceSwitchProfiling,
+  }
+
+  if (workspaceSwitchHealth.status === "degraded") {
+    for (const alarm of workspaceSwitchHealth.alarms) {
+      issues.push(alarm.message)
     }
-  } catch (error) {
-    const message = parseError(error)
-    payload.workspaceSwitch = emptyWorkspaceSwitchHealth("unavailable", message)
-    issues.push(`Workspace switch telemetry unavailable: ${message}`)
+  } else if (workspaceSwitchHealth.status === "unavailable" && workspaceSwitchHealth.error) {
+    issues.push(`Workspace switch telemetry unavailable: ${workspaceSwitchHealth.error}`)
+  }
+
+  if (workspaceSwitchProfiling.status === "warn") {
+    for (const warning of workspaceSwitchProfiling.warnings) {
+      issues.push(warning)
+    }
+  } else if (workspaceSwitchProfiling.status === "unavailable" && workspaceSwitchProfiling.error) {
+    issues.push(`Workspace switch profiling unavailable: ${workspaceSwitchProfiling.error}`)
   }
 
   if (!workspace.hasDatabase || !workspace.turso_db_url || !workspace.turso_db_token) {

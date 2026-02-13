@@ -118,6 +118,25 @@ export const updateUserSchema = z.object({
   repo_workspace_routing_mode: z.enum(["auto", "active_workspace"]).optional(),
 })
 
+export const workspaceSwitchProfileSchema = z.object({
+  from_org_id: z.string().min(1).nullable().optional(),
+  to_org_id: z.string().min(1).nullable().optional(),
+  success: z.boolean(),
+  error_code: z.string().trim().max(80).nullable().optional(),
+  client_total_ms: z.number().min(0).max(60_000).optional(),
+  user_patch_ms: z.number().min(0).max(60_000).optional(),
+  workspace_prefetch_ms: z.number().min(0).max(60_000).optional(),
+  integration_health_prefetch_ms: z.number().min(0).max(60_000).optional(),
+  workspace_summary_total_ms: z.number().min(0).max(60_000).optional(),
+  workspace_summary_query_ms: z.number().min(0).max(60_000).optional(),
+  workspace_summary_org_count: z.number().int().min(0).max(100_000).optional(),
+  workspace_summary_workspace_count: z.number().int().min(0).max(100_000).optional(),
+  workspace_summary_response_bytes: z.number().int().min(0).max(20_000_000).optional(),
+  include_summaries: z.boolean().optional(),
+  cache_mode: z.enum(["force-cache", "default", "no-store"]).optional(),
+  source: z.string().trim().max(50).optional(),
+})
+
 // --- GitHub Capture Queue ---
 
 export const githubCaptureDecisionSchema = z.object({

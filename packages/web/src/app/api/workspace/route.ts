@@ -40,6 +40,29 @@ interface WorkspaceSummary {
 
 const CACHE_CONTROL_WORKSPACE = "private, max-age=15, stale-while-revalidate=45"
 
+function withProfileHeaders(
+  headers: HeadersInit,
+  profile: {
+    totalMs: number
+    summaryQueryMs: number
+    userQueryMs: number
+    membershipsQueryMs: number
+    buildMs: number
+    orgCount: number
+    workspaceCount: number
+  }
+): Headers {
+  const next = new Headers(headers)
+  next.set("X-Workspace-Profile-Total-Ms", String(profile.totalMs))
+  next.set("X-Workspace-Profile-Summary-Query-Ms", String(profile.summaryQueryMs))
+  next.set("X-Workspace-Profile-User-Query-Ms", String(profile.userQueryMs))
+  next.set("X-Workspace-Profile-Memberships-Query-Ms", String(profile.membershipsQueryMs))
+  next.set("X-Workspace-Profile-Build-Ms", String(profile.buildMs))
+  next.set("X-Workspace-Profile-Org-Count", String(profile.orgCount))
+  next.set("X-Workspace-Profile-Workspace-Count", String(profile.workspaceCount))
+  return next
+}
+
 function resolveOrganizationPlan(
   org: OrganizationWorkspaceRow,
   fallbackPlan: string | null
@@ -90,6 +113,7 @@ function toOrganizationSummary(
 }
 
 export async function GET(request: Request) {
+  const startedAt = Date.now()
   const auth = await authenticateRequest(request)
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -103,30 +127,38 @@ export async function GET(request: Request) {
   const includeSummaries =
     searchParams.get("includeSummaries") === "1" ||
     searchParams.get("includeSummaries") === "true"
+  const includeProfile =
+    searchParams.get("profile") === "1" || searchParams.get("profile") === "true"
 
-  const [userResult, membershipsResult] = await Promise.all([
-    admin
-      .from("users")
-      .select("id, plan, current_org_id, turso_db_url, turso_db_token")
-      .eq("id", auth.userId)
-      .single(),
-    admin
-      .from("org_members")
-      .select(`
-        role,
-        organization:organizations(
-          id,
-          name,
-          slug,
-          plan,
-          subscription_status,
-          stripe_subscription_id,
-          turso_db_url,
-          turso_db_token
-        )
-      `)
-      .eq("user_id", auth.userId),
-  ])
+  const userQueryStartedAt = Date.now()
+  const userPromise = admin
+    .from("users")
+    .select("id, plan, current_org_id, turso_db_url, turso_db_token")
+    .eq("id", auth.userId)
+    .single()
+
+  const membershipsQueryStartedAt = Date.now()
+  const membershipsPromise = admin
+    .from("org_members")
+    .select(`
+      role,
+      organization:organizations(
+        id,
+        name,
+        slug,
+        plan,
+        subscription_status,
+        stripe_subscription_id,
+        turso_db_url,
+        turso_db_token
+      )
+    `)
+    .eq("user_id", auth.userId)
+
+  const [userResult, membershipsResult] = await Promise.all([userPromise, membershipsPromise])
+  const userQueryMs = Math.max(0, Date.now() - userQueryStartedAt)
+  const membershipsQueryMs = Math.max(0, Date.now() - membershipsQueryStartedAt)
+  const summaryQueryMs = userQueryMs + membershipsQueryMs
 
   if (userResult.error || !userResult.data) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 })
@@ -136,6 +168,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: membershipsResult.error.message }, { status: 500 })
   }
 
+  const buildStartedAt = Date.now()
   const userRow = userResult.data as UserWorkspaceRow
   const memberships = (membershipsResult.data ?? []) as OrgMembershipRow[]
   const personal = toPersonalSummary(userRow)
@@ -193,9 +226,28 @@ export async function GET(request: Request) {
     }
   }
 
+  const buildMs = Math.max(0, Date.now() - buildStartedAt)
+  const totalMs = Math.max(0, Date.now() - startedAt)
+  const headers = includeProfile
+    ? withProfileHeaders(
+        {
+          "Cache-Control": CACHE_CONTROL_WORKSPACE,
+        },
+        {
+          totalMs,
+          summaryQueryMs,
+          userQueryMs,
+          membershipsQueryMs,
+          buildMs,
+          orgCount: organizationSummaries.length,
+          workspaceCount: organizationSummaries.length + 1,
+        }
+      )
+    : new Headers({
+        "Cache-Control": CACHE_CONTROL_WORKSPACE,
+      })
+
   return NextResponse.json(responseBody, {
-    headers: {
-      "Cache-Control": CACHE_CONTROL_WORKSPACE,
-    },
+    headers,
   })
 }

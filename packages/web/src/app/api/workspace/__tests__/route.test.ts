@@ -165,4 +165,20 @@ describe("/api/workspace", () => {
     })
     expect(response.headers.get("Cache-Control")).toContain("private")
   })
+
+  it("returns profiling headers when profile mode is requested", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "user@example.com" })
+    const response = await GET(
+      new Request("https://example.com/api/workspace?includeSummaries=1&profile=1"),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("X-Workspace-Profile-Total-Ms")).toBeTruthy()
+    expect(response.headers.get("X-Workspace-Profile-Summary-Query-Ms")).toBeTruthy()
+    expect(response.headers.get("X-Workspace-Profile-User-Query-Ms")).toBeTruthy()
+    expect(response.headers.get("X-Workspace-Profile-Memberships-Query-Ms")).toBeTruthy()
+    expect(response.headers.get("X-Workspace-Profile-Build-Ms")).toBeTruthy()
+    expect(response.headers.get("X-Workspace-Profile-Org-Count")).toBe("1")
+    expect(response.headers.get("X-Workspace-Profile-Workspace-Count")).toBe("2")
+  })
 })

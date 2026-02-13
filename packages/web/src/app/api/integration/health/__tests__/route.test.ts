@@ -74,6 +74,28 @@ describe("/api/integration/health", () => {
         lastSwitchedAt: "2026-02-12T00:00:00.000Z",
         lastErrorAt: null,
         alarms: [],
+        profiling: {
+          status: "ok",
+          sampleCount: 20,
+          successfulSampleCount: 20,
+          profiledSampleCount: 20,
+          largeTenantThresholds: {
+            orgCount: 10,
+            responseBytes: 80000,
+          },
+          largeTenantSampleCount: 4,
+          p95ClientTotalMs: 740,
+          p95LargeTenantClientTotalMs: 1120,
+          phaseP95Ms: {
+            userPatchMs: 140,
+            workspacePrefetchMs: 300,
+            integrationHealthPrefetchMs: 160,
+            workspaceSummaryTotalMs: 260,
+            workspaceSummaryQueryMs: 120,
+          },
+          warnings: [],
+          error: null,
+        },
         error: null,
       },
       database: {

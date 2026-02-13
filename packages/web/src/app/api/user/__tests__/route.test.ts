@@ -171,6 +171,7 @@ describe("/api/user", () => {
 
       expect(response.status).toBe(200)
       expect(body.ok).toBe(true)
+      expect(typeof body.workspace_cache_bust_key).toBe("string")
       expect(mockUpdate).toHaveBeenCalledWith({ current_org_id: "org-1" })
       expect(mockInsertSwitchEvent).toHaveBeenCalledTimes(1)
       expect(mockInsertSwitchEvent).toHaveBeenCalledWith(
@@ -208,7 +209,9 @@ describe("/api/user", () => {
       })
 
       const response = await PATCH(makePatchRequest({ current_org_id: null }))
+      const body = await response.json()
       expect(response.status).toBe(200)
+      expect(typeof body.workspace_cache_bust_key).toBe("string")
       expect(mockUpdate).toHaveBeenCalledWith({ current_org_id: null })
       expect(mockInsertSwitchEvent).toHaveBeenCalledTimes(1)
       expect(mockInsertSwitchEvent).toHaveBeenCalledWith(

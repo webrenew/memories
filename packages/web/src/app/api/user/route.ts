@@ -44,7 +44,14 @@ function isMissingTableError(error: unknown, tableName: string): boolean {
       ? String((error as { message?: unknown }).message ?? "").toLowerCase()
       : ""
 
-  return message.includes(tableName.toLowerCase()) && message.includes("does not exist")
+  return (
+    message.includes(tableName.toLowerCase()) &&
+    (message.includes("does not exist") || message.includes("could not find the table"))
+  )
+}
+
+function workspaceCacheBustKey(userId: string): string {
+  return `${userId}:${Date.now()}`
 }
 
 async function readCurrentOrgId(admin: AdminClient, userId: string): Promise<string | null> {
@@ -229,5 +236,10 @@ export async function PATCH(request: Request) {
     })
   }
 
-  return NextResponse.json({ ok: true })
+  const response: { ok: true; workspace_cache_bust_key?: string } = { ok: true }
+  if (switchRequested) {
+    response.workspace_cache_bust_key = workspaceCacheBustKey(auth.userId)
+  }
+
+  return NextResponse.json(response)
 }

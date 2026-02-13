@@ -101,7 +101,10 @@ Status update (2026-02-13):
 - Budgets + alarms are shipped.
 - Workspace summary prefetch/cache is shipped in dashboard switcher.
 - Team members API removed per-member auth lookup N+1 (batched auth list lookup).
-- Remaining: deeper query profiling for large tenants and selective cache invalidation tuning.
+- Deep workspace-switch profiling is shipped (`workspace_switch_profile_events`, phase timings, payload sizes).
+- Integration health now surfaces large-tenant profiling status/warnings and coverage.
+- Selective cache invalidation is shipped via workspace switch cache-bust keys.
+- Remaining: tune profiling budgets using production samples and promote warning thresholds to alert policy.
 
 Deliverables:
 - API/query profiling for workspace load paths
