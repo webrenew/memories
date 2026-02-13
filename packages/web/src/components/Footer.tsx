@@ -48,14 +48,12 @@ export function Footer() {
         </div>
         
         <div className="pt-12 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-8">
-          <a 
-            href="https://webrenew.com?utm_source=memories.sh&utm_medium=footer&utm_campaign=copyright" 
-            target="_blank" 
-            rel="noopener noreferrer"
+          <Link
+            href="/"
             className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.2em] font-bold hover:text-muted-foreground transition-colors"
           >
-            © 2026 Webrenew
-          </a>
+            © 2026 memories.sh
+          </Link>
           <div className="flex items-center gap-8">
             <ThemeSwitcher />
             <StatusIndicator />
