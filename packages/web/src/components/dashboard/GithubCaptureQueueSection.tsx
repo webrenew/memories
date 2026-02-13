@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 
 type QueueStatus = "pending" | "approved" | "rejected"
+type QueueEvent = "all" | "pull_request" | "issues" | "push" | "release"
 
 interface GithubCaptureQueueItem {
   id: string
   status: QueueStatus
-  source_event: "pull_request" | "issues" | "push"
+  source_event: "pull_request" | "issues" | "push" | "release"
   source_action: string | null
   repo_full_name: string
   project_id: string
@@ -25,6 +26,7 @@ interface GithubCaptureQueueItem {
 function badgeClass(event: GithubCaptureQueueItem["source_event"]): string {
   if (event === "pull_request") return "text-sky-300 border-sky-500/40 bg-sky-500/10"
   if (event === "issues") return "text-amber-300 border-amber-500/40 bg-amber-500/10"
+  if (event === "release") return "text-violet-300 border-violet-500/40 bg-violet-500/10"
   return "text-emerald-300 border-emerald-500/40 bg-emerald-500/10"
 }
 
@@ -58,6 +60,8 @@ function trim(value: string, max = 280): string {
 
 export function GithubCaptureQueueSection() {
   const [status, setStatus] = useState<QueueStatus | "all">("pending")
+  const [event, setEvent] = useState<QueueEvent>("all")
+  const [search, setSearch] = useState("")
   const [items, setItems] = useState<GithubCaptureQueueItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -67,7 +71,16 @@ export function GithubCaptureQueueSection() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/github/capture/queue?status=${status}&limit=50`, {
+      const params = new URLSearchParams({
+        status,
+        event,
+        limit: "50",
+      })
+      if (search.trim()) {
+        params.set("q", search.trim())
+      }
+
+      const response = await fetch(`/api/github/capture/queue?${params.toString()}`, {
         method: "GET",
         cache: "no-store",
       })
@@ -82,7 +95,7 @@ export function GithubCaptureQueueSection() {
     } finally {
       setLoading(false)
     }
-  }, [status])
+  }, [event, search, status])
 
   useEffect(() => {
     void loadQueue()
@@ -149,7 +162,7 @@ export function GithubCaptureQueueSection() {
             GitHub Capture Queue
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            PRs, issues, and commits captured for review before memory insertion.
+            PRs, issues, commits, and releases captured for review before memory insertion.
           </p>
         </div>
 
@@ -187,6 +200,33 @@ export function GithubCaptureQueueSection() {
           <span>Approved {summary.approved}</span>
           <span>Rejected {summary.rejected}</span>
         </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {(["all", "pull_request", "issues", "push", "release"] as const).map((option) => {
+          const active = event === option
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setEvent(option)}
+              className={`px-2 py-1 text-[10px] uppercase tracking-[0.14em] border transition-colors ${
+                active
+                  ? "border-primary text-primary bg-primary/10"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {option === "all" ? "all events" : option}
+            </button>
+          )
+        })}
+
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search repo, actor, title, source id"
+          className="ml-auto w-full md:w-[300px] px-2.5 py-1.5 text-xs bg-muted/20 border border-border focus:outline-none focus:border-primary/40"
+        />
       </div>
 
       {error ? <p className="mt-3 text-xs text-red-400">{error}</p> : null}

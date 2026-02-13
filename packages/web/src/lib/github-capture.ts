@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto"
 
-export type GithubCaptureEvent = "pull_request" | "issues" | "push"
+export type GithubCaptureEvent = "pull_request" | "issues" | "push" | "release"
 
 export type CaptureTargetWorkspace =
   | {
@@ -65,6 +65,9 @@ interface GithubIssuePayload {
   state?: string
   updated_at?: string | null
   user?: GithubActorPayload
+  labels?: Array<{
+    name?: string
+  }>
 }
 
 interface GithubCommitPayload {
@@ -91,6 +94,20 @@ interface GithubPushPayload {
   }
 }
 
+interface GithubReleasePayload {
+  id?: number
+  tag_name?: string
+  target_commitish?: string
+  name?: string
+  body?: string | null
+  html_url?: string
+  draft?: boolean
+  prerelease?: boolean
+  published_at?: string | null
+  created_at?: string | null
+  author?: GithubActorPayload
+}
+
 interface GithubWebhookPayload {
   action?: string
   repository?: GithubRepositoryPayload
@@ -107,6 +124,7 @@ interface GithubWebhookPayload {
   pusher?: {
     name?: string
   }
+  release?: GithubReleasePayload
 }
 
 interface AuthIdentityLike {
@@ -169,6 +187,23 @@ function composeContent(parts: string[]): string {
     .map((part) => part.trim())
     .filter(Boolean)
     .join("\n")
+}
+
+function normalizeBranchRef(ref: string | null | undefined): string | null {
+  const raw = asNonEmptyString(ref)
+  if (!raw) return null
+  return raw.replace(/^refs\/heads\//, "")
+}
+
+function normalizeLabels(labels: unknown): string[] {
+  if (!Array.isArray(labels)) return []
+  return Array.from(
+    new Set(
+      labels
+        .map((label) => normalizeGithubLogin((label as { name?: unknown })?.name))
+        .filter((label): label is string => Boolean(label)),
+    ),
+  )
 }
 
 function buildDedupKey(parts: Array<string | null | undefined>): string {
@@ -280,6 +315,9 @@ export function buildGithubCaptureCandidates(
       normalizeGithubLogin(pr.user?.login) ??
       normalizeGithubLogin(repo.ownerLogin)
     const headSha = asNonEmptyString(pr.head?.sha)
+    const labels = normalizeLabels((pr as { labels?: unknown }).labels)
+    const branch = normalizeBranchRef((payload as { pull_request?: { base?: { ref?: string } } })
+      .pull_request?.base?.ref)
 
     const content = composeContent([
       `PR #${prNumber} (${state}) in ${repo.projectId}`,
@@ -287,6 +325,8 @@ export function buildGithubCaptureCandidates(
       action ? `Action: ${action}` : "",
       pr.draft === true ? "Draft: true" : "",
       pr.merged === true ? "Merged: true" : "",
+      branch ? `Branch: ${branch}` : "",
+      labels.length > 0 ? `Labels: ${labels.join(", ")}` : "",
       body ? `Summary: ${body}` : "",
       pr.html_url ? `URL: ${pr.html_url}` : repo.repoUrl ? `Repo: ${repo.repoUrl}` : "",
     ])
@@ -317,6 +357,8 @@ export function buildGithubCaptureCandidates(
           merged: Boolean(pr.merged),
           merged_at: pr.merged_at ?? null,
           head_sha: headSha,
+          labels,
+          branch,
         },
       },
     ]
@@ -333,6 +375,7 @@ export function buildGithubCaptureCandidates(
     const title = clip(issue.title, 180)
     const body = clip(issue.body, 2400)
     const state = asNonEmptyString(issue.state) ?? "unknown"
+    const labels = normalizeLabels(issue.labels)
     const actor =
       normalizeGithubLogin(payload.sender?.login) ??
       normalizeGithubLogin(issue.user?.login) ??
@@ -342,6 +385,7 @@ export function buildGithubCaptureCandidates(
       `Issue #${issueNumber} (${state}) in ${repo.projectId}`,
       title ? `Title: ${title}` : "",
       action ? `Action: ${action}` : "",
+      labels.length > 0 ? `Labels: ${labels.join(", ")}` : "",
       body ? `Summary: ${body}` : "",
       issue.html_url ? `URL: ${issue.html_url}` : repo.repoUrl ? `Repo: ${repo.repoUrl}` : "",
     ])
@@ -367,6 +411,7 @@ export function buildGithubCaptureCandidates(
         metadata: {
           number: issueNumber,
           state,
+          labels,
         },
       },
     ]
@@ -394,10 +439,11 @@ export function buildGithubCaptureCandidates(
           asNonEmptyString(commit.author?.name)?.toLowerCase() ??
           actor
 
+        const branch = normalizeBranchRef(asNonEmptyString(pushPayload.ref))
         const content = composeContent([
           `Commit ${shortSha} in ${repo.projectId}`,
           message ? `Message: ${message}` : "",
-          asNonEmptyString(pushPayload.ref) ? `Ref: ${pushPayload.ref}` : "",
+          branch ? `Branch: ${branch}` : asNonEmptyString(pushPayload.ref) ? `Ref: ${pushPayload.ref}` : "",
           commit.url ? `URL: ${commit.url}` : pushPayload.compare ? `Compare: ${pushPayload.compare}` : "",
         ])
 
@@ -423,9 +469,72 @@ export function buildGithubCaptureCandidates(
             after: pushPayload.after ?? null,
             commit_timestamp: commit.timestamp ?? null,
             distinct: commit.distinct ?? null,
+            branch,
           },
         }
       })
+  }
+
+  if (eventName === "release") {
+    const release = payload.release
+    if (!release || typeof release !== "object") return []
+
+    const action = asNonEmptyString(payload.action)
+    const releaseId = typeof release.id === "number" ? String(release.id) : null
+    const tagName = asNonEmptyString(release.tag_name)
+    if (!releaseId && !tagName) return []
+
+    const actor =
+      normalizeGithubLogin(payload.sender?.login) ??
+      normalizeGithubLogin(release.author?.login) ??
+      normalizeGithubLogin(repo.ownerLogin)
+
+    const releaseName = clip(release.name, 180)
+    const releaseBody = clip(release.body, 3200)
+    const title = releaseName || (tagName ? `Release ${tagName}` : "Release notes")
+    const targetCommitish = asNonEmptyString(release.target_commitish)
+
+    const content = composeContent([
+      `${title} in ${repo.projectId}`,
+      tagName ? `Tag: ${tagName}` : "",
+      action ? `Action: ${action}` : "",
+      targetCommitish ? `Target: ${targetCommitish}` : "",
+      release.prerelease === true ? "Prerelease: true" : "",
+      release.draft === true ? "Draft: true" : "",
+      releaseBody ? `Notes: ${releaseBody}` : "",
+      release.html_url ? `URL: ${release.html_url}` : repo.repoUrl ? `Repo: ${repo.repoUrl}` : "",
+    ])
+
+    return [
+      {
+        sourceEvent: "release",
+        sourceAction: action,
+        sourceId: `release:${repo.repoId}:${releaseId ?? tagName}`,
+        repoFullName: repo.repoFullName,
+        projectId: repo.projectId,
+        actorLogin: actor,
+        title,
+        content,
+        sourceUrl: asNonEmptyString(release.html_url) ?? repo.repoUrl,
+        dedupKey: buildDedupKey([
+          "release",
+          repo.repoFullName,
+          releaseId ?? tagName,
+          action,
+          asNonEmptyString(release.published_at),
+          asNonEmptyString(release.created_at),
+        ]),
+        metadata: {
+          release_id: releaseId,
+          tag_name: tagName,
+          target_commitish: targetCommitish,
+          draft: Boolean(release.draft),
+          prerelease: Boolean(release.prerelease),
+          published_at: release.published_at ?? null,
+          created_at: release.created_at ?? null,
+        },
+      },
+    ]
   }
 
   return []

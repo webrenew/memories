@@ -97,6 +97,7 @@ describe("github capture helpers", () => {
         html_url: "https://github.com/WebRenew/memories/issues/17",
         state: "open",
         updated_at: "2026-02-12T00:00:00.000Z",
+        labels: [{ name: "bug" }, { name: "dashboard" }],
       },
     })
 
@@ -104,6 +105,7 @@ describe("github capture helpers", () => {
     expect(candidates[0]?.sourceEvent).toBe("issues")
     expect(candidates[0]?.sourceId).toBe("issue:1:17")
     expect(candidates[0]?.title).toContain("Queue panel")
+    expect(candidates[0]?.content).toContain("Labels: bug, dashboard")
   })
 
   it("builds commit candidates for push events", () => {
@@ -132,5 +134,39 @@ describe("github capture helpers", () => {
     expect(candidates[0]?.sourceEvent).toBe("push")
     expect(candidates[0]?.sourceId).toBe("commit:9:abcdef1234567890")
     expect(candidates[0]?.content).toContain("Commit abcdef123456")
+    expect(candidates[0]?.metadata).toMatchObject({ branch: "main" })
+  })
+
+  it("builds release-note candidates for release events", () => {
+    const candidates = buildGithubCaptureCandidates("release", {
+      action: "published",
+      repository: {
+        id: 9,
+        full_name: "WebRenew/memories",
+        owner: { login: "WebRenew" },
+      },
+      sender: { login: "charles" },
+      release: {
+        id: 77,
+        tag_name: "v16.1.7",
+        target_commitish: "main",
+        name: "v16.1.7",
+        body: "Adds release-note adapters and richer capture filters.",
+        html_url: "https://github.com/WebRenew/memories/releases/tag/v16.1.7",
+        prerelease: false,
+        draft: false,
+        published_at: "2026-02-13T20:00:00.000Z",
+      },
+    })
+
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0]?.sourceEvent).toBe("release")
+    expect(candidates[0]?.sourceId).toBe("release:9:77")
+    expect(candidates[0]?.title).toBe("v16.1.7")
+    expect(candidates[0]?.content).toContain("Notes:")
+    expect(candidates[0]?.metadata).toMatchObject({
+      tag_name: "v16.1.7",
+      target_commitish: "main",
+    })
   })
 })

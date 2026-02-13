@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, received: "ping" })
   }
 
-  if (!["pull_request", "issues", "push"].includes(eventName)) {
+  if (!["pull_request", "issues", "push", "release"].includes(eventName)) {
     return NextResponse.json({ ok: true, ignored: `unsupported_event:${eventName}` })
   }
 

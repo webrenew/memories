@@ -13,7 +13,7 @@ interface QueueItemRow {
   target_user_id: string | null
   target_org_id: string | null
   status: "pending" | "approved" | "rejected"
-  source_event: "pull_request" | "issues" | "push"
+  source_event: "pull_request" | "issues" | "push" | "release"
   source_action: string | null
   repo_full_name: string
   project_id: string
@@ -42,6 +42,7 @@ function canReviewRole(role: OrgMembershipRow["role"] | null): boolean {
 function memoryTypeForEvent(event: QueueItemRow["source_event"]): "rule" | "decision" | "fact" | "note" | "skill" {
   if (event === "pull_request") return "decision"
   if (event === "push") return "fact"
+  if (event === "release") return "note"
   return "note"
 }
 

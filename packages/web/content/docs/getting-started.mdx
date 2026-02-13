@@ -216,10 +216,20 @@ GITHUB_WEBHOOK_SECRET=your-secret
 
 # 2) Point GitHub webhook to:
 #    POST /api/github/webhook
-#    Events: pull_request, issues, push
+#    Events: pull_request, issues, push, release
 ```
 
 Captured items appear in dashboard **GitHub Capture Queue**. Approve to write into workspace memory (with graph sync), or reject to discard.
+
+Queue API supports richer review filters:
+
+```bash
+# pending release items for a repo
+/api/github/capture/queue?status=pending&event=release&repo=webrenew/memories
+
+# text search across title/content/repo/source-id
+/api/github/capture/queue?status=all&q=release+notes
+```
 
 ## Next Steps
 

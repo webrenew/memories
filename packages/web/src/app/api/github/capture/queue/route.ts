@@ -9,7 +9,7 @@ interface QueueRow {
   target_user_id: string | null
   target_org_id: string | null
   status: "pending" | "approved" | "rejected"
-  source_event: "pull_request" | "issues" | "push"
+  source_event: "pull_request" | "issues" | "push" | "release"
   source_action: string | null
   repo_full_name: string
   project_id: string
@@ -36,6 +36,22 @@ function isQueueStatus(value: string | null): value is QueueRow["status"] | "all
   return value === "pending" || value === "approved" || value === "rejected" || value === "all"
 }
 
+function isQueueEvent(value: string | null): value is QueueRow["source_event"] | "all" {
+  return (
+    value === "pull_request" ||
+    value === "issues" ||
+    value === "push" ||
+    value === "release" ||
+    value === "all"
+  )
+}
+
+function normalizeFilterValue(value: string | null): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 function canReviewOrgRole(role: OrgMembershipRow["role"] | undefined): boolean {
   return role === "owner" || role === "admin"
 }
@@ -43,7 +59,7 @@ function canReviewOrgRole(role: OrgMembershipRow["role"] | undefined): boolean {
 function normalizeLimit(value: string | null): number {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) return 50
-  return Math.min(100, Math.max(1, Math.floor(parsed)))
+  return Math.min(200, Math.max(1, Math.floor(parsed)))
 }
 
 async function loadRowsForUserTarget(
@@ -116,6 +132,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const statusParam = url.searchParams.get("status")
   const status = isQueueStatus(statusParam) ? statusParam : "pending"
+  const eventParam = url.searchParams.get("event")
+  const eventFilter = isQueueEvent(eventParam) ? eventParam : "all"
+  const repoFilter = normalizeFilterValue(url.searchParams.get("repo"))?.toLowerCase() ?? null
+  const actorFilter = normalizeFilterValue(url.searchParams.get("actor"))?.toLowerCase() ?? null
+  const workspaceFilter = normalizeFilterValue(url.searchParams.get("workspace"))?.toLowerCase() ?? "all"
+  const queryFilter = normalizeFilterValue(url.searchParams.get("q"))?.toLowerCase() ?? null
   const limit = normalizeLimit(url.searchParams.get("limit"))
 
   const admin = createAdminClient()
@@ -131,18 +153,56 @@ export async function GET(request: Request) {
   const orgMemberships = (memberships ?? []) as OrgMembershipRow[]
   const orgRoleById = new Map(orgMemberships.map((membership) => [membership.org_id, membership.role]))
   const orgIds = orgMemberships.map((membership) => membership.org_id)
+  const allowedOrgIds = new Set(orgIds)
+
+  const shouldIncludePersonal =
+    workspaceFilter === "all" ||
+    workspaceFilter === "personal" ||
+    workspaceFilter === `user:${user.id.toLowerCase()}`
+
+  const requestedOrgId =
+    workspaceFilter.startsWith("org:") && workspaceFilter.length > 4
+      ? workspaceFilter.slice(4)
+      : null
+
+  const filteredOrgIds =
+    requestedOrgId && allowedOrgIds.has(requestedOrgId)
+      ? [requestedOrgId]
+      : requestedOrgId
+        ? []
+        : orgIds
 
   try {
     const [userRows, orgRows] = await Promise.all([
-      loadRowsForUserTarget(admin, user.id, status, limit),
-      loadRowsForOrgTargets(admin, orgIds, status, limit),
+      shouldIncludePersonal ? loadRowsForUserTarget(admin, user.id, status, limit) : Promise.resolve([]),
+      loadRowsForOrgTargets(admin, filteredOrgIds, status, limit),
     ])
 
     const rows = [...userRows, ...orgRows]
       .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))
-      .slice(0, limit)
 
-    const queue = rows.map((row) => {
+    const queue = rows
+      .filter((row) => {
+        if (eventFilter !== "all" && row.source_event !== eventFilter) return false
+        if (repoFilter && !row.repo_full_name.toLowerCase().includes(repoFilter)) return false
+        if (actorFilter && (row.actor_login ?? "").toLowerCase() !== actorFilter) return false
+        if (queryFilter) {
+          const haystack = [
+            row.title ?? "",
+            row.content,
+            row.source_id,
+            row.repo_full_name,
+            row.project_id,
+            row.actor_login ?? "",
+            row.source_action ?? "",
+          ]
+            .join(" ")
+            .toLowerCase()
+          if (!haystack.includes(queryFilter)) return false
+        }
+        return true
+      })
+      .map((row) => {
       const orgRole = row.target_org_id ? orgRoleById.get(row.target_org_id) : undefined
       const canApprove =
         row.target_owner_type === "user"
@@ -155,6 +215,7 @@ export async function GET(request: Request) {
         workspace: row.target_owner_type === "user" ? "personal" : `org:${row.target_org_id}`,
       }
     })
+      .slice(0, limit)
 
     return NextResponse.json({ queue })
   } catch (error) {
