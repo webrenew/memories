@@ -131,7 +131,7 @@ Failure:
 | `TENANT_ID_INVALID` | `400` | Invalid `scope.tenantId` |
 | `USER_ID_INVALID` | `400` | Invalid `scope.userId` |
 | `DATABASE_NOT_CONFIGURED` | `400` | No active workspace DB for API key owner |
-| `TENANT_DATABASE_NOT_CONFIGURED` | `404` | Unknown tenant mapping (auto-provision may create this mapping when enabled) |
+| `TENANT_DATABASE_NOT_CONFIGURED` | `404` | Unknown AI SDK Project (`tenantId`) mapping (auto-provision may create this mapping when enabled) |
 | `TENANT_DATABASE_NOT_READY` | `409` | Tenant DB mapping exists but not ready |
 | `TENANT_DATABASE_CREDENTIALS_MISSING` | `404` | Tenant mapping missing credentials |
 | `CANARY_ROLLOUT_BLOCKED` | `409` | Quality gate blocked canary rollout |
@@ -153,9 +153,9 @@ Runtime + graph requests accept optional scoped routing under `scope`:
 }
 ```
 
-- `tenantId`: route to tenant-mapped database
-- `userId`: enforce end-user isolation
-- `projectId`: narrow to project/repo-scoped memories
+- `tenantId`: AI SDK Project selector (security/database boundary)
+- `userId`: end-user scope inside `tenantId`
+- `projectId`: optional repository context filter (not an auth boundary)
 
 If `tenantId` is omitted, the request uses the API key owner's active workspace DB.
 
@@ -545,9 +545,9 @@ Response `data`:
 
 ### `GET|POST|DELETE /api/sdk/v1/management/tenants`
 
-- `GET`: list tenant DB mappings
-- `POST`: upsert tenant mapping
-- `DELETE`: disable tenant mapping by `tenantId` query param
+- `GET`: list AI SDK Projects (`tenantId` mappings)
+- `POST`: upsert AI SDK Project mapping
+- `DELETE`: disable AI SDK Project mapping by `tenantId` query param
 
 `POST` request:
 
@@ -589,7 +589,7 @@ curl -sS https://memories.sh/api/sdk/v1/context/get \
   -H "Content-Type: application/json" \
   -d '{
     "query":"deployment",
-    "scope":{"tenantId":"acme-prod","projectId":"github.com/acme/platform"}
+    "scope":{"tenantId":"acme-prod","userId":"user_123","projectId":"github.com/acme/platform"}
   }'
 ```
 
@@ -602,7 +602,7 @@ curl -sS https://memories.sh/api/sdk/v1/memories/add \
   -d '{
     "content":"Always run smoke tests before deploy",
     "type":"rule",
-    "scope":{"projectId":"github.com/acme/platform"}
+    "scope":{"tenantId":"acme-prod","userId":"user_123","projectId":"github.com/acme/platform"}
   }'
 ```
 

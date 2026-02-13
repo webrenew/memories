@@ -75,9 +75,9 @@ Canary mode is also protected by a quality gate that evaluates fallback and rele
 
 Graph data respects the same routing model as memories:
 
-- `tenantId`: tenant-isolated database routing
-- `userId`: per-user memory isolation
-- `projectId`: project/repo memory scope
+- `tenantId`: AI SDK Project selector (security/database boundary)
+- `userId`: end-user scope inside `tenantId`
+- `projectId`: optional project/repo context filter (not an auth boundary)
 
 When workspace repo-routing mode is `auto`, org repos route to org workspace memory and personal repos route to personal workspace memory by default.
 

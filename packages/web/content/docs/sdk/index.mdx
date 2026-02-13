@@ -28,8 +28,8 @@ The memories.sh SDK gives AI applications persistent memory through two packages
 
 ## Scoping Model
 
-- `tenantId`: required for SaaS isolation (routes to a tenant-specific memory database)
-- `userId`: optional per-end-user scope inside a tenant
+- `tenantId`: AI SDK Project (security/database boundary)
+- `userId`: end-user scope inside `tenantId`
 - `projectId`: optional git/repository context filter (not an auth boundary)
 
 When tenant auto-provision is enabled on your server, first requests for a new `tenantId` can provision its Turso database automatically.

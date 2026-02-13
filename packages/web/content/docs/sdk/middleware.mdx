@@ -45,11 +45,14 @@ memoriesMiddleware({
     return params.prompt as string
   },
 
-  // Scope all operations to a user
+  // AI SDK Project (security/database boundary)
+  tenantId: "acme-prod",
+
+  // End-user scope inside tenantId (optional)
   userId: "user_123",
 
-  // Tenant/workspace scope (required unless you pass a preconfigured client)
-  tenantId: "acme-prod",
+  // Optional repo context filter (not auth boundary)
+  projectId: "github.com/acme/platform",
 
   // Skip the fetch and use preloaded context
   preloaded: preloadedContext,
@@ -79,11 +82,15 @@ Custom function to extract the search query from the call parameters. By default
 
 ### `userId`
 
-Scope all memory operations to a specific user. Required for multi-tenant apps.
+End-user scope inside `tenantId`. Use this when each customer user should have isolated memory.
 
 ### `tenantId`
 
-Route memory operations to a tenant-specific database. Required unless you pass a preconfigured `client`.
+AI SDK Project identifier and security/database boundary. Required unless you pass a preconfigured `client`.
+
+### `projectId`
+
+Optional repository context filter. This narrows retrieval and writes, but it is not an auth boundary.
 
 ### `preloaded`
 

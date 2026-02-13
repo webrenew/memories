@@ -295,7 +295,7 @@ export function TenantDatabaseMappingsSection({
             <div className="rounded-md border border-border bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground leading-relaxed">
                 `tenantId` here is your SaaS project/customer boundary. It is separate from git repo scope
-                (`projectId`) used by coding agents.
+                (`projectId`) used by coding agents. `userId` is optional end-user scope inside the same `tenantId`.
               </p>
             </div>
 

@@ -22,6 +22,12 @@ const { text } = await generateText({
 
 `memoriesTools()` returns all six tools as a single object you can spread into your tools config.
 
+## Scope Model
+
+- `tenantId` = AI SDK Project (security/database boundary)
+- `userId` = end-user scope inside `tenantId`
+- `projectId` = optional repo context filter (not auth boundary)
+
 ## Management Helper
 
 Use `memoriesManagement()` when your app needs to rotate API keys or manage AI SDK Projects (`tenantId` mappings) without calling raw HTTP endpoints.

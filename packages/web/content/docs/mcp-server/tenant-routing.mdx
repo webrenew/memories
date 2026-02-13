@@ -3,7 +3,7 @@ title: Tenant Routing
 description: Configure tenant-scoped Turso routing for hosted MCP.
 ---
 
-For SaaS apps, you can route MCP tool calls to tenant-specific databases by passing `tenant_id` in tool arguments.
+For SaaS apps, you can route MCP tool calls to AI SDK Project databases by passing `tenant_id` in tool arguments.
 
 <Callout>
 If you are integrating through the SDK HTTP surface, use `/api/sdk/v1/management/tenants`. The MCP route names below are legacy-compatible aliases.
@@ -20,6 +20,12 @@ If `tenant_id` is omitted, requests use the API key's default workspace database
 
 When tenant auto-provisioning is enabled on the server, unknown `tenant_id` values can be provisioned on first use (new Turso DB + schema + mapping) without a separate management call.
 
+Scope mapping:
+
+- `tenant_id` = AI SDK Project (security/database boundary)
+- `user_id` = end-user scope
+- `project_id` = optional repo context filter (not auth boundary)
+
 ## Manage Tenant Mappings
 
 ### List Tenants
@@ -28,7 +34,7 @@ When tenant auto-provisioning is enabled on the server, unknown `tenant_id` valu
 
 Legacy alias: `/api/mcp/tenants`
 
-Returns all tenant mappings for your active API key.
+Returns all AI SDK Project mappings for your active API key.
 
 ### Create or Update Tenant
 
@@ -36,7 +42,7 @@ Returns all tenant mappings for your active API key.
 
 Legacy alias: `/api/mcp/tenants`
 
-Create or update a tenant mapping. Two modes are available:
+Create or update an AI SDK Project mapping. Two modes are available:
 
 **Provision** — `mode: "provision"`
 - Creates a new Turso database
@@ -77,7 +83,7 @@ Example (`attach`):
 
 Legacy alias: `/api/mcp/tenants`
 
-Soft-disables a mapping (`status: "disabled"`).
+Soft-disables an AI SDK Project mapping (`status: "disabled"`).
 
 ## Using `tenant_id` in MCP Tools
 
@@ -101,7 +107,7 @@ Example JSON-RPC call:
 
 ## Key Rotation Behavior
 
-When you rotate your API key, tenant mappings are copied from the old key hash to the new key hash automatically. This keeps `tenant_id` routing working without manual remapping.
+When you rotate your API key, AI SDK Project mappings are copied from the old key hash to the new key hash automatically. This keeps `tenant_id` routing working without manual remapping.
 
 ## Error Codes
 

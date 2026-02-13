@@ -14,6 +14,12 @@ Use this rule:
 
 If you have not created a dashboard project yet, start with [AI SDK Projects](/docs/sdk/projects).
 
+Scope definitions:
+
+- `tenantId` = AI SDK Project (security/database boundary)
+- `userId` = end-user scope
+- `projectId` = optional repo context filter (not auth boundary)
+
 ## Why This Matters
 
 If clients can pass arbitrary `tenantId` / `userId`, they can read or write another tenant's memory.

@@ -28,6 +28,7 @@ const apiShowcase: ApiShowcaseItem[] = [
   "graphDepth": 1,
   "scope": {
     "tenantId": "webrenew-prod",
+    "userId": "charles@webrenew.io",
     "projectId": "github.com/webrenew/memories"
   }
 }`,
@@ -51,15 +52,16 @@ const apiShowcase: ApiShowcaseItem[] = [
     method: "POST",
     path: "/api/sdk/v1/memories/add",
     summary:
-      "Store typed memories with metadata, tags, category, and repo-aware project scope.",
+      "Store typed memories with metadata, tags, and explicit tenant/user/repo scope controls.",
     request: `{
   "content": "Use .env as local source of truth",
   "type": "rule",
   "category": "setup",
   "tags": ["env", "config"],
   "scope": {
+    "tenantId": "webrenew-prod",
+    "userId": "charles@webrenew.io",
     "projectId": "github.com/webrenew/memories",
-    "userId": "charles@webrenew.io"
   }
 }`,
     response: `{
@@ -159,7 +161,8 @@ export function ApiSection() {
           </h2>
           <p className="mt-6 text-lg text-muted-foreground max-w-3xl">
             One predictable SDK surface for retrieval, writes, graph rollout, and diagnostics. Designed for strict
-            clients and fast incident debugging. Default SDK transport is HTTP API; MCP transport is optional.
+            clients and fast incident debugging. `tenantId` is the database boundary, `userId` is end-user scope, and
+            `projectId` is an optional repo context filter. Default SDK transport is HTTP API; MCP transport is optional.
           </p>
         </div>
 

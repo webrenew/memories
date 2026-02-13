@@ -45,8 +45,9 @@ const client = new MemoriesClient({
   apiKey: "mem_xxx",      // API key (default: MEMORIES_API_KEY env var)
   baseUrl: "https://memories.sh", // optional (default)
   transport: "auto",      // "auto" (default), "sdk_http", or "mcp"
-  tenantId: "acme-prod",  // Recommended for tenant/customer-level isolation
-  userId: "user_123",     // Optional: scope all operations to a specific end user
+  tenantId: "acme-prod",  // AI SDK Project (security/database boundary)
+  userId: "user_123",     // End-user scope inside tenantId (optional)
+  projectId: "github.com/acme/platform", // Optional repo context filter (not auth boundary)
 })
 ```
 
@@ -204,15 +205,15 @@ const systemPrompt = client.buildSystemPrompt({ rules, memories })
 
 ## Scoping
 
-Use all three scopes together:
+Use all three scopes with clear roles:
 
-- `tenantId` for database isolation per customer/workspace
-- `userId` for per-user personalization inside that tenant
-- `projectId` for repo/project-specific rules and memories
+- `tenantId` = AI SDK Project (security/database boundary)
+- `userId` = end-user scope inside `tenantId`
+- `projectId` = optional repo context filter (not auth boundary)
 
 If `tenantId` is omitted, requests route to the API key's default workspace database.
 
-If `tenantId` is provided and no mapping exists yet, the runtime can auto-provision a tenant Turso database (when server provisioning credentials are configured). This lets SaaS apps avoid manual tenant DB setup during first use.
+If `tenantId` is provided and no mapping exists yet, the runtime can auto-provision a project Turso database (when server provisioning credentials are configured). This lets SaaS apps avoid manual project DB setup during first use.
 
 ```typescript
 const client = new MemoriesClient({

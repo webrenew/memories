@@ -16,13 +16,13 @@ const scopeCards = [
     title: "End User",
     token: "userId",
     detail:
-      "Optional per-user isolation inside a project. Use this when each customer user should have their own memory stream.",
+      "End-user scope inside tenantId. Use this when each customer user should have their own memory stream.",
   },
   {
     title: "Repo Filter (Optional)",
     token: "projectId",
     detail:
-      "Optional git/repository context filter. Helpful for coding copilots, but not required for non-git SaaS flows.",
+      "Optional git/repository context filter. Helpful for coding copilots, and not required for non-git SaaS flows.",
   },
 ]
 

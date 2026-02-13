@@ -27,14 +27,15 @@ In the dashboard, an **AI SDK Project** is a `tenantId` mapping to an isolated m
 | Scope field | What it isolates | Security boundary | Required |
 | --- | --- | --- | --- |
 | `tenantId` | SaaS customer/project database | Yes | For multi-tenant SaaS |
-| `userId` | End-user data inside a tenant | Yes (within tenant) | Optional |
-| `projectId` | Git/repo context filter | No | Optional |
+| `userId` | End-user scope inside `tenantId` | Yes (within tenant) | Optional |
+| `projectId` | Optional git/repo context filter | No | Optional |
 
 ## Important: `tenantId` vs `projectId`
 
 These are different:
 
 - `tenantId` = SaaS isolation boundary (database routing)
+- `userId` = end-user scope inside `tenantId`
 - `projectId` = optional repo context filter (for coding assistants)
 
 If your app is not git-centric, omit `projectId`.

@@ -64,7 +64,7 @@ const tiers: {
       { key: "ai-sdk", label: <><code className={code}>@memories.sh/ai-sdk</code> package</> },
       { key: "core", label: <><code className={code}>@memories.sh/core</code> client library</> },
       { key: "middleware", label: <><code className={code}>memoriesMiddleware()</code> for AI SDK</> },
-      { key: "tenant", label: "Multi-tenant userId scoping" },
+      { key: "tenant", label: "AI SDK Projects (`tenantId`) + end-user scope (`userId`)" },
       { key: "embeddings", label: "Custom embedding models" },
       { key: "sla", label: "Dedicated support and SLA" },
     ],

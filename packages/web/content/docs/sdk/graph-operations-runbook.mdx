@@ -127,14 +127,14 @@ Actions:
 
 1. Confirm selected node has linked edges via `/api/graph/explore`.
 2. Clear explorer filters (edge type, node type, min confidence/weight, evidence-only).
-3. Verify selected workspace contains the expected repo/project scope.
+3. Verify selected workspace contains the expected `tenantId` data and optional `projectId` filter context.
 
 ## Operational Guardrails
 
 - Keep read paths available even when graph indexing fails.
 - Treat `shadow` as the default safe state during incidents.
 - Use trace payloads for every rollout decision, not only aggregate metrics.
-- Use project-scoped checks for repo-specific incidents.
+- Use `projectId`-filtered checks for repo-specific incidents (it is a context filter, not an auth boundary).
 
 ## Incident Checklist
 
