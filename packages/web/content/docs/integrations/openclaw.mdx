@@ -3,7 +3,7 @@ title: OpenClaw
 description: Integrate memories.sh with OpenClaw.
 ---
 
-[OpenClaw](https://openclaw.ai/) is an open-source personal AI assistant. Its current onboarding flow imports `AGENTS.md` and skill files into `~/.openclaw/workspace`, so the clean memories.sh integration path is to generate those artifacts from your memory store.
+[OpenClaw](https://openclaw.ai/) is an open-source personal AI assistant. Its runtime reads a workspace pack under `~/.openclaw/workspace` (not just `AGENTS.md`), so memories.sh should preserve and sync the full workspace file set.
 
 ## Why memories.sh + OpenClaw
 
@@ -42,6 +42,22 @@ This writes:
 1. `AGENTS.md` into OpenClaw's workspace for session instructions
 2. `SKILL.md` files into OpenClaw's workspace `skills/` directory
 
+### OpenClaw Workspace Files (Synced)
+
+`memories files ingest` / `memories files apply` now carry the OpenClaw workspace set:
+
+- `~/.openclaw/workspace/AGENTS.md`
+- `~/.openclaw/workspace/SOUL.md`
+- `~/.openclaw/workspace/TOOLS.md`
+- `~/.openclaw/workspace/IDENTITY.md`
+- `~/.openclaw/workspace/USER.md`
+- `~/.openclaw/workspace/HEARTBEAT.md`
+- `~/.openclaw/workspace/BOOTSTRAP.md`
+- `~/.openclaw/workspace/BOOT.md` (when present)
+- `~/.openclaw/workspace/MEMORY.md` / `memory.md`
+- `~/.openclaw/workspace/memory/*.md`
+- `~/.openclaw/workspace/skills/**/*`
+
 ### 3) Keep it in sync
 
 Whenever memories change:
@@ -57,9 +73,9 @@ fi
 
 ## Important Notes
 
-- OpenClaw docs currently define context discovery around `AGENTS.md` and `SKILL.md` artifacts.
+- OpenClaw docs define a full workspace contract (`AGENTS`, `SOUL`, `TOOLS`, `IDENTITY`, `USER`, `HEARTBEAT`, `BOOTSTRAP`, `BOOT`, and memory files).
 - OpenClaw docs currently do not document a project-level MCP config path like `.openclaw/mcp.json` for this integration flow.
-- `openclaw onboard` seeds a default `~/.openclaw/workspace/AGENTS.md`; use `--force` so memories.sh can replace it.
+- `openclaw onboard` seeds default workspace templates (`AGENTS`, `SOUL`, `TOOLS`, `IDENTITY`, `USER`, `HEARTBEAT`, `BOOTSTRAP`).
 - `memories generate agents` only creates `.agents/skills` when skills exist in your memory store, so copying skills should be conditional.
 - If you changed your workspace path in `~/.openclaw/openclaw.json` (for example `agent.workspace` or `agents.defaults.workspace`), replace `~/.openclaw/workspace` with your configured path.
 
@@ -68,3 +84,5 @@ fi
 - [Getting Started](https://docs.openclaw.ai/start/getting-started)
 - [Onboarding](https://docs.openclaw.ai/start/onboarding)
 - [Agent Workspace](https://docs.openclaw.ai/concepts/agent-workspace)
+- [AGENTS.default Reference](https://docs.openclaw.ai/reference/AGENTS.default)
+- [AGENTS Template Bundle](https://docs.openclaw.ai/reference/templates/AGENTS)

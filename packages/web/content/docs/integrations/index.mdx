@@ -36,7 +36,7 @@ This automatically detects installed tools and configures MCP for each one.
 | [Cline](/docs/integrations/cline) | `.clinerules/memories.md` | Yes | No |
 | [Roo](/docs/integrations/roo) | `.roo/rules/memories.md` | Yes | No |
 | [Gemini](/docs/integrations/gemini) | `GEMINI.md` | No | No |
-| [OpenClaw](/docs/integrations/openclaw) | `~/.openclaw/workspace/AGENTS.md` + `~/.openclaw/workspace/skills/` | No | Yes (workspace/CLI detection) |
+| [OpenClaw](/docs/integrations/openclaw) | `~/.openclaw/workspace/{AGENTS,SOUL,TOOLS,IDENTITY,USER,HEARTBEAT,BOOTSTRAP}.md` + skills/memory | No | Yes (workspace/CLI detection) |
 | [Antigravity](/docs/integrations/antigravity) | `.agents/` | Yes | Yes |
 | [Kiro](/docs/integrations/kiro) | `.agents/` | Yes | Yes |
 | [Trae](/docs/integrations/trae) | `.agents/` | Yes | Yes |
@@ -115,6 +115,6 @@ Then configure the tool to connect to `http://localhost:3030/mcp`. See the [v0 i
 | VS Code-style JSON | VS Code MCP config | `{ "servers": { "memories": { "command": "npx", "args": [...] } } }` |
 | OpenCode schema | OpenCode (`opencode.json`) | `{ "$schema": "https://opencode.ai/config.json", "mcp": { "memories": { "type": "local", "command": ["npx", ...] } } }` |
 | CLI-managed MCP | Blackbox CLI | Managed via `blackbox mcp add ...` (no stable file path contract documented) |
-| Workspace artifacts | OpenClaw | `~/.openclaw/workspace/AGENTS.md` + `~/.openclaw/workspace/skills/**/*` |
+| Workspace artifacts | OpenClaw | `~/.openclaw/workspace/{AGENTS,SOUL,TOOLS,IDENTITY,USER,HEARTBEAT,BOOTSTRAP,BOOT,MEMORY}.md` + `memory/*.md` + `skills/**/*` |
 
 See each tool's page for detailed setup instructions.

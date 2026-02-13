@@ -118,7 +118,8 @@ const SYNC_TARGETS = [
   { dir: ".factory/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
 
   // OpenClaw workspace artifacts
-  { dir: ".openclaw/workspace", files: ["AGENTS.md"] },
+  { dir: ".openclaw/workspace", files: ["AGENTS.md", "SOUL.md", "TOOLS.md", "IDENTITY.md", "USER.md", "HEARTBEAT.md", "BOOTSTRAP.md", "BOOT.md", "MEMORY.md", "memory.md"] },
+  { dir: ".openclaw/workspace/memory", pattern: /\.md$/ },
   { dir: ".openclaw/workspace/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
 ];
 
