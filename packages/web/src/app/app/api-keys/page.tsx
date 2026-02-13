@@ -10,7 +10,7 @@ export default function ApiKeysPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">API Keys</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Create and manage MCP keys for your apps and agent tools.
+          Create and manage API keys for your apps and agent tools.
         </p>
       </div>
 

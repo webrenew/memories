@@ -454,7 +454,7 @@ export function TenantDatabaseMappingsSection({
               </button>
 
               <p className="text-xs text-muted-foreground">
-                Existing mappings move automatically when you rotate your MCP API key.
+                Existing mappings move automatically when you rotate your API key.
               </p>
             </div>
 

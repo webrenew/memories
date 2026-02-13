@@ -11,7 +11,7 @@ If you are integrating through the SDK HTTP surface, use `/api/sdk/v1/management
 
 ## How Routing Works
 
-1. Use your MCP API key as usual (`Authorization: Bearer mcp_...`).
+1. Use your API key as usual (`Authorization: Bearer mem_...`).
 2. Configure per-tenant database mappings with `/api/sdk/v1/management/tenants` (or legacy `/api/mcp/tenants`).
 3. Include `tenant_id` in tool arguments (`get_context`, `add_memory`, etc.).
 4. The server resolves `(api_key_hash, tenant_id)` to the mapped Turso database.
@@ -26,7 +26,7 @@ If `tenant_id` is omitted, requests use the API key's default workspace database
 
 Legacy alias: `/api/mcp/tenants`
 
-Returns all tenant mappings for your active MCP API key.
+Returns all tenant mappings for your active API key.
 
 ### Create or Update Tenant
 
@@ -99,7 +99,7 @@ Example JSON-RPC call:
 
 ## Key Rotation Behavior
 
-When you rotate your MCP API key, tenant mappings are copied from the old key hash to the new key hash automatically. This keeps `tenant_id` routing working without manual remapping.
+When you rotate your API key, tenant mappings are copied from the old key hash to the new key hash automatically. This keeps `tenant_id` routing working without manual remapping.
 
 ## Error Codes
 

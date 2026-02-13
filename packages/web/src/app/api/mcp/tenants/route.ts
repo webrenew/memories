@@ -75,7 +75,7 @@ async function getActiveApiKeyHash(
   if (error || !data?.mcp_api_key_hash) {
     return {
       error: legacyJson(
-        { error: "Generate an MCP API key before configuring tenant databases" },
+        { error: "Generate an API key before configuring tenant databases" },
         { status: 400 }
       ),
     }
@@ -84,7 +84,7 @@ async function getActiveApiKeyHash(
   if (!data.mcp_api_key_expires_at || new Date(data.mcp_api_key_expires_at).getTime() <= Date.now()) {
     return {
       error: legacyJson(
-        { error: "MCP API key is expired. Generate a new key before configuring tenant databases" },
+        { error: "API key is expired. Generate a new key before configuring tenant databases" },
         { status: 400 }
       ),
     }

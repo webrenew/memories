@@ -43,7 +43,7 @@ pnpm add @memories.sh/ai-sdk
 Set your API key:
 
 ```bash
-export MEMORIES_API_KEY=mcp_xxx
+export MEMORIES_API_KEY=mem_xxx
 ```
 
 ### Middleware (recommended)
@@ -91,7 +91,7 @@ Use with any LLM SDK:
 ```typescript
 import { MemoriesClient } from "@memories.sh/core"
 
-const client = new MemoriesClient({ apiKey: "mcp_xxx", tenantId: "acme-prod" })
+const client = new MemoriesClient({ apiKey: "mem_xxx", tenantId: "acme-prod" })
 const { rules, memories } = await client.context.get({
   query: "deployment process",
   userId: "user_123",

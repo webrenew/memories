@@ -17,7 +17,7 @@ pnpm add @memories.sh/core
 import { MemoriesClient } from "@memories.sh/core"
 
 const client = new MemoriesClient({
-  apiKey: "mcp_xxx", // or uses MEMORIES_API_KEY env var
+  apiKey: "mem_xxx", // or uses MEMORIES_API_KEY env var
   tenantId: "acme-prod",
 })
 
@@ -42,7 +42,7 @@ const response = await anthropic.messages.create({
 
 ```typescript
 const client = new MemoriesClient({
-  apiKey: "mcp_xxx",      // API key (default: MEMORIES_API_KEY env var)
+  apiKey: "mem_xxx",      // API key (default: MEMORIES_API_KEY env var)
   baseUrl: "https://memories.sh", // optional (default)
   transport: "auto",      // "auto" (default), "sdk_http", or "mcp"
   tenantId: "acme-prod",  // Recommended for tenant/customer-level isolation
@@ -214,7 +214,7 @@ If `tenantId` is omitted, requests route to the API key's default workspace data
 
 ```typescript
 const client = new MemoriesClient({
-  apiKey: "mcp_xxx",
+  apiKey: "mem_xxx",
   tenantId: "acme-prod",
   userId: "user_123",
 })
@@ -273,7 +273,7 @@ For single-user apps, `tenantId` can be your app environment or workspace id:
 
 ```typescript
 const client = new MemoriesClient({
-  apiKey: "mcp_xxx",
+  apiKey: "mem_xxx",
   tenantId: "my-app-prod",
   userId: "user_123",
 })

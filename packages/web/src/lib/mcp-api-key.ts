@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from "node:crypto"
 
-const MCP_API_KEY_REGEX = /^mcp_[a-f0-9]{64}$/
+const MCP_API_KEY_REGEX = /^mem_[a-f0-9]{64}$/
 
 export function generateMcpApiKey(): string {
-  return `mcp_${randomBytes(32).toString("hex")}`
+  return `mem_${randomBytes(32).toString("hex")}`
 }
 
 export function hashMcpApiKey(apiKey: string): string {

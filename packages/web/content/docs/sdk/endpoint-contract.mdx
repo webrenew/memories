@@ -24,15 +24,15 @@ https://memories.sh
 | Group | Route | Methods | Auth |
 | --- | --- | --- | --- |
 | Health | `/api/sdk/v1/health` | `GET` | None |
-| Runtime | `/api/sdk/v1/context/get` | `POST` | Bearer MCP API key |
-| Runtime | `/api/sdk/v1/memories/add` | `POST` | Bearer MCP API key |
-| Runtime | `/api/sdk/v1/memories/search` | `POST` | Bearer MCP API key |
-| Runtime | `/api/sdk/v1/memories/list` | `POST` | Bearer MCP API key |
-| Runtime | `/api/sdk/v1/memories/edit` | `POST` | Bearer MCP API key |
-| Runtime | `/api/sdk/v1/memories/forget` | `POST` | Bearer MCP API key |
-| Graph | `/api/sdk/v1/graph/status` | `GET`, `POST` | Bearer MCP API key |
-| Graph | `/api/sdk/v1/graph/trace` | `POST` | Bearer MCP API key |
-| Graph | `/api/sdk/v1/graph/rollout` | `GET`, `POST`, `PATCH` | Bearer MCP API key |
+| Runtime | `/api/sdk/v1/context/get` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/memories/add` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/memories/search` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/memories/list` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/memories/edit` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/memories/forget` | `POST` | Bearer API key (`mem_...`) |
+| Graph | `/api/sdk/v1/graph/status` | `GET`, `POST` | Bearer API key (`mem_...`) |
+| Graph | `/api/sdk/v1/graph/trace` | `POST` | Bearer API key (`mem_...`) |
+| Graph | `/api/sdk/v1/graph/rollout` | `GET`, `POST`, `PATCH` | Bearer API key (`mem_...`) |
 | Management | `/api/sdk/v1/management/keys` | `GET`, `POST`, `DELETE` | Legacy management auth (session/legacy path) |
 | Management | `/api/sdk/v1/management/tenants` | `GET`, `POST`, `DELETE` | Legacy management auth (session/legacy path) |
 
@@ -45,10 +45,10 @@ Legacy aliases are still available:
 
 ### Runtime + graph endpoints
 
-Send your MCP API key:
+Send your API key:
 
 ```http
-Authorization: Bearer mcp_xxx
+Authorization: Bearer mem_xxx
 Content-Type: application/json
 ```
 

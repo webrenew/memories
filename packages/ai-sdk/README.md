@@ -16,7 +16,7 @@ Requires Node.js >= 20.
 Set your API key:
 
 ```bash
-export MEMORIES_API_KEY=mcp_xxx
+export MEMORIES_API_KEY=mem_xxx
 ```
 
 ## Quick Start (Middleware)

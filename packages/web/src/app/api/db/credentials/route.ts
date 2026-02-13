@@ -12,15 +12,15 @@ export async function GET(request: NextRequest) {
   }
 
   const bearer = authHeader.slice(7)
-  const rateLimitSubject = bearer.startsWith("mcp_") ? hashMcpApiKey(bearer) : bearer
+  const rateLimitSubject = bearer.startsWith("mem_") ? hashMcpApiKey(bearer) : bearer
   const rateLimited = await checkRateLimit(apiRateLimit, rateLimitSubject)
   if (rateLimited) return rateLimited
 
   const admin = createAdminClient()
   let userId: string | null = null
 
-  // Bearer mcp_* is used by hosted MCP and --api-key flows.
-  if (bearer.startsWith("mcp_")) {
+  // Bearer mem_* is used by hosted MCP and --api-key flows.
+  if (bearer.startsWith("mem_")) {
     if (!isValidMcpApiKey(bearer)) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
