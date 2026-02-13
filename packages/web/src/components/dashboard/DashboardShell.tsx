@@ -7,6 +7,15 @@ import type { User } from "@supabase/supabase-js"
 import { KeyRound, Network } from "lucide-react"
 import { Database, BarChart3, Settings, Sparkles, LogOut, AlertTriangle, CreditCard, Users } from "@/components/icons/app"
 import { WorkspaceSwitcher, type OrgMembership } from "./WorkspaceSwitcher"
+import { ThemeSwitcher } from "@/components/ThemeSwitcher"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface Profile {
   id: string
@@ -136,27 +145,57 @@ export function DashboardShell({
               </Link>
             )}
 
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold">{displayName}</p>
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                  {plan} plan
-                </p>
-              </div>
-              {profile?.avatar_url ? (
-                <Image
-                  src={profile.avatar_url}
-                  alt=""
-                  width={32}
-                  height={32}
-                  className="w-8 h-8 rounded-full border border-border"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-bold">
-                  {displayName[0]?.toUpperCase()}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-3 rounded-md p-1 hover:bg-muted/40 transition-colors"
+                  aria-label="Open account menu"
+                >
+                  <div className="text-right hidden sm:block">
+                    <p className="text-xs font-bold">{displayName}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                      {plan} plan
+                    </p>
+                  </div>
+                  {profile?.avatar_url ? (
+                    <Image
+                      src={profile.avatar_url}
+                      alt=""
+                      width={32}
+                      height={32}
+                      className="w-8 h-8 rounded-full border border-border"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-bold">
+                      {displayName[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] p-2">
+                <DropdownMenuLabel className="px-2 py-1">
+                  <p className="text-xs font-bold">{displayName}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{user.email}</p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-2 space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.15em] font-bold text-muted-foreground">
+                    Theme
+                  </p>
+                  <ThemeSwitcher />
                 </div>
-              )}
-            </div>
+                <DropdownMenuSeparator />
+                <form action="/auth/signout" method="post">
+                  <DropdownMenuItem asChild>
+                    <button type="submit" className="w-full">
+                      <LogOut className="w-4 h-4" />
+                      Sign Out
+                    </button>
+                  </DropdownMenuItem>
+                </form>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -190,17 +229,6 @@ export function DashboardShell({
             })}
           </div>
 
-          <div className="pt-4 border-t border-border shrink-0">
-            <form action="/auth/signout" method="post">
-              <button
-                type="submit"
-                className="flex items-center gap-3 px-4 py-3 w-full text-xs uppercase tracking-[0.15em] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all duration-200"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign Out
-              </button>
-            </form>
-          </div>
         </aside>
 
         {/* Sidebar spacer for desktop fixed rail */}
