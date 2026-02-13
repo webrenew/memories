@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 type QueueStatus = "pending" | "approved" | "rejected"
 type QueueEvent = "all" | "pull_request" | "issues" | "push" | "release"
@@ -66,8 +66,21 @@ export function GithubCaptureQueueSection() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
+  const isMountedRef = useRef(true)
+  const loadRequestIdRef = useRef(0)
+  const pendingDecisionIdsRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const loadQueue = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current
+    const shouldIgnore = () =>
+      !isMountedRef.current || requestId !== loadRequestIdRef.current
+
     setLoading(true)
     setError(null)
     try {
@@ -89,11 +102,19 @@ export function GithubCaptureQueueSection() {
         throw new Error(body?.error ?? `HTTP ${response.status}`)
       }
 
+      if (shouldIgnore()) {
+        return
+      }
       setItems(Array.isArray(body?.queue) ? body.queue : [])
     } catch (loadError) {
+      if (shouldIgnore()) {
+        return
+      }
       setError(loadError instanceof Error ? loadError.message : "Failed to load capture queue")
     } finally {
-      setLoading(false)
+      if (!shouldIgnore()) {
+        setLoading(false)
+      }
     }
   }, [event, search, status])
 
@@ -118,6 +139,10 @@ export function GithubCaptureQueueSection() {
   }, [items])
 
   async function handleDecision(itemId: string, action: "approve" | "reject") {
+    if (pendingDecisionIdsRef.current.has(itemId)) {
+      return
+    }
+    pendingDecisionIdsRef.current.add(itemId)
     setPendingIds((prev) => {
       const next = new Set(prev)
       next.add(itemId)
@@ -139,18 +164,25 @@ export function GithubCaptureQueueSection() {
       }
 
       if (status === "pending") {
-        setItems((prev) => prev.filter((item) => item.id !== itemId))
+        if (isMountedRef.current) {
+          setItems((prev) => prev.filter((item) => item.id !== itemId))
+        }
       } else {
         await loadQueue()
       }
     } catch (decisionError) {
-      setError(decisionError instanceof Error ? decisionError.message : `Failed to ${action} item`)
+      if (isMountedRef.current) {
+        setError(decisionError instanceof Error ? decisionError.message : `Failed to ${action} item`)
+      }
     } finally {
-      setPendingIds((prev) => {
-        const next = new Set(prev)
-        next.delete(itemId)
-        return next
-      })
+      pendingDecisionIdsRef.current.delete(itemId)
+      if (isMountedRef.current) {
+        setPendingIds((prev) => {
+          const next = new Set(prev)
+          next.delete(itemId)
+          return next
+        })
+      }
     }
   }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { IntegrationHealthPayload } from "@/lib/integration-health"
 
 interface IntegrationHealthSectionProps {
@@ -48,8 +48,20 @@ export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSec
   const [health, setHealth] = useState<IntegrationHealthPayload | null>(initialHealth)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isMountedRef = useRef(true)
+  const loadRequestIdRef = useRef(0)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const loadHealth = useCallback(async (options?: { force?: boolean }) => {
+    const requestId = ++loadRequestIdRef.current
+    const shouldIgnore = () =>
+      !isMountedRef.current || requestId !== loadRequestIdRef.current
+
     setLoading(true)
     setError(null)
     try {
@@ -61,11 +73,19 @@ export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSec
       if (!response.ok) {
         throw new Error(body?.error ?? `HTTP ${response.status}`)
       }
+      if (shouldIgnore()) {
+        return
+      }
       setHealth((body?.health as IntegrationHealthPayload) ?? null)
     } catch (loadError) {
+      if (shouldIgnore()) {
+        return
+      }
       setError(loadError instanceof Error ? loadError.message : "Failed to load integration health.")
     } finally {
-      setLoading(false)
+      if (!shouldIgnore()) {
+        setLoading(false)
+      }
     }
   }, [])
 

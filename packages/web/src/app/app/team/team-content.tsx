@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { 
@@ -198,6 +198,14 @@ export function TeamContent({
   const [showInvite, setShowInvite] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [newOrgName, setNewOrgName] = useState("")
+  const isMountedRef = useRef(true)
+  const orgDataRequestIdRef = useRef(0)
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!currentOrgId) {
@@ -240,6 +248,10 @@ export function TeamContent({
   async function fetchOrgData(orgId: string, options?: { includeAudit?: boolean; includeCaptureSettings?: boolean }) {
     const includeAudit = options?.includeAudit ?? false
     const includeCaptureSettings = options?.includeCaptureSettings ?? false
+    const requestId = ++orgDataRequestIdRef.current
+    const shouldIgnore = () =>
+      !isMountedRef.current || requestId !== orgDataRequestIdRef.current
+
     setLoading(true)
     try {
       const [membersRes, invitesRes, orgRes, captureSettingsRes] = await Promise.all([
@@ -250,16 +262,26 @@ export function TeamContent({
           ? fetch(`/api/orgs/${orgId}/github-capture/settings`)
           : Promise.resolve(null),
       ])
-      
+
+      if (shouldIgnore()) {
+        return
+      }
+
       if (membersRes.ok) {
         const data = await membersRes.json()
+        if (shouldIgnore()) {
+          return
+        }
         setMembers(data.members || [])
       } else {
         console.error("Failed to fetch members:", membersRes.status, await membersRes.text())
       }
-      
+
       if (invitesRes.ok) {
         const data = await invitesRes.json()
+        if (shouldIgnore()) {
+          return
+        }
         setInvites(data.invites || [])
       } else {
         console.error("Failed to fetch invites:", invitesRes.status, await invitesRes.text())
@@ -267,19 +289,31 @@ export function TeamContent({
 
       if (orgRes.ok) {
         const data = await orgRes.json()
+        if (shouldIgnore()) {
+          return
+        }
         setOrgDetails(data.organization ?? null)
       } else {
         console.error("Failed to fetch organization:", orgRes.status, await orgRes.text())
+        if (shouldIgnore()) {
+          return
+        }
         setOrgDetails(null)
       }
 
       if (includeCaptureSettings && captureSettingsRes) {
         if (captureSettingsRes.ok) {
           const data = await captureSettingsRes.json()
+          if (shouldIgnore()) {
+            return
+          }
           setCaptureSettings(data.settings ?? null)
           setCaptureSettingsError(null)
         } else {
           const body = await captureSettingsRes.json().catch(() => ({}))
+          if (shouldIgnore()) {
+            return
+          }
           const message =
             typeof body?.error === "string"
               ? body.error
@@ -287,19 +321,28 @@ export function TeamContent({
           setCaptureSettings(body?.settings ?? null)
           setCaptureSettingsError(message)
         }
-      } else {
+      } else if (!shouldIgnore()) {
         setCaptureSettings(null)
         setCaptureSettingsError(null)
       }
 
       if (includeAudit) {
         const auditRes = await fetch(`/api/orgs/${orgId}/audit?limit=40`)
+        if (shouldIgnore()) {
+          return
+        }
         if (auditRes.ok) {
           const data = await auditRes.json()
+          if (shouldIgnore()) {
+            return
+          }
           setAuditEvents(data.events || [])
           setAuditError(null)
         } else {
           const body = await auditRes.json().catch(() => ({}))
+          if (shouldIgnore()) {
+            return
+          }
           const message =
             typeof body?.error === "string"
               ? body.error
@@ -307,11 +350,14 @@ export function TeamContent({
           setAuditEvents([])
           setAuditError(message)
         }
-      } else {
+      } else if (!shouldIgnore()) {
         setAuditEvents([])
         setAuditError(null)
       }
     } catch (error) {
+      if (shouldIgnore()) {
+        return
+      }
       console.error("Error fetching org data:", error)
       if (includeCaptureSettings) {
         setCaptureSettings(null)
@@ -322,7 +368,9 @@ export function TeamContent({
         setAuditError("Failed to fetch audit log")
       }
     } finally {
-      setLoading(false)
+      if (!shouldIgnore()) {
+        setLoading(false)
+      }
     }
   }
 
@@ -330,8 +378,9 @@ export function TeamContent({
     if (selectedOrgId) {
       const selectedOrgRole = organizations.find((org) => org.id === selectedOrgId)?.role
       const includeAudit = selectedOrgRole === "owner" || selectedOrgRole === "admin"
-      fetchOrgData(selectedOrgId, { includeAudit, includeCaptureSettings: includeAudit })
+      void fetchOrgData(selectedOrgId, { includeAudit, includeCaptureSettings: includeAudit })
     } else {
+      orgDataRequestIdRef.current += 1
       setOrgDetails(null)
       setAuditEvents([])
       setAuditError(null)
