@@ -73,6 +73,13 @@ const tiers: {
   },
 ];
 
+function getTierCtaHref(tierName: string, isAuthenticated: boolean): string {
+  if (tierName === "Enterprise") return "mailto:hello@memories.sh";
+  if (tierName === "Professional") return isAuthenticated ? "/app/upgrade" : "/docs/cloud-sync";
+  if (tierName === "Free") return isAuthenticated ? "/app" : "/docs/getting-started";
+  return isAuthenticated ? "/app" : "/docs/getting-started";
+}
+
 export function Pricing({ user }: { user?: User | null }) {
   const { user: sessionUser } = useUser();
   const effectiveUser = sessionUser ?? user ?? null;
@@ -132,6 +139,7 @@ export function Pricing({ user }: { user?: User | null }) {
           {tiers.map((tier) => {
             const price = isYearly ? tier.yearlyPrice : tier.monthlyPrice;
             const isCustom = price === "Custom";
+            const ctaHref = getTierCtaHref(tier.name, Boolean(effectiveUser));
             
             return (
               <div key={tier.name} className={`relative ${tier.highlighted ? "pt-3 -mt-4 mb-[-16px] md:-mt-6 md:mb-[-24px]" : ""}`}>
@@ -201,8 +209,8 @@ export function Pricing({ user }: { user?: User | null }) {
                     </ul>
                   </div>
 
-                  <Link 
-                    href={tier.name === "Enterprise" ? "mailto:hello@memories.sh" : effectiveUser ? "/app/upgrade" : "/login"}
+                  <Link
+                    href={ctaHref}
                     className={`block w-full py-4 text-xs font-bold uppercase tracking-[0.2em] transition-all duration-300 text-center rounded-md relative z-10 ${
                       tier.highlighted
                         ? "bg-primary text-primary-foreground hover:opacity-90 shadow-[0_0_20px_rgba(var(--primary),0.3)]"

@@ -40,8 +40,8 @@ export function Footer() {
             <div className="flex flex-col gap-6">
               <h5 className="font-mono text-[10px] sm:text-xs uppercase tracking-wider text-foreground/50">Legal</h5>
               <div className="flex flex-col gap-4 text-[11px] font-bold text-muted-foreground/60 uppercase tracking-[0.15em]">
-                <a href="https://www.webrenew.com/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Privacy</a>
-                <a href="https://www.webrenew.com/terms" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Terms</a>
+                <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+                <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
               </div>
             </div>
           </div>

@@ -202,6 +202,29 @@
     padding: 0.15em 0.4em;
   }
 
+  /* Docs TOC: API endpoint rows should stay one line and truncate cleanly */
+  #nd-toc a.prose:has(code),
+  [data-toc-popover-content] a.prose:has(code) {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 0.8rem;
+    line-height: 1.1rem;
+  }
+
+  #nd-toc a.prose:has(code) code,
+  [data-toc-popover-content] a.prose:has(code) code {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
 
   .memory-lattice {
     position: fixed;

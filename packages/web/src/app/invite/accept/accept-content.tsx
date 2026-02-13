@@ -161,13 +161,13 @@ export function AcceptInviteContent({
 
         <p className="text-center text-xs text-muted-foreground mt-6">
           By joining, you agree to our{" "}
-          <a href="https://www.webrenew.com/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">
+          <Link href="/terms" className="underline hover:text-foreground transition-colors">
             Terms of Service
-          </a>{" "}
+          </Link>{" "}
           and{" "}
-          <a href="https://www.webrenew.com/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">
+          <Link href="/privacy" className="underline hover:text-foreground transition-colors">
             Privacy Policy
-          </a>
+          </Link>
           .
         </p>
       </div>
