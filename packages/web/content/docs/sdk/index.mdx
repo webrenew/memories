@@ -10,6 +10,14 @@ The memories.sh SDK gives AI applications persistent memory through two packages
 | `@memories.sh/ai-sdk` | Middleware + tools for the [AI SDK](https://ai-sdk.dev/) |
 | `@memories.sh/core` | Standalone client for any LLM framework |
 
+## Transport Model (Important)
+
+- SDK default: **HTTP API** via `/api/sdk/v1/*`
+- Optional: **MCP transport** via JSON-RPC at `/api/mcp`
+- Not used by SDK runtime: **CLI commands** (`memories ...`) are separate tooling
+
+`MemoriesClient` resolves `transport: "auto"` to HTTP API unless `baseUrl` points at `/api/mcp`.
+
 ## Three Tiers of Integration
 
 | Tier | Pattern | DX | When to use |

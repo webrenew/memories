@@ -52,9 +52,11 @@ const client = new MemoriesClient({
 
 Transport behavior:
 
-- `auto` (default): uses `mcp` only when `baseUrl` ends with `/api/mcp`; otherwise uses `sdk_http`
+- `auto` (default): uses `sdk_http` for normal base URLs (for example `https://memories.sh`), and switches to `mcp` only when `baseUrl` ends with `/api/mcp`
 - `sdk_http`: uses `/api/sdk/v1/*` endpoints
 - `mcp`: uses JSON-RPC `/api/mcp`
+
+The SDK client never shells out to the CLI. CLI commands are a separate integration path for local/dev workflows.
 
 For the canonical SDK HTTP contracts (envelopes, status codes, and route list), see [SDK endpoint contract](/docs/sdk/endpoint-contract).
 

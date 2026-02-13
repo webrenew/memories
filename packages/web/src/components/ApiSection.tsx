@@ -159,7 +159,7 @@ export function ApiSection() {
           </h2>
           <p className="mt-6 text-lg text-muted-foreground max-w-3xl">
             One predictable SDK surface for retrieval, writes, graph rollout, and diagnostics. Designed for strict
-            clients and fast incident debugging.
+            clients and fast incident debugging. Default SDK transport is HTTP API; MCP transport is optional.
           </p>
         </div>
 

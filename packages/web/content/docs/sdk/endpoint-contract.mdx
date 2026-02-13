@@ -7,6 +7,12 @@ This page is the canonical contract for the SDK HTTP surface under `/api/sdk/v1/
 
 Use it when implementing direct HTTP integrations, debugging SDK client behavior, or validating backward compatibility in CI.
 
+Transport clarification:
+
+- SDK default transport is this HTTP surface (`/api/sdk/v1/*`).
+- SDK can optionally use MCP JSON-RPC (`/api/mcp`) when you configure `transport: "mcp"` (or point `baseUrl` at `/api/mcp`).
+- CLI commands are separate tooling and are not used by SDK runtime calls.
+
 ## Base URL
 
 ```text
