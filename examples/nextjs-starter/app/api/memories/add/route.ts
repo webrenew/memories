@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createMemoriesClient, toApiError } from "@/lib/memories"
+import { AuthContextError, requireAuthContext } from "@/lib/auth-context"
 import type { MemoryType } from "@memories.sh/core"
 
 const allowedTypes: MemoryType[] = ["rule", "decision", "fact", "note", "skill"]
@@ -13,12 +14,11 @@ type AddPayload = {
   type?: unknown
   tags?: unknown
   projectId?: unknown
-  tenantId?: unknown
-  userId?: unknown
 }
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireAuthContext(request)
     const body = (await request.json()) as AddPayload
 
     const content = typeof body.content === "string" ? body.content.trim() : ""
@@ -46,8 +46,8 @@ export async function POST(request: Request) {
       : []
 
     const { client, scope } = createMemoriesClient({
-      tenantId: typeof body.tenantId === "string" ? body.tenantId : undefined,
-      userId: typeof body.userId === "string" ? body.userId : undefined,
+      tenantId: auth.tenantId,
+      userId: auth.userId,
       projectId: typeof body.projectId === "string" ? body.projectId : undefined,
     })
 
@@ -60,6 +60,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, result }, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthContextError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: {
+            type: "auth_error",
+            code: error.code,
+            message: error.message,
+          },
+        },
+        { status: error.status }
+      )
+    }
     const apiError = toApiError(error)
     return NextResponse.json(apiError.body, { status: apiError.status })
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createMemoriesClient, toApiError } from "@/lib/memories"
+import { AuthContextError, requireAuthContext } from "@/lib/auth-context"
 import type { ContextMode } from "@memories.sh/core"
 
 const allowedModes: ContextMode[] = ["all", "working", "long_term", "rules_only"]
@@ -15,6 +16,7 @@ function isStrategy(value: string): value is (typeof allowedStrategies)[number] 
 
 export async function GET(request: Request) {
   try {
+    const auth = await requireAuthContext(request)
     const url = new URL(request.url)
     const q = (url.searchParams.get("q") ?? url.searchParams.get("query") ?? "").trim()
 
@@ -62,8 +64,8 @@ export async function GET(request: Request) {
         : "baseline"
 
     const { client, scope } = createMemoriesClient({
-      tenantId: url.searchParams.get("tenantId") ?? undefined,
-      userId: url.searchParams.get("userId") ?? undefined,
+      tenantId: auth.tenantId,
+      userId: auth.userId,
       projectId: url.searchParams.get("projectId") ?? undefined,
     })
 
@@ -71,6 +73,9 @@ export async function GET(request: Request) {
       query: q,
       mode,
       limit,
+      strategy,
+      graphDepth,
+      graphLimit,
       projectId: scope.projectId,
     })
 
@@ -85,6 +90,19 @@ export async function GET(request: Request) {
       },
     })
   } catch (error) {
+    if (error instanceof AuthContextError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: {
+            type: "auth_error",
+            code: error.code,
+            message: error.message,
+          },
+        },
+        { status: error.status }
+      )
+    }
     const apiError = toApiError(error)
     return NextResponse.json(apiError.body, { status: apiError.status })
   }

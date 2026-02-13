@@ -2,6 +2,7 @@ import "dotenv/config"
 import cors from "cors"
 import express from "express"
 import { createMemoriesClient, toErrorPayload } from "./memories-client.js"
+import { requireAuthContext } from "./auth-context.js"
 
 const app = express()
 const port = Number(process.env.PORT || 8787)
@@ -17,6 +18,8 @@ app.use(express.json({ limit: "1mb" }))
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "memories-express-starter" })
 })
+
+app.use(requireAuthContext)
 
 app.post("/memories/add", async (req, res) => {
   try {
@@ -42,8 +45,8 @@ app.post("/memories/add", async (req, res) => {
       : []
 
     const { client, scope } = createMemoriesClient({
-      tenantId: req.body?.tenantId,
-      userId: req.body?.userId,
+      tenantId: req.authContext.tenantId,
+      userId: req.authContext.userId,
       projectId: req.body?.projectId,
     })
 
@@ -88,8 +91,8 @@ app.get("/memories/search", async (req, res) => {
       : undefined
 
     const { client, scope } = createMemoriesClient({
-      tenantId: req.query.tenantId,
-      userId: req.query.userId,
+      tenantId: req.authContext.tenantId,
+      userId: req.authContext.userId,
       projectId: req.query.projectId,
     })
 
@@ -142,8 +145,8 @@ app.get("/context", async (req, res) => {
       : 8
 
     const { client, scope } = createMemoriesClient({
-      tenantId: req.query.tenantId,
-      userId: req.query.userId,
+      tenantId: req.authContext.tenantId,
+      userId: req.authContext.userId,
       projectId: req.query.projectId,
     })
 

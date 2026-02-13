@@ -12,10 +12,13 @@ Three minimal starters that demonstrate the same core flow in under 10 minutes:
 - [Express starter](./express-starter)
 - [Python starter](./python-starter)
 
-Each starter expects a `MEMORIES_API_KEY` and supports optional runtime scope fields:
+Each starter expects:
 
-- `MEMORIES_TENANT_ID`
-- `MEMORIES_USER_ID`
+- `MEMORIES_API_KEY`
+- `APP_AUTH_TOKENS` (demo auth mapping: `token|tenantId|userId`)
+
+Optional:
+
 - `MEMORIES_PROJECT_ID`
 
 ## Quick pick

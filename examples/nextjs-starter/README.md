@@ -6,6 +6,8 @@ Minimal Next.js App Router starter that demonstrates:
 2. `GET /api/memories/search`
 3. `GET /api/memories/context`
 
+All routes derive `tenantId` + `userId` from server-side auth mapping (not request body/query).
+
 ## 1) Install
 
 ```bash
@@ -21,12 +23,13 @@ cp .env.example .env.local
 Set at least:
 
 - `MEMORIES_API_KEY`
+- `APP_AUTH_TOKENS` (format: `token|tenantId|userId`)
 
 Optional defaults:
 
-- `MEMORIES_TENANT_ID`
-- `MEMORIES_USER_ID`
 - `MEMORIES_PROJECT_ID`
+
+`APP_AUTH_TOKENS` is a demo auth adapter for local testing. Replace `/lib/auth-context.ts` with Clerk/Auth0/Supabase/custom session verification in production.
 
 ## 3) Run
 
@@ -40,10 +43,13 @@ Open `http://localhost:3000`.
 
 ```bash
 curl -X POST http://localhost:3000/api/memories/add \
+  -H "authorization: Bearer demo-token" \
   -H "content-type: application/json" \
   -d '{"content":"Team style guide uses sentence case headings.","type":"rule"}'
 
-curl "http://localhost:3000/api/memories/search?q=style+guide"
+curl "http://localhost:3000/api/memories/search?q=style+guide" \
+  -H "authorization: Bearer demo-token"
 
-curl "http://localhost:3000/api/memories/context?q=heading+rules&mode=all&strategy=baseline"
+curl "http://localhost:3000/api/memories/context?q=heading+rules&mode=all&strategy=baseline" \
+  -H "authorization: Bearer demo-token"
 ```

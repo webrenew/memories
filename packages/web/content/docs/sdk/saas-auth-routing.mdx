@@ -1,0 +1,122 @@
+---
+title: SaaS Auth Routing
+description: Enforce tenant and user isolation by deriving scope from backend auth.
+---
+
+For SaaS apps, do not let clients choose `tenantId` or `userId`.
+
+Use this rule:
+
+1. Authenticate user in your backend.
+2. Derive trusted `tenantId` + `userId` from your auth/session.
+3. Call memories from server with your `mem_...` API key.
+4. Return only scoped results.
+
+## Why This Matters
+
+If clients can pass arbitrary `tenantId` / `userId`, they can read or write another tenant's memory.
+
+Always treat scope as **server-owned security context**.
+
+## Next.js Route Example
+
+```ts
+// app/api/assistant/context/route.ts
+import { NextResponse } from "next/server"
+import { MemoriesClient } from "@memories.sh/core"
+import { getServerSession } from "@/lib/auth" // Clerk/Auth0/Supabase/custom
+
+export async function POST(request: Request) {
+  const session = await getServerSession(request)
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
+  }
+
+  // Server-derived scope (never trust client-provided tenant/user ids)
+  const tenantId = session.orgId
+  const userId = session.userId
+
+  if (!tenantId || !userId) {
+    return NextResponse.json({ ok: false, error: "Missing auth scope" }, { status: 400 })
+  }
+
+  const body = await request.json().catch(() => ({}))
+  const query = typeof body.query === "string" ? body.query : ""
+  const projectId = typeof body.projectId === "string" ? body.projectId : undefined
+
+  const client = new MemoriesClient({
+    apiKey: process.env.MEMORIES_API_KEY,
+    baseUrl: process.env.MEMORIES_BASE_URL ?? "https://memories.sh",
+    tenantId,
+    userId,
+  })
+
+  const context = await client.context.get({
+    query,
+    projectId,
+    mode: "all",
+    limit: 10,
+  })
+
+  return NextResponse.json({
+    ok: true,
+    rules: context.rules,
+    memories: context.memories,
+  })
+}
+```
+
+## Express Middleware + Route Example
+
+```js
+import express from "express"
+import { MemoriesClient } from "@memories.sh/core"
+import { verifySession } from "./auth.js" // Clerk/Auth0/Supabase/custom
+
+const app = express()
+app.use(express.json())
+
+async function requireAuthContext(req, res, next) {
+  const session = await verifySession(req)
+  if (!session) {
+    return res.status(401).json({ ok: false, error: "Unauthorized" })
+  }
+
+  if (!session.orgId || !session.userId) {
+    return res.status(400).json({ ok: false, error: "Missing auth scope" })
+  }
+
+  req.authContext = { tenantId: session.orgId, userId: session.userId }
+  return next()
+}
+
+app.post("/assistant/context", requireAuthContext, async (req, res) => {
+  const { tenantId, userId } = req.authContext
+  const query = typeof req.body?.query === "string" ? req.body.query : ""
+  const projectId = typeof req.body?.projectId === "string" ? req.body.projectId : undefined
+
+  const client = new MemoriesClient({
+    apiKey: process.env.MEMORIES_API_KEY,
+    baseUrl: process.env.MEMORIES_BASE_URL ?? "https://memories.sh",
+    tenantId,
+    userId,
+  })
+
+  const context = await client.context.get({ query, projectId, limit: 10 })
+  return res.json({ ok: true, rules: context.rules, memories: context.memories })
+})
+```
+
+## Production Checklist
+
+- Keep `MEMORIES_API_KEY` server-side only.
+- Do not accept `tenantId`/`userId` from request payload/query.
+- Validate tenant membership in your own auth model before calling memories.
+- Pass `projectId` only as a filter, not as an auth boundary.
+
+## Starters
+
+These starters include this pattern:
+
+- `examples/nextjs-starter`
+- `examples/express-starter`

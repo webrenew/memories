@@ -2,6 +2,7 @@
   "title": "SDK",
   "pages": [
     "index",
+    "saas-auth-routing",
     "middleware",
     "tools",
     "client",

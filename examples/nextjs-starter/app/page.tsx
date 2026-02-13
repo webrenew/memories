@@ -16,6 +16,7 @@ type ApiResult = {
 const DEFAULT_CONTEXT_QUERY = "What should my assistant remember about this project?"
 
 export default function HomePage() {
+  const [authToken, setAuthToken] = useState("demo-token")
   const [projectId, setProjectId] = useState("")
 
   const [addContent, setAddContent] = useState("Starter memory: team prefers concise release notes with exact dates.")
@@ -42,6 +43,11 @@ export default function HomePage() {
     return trimmed.length > 0 ? `&projectId=${encodeURIComponent(trimmed)}` : ""
   }, [projectId])
 
+  const authHeader = useMemo(() => {
+    const token = authToken.trim()
+    return token ? { authorization: `Bearer ${token}` } : {}
+  }, [authToken])
+
   async function addMemory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setAddBusy(true)
@@ -54,7 +60,7 @@ export default function HomePage() {
         .filter(Boolean)
       const response = await fetch("/api/memories/add", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...authHeader },
         body: JSON.stringify({
           content: addContent,
           type: addType,
@@ -83,7 +89,10 @@ export default function HomePage() {
 
     try {
       const response = await fetch(
-        `/api/memories/search?q=${encodeURIComponent(searchQuery.trim())}&limit=12${projectParam}`
+        `/api/memories/search?q=${encodeURIComponent(searchQuery.trim())}&limit=12${projectParam}`,
+        {
+          headers: { ...authHeader },
+        }
       )
       const body = (await response.json()) as ApiResult
       if (!response.ok || !body.ok) {
@@ -109,7 +118,9 @@ export default function HomePage() {
         `&strategy=${encodeURIComponent(contextStrategy)}` +
         `&limit=10${projectParam}`
 
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        headers: { ...authHeader },
+      })
       const body = (await response.json()) as ApiResult
       if (!response.ok || !body.ok) {
         throw new Error(body.error?.message ?? "Failed to fetch context")
@@ -134,15 +145,23 @@ export default function HomePage() {
         <h1>Add, Search, and Context in One Next.js App</h1>
         <p>
           This starter wires `@memories.sh/core` through API routes so your browser never exposes the API key.
-          Set `MEMORIES_API_KEY`, optionally set workspace/user/project defaults, and run flows below.
+          Scope is derived from server-side auth mapping, not from client-provided tenant/user values.
         </p>
       </header>
 
       <section className="panel">
-        <h2>Scope Defaults</h2>
+        <h2>Auth + Scope</h2>
         <p className="muted">
-          Optional project override for all calls. Tenant/user defaults come from environment variables.
+          Enter a demo token from `APP_AUTH_TOKENS`. The server resolves trusted `tenantId/userId` from that token.
         </p>
+        <label>
+          Demo auth token
+          <input
+            value={authToken}
+            onChange={(event) => setAuthToken(event.target.value)}
+            placeholder="demo-token"
+          />
+        </label>
         <label>
           Project ID (optional)
           <input value={projectId} onChange={(event) => setProjectId(event.target.value)} placeholder="starter-demo" />
