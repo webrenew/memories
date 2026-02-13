@@ -33,8 +33,8 @@ export default function TermsPage() {
               <section className="space-y-3">
                 <h2 className="font-mono text-xl text-foreground">1. Agreement</h2>
                 <p>
-                  By accessing or using memories.sh, you agree to these Terms of Service. If you do not agree, do not use
-                  the service.
+                  These Terms of Service are a legal agreement between you and Webrenew LLC, doing business as memories.sh.
+                  By accessing or using memories.sh, you agree to these Terms of Service. If you do not agree, do not use the service.
                 </p>
               </section>
 
@@ -101,7 +101,7 @@ export default function TermsPage() {
                 <h2 className="font-mono text-xl text-foreground">8. Intellectual Property</h2>
                 <p>
                   Except for your content and open-source components under their own licenses, the service and related materials
-                  are owned by memories.sh and protected by applicable intellectual property laws.
+                  are owned by Webrenew LLC and protected by applicable intellectual property laws.
                 </p>
               </section>
 
@@ -116,7 +116,7 @@ export default function TermsPage() {
               <section className="space-y-3">
                 <h2 className="font-mono text-xl text-foreground">10. Limitation of Liability</h2>
                 <p>
-                  To the maximum extent permitted by law, memories.sh will not be liable for indirect, incidental, special,
+                  To the maximum extent permitted by law, Webrenew LLC will not be liable for indirect, incidental, special,
                   consequential, or punitive damages, or for loss of profits, data, or goodwill arising from or related to
                   your use of the service.
                 </p>
@@ -138,6 +138,7 @@ export default function TermsPage() {
                     hello@memories.sh
                   </a>
                 </p>
+                <p>Legal entity: Webrenew LLC (d/b/a memories.sh)</p>
                 <p>
                   For data handling details, see our{" "}
                   <Link href="/privacy" className="underline hover:text-foreground transition-colors">

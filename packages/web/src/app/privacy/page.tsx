@@ -33,8 +33,8 @@ export default function PrivacyPage() {
               <section className="space-y-3">
                 <h2 className="font-mono text-xl text-foreground">1. Scope</h2>
                 <p>
-                  This Privacy Policy explains how memories.sh ("we", "us", "our"), collects,
-                  uses, and protects information when you use our website, web dashboard, APIs, CLI, and related services.
+                  This Privacy Policy explains how Webrenew LLC, doing business as memories.sh ("we", "us", "our"),
+                  collects, uses, and protects information when you use our website, web dashboard, APIs, CLI, and related services.
                 </p>
               </section>
 
@@ -139,6 +139,7 @@ export default function PrivacyPage() {
                     hello@memories.sh
                   </a>
                 </p>
+                <p>Legal entity: Webrenew LLC (d/b/a memories.sh)</p>
                 <p>
                   You can also review our{" "}
                   <Link href="/terms" className="underline hover:text-foreground transition-colors">
