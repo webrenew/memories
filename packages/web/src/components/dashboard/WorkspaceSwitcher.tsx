@@ -85,6 +85,9 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
   >({})
   const [isPrefetching, setIsPrefetching] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const isSwitchingRef = useRef(false)
+  const prefetchRequestIdRef = useRef(0)
+  const prefetchInFlightCountRef = useRef(0)
 
   const activeOrg = currentOrgId
     ? memberships.find((m) => m.organization.id === currentOrgId)
@@ -108,6 +111,8 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
     force?: boolean
     cacheBustKey?: string | null
   }): Promise<WorkspacePrefetchMetrics | null> {
+    const requestId = ++prefetchRequestIdRef.current
+    prefetchInFlightCountRef.current += 1
     setIsPrefetching(true)
     const cacheMode: WorkspacePrefetchMetrics["cacheMode"] = options?.force
       ? "default"
@@ -138,7 +143,9 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
       for (const item of summaries.organizations) {
         nextMap[item.id] = item.workspace
       }
-      setWorkspaceSummaryById(nextMap)
+      if (requestId === prefetchRequestIdRef.current) {
+        setWorkspaceSummaryById(nextMap)
+      }
 
       const queryMs = parseHeaderNumber(response.headers.get("X-Workspace-Profile-Summary-Query-Ms"))
       const orgCountHeader = parseHeaderNumber(response.headers.get("X-Workspace-Profile-Org-Count"))
@@ -159,7 +166,8 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
       // Best-effort prefetch only.
       return null
     } finally {
-      setIsPrefetching(false)
+      prefetchInFlightCountRef.current = Math.max(0, prefetchInFlightCountRef.current - 1)
+      setIsPrefetching(prefetchInFlightCountRef.current > 0)
     }
   }
 
@@ -219,6 +227,11 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
       return
     }
 
+    if (isSwitchingRef.current) {
+      return
+    }
+
+    isSwitchingRef.current = true
     setIsSwitching(true)
     setError(null)
     const switchStartedAt = performance.now()
@@ -307,6 +320,7 @@ export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitch
         integrationHealthPrefetchMs: integrationHealthPrefetchMs ?? undefined,
       })
     } finally {
+      isSwitchingRef.current = false
       setIsSwitching(false)
     }
   }
