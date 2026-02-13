@@ -160,6 +160,8 @@ const OPTIONAL_CONFIG_INTEGRATIONS = new Map<string, string>([
   [join(".openclaw", "openclaw.json"), "openclaw"],
 ]);
 const REDACTED_PLACEHOLDER = "[REDACTED]";
+const CLOUD_AUTH_REQUIRED_MESSAGE =
+  "Cloud config secret sync requires login. Run memories login, or use local-only mode (omit --include-config).";
 const SENSITIVE_CONFIG_KEY_PATTERN = [
   "token",
   "secret",
@@ -194,6 +196,12 @@ interface ConfigVaultEntry {
   integration: string;
   config_path: string;
   secrets: Record<string, string>;
+}
+
+interface VaultOperationResult {
+  error?: string;
+  proRequired?: boolean;
+  unauthenticated?: boolean;
 }
 
 function sanitizeOptionalConfig(path: string, content: string): OptionalConfigSanitization {
@@ -252,12 +260,12 @@ function configProjectId(scope: string, cwd: string): string | null {
   return getProjectId(cwd);
 }
 
-async function pushConfigSecretsToVault(entries: ConfigVaultEntry[]): Promise<{ synced: number; error?: string; proRequired?: boolean }> {
+async function pushConfigSecretsToVault(entries: ConfigVaultEntry[]): Promise<{ synced: number } & VaultOperationResult> {
   if (entries.length === 0) return { synced: 0 };
 
   const auth = await readAuth();
   if (!auth) {
-    return { synced: 0, error: "Not logged in. Run memories login to sync config secrets to Vault." };
+    return { synced: 0, unauthenticated: true, error: CLOUD_AUTH_REQUIRED_MESSAGE };
   }
 
   const apiFetch = getApiClient(auth);
@@ -290,10 +298,10 @@ async function fetchConfigSecretsFromVault(params: {
   projectId?: string | null;
   integration: string;
   configPath: string;
-}): Promise<{ secrets: Record<string, string>; error?: string; proRequired?: boolean }> {
+}): Promise<{ secrets: Record<string, string> } & VaultOperationResult> {
   const auth = await readAuth();
   if (!auth) {
-    return { secrets: {}, error: "Not logged in. Run memories login to hydrate config secrets from Vault." };
+    return { secrets: {}, unauthenticated: true, error: CLOUD_AUTH_REQUIRED_MESSAGE };
   }
 
   const apiFetch = getApiClient(auth);
@@ -607,9 +615,11 @@ filesCommand
           const message = vaultResult.error.includes("{")
             ? "Failed to sync config secrets to Vault."
             : vaultResult.error;
-          console.log(chalk.yellow(message));
+          console.log(chalk.red(message));
           if (vaultResult.proRequired) {
             console.log(chalk.dim("Upgrade to Pro to enable scoped Vault-backed config secret sync."));
+          } else if (vaultResult.unauthenticated) {
+            process.exitCode = 1;
           }
         }
       } else if (includeConfig && opts.project && !projectId) {
@@ -675,6 +685,7 @@ filesCommand
     let appliedRedactedConfigs = 0;
     let hydratedSecretValues = 0;
     let hydrationWarnings = 0;
+    let hasAuthErrors = false;
     
     for (const file of files) {
       const baseDir = file.scope === "global" ? home : cwd;
@@ -706,7 +717,11 @@ filesCommand
               const fallbackMessage = secretResult.error.includes("{")
                 ? `Could not hydrate ${file.path} from Vault.`
                 : secretResult.error;
-              console.log(chalk.yellow(fallbackMessage));
+              if (secretResult.unauthenticated) {
+                hasAuthErrors = true;
+              }
+              const color = secretResult.unauthenticated ? chalk.red : chalk.yellow;
+              console.log(color(fallbackMessage));
               if (secretResult.proRequired) {
                 console.log(chalk.dim("Upgrade to Pro to enable scoped Vault-backed config secret hydration."));
               }
@@ -759,6 +774,9 @@ filesCommand
     }
     if (hydrationWarnings > 0) {
       console.log(chalk.dim(`Config secret hydration completed with ${hydrationWarnings} warning${hydrationWarnings === 1 ? "" : "s"}.`));
+    }
+    if (hasAuthErrors) {
+      process.exitCode = 1;
     }
   });
 
