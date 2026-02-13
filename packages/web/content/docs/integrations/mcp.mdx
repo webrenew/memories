@@ -5,6 +5,10 @@ description: Fallback real-time access for MCP-compatible AI assistants.
 
 The primary workflow is `memories generate` — native config files for each tool. For browser-based agents (v0, bolt.new, Lovable) or any MCP client where the CLI can't run, the cloud MCP server provides real-time access.
 
+<Callout>
+For SaaS integrations, prefer SDK endpoints (`/api/sdk/v1/*`). Use this MCP path only if your app needs to connect MCP-native clients.
+</Callout>
+
 <MCPInstallButtons />
 
 ---

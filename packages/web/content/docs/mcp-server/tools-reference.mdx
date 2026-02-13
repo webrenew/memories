@@ -5,6 +5,10 @@ description: Complete reference for all MCP tools exposed by the memories.sh ser
 
 The memories.sh MCP server exposes 7 tools that AI agents can call to interact with your memory store.
 
+<Callout>
+SaaS apps that already call SDK endpoints (`/api/sdk/v1/*`) do not need these MCP tools unless they serve MCP-native clients.
+</Callout>
+
 Scope model for MCP arguments:
 
 - `tenant_id` = AI SDK Project (security/database boundary)

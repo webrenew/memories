@@ -35,6 +35,10 @@ export default function SdkProjectsPage() {
           The entry point for SaaS integrations. Create API keys, provision project databases, and map the right
           scope model for your app.
         </p>
+        <p className="text-xs text-muted-foreground mt-2 max-w-3xl">
+          If your app only uses SDK endpoints (`/api/sdk/v1/*`), you do not need MCP multitenancy.
+          Use MCP routing only when you are serving MCP clients.
+        </p>
       </div>
 
       <div className="border border-border bg-card/20 rounded-lg p-4 sm:p-5 space-y-4">

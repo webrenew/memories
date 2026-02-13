@@ -5,6 +5,11 @@ description: Create SaaS-scoped SDK projects in the dashboard and avoid tenantId
 
 Use this page first if you are wiring memories.sh into a SaaS app.
 
+<Callout>
+SaaS apps using SDK endpoints (`/api/sdk/v1/*`) do not need MCP multitenancy.
+Use MCP routing only when you are serving MCP-native clients.
+</Callout>
+
 ## What is an AI SDK Project?
 
 In the dashboard, an **AI SDK Project** is a `tenantId` mapping to an isolated memory database.

@@ -6,6 +6,11 @@ description: Configure AI SDK Project (`tenant_id`) Turso routing for hosted MCP
 For SaaS apps, you can route MCP tool calls to AI SDK Project databases by passing `tenant_id` in tool arguments.
 
 <Callout>
+If your SaaS integration uses SDK endpoints only, you can skip MCP tenant routing.
+Use this page when you are routing MCP client traffic.
+</Callout>
+
+<Callout>
 If you are integrating through the SDK HTTP surface, use `/api/sdk/v1/management/tenants`. The MCP route names below are legacy-compatible aliases.
 </Callout>
 

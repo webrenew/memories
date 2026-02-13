@@ -293,6 +293,9 @@ export function ApiKeySection() {
                     )}
                   </button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  If your SaaS only calls SDK endpoints (`/api/sdk/v1/*`), you can ignore this MCP endpoint.
+                </p>
               </div>
 
               <div className="space-y-2">

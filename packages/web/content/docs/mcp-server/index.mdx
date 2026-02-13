@@ -5,6 +5,11 @@ description: Fallback real-time access for agents that need more than static con
 
 The primary way to use memories.sh is the CLI — `memories generate` writes native config files that each tool reads natively. For browser-based agents (v0, bolt.new, Lovable) or any MCP client where the CLI can't run, the built-in MCP server provides real-time access.
 
+<Callout>
+If you are building a SaaS app and already using SDK endpoints (`/api/sdk/v1/*`), you usually do not need MCP.
+Use MCP when your product must serve MCP-native clients directly.
+</Callout>
+
 <MCPInstallButtons />
 
 ## When to Use the MCP Server
