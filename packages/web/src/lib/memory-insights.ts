@@ -458,15 +458,51 @@ function suggestedTags(item: PreparedMemory): string[] {
 function buildActions(
   staleRules: StaleRuleInsight[],
   duplicates: DuplicatePair[],
+  conflicts: ConflictInsight[],
   prepared: PreparedMemory[],
 ): MemoryInsights["actions"] {
-  const archive = staleRules.slice(0, 4).map((item) => ({
+  const preparedById = new Map(prepared.map((item) => [item.memory.id, item]))
+  const archiveCandidates: InsightAction[] = []
+
+  const staleArchiveCandidates = staleRules.slice(0, 4).map((item) => ({
     id: `archive:${item.id}`,
     kind: "archive" as const,
     title: `Archive stale rule ${item.id}`,
     reason: `Rule is ${item.ageDays} days old with no recent update signal.`,
     memoryIds: [item.id],
   }))
+  archiveCandidates.push(...staleArchiveCandidates)
+
+  const conflictArchiveCandidates = conflicts.slice(0, 3).map((conflict) => {
+    const memoryA = preparedById.get(conflict.memoryA.id)
+    const memoryB = preparedById.get(conflict.memoryB.id)
+    const older =
+      !memoryA || !memoryB
+        ? conflict.memoryA.id
+        : memoryA.updatedAtMs <= memoryB.updatedAtMs
+          ? memoryA.memory.id
+          : memoryB.memory.id
+
+    return {
+      id: `archive-conflict:${conflict.id}:${older}`,
+      kind: "archive" as const,
+      title: `Resolve conflict by archiving ${older}`,
+      reason: "Conflicting directives detected in the same project scope.",
+      memoryIds: [older],
+    }
+  })
+  archiveCandidates.push(...conflictArchiveCandidates)
+
+  const seenArchiveIds = new Set<string>()
+  const archive = archiveCandidates
+    .filter((candidate) => {
+      const memoryId = candidate.memoryIds[0]
+      if (!memoryId) return false
+      if (seenArchiveIds.has(memoryId)) return false
+      seenArchiveIds.add(memoryId)
+      return true
+    })
+    .slice(0, 6)
 
   const merge = duplicates.slice(0, 3).map((pair) => ({
     id: `merge:${pair.memoryA.id}:${pair.memoryB.id}`,
@@ -521,7 +557,7 @@ export function buildMemoryInsights(
   const conflicts = buildConflictInsights(prepared)
   const weekly = buildWeeklySummary(prepared, nowMs, weeklyWindowDays)
   const duplicates = buildDuplicatePairs(prepared)
-  const actions = buildActions(staleRules, duplicates, prepared)
+  const actions = buildActions(staleRules, duplicates, conflicts, prepared)
 
   return {
     generatedAt: new Date(nowMs).toISOString(),

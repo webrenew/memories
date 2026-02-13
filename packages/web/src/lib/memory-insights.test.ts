@@ -87,6 +87,13 @@ describe("buildMemoryInsights", () => {
     expect(insights.conflicts.items[0]?.memoryA.id).toBe("r1")
     expect(insights.conflicts.items[0]?.memoryB.id).toBe("r2")
     expect(insights.conflicts.items[0]?.sharedTags).toContain("mfa")
+    expect(
+      insights.actions.archive.some(
+        (action) =>
+          action.memoryIds.includes("r1") ||
+          action.memoryIds.includes("r2"),
+      ),
+    ).toBe(true)
   })
 
   it("builds weekly summary and suggests relabel + merge actions", () => {

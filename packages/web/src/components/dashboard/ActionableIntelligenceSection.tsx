@@ -1,4 +1,8 @@
+"use client"
+
+import { useState } from "react"
 import type { MemoryInsights, InsightAction } from "@/lib/memory-insights"
+import type { ApplyMemoryInsightActionResult } from "@/lib/memory-insight-actions"
 
 interface ActionableIntelligenceSectionProps {
   insights: MemoryInsights | null
@@ -24,6 +28,10 @@ function projectLabel(project: string): string {
 export function ActionableIntelligenceSection({
   insights,
 }: ActionableIntelligenceSectionProps) {
+  const [applyingActionId, setApplyingActionId] = useState<string | null>(null)
+  const [appliedActionIds, setAppliedActionIds] = useState<Set<string>>(new Set())
+  const [applyError, setApplyError] = useState<string | null>(null)
+
   if (!insights) {
     return (
       <section className="border border-border bg-card/20 p-4 md:p-5">
@@ -38,10 +46,60 @@ export function ActionableIntelligenceSection({
   }
 
   const actionGroups: Array<{ kind: InsightAction["kind"]; items: InsightAction[] }> = [
-    { kind: "archive", items: insights.actions.archive },
-    { kind: "merge", items: insights.actions.merge },
-    { kind: "relabel", items: insights.actions.relabel },
+    {
+      kind: "archive",
+      items: insights.actions.archive.filter((item) => !appliedActionIds.has(item.id)),
+    },
+    {
+      kind: "merge",
+      items: insights.actions.merge.filter((item) => !appliedActionIds.has(item.id)),
+    },
+    {
+      kind: "relabel",
+      items: insights.actions.relabel.filter((item) => !appliedActionIds.has(item.id)),
+    },
   ]
+
+  const visibleActionCount = actionGroups.reduce((total, group) => total + group.items.length, 0)
+
+  async function applyAction(action: InsightAction) {
+    setApplyingActionId(action.id)
+    setApplyError(null)
+
+    try {
+      const response = await fetch("/api/memories/insights/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: action.kind,
+          memoryIds: action.memoryIds,
+          proposedTags: action.proposedTags,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setApplyError(payload.error || `Failed to apply ${action.kind} action`)
+        return
+      }
+
+      setAppliedActionIds((previous) => {
+        const next = new Set(previous)
+        next.add(action.id)
+        return next
+      })
+
+      const result = payload.result as ApplyMemoryInsightActionResult | undefined
+      if (result && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("memories:insight-action-applied", { detail: result }))
+      }
+    } catch (error) {
+      console.error("Failed to apply insight action:", error)
+      setApplyError(`Failed to apply ${action.kind} action`)
+    } finally {
+      setApplyingActionId(null)
+    }
+  }
 
   return (
     <section className="border border-border bg-card/20 p-4 md:p-5 space-y-4">
@@ -55,7 +113,7 @@ export function ActionableIntelligenceSection({
           </p>
         </div>
         <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">
-          {insights.actions.total} actions
+          {visibleActionCount} actions
         </span>
       </div>
 
@@ -144,12 +202,12 @@ export function ActionableIntelligenceSection({
           <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">
             Suggested Cleanup Actions
           </p>
-          <p className="text-[10px] text-muted-foreground/70">
-            Jump to memory cards below via links
-          </p>
+          <p className="text-[10px] text-muted-foreground/70">One click to apply</p>
         </div>
 
-        {insights.actions.total === 0 ? (
+        {applyError ? <p className="mt-2 text-xs text-red-400">{applyError}</p> : null}
+
+        {visibleActionCount === 0 ? (
           <p className="mt-2 text-xs text-muted-foreground">No cleanup actions suggested right now.</p>
         ) : (
           <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -162,27 +220,41 @@ export function ActionableIntelligenceSection({
                   <p className="mt-2 text-xs text-muted-foreground">No actions.</p>
                 ) : (
                   <ul className="mt-2 space-y-2">
-                    {group.items.map((action) => (
-                      <li key={action.id} className="text-xs border border-border/50 bg-card/20 p-2">
-                        <p className="text-foreground/90">{action.title}</p>
-                        <p className="mt-1 text-muted-foreground">{action.reason}</p>
-                        <p className="mt-1 text-muted-foreground">
-                          {action.memoryIds.map((id, index) => (
-                            <span key={id}>
-                              {index > 0 ? ", " : ""}
-                              <a href={`#memory-${id}`} className="text-primary hover:underline">
-                                {id}
-                              </a>
-                            </span>
-                          ))}
-                        </p>
-                        {action.proposedTags && action.proposedTags.length > 0 ? (
+                    {group.items.map((action) => {
+                      const isApplying = applyingActionId === action.id
+
+                      return (
+                        <li key={action.id} className="text-xs border border-border/50 bg-card/20 p-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-foreground/90">{action.title}</p>
+                            <button
+                              type="button"
+                              onClick={() => applyAction(action)}
+                              disabled={Boolean(applyingActionId)}
+                              className="shrink-0 px-2 py-1 text-[10px] uppercase tracking-[0.12em] border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50"
+                            >
+                              {isApplying ? "Applying..." : "Apply"}
+                            </button>
+                          </div>
+                          <p className="mt-1 text-muted-foreground">{action.reason}</p>
                           <p className="mt-1 text-muted-foreground">
-                            suggested tags: {action.proposedTags.join(", ")}
+                            {action.memoryIds.map((id, index) => (
+                              <span key={id}>
+                                {index > 0 ? ", " : ""}
+                                <a href={`#memory-${id}`} className="text-primary hover:underline">
+                                  {id}
+                                </a>
+                              </span>
+                            ))}
                           </p>
-                        ) : null}
-                      </li>
-                    ))}
+                          {action.proposedTags && action.proposedTags.length > 0 ? (
+                            <p className="mt-1 text-muted-foreground">
+                              suggested tags: {action.proposedTags.join(", ")}
+                            </p>
+                          ) : null}
+                        </li>
+                      )
+                    })}
                   </ul>
                 )}
               </div>

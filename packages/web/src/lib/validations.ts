@@ -134,3 +134,9 @@ export const updateGithubCaptureSettingsSchema = z.object({
   actor_filters: z.array(z.string()).optional(),
   include_prerelease: z.boolean().optional(),
 })
+
+export const applyMemoryInsightActionSchema = z.object({
+  kind: z.enum(["archive", "merge", "relabel"]),
+  memoryIds: z.array(z.string().trim().min(1, "Memory id is required")).min(1, "Select at least one memory"),
+  proposedTags: z.array(z.string().trim().min(1)).max(20).optional(),
+})

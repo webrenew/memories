@@ -16,6 +16,7 @@ description: Product and documentation updates.
 - Added workspace-switch performance budgets (p50 ≤ 400ms, p95 ≤ 1000ms over 24h) with integration-health alerts and CI enforcement for budget evaluation logic.
 - Added automatic GitHub capture intake (PRs, issues, commits) with dashboard review/approval queue before writing to memory.
 - Added Actionable Intelligence dashboard panel with stale-rule detection, conflict candidates, weekly change summary, and suggested archive/merge/relabel actions.
+- Added one-click Actionable Intelligence apply flow (`archive`, `merge`, `relabel`) with backend execution API and immediate dashboard memory-list updates.
 - Optimized workspace switching with cached workspace-summary API responses, switcher prefetch for personal/org summaries, and batched org-member login lookups to remove per-member N+1 auth requests.
 - Expanded GitHub auto-capture depth with release-note webhook adapters (`release` events) and richer queue filters (`event`, `repo`, `actor`, `workspace`, `q`) for review workflows.
 

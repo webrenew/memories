@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { ChevronDown, Search } from "lucide-react"
 import { MemoriesList } from "./MemoriesList"
 import { AddRuleForm } from "./AddRuleForm"
 import type { Memory } from "@/types/memory"
+import type { ApplyMemoryInsightActionResult } from "@/lib/memory-insight-actions"
 
 type TypeFilter = "all" | "rule" | "decision" | "fact" | "note" | "skill"
 type ScopeFilter = "all" | "global" | string
@@ -32,6 +33,33 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [showProjectDropdown, setShowProjectDropdown] = useState(false)
+
+  useEffect(() => {
+    function onInsightApplied(event: Event) {
+      const detail = (event as CustomEvent<ApplyMemoryInsightActionResult>).detail
+      if (!detail) return
+
+      setMemories((previous) => {
+        const archivedSet = new Set(detail.archivedIds)
+        const tagsById = new Map(detail.updatedTags.map((entry) => [entry.id, entry.tags]))
+
+        return previous
+          .filter((memory) => !archivedSet.has(memory.id))
+          .map((memory) => {
+            if (!tagsById.has(memory.id)) return memory
+            return {
+              ...memory,
+              tags: tagsById.get(memory.id) ?? null,
+            }
+          })
+      })
+    }
+
+    window.addEventListener("memories:insight-action-applied", onInsightApplied)
+    return () => {
+      window.removeEventListener("memories:insight-action-applied", onInsightApplied)
+    }
+  }, [])
 
   const handleAdd = (memory: Memory) => {
     setMemories((prev) => [memory, ...prev])
