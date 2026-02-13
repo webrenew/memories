@@ -4,20 +4,23 @@ import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import chalk from "chalk";
 
-interface Tool {
+export interface Tool {
   name: string;
-  configDir: string;
-  mcpConfigPath: string;
-  mcpConfigFormat: "cursor" | "claude" | "vscode";
-  instructionFile: string;
-  generateCmd: string;
+  detectPaths: string[];
+  globalDetectPaths?: string[];
+  mcpConfigPath?: string;
+  mcpConfigFormat?: "cursor" | "claude" | "vscode";
+  instructionFile?: string;
+  generateCmd?: string;
+  generateArgs?: string[];
 }
 
 // Tool definitions with their config locations
 const TOOLS: Tool[] = [
   {
     name: "Cursor",
-    configDir: ".cursor",
+    detectPaths: [".cursor", ".cursor/rules/memories.mdc"],
+    globalDetectPaths: [".cursor"],
     mcpConfigPath: ".cursor/mcp.json",
     mcpConfigFormat: "cursor",
     instructionFile: ".cursor/rules/memories.mdc",
@@ -25,7 +28,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: "Claude Code",
-    configDir: ".claude",
+    detectPaths: [".claude", "CLAUDE.md", ".mcp.json"],
+    globalDetectPaths: [".claude"],
     mcpConfigPath: ".mcp.json",
     mcpConfigFormat: "claude",
     instructionFile: "CLAUDE.md",
@@ -33,7 +37,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: "Windsurf",
-    configDir: ".windsurf",
+    detectPaths: [".windsurf", ".windsurf/rules/memories.md", ".windsurfrules"],
+    globalDetectPaths: [".windsurf"],
     mcpConfigPath: ".windsurf/mcp.json",
     mcpConfigFormat: "cursor",
     instructionFile: ".windsurf/rules/memories.md",
@@ -41,11 +46,69 @@ const TOOLS: Tool[] = [
   },
   {
     name: "VS Code",
-    configDir: ".vscode",
+    detectPaths: [".vscode", ".vscode/mcp.json"],
+    globalDetectPaths: [".vscode"],
     mcpConfigPath: ".vscode/mcp.json",
     mcpConfigFormat: "vscode",
+  },
+  {
+    name: "OpenCode",
+    detectPaths: [".opencode", ".opencode/instructions.md", ".opencode/mcp.json"],
+    globalDetectPaths: [".opencode"],
+    mcpConfigPath: ".opencode/mcp.json",
+    mcpConfigFormat: "cursor",
+    instructionFile: ".opencode/instructions.md",
+    generateCmd: "claude",
+    generateArgs: ["--output", ".opencode/instructions.md"],
+  },
+  {
+    name: "Factory",
+    detectPaths: [".factory", ".factory/instructions.md", ".factory/mcp.json"],
+    globalDetectPaths: [".factory"],
+    mcpConfigPath: ".factory/mcp.json",
+    mcpConfigFormat: "cursor",
+    instructionFile: ".factory/instructions.md",
+    generateCmd: "claude",
+    generateArgs: ["--output", ".factory/instructions.md"],
+  },
+  {
+    name: "GitHub Copilot",
+    detectPaths: [".github/copilot-instructions.md"],
     instructionFile: ".github/copilot-instructions.md",
     generateCmd: "copilot",
+  },
+  {
+    name: "Gemini",
+    detectPaths: ["GEMINI.md"],
+    instructionFile: "GEMINI.md",
+    generateCmd: "gemini",
+  },
+  {
+    name: "Cline",
+    detectPaths: [".clinerules", ".clinerules/memories.md"],
+    instructionFile: ".clinerules/memories.md",
+    generateCmd: "cline",
+  },
+  {
+    name: "Roo",
+    detectPaths: [".roo", ".roo/rules/memories.md"],
+    instructionFile: ".roo/rules/memories.md",
+    generateCmd: "roo",
+  },
+  {
+    name: "Amp",
+    detectPaths: [".amp", ".amp/mcp.json"],
+    globalDetectPaths: [".amp"],
+    mcpConfigPath: ".amp/mcp.json",
+    mcpConfigFormat: "cursor",
+    instructionFile: ".agents/instructions.md",
+    generateCmd: "agents",
+  },
+  {
+    name: "Agent Harness (.agents)",
+    detectPaths: [".agents", ".agents/instructions.md", "AGENTS.md", ".codex"],
+    instructionFile: ".agents/instructions.md",
+    generateCmd: "agents",
   },
 ];
 
@@ -68,6 +131,18 @@ export interface DetectedTool {
   globalConfig: boolean;
 }
 
+export function toolSupportsMcp(
+  tool: Tool,
+): tool is Tool & { mcpConfigPath: string; mcpConfigFormat: "cursor" | "claude" | "vscode" } {
+  return Boolean(tool.mcpConfigPath && tool.mcpConfigFormat);
+}
+
+export function toolSupportsGeneration(
+  tool: Tool,
+): tool is Tool & { generateCmd: string; generateArgs?: string[] } {
+  return Boolean(tool.generateCmd);
+}
+
 /**
  * Get all supported tools
  */
@@ -83,25 +158,25 @@ export function detectTools(cwd: string = process.cwd()): DetectedTool[] {
   const detected: DetectedTool[] = [];
 
   for (const tool of TOOLS) {
-    // Check project-level config
-    const projectConfigDir = join(cwd, tool.configDir);
-    const projectMcpPath = join(cwd, tool.mcpConfigPath);
-    const projectInstructionPath = join(cwd, tool.instructionFile);
-    
-    // Check global config (for tools like Cursor that use ~/.cursor/)
-    const globalConfigDir = join(home, tool.configDir);
-    const globalMcpPath = join(home, tool.mcpConfigPath);
+    const hasProjectConfig = tool.detectPaths.some((path) => existsSync(join(cwd, path)));
+    const globalDetectPaths = tool.globalDetectPaths ?? [];
+    const hasGlobalConfig = globalDetectPaths.some((path) => existsSync(join(home, path)));
 
-    const hasProjectConfig = existsSync(projectConfigDir);
-    const hasGlobalConfig = existsSync(globalConfigDir);
-    
-    if (hasProjectConfig || hasGlobalConfig) {
+    const hasProjectMcp = tool.mcpConfigPath ? existsSync(join(cwd, tool.mcpConfigPath)) : false;
+    const hasGlobalMcp = tool.mcpConfigPath ? existsSync(join(home, tool.mcpConfigPath)) : false;
+    const hasMcp = hasProjectMcp || hasGlobalMcp;
+
+    const hasInstructions = tool.instructionFile
+      ? existsSync(join(cwd, tool.instructionFile))
+      : false;
+
+    if (hasProjectConfig || hasGlobalConfig || hasMcp || hasInstructions) {
       detected.push({
         tool,
-        hasConfig: hasProjectConfig || hasGlobalConfig,
-        hasMcp: existsSync(projectMcpPath) || existsSync(globalMcpPath),
-        hasInstructions: existsSync(projectInstructionPath),
-        globalConfig: !hasProjectConfig && hasGlobalConfig,
+        hasConfig: hasProjectConfig || hasGlobalConfig || hasMcp || hasInstructions,
+        hasMcp,
+        hasInstructions,
+        globalConfig: !hasProjectConfig && (hasGlobalConfig || hasGlobalMcp),
       });
     }
   }
@@ -118,6 +193,13 @@ export async function setupMcp(
 ): Promise<{ success: boolean; message: string; path?: string }> {
   const { cwd = process.cwd(), global: useGlobal = false, dryRun = false } = options;
   const home = homedir();
+
+  if (!toolSupportsMcp(tool)) {
+    return {
+      success: false,
+      message: `${tool.name} does not support MCP auto-configuration`,
+    };
+  }
   
   // Determine config path
   const configPath = useGlobal 
@@ -185,16 +267,15 @@ export function formatDetectedTools(detected: DetectedTool[]): string {
   }
 
   return detected.map(d => {
-    const status: string[] = [];
-    if (d.hasMcp) status.push(chalk.green("MCP"));
-    if (d.hasInstructions) status.push(chalk.green("Rules"));
-    
-    const statusStr = status.length > 0 
-      ? chalk.dim(` (${status.join(", ")})`)
-      : chalk.dim(" (not configured)");
-    
+    const mcpStatus = toolSupportsMcp(d.tool)
+      ? (d.hasMcp ? chalk.green("✓ MCP") : chalk.dim("○ MCP"))
+      : chalk.dim("— MCP");
+    const rulesStatus = toolSupportsGeneration(d.tool)
+      ? (d.hasInstructions ? chalk.green("✓ Rules") : chalk.dim("○ Rules"))
+      : chalk.dim("— Rules");
+
     const scope = d.globalConfig ? chalk.dim(" [global]") : "";
     
-    return `${chalk.white(d.tool.name)}${scope}${statusStr}`;
+    return `${chalk.white(d.tool.name)}${scope} ${mcpStatus} ${rulesStatus}`;
   }).join("\n  ");
 }

@@ -153,11 +153,6 @@ async function runAgentsGenerator(opts: { dryRun?: boolean }): Promise<void> {
 
   const result = await generateAgentsDir(process.cwd());
 
-  if (result.filesCreated.length === 0 && result.filesCleaned.length === 0) {
-    console.log(chalk.dim("No memories found for .agents/ generation."));
-    return;
-  }
-
   for (const file of result.filesCreated) {
     console.log(chalk.green("✓") + ` Wrote agents → ${chalk.dim(file)}`);
   }
@@ -172,6 +167,8 @@ async function runAgentsGenerator(opts: { dryRun?: boolean }): Promise<void> {
   if (result.counts.settings) parts.push("settings.json");
   if (parts.length > 0) {
     console.log(chalk.dim(`  (${parts.join(", ")})`));
+  } else {
+    console.log(chalk.dim("  (harness baseline only)"));
   }
 }
 
@@ -251,8 +248,6 @@ async function runGenerationCycle(
   memories: Memory[],
   opts: { force?: boolean },
 ): Promise<void> {
-  if (memories.length === 0) return;
-
   const cwd = process.cwd();
 
   // Step 1: Generate .agents/ once
@@ -340,10 +335,8 @@ export const generateCommand = new Command("generate")
 
       const types = parseTypes(opts.types);
       const memories = await fetchMemories(types);
-
       if (memories.length === 0) {
-        console.error(chalk.dim("No memories found. Add some with: memories add --rule \"Your rule\""));
-        return;
+        console.log(chalk.dim("No stored memories found. Generating harness/baseline files."));
       }
 
       const selectedSet = new Set(selected);
@@ -411,10 +404,8 @@ for (const target of TARGETS) {
         try {
           const types = parseTypes(opts.types);
           const memories = await fetchMemories(types);
-
           if (memories.length === 0) {
-            console.error(chalk.dim("No memories found. Add some with: memories add --rule \"Your rule\""));
-            return;
+            console.log(chalk.dim("No stored memories found. Generating harness/baseline files."));
           }
 
           // Use two-step pipeline for adapter-supported targets (skip if custom output path)
@@ -450,10 +441,8 @@ generateCommand.addCommand(
         }
 
         const memories = await fetchMemories(types);
-
         if (memories.length === 0) {
-          console.error(chalk.dim("No memories found. Add some with: memories add --rule \"Your rule\""));
-          return;
+          console.log(chalk.dim("No stored memories found. Generating harness/baseline files."));
         }
 
         // Step 1: Generate .agents/ directory once

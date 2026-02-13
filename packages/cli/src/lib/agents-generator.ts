@@ -12,6 +12,21 @@ const AGENTS_DIR = ".agents";
 /** Types included in instructions.md (non-path-scoped, non-note, non-skill) */
 const INSTRUCTION_TYPES: MemoryType[] = ["rule", "decision", "fact"];
 
+const HARNESS_HEADER = [
+  "# Agent Harness",
+  "",
+  "- Use this as the baseline memory layer for the project.",
+  "- Before coding, recall current context from the local memories store via MCP (`get_context`) or CLI (`memories recall`).",
+  "- Memories are local-first: project + global records come from your local DB; cloud sync mirrors that state.",
+  "- When rules conflict, prefer path-scoped rules, then project rules, then global rules.",
+  "",
+  "## Runtime Checklist",
+  "",
+  "- Start tasks with a context recall (`memories recall --json`).",
+  "- Persist important decisions with `memories add` or MCP `add_memory`.",
+  "- Edit source memories instead of hand-editing generated integration files.",
+].join("\n");
+
 // ── Result Types ─────────────────────────────────────────────────────
 
 export interface GenerateResult {
@@ -99,8 +114,6 @@ export async function generateInstructions(
     (m) => INSTRUCTION_TYPES.includes(m.type) && !m.paths,
   );
 
-  if (filtered.length === 0) return [];
-
   // Group by type
   const groups: Record<string, Memory[]> = {};
   for (const m of filtered) {
@@ -113,14 +126,20 @@ export async function generateInstructions(
 
   // Stable order
   const order = ["Rules", "Key Decisions", "Project Facts"];
-  const sections = order
+  const memorySections = order
     .filter((t) => groups[t]?.length)
     .map((title) => {
       const items = groups[title].map((m) => `- ${m.content}`).join("\n");
       return `## ${title}\n\n${items}`;
     });
+  const contentParts: string[] = [HARNESS_HEADER, "", "## Stored Memories", ""];
+  if (memorySections.length > 0) {
+    contentParts.push(memorySections.join("\n\n"));
+  } else {
+    contentParts.push('- No stored memories yet. Add one with `memories add --rule "..."`.');
+  }
 
-  const content = sections.join("\n\n") + makeFooter();
+  const content = contentParts.join("\n") + makeFooter();
 
   const outPath = join(outputDir, AGENTS_DIR, "instructions.md");
   await mkdir(join(outputDir, AGENTS_DIR), { recursive: true });

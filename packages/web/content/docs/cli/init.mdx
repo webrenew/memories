@@ -21,7 +21,7 @@ Initialize the memories database and automatically set up MCP integration for de
 2. **Detects your project** from the git remote URL (or sets global scope if not in a git repo)
 3. **Detects installed AI tools** by checking for their config directories
 4. **Configures MCP** for each detected tool (with your permission)
-5. **Generates instruction files** if you have existing memories
+5. **Generates instruction files** (including a baseline harness when no memories exist yet)
 6. **Shows sync status** if you're logged in
 
 ## Options
@@ -45,17 +45,25 @@ Initialize the memories database and automatically set up MCP integration for de
 
 The init command looks for these AI coding tools:
 
-| Tool | Config Directory | MCP Config Location |
-|------|------------------|---------------------|
+| Tool | Detect Paths | MCP Config Location |
+|------|--------------|---------------------|
 | Cursor | `.cursor/` | `.cursor/mcp.json` |
-| Claude Code | `.claude/` | `.mcp.json` (project root) |
-| Windsurf | `.windsurf/` | `.windsurf/mcp.json` |
-| VS Code / Copilot | `.vscode/` | `.vscode/mcp.json` |
+| Claude Code | `.claude/`, `CLAUDE.md` | `.mcp.json` (project root) |
+| Windsurf | `.windsurf/`, `.windsurfrules` | `.windsurf/mcp.json` |
+| VS Code | `.vscode/` | `.vscode/mcp.json` |
+| OpenCode | `.opencode/` | `.opencode/mcp.json` |
+| Factory | `.factory/` | `.factory/mcp.json` |
+| Amp | `.amp/` | `.amp/mcp.json` |
+| Agents harness (.agents/Codex) | `.agents/`, `AGENTS.md`, `.codex/` | — |
+| GitHub Copilot | `.github/copilot-instructions.md` | — |
+| Gemini | `GEMINI.md` | — |
+| Cline | `.clinerules/` | — |
+| Roo | `.roo/` | — |
 
 For each detected tool, init will:
 1. Check if MCP is already configured
 2. Offer to add the memories MCP server if not
-3. Generate instruction files if you have memories
+3. Generate instruction files when supported (or baseline harness files for new projects)
 
 ## Examples
 

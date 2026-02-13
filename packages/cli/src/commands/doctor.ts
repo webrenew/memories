@@ -6,7 +6,7 @@ import type { Client } from "@libsql/client";
 import { getDb, getConfigDir, repairFtsSchema } from "../lib/db.js";
 import { getProjectId } from "../lib/git.js";
 import { getApiClient, readAuth } from "../lib/auth.js";
-import { detectTools } from "../lib/setup.js";
+import { detectTools, toolSupportsMcp } from "../lib/setup.js";
 
 interface Check {
   id: string;
@@ -328,10 +328,12 @@ function buildChecks(): Check[] {
       name: "MCP wiring",
       run: async () => {
         const detected = detectTools(process.cwd());
+        const mcpTools = detected.filter((item) => toolSupportsMcp(item.tool));
+
         if (detected.length === 0) {
           return {
             status: "warn",
-            message: "No supported tool config directories detected (.cursor, .claude, .windsurf, .vscode)",
+            message: "No supported integration config directories detected (e.g. .cursor, .claude, .windsurf, .vscode, .opencode, .factory, .agents)",
             remediation: [
               "Create or open your tool config directory, then run: memories setup",
               "Or configure manually with: memories init --skip-generate",
@@ -339,7 +341,18 @@ function buildChecks(): Check[] {
           };
         }
 
-        const missing = detected.filter((tool) => !tool.hasMcp).map((tool) => tool.tool.name);
+        if (mcpTools.length === 0) {
+          return {
+            status: "warn",
+            message: "Detected integrations do not expose MCP config files (rules-only setup)",
+            remediation: [
+              "Run: memories setup and include a tool with MCP support (Cursor, Claude Code, Windsurf, VS Code, OpenCode, Factory, Amp)",
+              "Or configure an MCP-capable tool manually, then rerun: memories doctor",
+            ],
+          };
+        }
+
+        const missing = mcpTools.filter((tool) => !tool.hasMcp).map((tool) => tool.tool.name);
         if (missing.length > 0) {
           return {
             status: "fail",
@@ -351,7 +364,7 @@ function buildChecks(): Check[] {
           };
         }
 
-        const configured = detected.map((tool) => tool.tool.name).join(", ");
+        const configured = mcpTools.map((tool) => tool.tool.name).join(", ");
         return {
           status: "pass",
           message: `MCP configured for: ${configured}`,

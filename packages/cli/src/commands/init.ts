@@ -3,13 +3,21 @@ import chalk from "chalk";
 import { confirm, checkbox, select } from "@inquirer/prompts";
 import { getDb, getConfigDir } from "../lib/db.js";
 import { getProjectId, getGitRoot } from "../lib/git.js";
-import { addMemory, listMemories } from "../lib/memory.js";
+import { addMemory } from "../lib/memory.js";
 import { readAuth, getApiClient } from "../lib/auth.js";
-import { detectTools, getAllTools, setupMcp, type DetectedTool } from "../lib/setup.js";
+import {
+  detectTools,
+  getAllTools,
+  setupMcp,
+  toolSupportsGeneration,
+  toolSupportsMcp,
+  type DetectedTool,
+  type Tool,
+} from "../lib/setup.js";
 import { initConfig } from "../lib/config.js";
 import { runDoctorChecks } from "./doctor.js";
 import * as ui from "../lib/ui.js";
-import { execSync, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 const DEFAULT_API_URL = "https://memories.sh";
 const PERSONAL_WORKSPACE_VALUE = "__personal_workspace__";
@@ -134,6 +142,16 @@ function parseSetupMode(rawMode: string | undefined): SetupMode {
     return normalized;
   }
   throw new Error(`Invalid setup mode "${rawMode}". Use one of: auto, local, cloud.`);
+}
+
+function selectedTool(tool: Tool): DetectedTool {
+  return {
+    tool,
+    hasConfig: false,
+    hasMcp: false,
+    hasInstructions: false,
+    globalConfig: false,
+  };
 }
 
 async function fetchOrganizationsAndProfile(apiFetch: ReturnType<typeof getApiClient>): Promise<{
@@ -296,30 +314,35 @@ export const initCommand = new Command("init")
 
       // Step 3: Detect and configure tools
       ui.step(3, totalSteps, "Detecting AI coding tools...");
+      const allTools = getAllTools();
       let detected = detectTools(cwd);
-      
+
+      const detectedNames = new Set(detected.map((item) => item.tool.name));
+
       if (detected.length === 0) {
         ui.dim("No AI coding tools auto-detected.");
-        
-        if (!opts.skipMcp) {
-          const allTools = getAllTools();
+      }
+
+      const shouldOfferSelection = !opts.yes && (!opts.skipMcp || !opts.skipGenerate);
+      if (shouldOfferSelection) {
+        const additionalTools = allTools.filter((tool) => !detectedNames.has(tool.name));
+        if (additionalTools.length > 0) {
           const selected = await checkbox({
-            message: "Which tools do you want to configure?",
-            choices: allTools.map(t => ({
-              name: t.name,
-              value: t,
+            message: detected.length === 0
+              ? "Select integrations to configure"
+              : "Select additional integrations to configure (optional)",
+            choices: additionalTools.map((tool) => ({
+              name: tool.name,
+              value: tool.name,
               checked: false,
             })),
           });
 
-          if (selected.length > 0) {
-            detected = selected.map(tool => ({
-              tool,
-              hasConfig: false,
-              hasMcp: false,
-              hasInstructions: false,
-              globalConfig: false,
-            }));
+          for (const toolName of selected) {
+            const tool = additionalTools.find((item) => item.name === toolName);
+            if (!tool) continue;
+            detected.push(selectedTool(tool));
+            detectedNames.add(tool.name);
           }
         }
       }
@@ -329,15 +352,19 @@ export const initCommand = new Command("init")
       } else {
         for (const d of detected) {
           const scope = d.globalConfig ? chalk.dim(" [global]") : "";
-          const mcpStatus = d.hasMcp ? chalk.green("✓ MCP") : chalk.dim("○ MCP");
-          const rulesStatus = d.hasInstructions ? chalk.green("✓ Rules") : chalk.dim("○ Rules");
+          const mcpStatus = toolSupportsMcp(d.tool)
+            ? (d.hasMcp ? chalk.green("✓ MCP") : chalk.dim("○ MCP"))
+            : chalk.dim("— MCP");
+          const rulesStatus = toolSupportsGeneration(d.tool)
+            ? (d.hasInstructions ? chalk.green("✓ Rules") : chalk.dim("○ Rules"))
+            : chalk.dim("— Rules");
           console.log(`  ${chalk.white(d.tool.name)}${scope} ${mcpStatus} ${rulesStatus}`);
         }
 
         // Configure MCP for detected tools
         if (!opts.skipMcp) {
-          const toolsNeedingMcp = detected.filter(d => !d.hasMcp);
-          
+          const toolsNeedingMcp = detected.filter((d) => toolSupportsMcp(d.tool) && !d.hasMcp);
+
           if (toolsNeedingMcp.length > 0) {
             console.log("");
             const shouldSetupMcp = opts.yes || await confirm({
@@ -364,10 +391,11 @@ export const initCommand = new Command("init")
 
         // Generate instruction files
         if (!opts.skipGenerate) {
-          const toolsNeedingInstructions = detected.filter(d => !d.hasInstructions);
-          const memories = await listMemories({ limit: 1 });
-          
-          if (toolsNeedingInstructions.length > 0 && memories.length > 0) {
+          const toolsNeedingInstructions = detected.filter(
+            (d) => toolSupportsGeneration(d.tool) && !d.hasInstructions,
+          );
+
+          if (toolsNeedingInstructions.length > 0) {
             console.log("");
             const shouldGenerate = opts.yes || await confirm({
               message: `Generate instruction files for ${toolsNeedingInstructions.map(d => d.tool.name).join(", ")}?`,
@@ -375,15 +403,39 @@ export const initCommand = new Command("init")
             });
 
             if (shouldGenerate) {
+              const generatedKeys = new Set<string>();
               for (const d of toolsNeedingInstructions) {
+                if (!d.tool.generateCmd) continue;
+                const cmdArgs = [
+                  process.argv[1],
+                  "generate",
+                  d.tool.generateCmd,
+                  ...(d.tool.generateArgs ?? []),
+                ];
+                const key = cmdArgs.join("\u0000");
+                if (generatedKeys.has(key)) {
+                  ui.success(`${d.tool.name}: Reused generated output`);
+                  continue;
+                }
+
                 try {
-                  execSync(`node ${process.argv[1]} generate ${d.tool.generateCmd} --force`, {
+                  execFileSync("node", cmdArgs, {
                     cwd,
                     stdio: "pipe",
                   });
-                  ui.success(`${d.tool.name}: Generated ${d.tool.instructionFile}`);
-                } catch {
-                  ui.warn(`${d.tool.name}: Failed to generate instructions`);
+                  generatedKeys.add(key);
+                  ui.success(`${d.tool.name}: Generated ${d.tool.instructionFile ?? "instructions"}`);
+                } catch (error) {
+                  const stderr = (
+                    typeof error === "object" &&
+                    error !== null &&
+                    "stderr" in error &&
+                    (error as { stderr?: Buffer | string }).stderr
+                  )
+                    ? String((error as { stderr?: Buffer | string }).stderr).trim()
+                    : "";
+                  const detail = stderr ? ` (${stderr.split("\n").at(-1)})` : "";
+                  ui.warn(`${d.tool.name}: Failed to generate instructions${detail}`);
                 }
               }
             }
