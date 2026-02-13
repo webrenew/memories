@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
-import { KeyRound, Network } from "lucide-react"
+import { BookOpen, KeyRound, Network } from "lucide-react"
 import { Database, BarChart3, Settings, Sparkles, LogOut, AlertTriangle, CreditCard, Users } from "@/components/icons/app"
 import { WorkspaceSwitcher, type OrgMembership } from "./WorkspaceSwitcher"
 import { ThemeSwitcher } from "@/components/ThemeSwitcher"
@@ -37,6 +37,7 @@ const navItems = [
   { href: "/app/graph-explorer", label: "Graph", icon: Network },
   { href: "/app/team", label: "Team", icon: Users },
   { href: "/app/billing", label: "Billing", icon: CreditCard },
+  { href: "/docs", label: "Docs", icon: BookOpen, external: true },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ]
 
@@ -206,11 +207,27 @@ export function DashboardShell({
         <aside className={`hidden md:fixed md:left-0 md:z-40 md:flex flex-col w-56 border-r border-border ${sidebarOffsetClass} p-4 overflow-hidden bg-background`}>
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-1 space-y-1">
             {navItems.map((item) => {
-              const isActive =
+              const isActive = !item.external && (
                 item.href === "/app"
                   ? pathname === "/app"
                   : pathname.startsWith(item.href)
+              )
               const Icon = item.icon
+
+              if (item.external) {
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 px-4 py-3 text-xs uppercase tracking-[0.15em] font-bold transition-all duration-200 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  >
+                    <Icon className="w-4 h-4" />
+                    {item.label}
+                  </a>
+                )
+              }
 
               return (
                 <Link
@@ -238,11 +255,30 @@ export function DashboardShell({
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-2xl border-t border-border">
           <div className="flex items-center justify-around h-14">
             {navItems.map((item) => {
-              const isActive =
+              const isActive = !item.external && (
                 item.href === "/app"
                   ? pathname === "/app"
                   : pathname.startsWith(item.href)
+              )
               const Icon = item.icon
+
+              if (item.external) {
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center gap-1 px-4 py-2 text-muted-foreground"
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="text-[9px] uppercase tracking-wider font-bold">
+                      {item.label}
+                    </span>
+                  </a>
+                )
+              }
+
               return (
                 <Link
                   key={item.href}
