@@ -1,356 +1,295 @@
 # memories.sh
 
-> One Memory, Every AI Tool.
+> Durable memory infrastructure for AI apps and coding agents.
 
-A local-first memory layer for AI coding agents. Store coding rules, decisions, and project knowledge once — generate native config files for Claude Code, Cursor, GitHub Copilot, Windsurf, and more.
+memories.sh helps developers keep context persistent across tools and products. Use the CLI for local-first memory, use MCP for agent interoperability, and use the SDK/API for multi-tenant SaaS memory routing.
 
-## Overview
+## Why developers use it
 
-Every AI coding tool has its own instruction format: `CLAUDE.md`, `.cursor/rules/`, `.github/copilot-instructions.md`, etc. memories.sh gives you a single source of truth — a local SQLite database — and generates the right files for each tool automatically.
+- **Stop repeating context**: store rules, decisions, and project knowledge once.
+- **Ship across many agent tools**: generate native instructions for Claude Code, Cursor, Copilot, Windsurf, and more.
+- **Build SaaS memory safely**: tenant-scoped + user-scoped context via typed SDK and stable endpoint contracts.
+- **Keep control of data**: local-first SQLite workflow with optional cloud sync.
 
-## Installation
+## Product surface
+
+### CLI (`@memories.sh/cli`)
+
+Install:
 
 ```bash
 npm install -g @memories.sh/cli
 ```
 
-Requires Node.js >= 20.
-
-## Quick Start
+Quick start:
 
 ```bash
-memories init                    # Initialize in current project
-memories add "Use pnpm" --type rule
-memories generate                # Generate AI tool configs
-memories serve                   # Start MCP server
+# First-time setup (init is also available)
+memories setup
+
+# Add memory
+memories add --rule "Use pnpm and strict TypeScript"
+
+# Retrieve context
+memories recall "auth + billing approach"
+
+# Generate tool-native instruction files
+memories generate
+
+# Run MCP server
+memories serve
 ```
 
-## Core Concepts
+### Core SDK (`@memories.sh/core`)
 
-### Memory Types
+Install:
 
-| Type | Description | Example |
-|------|-------------|---------|
-| `rule` | Coding standards, preferences, constraints | "Always use TypeScript strict mode" |
-| `decision` | Architectural choices with rationale | "Chose PostgreSQL for JSONB support" |
-| `fact` | Project-specific knowledge | "API rate limit is 100 req/min" |
-| `note` | General notes and context | "TODO: Refactor auth module" |
+```bash
+npm install @memories.sh/core
+```
+
+Use `MemoriesClient` for typed access to context, memory CRUD, graph operations, and management APIs.
+
+### AI SDK integration (`@memories.sh/ai-sdk`)
+
+Install:
+
+```bash
+npm install @memories.sh/ai-sdk ai
+```
+
+Use:
+
+- `memoriesMiddleware()` for automatic prompt enrichment
+- `memoriesTools()` for tool-calling agent loops
+- `memoriesSystemPrompt()` for memory-aware system prompts
+
+### Web app (`memories.sh`)
+
+- marketing + docs
+- auth + billing
+- account/workspace management
+- usage and tenant routing visibility
+
+## Memory model
+
+### Memory types
+
+| Type | Purpose |
+|------|---------|
+| `rule` | Always-on coding or product constraints |
+| `decision` | Architectural/product decisions with rationale |
+| `fact` | Concrete project or domain knowledge |
+| `note` | General contextual notes |
+| `skill` | Reusable agent workflow memory |
 
 ### Scopes
 
-- **global** — Applies to all projects (stored at `~/.config/memories/local.db`)
-- **project** — Applies only to current project (detected via git remote)
+- **global**: applies across projects
+- **project**: scoped to repository/project context
+- **tenant/user/project request scope** (SDK/API): designed for SaaS isolation
 
-## CLI Commands
+## Key CLI commands
 
-### Core Commands
+| Command | What it does |
+|---------|---------------|
+| `memories init` / `memories setup` | Initialize + auto-configure supported tool integrations |
+| `memories add` | Add rule/decision/fact/note/skill memories |
+| `memories recall` | Retrieve relevant rules + memories for current task |
+| `memories prompt` | Generate memory-informed system prompt text |
+| `memories search` | Keyword/semantic search |
+| `memories list` | List memories with filters |
+| `memories edit` | Edit memory entries |
+| `memories forget` | Soft-delete memory entries |
+| `memories tag` | Bulk tag/untag memory records |
+| `memories generate` | Generate instruction files for detected tools |
+| `memories diff` | Compare generated vs current instructions |
+| `memories import` / `memories export` | Move memories in/out of YAML/JSON |
+| `memories ingest` | Import existing tool config files into memory |
+| `memories files` | Sync generated config files |
+| `memories sync` | Cloud sync workflow |
+| `memories org` | List/switch active organization workspace |
+| `memories serve` | Start local MCP server |
+| `memories doctor` | Health checks and diagnostics |
+| `memories stats` | Usage and memory stats |
+| `memories config` | Config management |
+| `memories hook` | Git hook management |
+| `memories login` | Cloud auth |
 
-| Command | Description |
-|---------|-------------|
-| `memories init` | Initialize memories in current project |
-| `memories add <content>` | Add a new memory |
-| `memories recall` | Get context-aware memories for current project |
-| `memories prompt` | Generate a system prompt from memories |
+## MCP server
 
-### Query Commands
+The CLI includes a built-in MCP server (`memories serve`) for agent interoperability.
 
-| Command | Description |
-|---------|-------------|
-| `memories search <query>` | Full-text search across memories |
-| `memories list` | List memories with optional filters |
+Core MCP tools:
 
-### Management Commands
+- `get_context`
+- `add_memory`
+- `search_memories`
+- `get_rules`
+- `list_memories`
+- `edit_memory`
+- `forget_memory`
 
-| Command | Description |
-|---------|-------------|
-| `memories edit <id>` | Edit an existing memory |
-| `memories forget <id>` | Soft-delete a memory |
-| `memories tag <id> <tags>` | Add or update tags |
-| `memories generate` | Generate native config files |
-| `memories export` | Export memories to YAML |
-| `memories import <file>` | Import memories from YAML |
-| `memories diff` | Compare generated vs existing configs |
-| `memories ingest` | Import existing rule files as memories |
-| `memories stats` | Show memory statistics |
-| `memories doctor` | Check for common issues |
-| `memories config` | View or set configuration |
-| `memories hook` | Manage git hooks for auto-generation |
-| `memories sync` | Sync local database with cloud |
-| `memories serve` | Start the MCP server |
+Useful MCP resources:
 
-### Auth Commands
+- `memories://rules`
+- `memories://recent`
+- `memories://project/{id}`
 
-| Command | Description |
-|---------|-------------|
-| `memories login` | Authenticate with memories.sh cloud |
-| `memories logout` | Remove stored credentials |
+## HTTP API endpoints
 
-## MCP Server
+### Documentation API
 
-The built-in Model Context Protocol server enables AI agents to interact with memories directly.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/docs/raw?path={path}` | GET | Returns raw markdown for docs pages |
 
-### Starting the Server
+Examples:
 
 ```bash
-# Stdio transport (for Claude Code, Cursor)
-memories serve
-
-# SSE transport (for web-based agents)
-memories serve --sse --port 3001
+curl "https://memories.sh/api/docs/raw?path=getting-started"
+curl "https://memories.sh/api/docs/raw?path=cli/add"
+curl "https://memories.sh/api/docs/raw?path=sdk/endpoint-contract"
 ```
 
-### MCP Configuration (Claude Code)
+### SDK v1 endpoints (stable contracts)
 
-```json
-{
-  "mcpServers": {
-    "memories": {
-      "command": "memories",
-      "args": ["serve"]
-    }
-  }
-}
-```
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/sdk/v1/health` | GET | SDK API health |
+| `/api/sdk/v1/context/get` | POST | Retrieve scoped memory context |
+| `/api/sdk/v1/memories/add` | POST | Add memory |
+| `/api/sdk/v1/memories/edit` | POST | Edit memory |
+| `/api/sdk/v1/memories/search` | POST | Search memories |
+| `/api/sdk/v1/memories/list` | POST | List memories |
+| `/api/sdk/v1/memories/forget` | POST | Forget memory |
+| `/api/sdk/v1/graph/status` | GET | Graph status summary |
+| `/api/sdk/v1/graph/trace` | GET | Graph trace view |
+| `/api/sdk/v1/graph/rollout` | GET/POST/PATCH | Graph rollout controls |
+| `/api/sdk/v1/management/keys` | GET/POST/DELETE | API key management |
+| `/api/sdk/v1/management/tenants` | GET/POST/DELETE | Tenant mapping management |
 
-### MCP Tools
+### Legacy MCP transport endpoint
 
-| Tool | Description | Parameters |
-|------|-------------|------------|
-| `get_context` | Get relevant context for current task (PRIMARY) | `query?`, `limit?` |
-| `add_memory` | Store a new memory | `content`, `type?`, `tags?`, `global?` |
-| `search_memories` | Full-text search | `query`, `limit?`, `types?` |
-| `get_rules` | Get all active rules | none |
-| `list_memories` | List memories with filters | `limit?`, `tags?`, `types?` |
-| `edit_memory` | Update an existing memory | `id`, `content?`, `type?`, `tags?` |
-| `forget_memory` | Soft-delete a memory | `id` |
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/mcp` | GET/POST/DELETE | JSON-RPC + SSE style MCP transport |
 
-### MCP Resources
+## Pricing snapshot
 
-| URI | Description |
-|-----|-------------|
-| `memories://rules` | All active rules (coding standards, preferences) |
-| `memories://recent` | 20 most recent memories |
-| `memories://project/{id}` | Memories for a specific project |
-
-### Streaming Memory Tools (for SSE/streaming content)
-
-| Tool | Description |
-|------|-------------|
-| `start_memory_stream` | Start collecting from SSE stream |
-| `append_memory_chunk` | Append chunk to active stream |
-| `finalize_memory_stream` | Complete stream and create memory |
-| `cancel_memory_stream` | Cancel without creating memory |
-
-## Memory Interface
-
-```typescript
-interface Memory {
-  id: string;
-  content: string;
-  tags: string | null;
-  scope: "global" | "project";
-  project_id: string | null;
-  type: "rule" | "decision" | "fact" | "note";
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
-}
-```
-
-## Config File Generation
-
-The `memories generate` command outputs native config files:
-
-| AI Tool | Output Path |
-|---------|-------------|
-| Claude Code | `CLAUDE.md` |
-| Cursor | `.cursor/rules/*.mdc` |
-| GitHub Copilot | `.github/copilot-instructions.md` |
-| Windsurf | `.windsurf/rules/memories.md` |
-
-## Cloud Sync
-
-Optional cloud backup via Turso embedded replicas:
-
-```bash
-memories login    # Authenticate
-memories sync     # Sync to cloud
-```
-
-## Web Dashboard
-
-Available at [memories.sh](https://memories.sh):
-
-- Browse and search memories
-- Usage statistics and charts
-- Account settings and plan management
-- CLI authentication approval
-
-## API Endpoints
-
-### Documentation API (for AI Agents)
-
-Fetch any documentation page as raw markdown:
-
-```bash
-# Get the getting-started guide
-curl https://memories.sh/api/docs/raw?path=getting-started
-
-# Get CLI add command docs
-curl https://memories.sh/api/docs/raw?path=cli/add
-
-# Get MCP server overview
-curl https://memories.sh/api/docs/raw?path=mcp-server
-
-# Get Claude Code integration guide
-curl https://memories.sh/api/docs/raw?path=integrations/claude-code
-```
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/docs/raw?path={path}` | GET | Get raw markdown for any docs page |
-
-The `path` parameter maps to documentation structure:
-- `index` or empty → `/docs`
-- `getting-started` → `/docs/getting-started`
-- `cli/add` → `/docs/cli/add`
-- `integrations/cursor` → `/docs/integrations/cursor`
-- `mcp-server/tools-reference` → `/docs/mcp-server/tools-reference`
-
-### Memories API
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/memories` | GET | List user's memories |
-| `/api/memories` | POST | Create a new memory |
-| `/api/memories/stats` | GET | Get memory statistics |
-| `/api/search` | GET | Full-text search |
-
-### Auth API
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/auth/cli` | POST | CLI authentication flow |
-| `/api/user` | GET | Get current user |
-| `/api/account` | GET/PATCH | Account management |
-
-### Database API
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/db/provision` | POST | Provision Turso database |
-| `/api/db/credentials` | GET | Get database credentials |
-| `/api/db/limits` | GET | Get usage limits |
-
-### MCP API
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/mcp` | POST | MCP server endpoint (HTTP transport) |
-| `/api/mcp/key` | GET/POST | Manage MCP API keys |
-
-## Tech Stack
-
-**CLI**: Node.js, Commander.js, libSQL/SQLite, MCP SDK, Zod, Xenova Transformers (embeddings)
-
-**Web**: Next.js 15, Tailwind CSS v4, shadcn/ui, Supabase Auth, Turso, Stripe, Framer Motion
-
-## Project Structure
-
-```
-memories/
-├── packages/
-│   ├── cli/                 # @memories.sh/cli
-│   │   ├── src/
-│   │   │   ├── commands/    # CLI commands
-│   │   │   ├── lib/         # Core libraries (db, memory, auth, git, turso)
-│   │   │   └── mcp/         # MCP server implementation
-│   │   └── package.json
-│   └── web/                 # Next.js marketing + dashboard
-│       ├── src/
-│       │   ├── app/         # App Router pages and API routes
-│       │   ├── components/  # UI components
-│       │   └── lib/         # Auth, Stripe, Supabase, Turso clients
-│       └── package.json
-├── supabase/                # Database migrations
-└── pnpm-workspace.yaml
-```
-
-## Pricing
-
-| Plan | Price | Features |
+| Plan | Price | Best for |
 |------|-------|----------|
-| Free | $0/mo | Local-only, unlimited memories, all CLI features |
-| Pro | $15/mo | Cloud sync, web dashboard, cross-machine access |
-| Enterprise | Contact | Team features, priority support |
+| Free | $0 | Local-first memory and generation workflows |
+| Professional | $15/mo or $150/yr | Cloud sync + dashboard for active teams |
+| Enterprise | Custom | Contracts, support, and high-scale SaaS rollout needs |
 
-## Documentation Structure
+## Documentation map
 
-Detailed documentation is available at https://memories.sh/docs:
+Documentation root: https://memories.sh/docs
 
-### Getting Started
-- `/docs` — Overview and introduction
-- `/docs/getting-started` — Quick start guide
+### Start here
 
-### Core Concepts
-- `/docs/concepts/memory-types` — Rule, decision, fact, note
-- `/docs/concepts/scopes` — Global vs project scopes
-- `/docs/concepts/project-detection` — How projects are identified
-- `/docs/concepts/generation-targets` — Supported AI tools
-- `/docs/concepts/embedding-models` — Model comparison and recommendations
+- `/docs` — documentation home
+- `/docs/getting-started` — setup + first workflow
+- `/docs/starter-apps-quickstart` — starter app quickstart
+- `/docs/changelog` — release updates
 
-### CLI Reference
-- `/docs/cli` — CLI overview
-- `/docs/cli/add` — Add memories
-- `/docs/cli/recall` — Get context-aware memories
-- `/docs/cli/prompt` — Generate system prompts
-- `/docs/cli/search` — Full-text search
-- `/docs/cli/list` — List memories
-- `/docs/cli/edit` — Edit memories
-- `/docs/cli/forget` — Delete memories
-- `/docs/cli/tag` — Manage tags
-- `/docs/cli/generate` — Generate config files
-- `/docs/cli/diff` — Compare configs
-- `/docs/cli/export` — Export to YAML
-- `/docs/cli/import` — Import from YAML
-- `/docs/cli/ingest` — Import existing rule files
-- `/docs/cli/stats` — Statistics
-- `/docs/cli/doctor` — Diagnostics
-- `/docs/cli/config` — Configuration
-- `/docs/cli/hook` — Git hooks
-- `/docs/cli/sync` — Cloud sync
-- `/docs/cli/serve` — MCP server
-- `/docs/cli/login` — Authentication
-- `/docs/cli/embed` — Generate embeddings
-- `/docs/cli/files` — File operations
+### Core references
 
-### MCP Server
-- `/docs/mcp-server` — MCP overview
-- `/docs/mcp-server/tools-reference` — All MCP tools
-- `/docs/mcp-server/resources-reference` — All MCP resources
+- `/docs/cli` — full CLI reference
+- `/docs/concepts/memory-types`
+- `/docs/concepts/scopes`
+- `/docs/concepts/project-detection`
+- `/docs/concepts/generation-targets`
+- `/docs/concepts/embedding-models`
+
+### CLI command pages
+
+- `/docs/cli/init`
+- `/docs/cli/add`
+- `/docs/cli/recall`
+- `/docs/cli/prompt`
+- `/docs/cli/search`
+- `/docs/cli/list`
+- `/docs/cli/edit`
+- `/docs/cli/forget`
+- `/docs/cli/tag`
+- `/docs/cli/generate`
+- `/docs/cli/diff`
+- `/docs/cli/export`
+- `/docs/cli/import`
+- `/docs/cli/ingest`
+- `/docs/cli/files`
+- `/docs/cli/embed`
+- `/docs/cli/sync`
+- `/docs/cli/org`
+- `/docs/cli/serve`
+- `/docs/cli/stats`
+- `/docs/cli/doctor`
+- `/docs/cli/config`
+- `/docs/cli/hook`
+- `/docs/cli/login`
+
+### MCP docs
+
+- `/docs/mcp-server`
+- `/docs/mcp-server/tools-reference`
+- `/docs/mcp-server/resources-reference`
+- `/docs/mcp-server/tenant-routing`
+
+### SDK docs
+
+- `/docs/sdk`
+- `/docs/sdk/client`
+- `/docs/sdk/middleware`
+- `/docs/sdk/tools`
+- `/docs/sdk/endpoint-contract`
+- `/docs/sdk/graph-architecture`
+- `/docs/sdk/graph-operations-runbook`
 
 ### Integrations
-- `/docs/integrations` — Integration overview
-- `/docs/integrations/claude-code` — Claude Code setup
-- `/docs/integrations/cursor` — Cursor setup
-- `/docs/integrations/copilot` — GitHub Copilot setup
-- `/docs/integrations/windsurf` — Windsurf setup
-- `/docs/integrations/cline` — Cline setup
-- `/docs/integrations/roo` — Roo setup
-- `/docs/integrations/gemini` — Gemini setup
-- `/docs/integrations/v0` — v0 setup
-- `/docs/integrations/factory` — Factory setup
-- `/docs/integrations/opencode` — OpenCode setup
-- `/docs/integrations/mcp` — Generic MCP integration
 
-### Features
-- `/docs/cloud-sync` — Turso cloud sync
-- `/docs/git-hooks` — Auto-generation on commit
-- `/docs/import-export` — YAML import/export
+- `/docs/integrations`
+- `/docs/integrations/claude-code`
+- `/docs/integrations/cursor`
+- `/docs/integrations/copilot`
+- `/docs/integrations/windsurf`
+- `/docs/integrations/gemini`
+- `/docs/integrations/cline`
+- `/docs/integrations/roo`
+- `/docs/integrations/opencode`
+- `/docs/integrations/blackbox`
+- `/docs/integrations/codex`
+- `/docs/integrations/amp`
+- `/docs/integrations/kilo`
+- `/docs/integrations/trae`
+- `/docs/integrations/goose`
+- `/docs/integrations/openclaw`
+- `/docs/integrations/antigravity`
+- `/docs/integrations/kiro`
+- `/docs/integrations/factory`
+- `/docs/integrations/v0`
+- `/docs/integrations/mcp`
+
+### Additional guides
+
+- `/docs/cloud-sync`
+- `/docs/import-export`
+- `/docs/git-hooks`
+
+## LLM-oriented notes
+
+- Prefer SDK v1 endpoints (`/api/sdk/v1/*`) for explicit contracts.
+- Use `tenantId` for workspace/customer isolation in SaaS implementations.
+- Use `userId` for per-end-user personalization and retrieval boundaries.
+- Use `projectId` to keep memory relevant to repository/workstream context.
+- For doc ingestion/grounding, use `/api/docs/raw?path=...` and cite path sources.
 
 ## Links
 
 - Website: https://memories.sh
-- Documentation: https://memories.sh/docs
+- Docs: https://memories.sh/docs
 - GitHub: https://github.com/WebRenew/memories
-- npm: https://www.npmjs.com/package/@memories.sh/cli
+- npm CLI: https://www.npmjs.com/package/@memories.sh/cli
+- npm Core SDK: https://www.npmjs.com/package/@memories.sh/core
+- npm AI SDK: https://www.npmjs.com/package/@memories.sh/ai-sdk
