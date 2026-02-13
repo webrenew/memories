@@ -43,10 +43,18 @@ export default function HomePage() {
     return trimmed.length > 0 ? `&projectId=${encodeURIComponent(trimmed)}` : ""
   }, [projectId])
 
-  const authHeader = useMemo(() => {
-    const token = authToken.trim()
-    return token ? { authorization: `Bearer ${token}` } : {}
-  }, [authToken])
+  const bearerToken = useMemo(() => authToken.trim(), [authToken])
+
+  function buildHeaders(includeJsonContentType = false): Record<string, string> {
+    const headers: Record<string, string> = {}
+    if (includeJsonContentType) {
+      headers["content-type"] = "application/json"
+    }
+    if (bearerToken) {
+      headers.authorization = `Bearer ${bearerToken}`
+    }
+    return headers
+  }
 
   async function addMemory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -60,7 +68,7 @@ export default function HomePage() {
         .filter(Boolean)
       const response = await fetch("/api/memories/add", {
         method: "POST",
-        headers: { "content-type": "application/json", ...authHeader },
+        headers: buildHeaders(true),
         body: JSON.stringify({
           content: addContent,
           type: addType,
@@ -91,7 +99,7 @@ export default function HomePage() {
       const response = await fetch(
         `/api/memories/search?q=${encodeURIComponent(searchQuery.trim())}&limit=12${projectParam}`,
         {
-          headers: { ...authHeader },
+          headers: buildHeaders(),
         }
       )
       const body = (await response.json()) as ApiResult
@@ -119,7 +127,7 @@ export default function HomePage() {
         `&limit=10${projectParam}`
 
       const response = await fetch(url, {
-        headers: { ...authHeader },
+        headers: buildHeaders(),
       })
       const body = (await response.json()) as ApiResult
       if (!response.ok || !body.ok) {

@@ -73,9 +73,6 @@ export async function GET(request: Request) {
       query: q,
       mode,
       limit,
-      strategy,
-      graphDepth,
-      graphLimit,
       projectId: scope.projectId,
     })
 
