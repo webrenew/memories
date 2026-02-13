@@ -15,7 +15,7 @@ export function Integrations() {
             <h2 className="font-mono font-normal text-2xl sm:text-4xl text-foreground">
               <ScrambleText text="Works With Your Tools" delayMs={200} />
             </h2>
-            <p className="mt-6 text-lg text-muted-foreground max-w-2xl">
+            <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl leading-relaxed">
               One memory store, every coding agent. Generate native config files for each tool so your context follows you—no copy-paste, no manual sync.
             </p>
           </div>

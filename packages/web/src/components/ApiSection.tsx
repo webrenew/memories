@@ -159,7 +159,7 @@ export function ApiSection() {
           <h2 className="font-mono font-normal text-2xl sm:text-4xl text-foreground">
             <ScrambleText text="Production API that actually ships fast." delayMs={200} />
           </h2>
-          <p className="mt-6 text-lg text-muted-foreground max-w-3xl">
+          <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-3xl leading-relaxed">
             One predictable SDK surface for retrieval, writes, graph rollout, and diagnostics. Designed for strict
             clients and fast incident debugging. `tenantId` is the database boundary, `userId` is end-user scope, and
             `projectId` is an optional repo context filter. Default SDK transport is HTTP API; MCP transport is optional.

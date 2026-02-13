@@ -48,7 +48,7 @@ export function FAQ() {
             <h2 className="font-mono font-normal text-2xl sm:text-4xl text-foreground">
               <ScrambleText text="Questions & Answers" delayMs={200} />
             </h2>
-            <p className="mt-6 text-lg text-muted-foreground max-w-2xl">
+            <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl leading-relaxed">
               Common questions about memories.sh and how it works.
             </p>
           </div>

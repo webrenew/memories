@@ -31,7 +31,7 @@ export default function EnterprisePage() {
 
               <p className="text-muted-foreground text-base sm:text-lg max-w-3xl leading-relaxed">
                 Tell us what you are building and we will help you pick the fastest path: self-serve usage-based
-                onboarding for SaaS teams, or enterprise support for larger rollouts.
+                onboarding for dev teams, or enterprise support for larger rollouts.
               </p>
             </div>
 

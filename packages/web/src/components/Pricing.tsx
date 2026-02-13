@@ -101,7 +101,7 @@ export function Pricing({ user }: { user?: User | null }) {
           <h2 className="font-mono font-normal text-2xl sm:text-4xl mb-6 text-foreground">
             <ScrambleText text="Simple, Transparent Pricing" delayMs={200} />
           </h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto text-lg font-light leading-relaxed">
+          <p className="text-muted-foreground max-w-2xl mx-auto text-base sm:text-lg font-light leading-relaxed">
             Free gives you durable local state and recall on your machine. Pro gets teams live quickly, then you can add enterprise controls and higher-volume routing as you scale.
           </p>
         </div>

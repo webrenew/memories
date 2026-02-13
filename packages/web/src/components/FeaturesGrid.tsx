@@ -101,7 +101,7 @@ export function FeaturesGrid() {
             <h2 className="font-mono font-normal text-2xl sm:text-4xl text-foreground">
               <ScrambleText text="Built for durable state" delayMs={200} />
             </h2>
-            <p className="mt-6 text-lg text-muted-foreground max-w-2xl">
+            <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl leading-relaxed">
               Everything you need to make agent context persist—locally by default, synced when you choose.
             </p>
           </div>

@@ -217,7 +217,7 @@ export function HowItWorks() {
               </h2>
               
               {/* Description */}
-              <p className="text-lg text-muted-foreground max-w-md">
+              <p className="text-base sm:text-lg text-muted-foreground max-w-md leading-relaxed">
                 {tabContent[activeTab].description}
               </p>
             </motion.div>
