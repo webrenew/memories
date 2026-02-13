@@ -152,7 +152,7 @@ export function ApiSection() {
         }}
       />
       <div className="relative w-full px-6 lg:px-16 xl:px-24">
-        <div className="mb-16 flex flex-col items-center text-center">
+        <div className="mb-16 flex max-w-3xl flex-col items-start text-left">
           <div className="inline-flex items-center gap-2 mb-4">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">
