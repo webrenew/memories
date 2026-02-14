@@ -2,12 +2,15 @@ import { authenticateRequest } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createDatabase, createDatabaseToken, initSchema } from "@/lib/turso"
 import { NextResponse } from "next/server"
-import { checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
+import { checkPreAuthApiRateLimit, checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import { resolveWorkspaceContext } from "@/lib/workspace"
 
 const TURSO_ORG = "webrenew"
 
 export async function POST(request: Request) {
+  const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
+  if (preAuthRateLimited) return preAuthRateLimited
+
   const auth = await authenticateRequest(request)
 
   if (!auth) {

@@ -1,10 +1,13 @@
 import { authenticateRequest } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { apiRateLimit, checkPreAuthApiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { buildIntegrationHealthPayload } from "@/lib/integration-health"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
+  const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
+  if (preAuthRateLimited) return preAuthRateLimited
+
   const auth = await authenticateRequest(request)
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

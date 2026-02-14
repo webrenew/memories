@@ -70,6 +70,12 @@ function createRateLimiter(max: number, windowSeconds: number, prefix: string): 
 export const apiRateLimit = createRateLimiter(60, 60, "rl:api")
 
 /**
+ * Pre-auth rate limiter for authenticated API routes.
+ * 120 requests per 60 seconds per IP.
+ */
+export const preAuthApiRateLimit = createRateLimiter(120, 60, "rl:preauth")
+
+/**
  * Strict rate limiter for expensive operations (db provisioning, account deletion).
  * 5 requests per 60 seconds per user.
  */
@@ -113,6 +119,14 @@ export async function checkRateLimit(
   }
 
   return null
+}
+
+/**
+ * Check pre-auth per-IP rate limit for authenticated API endpoints.
+ * Returns null if the request is allowed.
+ */
+export async function checkPreAuthApiRateLimit(request: Request): Promise<NextResponse | null> {
+  return checkRateLimit(preAuthApiRateLimit, getClientIp(request))
 }
 
 /**

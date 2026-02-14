@@ -130,6 +130,34 @@ describe("/api/db/credentials", () => {
     expect(body.dbName).toBe("demo-db")
   })
 
+  it("returns personal credentials when org membership is revoked", async () => {
+    mockAuthenticateRequest.mockResolvedValue({
+      userId: "user-1",
+      email: "user@example.com",
+    })
+    mockResolveActiveMemoryContext.mockResolvedValue({
+      ownerType: "user",
+      orgId: null,
+      turso_db_url: "libsql://personal.turso.io",
+      turso_db_token: "personal-token",
+      turso_db_name: "personal-db",
+    })
+
+    const request = new Request("http://localhost/api/db/credentials", {
+      headers: { authorization: "Bearer cli_abc123" },
+    })
+
+    const response = await GET(request as never)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.ownerType).toBe("user")
+    expect(body.orgId).toBeNull()
+    expect(body.url).toBe("libsql://personal.turso.io")
+    expect(body.token).toBe("personal-token")
+    expect(body.dbName).toBe("personal-db")
+  })
+
   it("returns 401 when cli auth fails", async () => {
     mockAuthenticateRequest.mockResolvedValue(null)
 

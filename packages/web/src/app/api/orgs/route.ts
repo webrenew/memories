@@ -2,11 +2,14 @@ import { authenticateRequest } from "@/lib/auth"
 import { logOrgAuditEvent } from "@/lib/org-audit"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
-import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { apiRateLimit, checkPreAuthApiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, createOrgSchema } from "@/lib/validations"
 
 // GET /api/orgs - List user's organizations
 export async function GET(request: Request) {
+  const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
+  if (preAuthRateLimited) return preAuthRateLimited
+
   const auth = await authenticateRequest(request)
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -45,6 +48,9 @@ export async function GET(request: Request) {
 
 // POST /api/orgs - Create a new organization
 export async function POST(request: Request) {
+  const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
+  if (preAuthRateLimited) return preAuthRateLimited
+
   const auth = await authenticateRequest(request)
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

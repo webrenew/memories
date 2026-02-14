@@ -3,7 +3,7 @@ import { z } from "zod"
 import { createHash } from "node:crypto"
 import { authenticateRequest } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { apiRateLimit, checkPreAuthApiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { resolveWorkspaceContext } from "@/lib/workspace"
 
 const scopeSchema = z.enum(["global", "project"])
@@ -170,6 +170,9 @@ function buildVaultSecretDescription(params: {
 }
 
 export async function GET(request: Request) {
+  const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
+  if (preAuthRateLimited) return preAuthRateLimited
+
   const auth = await authenticateRequest(request)
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -274,6 +277,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
+  if (preAuthRateLimited) return preAuthRateLimited
+
   const auth = await authenticateRequest(request)
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

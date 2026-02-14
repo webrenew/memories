@@ -4,10 +4,12 @@ const {
   mockAuthenticateRequest,
   mockAdminFrom,
   mockCheckRateLimit,
+  mockCheckPreAuthApiRateLimit,
 } = vi.hoisted(() => ({
   mockAuthenticateRequest: vi.fn(),
   mockAdminFrom: vi.fn(),
   mockCheckRateLimit: vi.fn(),
+  mockCheckPreAuthApiRateLimit: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({
@@ -23,6 +25,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   apiRateLimit: { limit: vi.fn().mockResolvedValue({ success: true }) },
   checkRateLimit: mockCheckRateLimit,
+  checkPreAuthApiRateLimit: mockCheckPreAuthApiRateLimit,
 }))
 
 import { GET, POST } from "../route"
@@ -30,6 +33,7 @@ import { GET, POST } from "../route"
 describe("/api/orgs", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCheckPreAuthApiRateLimit.mockResolvedValue(null)
     mockCheckRateLimit.mockResolvedValue(null)
   })
 

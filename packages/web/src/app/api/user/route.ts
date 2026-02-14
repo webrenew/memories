@@ -1,7 +1,7 @@
 import { authenticateRequest } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
-import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
+import { apiRateLimit, checkPreAuthApiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, updateUserSchema } from "@/lib/validations"
 
 type UserProfileRow = {
@@ -92,6 +92,9 @@ async function recordWorkspaceSwitchEvent(admin: AdminClient, event: WorkspaceSw
 }
 
 export async function GET(request: Request) {
+  const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
+  if (preAuthRateLimited) return preAuthRateLimited
+
   const auth = await authenticateRequest(request)
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -132,6 +135,9 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
+  if (preAuthRateLimited) return preAuthRateLimited
+
   const auth = await authenticateRequest(request)
   if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

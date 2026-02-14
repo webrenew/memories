@@ -1,12 +1,27 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
+import { confirm } from "@inquirer/prompts";
 import { readAuth, saveAuth, clearAuth } from "../lib/auth.js";
 import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
 import * as ui from "../lib/ui.js";
 
 const DEFAULT_API_URL = "https://memories.sh";
+
+function stripTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function normalizeApiUrl(value: string): string {
+  const trimmed = value.trim();
+  try {
+    const parsed = new URL(trimmed);
+    return `${parsed.origin}${stripTrailingSlash(parsed.pathname)}`;
+  } catch {
+    return stripTrailingSlash(trimmed);
+  }
+}
 
 function openBrowser(url: string): void {
   const platform = process.platform;
@@ -24,7 +39,8 @@ function openBrowser(url: string): void {
 export const loginCommand = new Command("login")
   .description("Log in to memories.sh to enable cloud sync")
   .option("--api-url <url>", "API base URL", DEFAULT_API_URL)
-  .action(async (opts: { apiUrl: string }) => {
+  .option("-y, --yes", "Skip confirmation prompts")
+  .action(async (opts: { apiUrl: string; yes?: boolean }) => {
     ui.banner();
 
     const existing = await readAuth();
@@ -32,6 +48,30 @@ export const loginCommand = new Command("login")
       ui.warn(`Already logged in as ${chalk.bold(existing.email)}`);
       ui.dim(`Run ${chalk.cyan("memories logout")} to sign out first.`);
       return;
+    }
+
+    const apiUrl = stripTrailingSlash(opts.apiUrl);
+    const usingNonDefaultApiUrl =
+      normalizeApiUrl(apiUrl) !== normalizeApiUrl(DEFAULT_API_URL);
+
+    if (usingNonDefaultApiUrl) {
+      ui.warn(`Using non-default API URL: ${chalk.bold(apiUrl)}`);
+      ui.warn("Only continue if you trust this server. It can capture your CLI auth token.");
+
+      if (!opts.yes && !process.stdin.isTTY) {
+        ui.error("Login cancelled in non-interactive mode.");
+        ui.dim(`Re-run with ${chalk.cyan("--yes")} if you intend to trust this API URL.`);
+        return;
+      }
+
+      const proceed = opts.yes || await confirm({
+        message: `Continue login against ${apiUrl}?`,
+        default: false,
+      });
+      if (!proceed) {
+        ui.info("Login cancelled.");
+        return;
+      }
     }
 
     ui.box(
@@ -44,7 +84,7 @@ export const loginCommand = new Command("login")
     );
 
     const code = randomBytes(16).toString("hex");
-    const authUrl = `${opts.apiUrl}/app/auth/cli?code=${code}`;
+    const authUrl = `${apiUrl}/app/auth/cli?code=${code}`;
 
     console.log(chalk.bold("Open this URL in your browser:\n"));
     console.log(`  ${chalk.cyan(authUrl)}\n`);
@@ -69,7 +109,7 @@ export const loginCommand = new Command("login")
       spinner.text = `Waiting for authorization... (${Math.floor((maxAttempts - i) * 5 / 60)}m remaining)`;
 
       try {
-        const res = await fetch(`${opts.apiUrl}/api/auth/cli`, {
+        const res = await fetch(`${apiUrl}/api/auth/cli`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "poll", code }),
@@ -83,7 +123,7 @@ export const loginCommand = new Command("login")
           await saveAuth({
             token: data.token,
             email: data.email,
-            apiUrl: opts.apiUrl,
+            apiUrl,
           });
           spinner.stop();
           console.log("");

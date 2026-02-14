@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockAuthenticateRequest, mockCheckRateLimit, mockBuildIntegrationHealthPayload } = vi.hoisted(() => ({
+const {
+  mockAuthenticateRequest,
+  mockCheckRateLimit,
+  mockCheckPreAuthApiRateLimit,
+  mockBuildIntegrationHealthPayload,
+} = vi.hoisted(() => ({
   mockAuthenticateRequest: vi.fn(),
   mockCheckRateLimit: vi.fn(),
+  mockCheckPreAuthApiRateLimit: vi.fn(),
   mockBuildIntegrationHealthPayload: vi.fn(),
 }))
 
@@ -13,6 +19,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/rate-limit", () => ({
   apiRateLimit: { limit: vi.fn() },
   checkRateLimit: mockCheckRateLimit,
+  checkPreAuthApiRateLimit: mockCheckPreAuthApiRateLimit,
 }))
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -28,6 +35,7 @@ import { GET } from "../route"
 describe("/api/integration/health", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCheckPreAuthApiRateLimit.mockResolvedValue(null)
     mockCheckRateLimit.mockResolvedValue(null)
   })
 
