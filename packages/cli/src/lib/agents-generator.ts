@@ -257,8 +257,8 @@ async function generateSkills(
     activeCategories.add(category);
     const meta = parseMetadata(m.metadata);
 
-    const name = (meta.name as string) || category;
-    const description = (meta.description as string) || "";
+    const name = typeof meta.name === "string" ? meta.name : category;
+    const description = typeof meta.description === "string" ? meta.description : "";
 
     const frontmatter = [
       "---",

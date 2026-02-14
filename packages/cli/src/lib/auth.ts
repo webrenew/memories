@@ -21,12 +21,15 @@ function isAbortError(error: unknown): boolean {
     return error.name === "AbortError";
   }
 
-  return (
+  if (
     typeof error === "object"
     && error !== null
     && "name" in error
-    && String((error as { name?: unknown }).name) === "AbortError"
-  );
+  ) {
+    return error.name === "AbortError";
+  }
+
+  return false;
 }
 
 function isRetryableNetworkError(error: unknown): boolean {

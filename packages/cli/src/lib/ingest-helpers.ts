@@ -175,7 +175,7 @@ async function ingestRulesFromDir(
 
       const { frontmatter, body } = parseFrontmatter(content);
       const paths = Array.isArray(frontmatter.paths)
-        ? (frontmatter.paths as unknown[]).map(String)
+        ? frontmatter.paths.map(String)
         : [];
       const category = basename(file, fileExtension);
       const items = extractBulletPoints(body);
@@ -274,7 +274,7 @@ export async function ingestCursorRules(
       if (!alwaysApply && typeof frontmatter.globs === "string") {
         paths = frontmatter.globs.split(",").map((g) => g.trim()).filter(Boolean);
       } else if (!alwaysApply && Array.isArray(frontmatter.globs)) {
-        paths = (frontmatter.globs as unknown[]).map(String).filter(Boolean);
+        paths = frontmatter.globs.map(String).filter(Boolean);
       }
 
       const category = basename(file, ".mdc");
