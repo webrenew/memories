@@ -38,7 +38,7 @@ Replace `YOUR_API_KEY` with the key you generated.
 Test the connection:
 ```bash
 curl -H "Authorization: Bearer YOUR_API_KEY" https://memories.sh/api/mcp
-# Should return: {"status":"ok","name":"memories.sh MCP Server","version":"0.4.0"}
+# Should return: {"status":"ok","name":"memories.sh MCP Server","version":"0.6.0"}
 ```
 
 ## Using with v0
@@ -67,9 +67,14 @@ The hosted MCP server provides these tools:
 | Tool | Description |
 |------|-------------|
 | `get_context` | Get rules and relevant memories |
-| `add_memory` | Store a new memory (rule, decision, fact, note) |
+| `add_memory` | Store a new memory (rule, decision, fact, note, skill) |
 | `search_memories` | Search by content |
+| `get_rules` | Get all active rules |
 | `list_memories` | List recent memories |
+| `edit_memory` | Update an existing memory |
+| `forget_memory` | Soft-delete a memory |
+| `bulk_forget_memories` | Bulk soft-delete by filter |
+| `vacuum_memories` | Permanently purge soft-deleted memories |
 
 ## Syncing with CLI
 

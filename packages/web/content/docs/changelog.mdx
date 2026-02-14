@@ -3,6 +3,17 @@ title: Changelog
 description: Product and documentation updates.
 ---
 
+## February 14, 2026
+
+- Released `@memories.sh/cli` v0.7.6 and `@memories.sh/core` v0.3.2.
+- Fixed `older_than_days` float handling — values like `0.5` now round up to `1` instead of silently flooring to `0`.
+- Replaced O(n) graph mapping cleanup with batched `IN`-clause deletes for `bulk_forget_memories`.
+- Optimized `bulk_forget_memories` dry run to use a single bounded query instead of unbounded `COUNT(*)`.
+- Empty filter arrays (`types: []`, `tags: []`) are now correctly treated as no filter instead of bypassing validation.
+- Improved error messages to clarify that `project_id` alone is not a sufficient filter for bulk operations.
+- Updated tags documentation to warn about substring matching (e.g., `"test"` also matches `"testing"`).
+- Updated pattern documentation to clarify glob syntax (`*` and `?`) instead of SQL LIKE.
+
 ## February 13, 2026
 
 - Added `bulk_forget_memories` tool and `POST /api/sdk/v1/memories/bulk-forget` endpoint for filtered mass soft-deletion of memories by type, tags, age, content pattern, or project. Supports `dry_run` mode for previewing matches before deleting.
