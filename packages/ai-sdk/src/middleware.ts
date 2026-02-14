@@ -49,7 +49,7 @@ export function memoriesMiddleware(options: MemoriesMiddlewareOptions = {}): { t
   return {
     async transformParams(input: unknown) {
       const isEnvelope = isRecord(input) && isRecord(input.params)
-      const params = (isEnvelope ? (input as MiddlewareEnvelope).params : input) as Record<string, unknown>
+      const params: Record<string, unknown> = isEnvelope && isRecord(input) && isRecord(input.params) ? input.params : (isRecord(input) ? input : {})
 
       const query = options.extractQuery?.(params) ?? defaultExtractQuery(params)
 

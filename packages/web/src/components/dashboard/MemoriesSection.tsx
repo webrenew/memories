@@ -36,6 +36,7 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
 
   useEffect(() => {
     function onInsightApplied(event: Event) {
+      if (!(event instanceof CustomEvent)) return
       const detail = (event as CustomEvent<ApplyMemoryInsightActionResult>).detail
       if (!detail) return
 
