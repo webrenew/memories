@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createDatabase, createDatabaseToken, initSchema } from "@/lib/turso"
 import { createClient as createTurso } from "@libsql/client"
+import { setTimeout as delay } from "node:timers/promises"
 import {
   apiError,
   MCP_WORKING_MEMORY_TTL_HOURS,
@@ -215,7 +216,7 @@ async function autoProvisionTenantDatabase(params: {
   const token = await createDatabaseToken(TURSO_ORG, db.name)
   const url = `libsql://${db.hostname}`
 
-  await new Promise((resolve) => setTimeout(resolve, 3000))
+  await delay(3000)
   await initSchema(url, token)
 
   const now = new Date().toISOString()

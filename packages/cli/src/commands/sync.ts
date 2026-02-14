@@ -5,6 +5,7 @@ import { saveSyncConfig, readSyncConfig, resetDb, syncDb } from "../lib/db.js";
 import { unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 import { readAuth, getApiClient } from "../lib/auth.js";
 import * as ui from "../lib/ui.js";
 
@@ -81,7 +82,7 @@ syncCommand
             });
 
             spinner.text = "Waiting for database to be ready...";
-            await new Promise((r) => setTimeout(r, 3000));
+            await delay(3000);
 
             resetDb();
             await syncDb();
@@ -125,7 +126,7 @@ syncCommand
     });
 
     spinner.text = "Waiting for database to be ready...";
-    await new Promise((r) => setTimeout(r, 3000));
+    await delay(3000);
 
     resetDb();
     await syncDb();

@@ -5,6 +5,7 @@ import { confirm } from "@inquirer/prompts";
 import { readAuth, saveAuth, clearAuth } from "../lib/auth.js";
 import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 import * as ui from "../lib/ui.js";
 
 const DEFAULT_API_URL = "https://memories.sh";
@@ -105,7 +106,7 @@ export const loginCommand = new Command("login")
     // Poll for the token
     const maxAttempts = 60; // 5 minutes at 5s intervals
     for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 5000));
+      await delay(5000);
       spinner.text = `Waiting for authorization... (${Math.floor((maxAttempts - i) * 5 / 60)}m remaining)`;
 
       try {

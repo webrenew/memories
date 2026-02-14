@@ -4,7 +4,7 @@ import * as ui from "../lib/ui.js";
 import { getDb } from "../lib/db.js";
 import { getProjectId } from "../lib/git.js";
 import { forgetMemory, type MemoryType } from "../lib/memory.js";
-import { createInterface } from "node:readline";
+import { createInterface } from "node:readline/promises";
 
 const TYPE_ICONS: Record<string, string> = {
   rule: "📌",
@@ -25,12 +25,9 @@ interface StaleMemory {
 
 async function prompt(message: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(message, (answer) => {
-      rl.close();
-      resolve(answer.toLowerCase().trim());
-    });
-  });
+  const answer = await rl.question(message);
+  rl.close();
+  return answer.toLowerCase().trim();
 }
 
 export const staleCommand = new Command("stale")
