@@ -323,19 +323,22 @@ export async function getContextPayload(params: {
     updatedBy: null,
   }
   let qualityGate: GraphRolloutQualitySummary | null = null
-  try {
-    rolloutConfig = await getGraphRolloutConfig(turso, nowIso)
-  } catch (err) {
-    console.error("Failed to load graph rollout config; using safe defaults:", err)
+
+  const [rolloutConfigResult, qualityGateResult] = await Promise.allSettled([
+    getGraphRolloutConfig(turso, nowIso),
+    evaluateGraphRolloutQuality(turso, { nowIso, windowHours: 24 }),
+  ])
+
+  if (rolloutConfigResult.status === "fulfilled") {
+    rolloutConfig = rolloutConfigResult.value
+  } else {
+    console.error("Failed to load graph rollout config; using safe defaults:", rolloutConfigResult.reason)
   }
 
-  try {
-    qualityGate = await evaluateGraphRolloutQuality(turso, {
-      nowIso,
-      windowHours: 24,
-    })
-  } catch (err) {
-    console.error("Failed to evaluate graph rollout quality gate; proceeding with safe fallback behavior:", err)
+  if (qualityGateResult.status === "fulfilled") {
+    qualityGate = qualityGateResult.value
+  } else {
+    console.error("Failed to evaluate graph rollout quality gate; proceeding with safe fallback behavior:", qualityGateResult.reason)
   }
 
   const requestedHybrid = resolvedStrategy === "hybrid_graph"

@@ -216,17 +216,13 @@ export const ingestCommand = new Command("ingest")
         // ── Directory-based sources ──────────────────────────────────
         const dirOpts = { dryRun: opts.dryRun, existingSet, typeOverride };
 
-        const claudeResult = await runDirectoryIngest("claude-rules", cwd, dirOpts);
-        totalImported += claudeResult.imported;
-        totalSkipped += claudeResult.skipped;
-
-        const cursorResult = await runDirectoryIngest("cursor-rules", cwd, dirOpts);
-        totalImported += cursorResult.imported;
-        totalSkipped += cursorResult.skipped;
-
-        const skillsResult = await runDirectoryIngest("skills", cwd, dirOpts);
-        totalImported += skillsResult.imported;
-        totalSkipped += skillsResult.skipped;
+        const [claudeResult, cursorResult, skillsResult] = await Promise.all([
+          runDirectoryIngest("claude-rules", cwd, dirOpts),
+          runDirectoryIngest("cursor-rules", cwd, dirOpts),
+          runDirectoryIngest("skills", cwd, dirOpts),
+        ]);
+        totalImported += claudeResult.imported + cursorResult.imported + skillsResult.imported;
+        totalSkipped += claudeResult.skipped + cursorResult.skipped + skillsResult.skipped;
 
         if (totalImported === 0 && totalSkipped === 0 && filesToProcess.length === 0) {
           console.log(chalk.dim("No IDE rule files found."));
