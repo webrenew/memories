@@ -25,7 +25,7 @@ export async function sendTeamInviteEmail({
   orgName: string
   inviteUrl: string
   role: string
-}) {
+}): Promise<void> {
   const resend = getResend()
   const inviteExpiryLabel = getTeamInviteExpiryLabel()
 

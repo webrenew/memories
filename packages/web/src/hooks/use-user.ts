@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 
-export function useUser() {
+export function useUser(): { user: User | null; loading: boolean } {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 

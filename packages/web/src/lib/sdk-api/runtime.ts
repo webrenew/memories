@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 export const SDK_RESPONSE_SCHEMA_VERSION = "2026-02-11"
 
-export function buildMeta(endpoint: string, requestId: string) {
+export function buildMeta(endpoint: string, requestId: string): { version: string; endpoint: string; requestId: string; timestamp: string } {
   return {
     version: SDK_RESPONSE_SCHEMA_VERSION,
     endpoint,
