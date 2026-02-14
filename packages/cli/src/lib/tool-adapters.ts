@@ -171,7 +171,7 @@ function extractPaths(frontmatter: string): string[] {
  * - `skills/**​/SKILL.md` → `.claude/skills/**​/SKILL.md` (copied)
  * - `settings.json` → `.claude/settings.json` (merged)
  */
-export async function adaptForClaude(
+async function adaptForClaude(
   agentsDir: string,
   outputDir: string,
 ): Promise<AdaptResult> {
@@ -251,7 +251,7 @@ export async function adaptForClaude(
  * - `rules/*.md` → `.cursor/rules/{name}.mdc` with paths→globs translation
  * - `skills/**​/SKILL.md` → `.cursor/skills/**​/SKILL.md` (copied)
  */
-export async function adaptForCursor(
+async function adaptForCursor(
   agentsDir: string,
   outputDir: string,
 ): Promise<AdaptResult> {
@@ -340,7 +340,7 @@ export async function adaptForCursor(
  * @param outputPath - Full path to the output file (e.g. `.github/copilot-instructions.md`)
  * @param options - Optional header and maxLength for truncation
  */
-export async function adaptForFlatFile(
+async function adaptForFlatFile(
   agentsDir: string,
   outputPath: string,
   options?: FlatFileOptions,

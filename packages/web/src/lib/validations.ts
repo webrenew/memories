@@ -22,8 +22,8 @@ export function parseBody<T>(
 
 // --- Memories ---
 
-export const memoryTypeEnum = z.enum(["rule", "decision", "fact", "note", "skill"])
-export const memoryScopeEnum = z.enum(["global", "project"])
+const memoryTypeEnum = z.enum(["rule", "decision", "fact", "note", "skill"])
+const memoryScopeEnum = z.enum(["global", "project"])
 
 export const createMemorySchema = z.object({
   content: z.string().min(1, "Content required"),

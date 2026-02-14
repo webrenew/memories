@@ -3,8 +3,6 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { execSync } from "node:child_process";
-import chalk from "chalk";
-
 export interface Tool {
   name: string;
   detectPaths: string[];
@@ -415,24 +413,3 @@ export async function setupMcp(
   }
 }
 
-/**
- * Format detected tools for display
- */
-export function formatDetectedTools(detected: DetectedTool[]): string {
-  if (detected.length === 0) {
-    return chalk.dim("No AI coding tools detected");
-  }
-
-  return detected.map(d => {
-    const mcpStatus = toolSupportsMcp(d.tool)
-      ? (d.hasMcp ? chalk.green("✓ MCP") : chalk.dim("○ MCP"))
-      : chalk.dim("— MCP");
-    const rulesStatus = toolSupportsGeneration(d.tool)
-      ? (d.hasInstructions ? chalk.green("✓ Rules") : chalk.dim("○ Rules"))
-      : chalk.dim("— Rules");
-
-    const scope = d.globalConfig ? chalk.dim(" [global]") : "";
-    
-    return `${chalk.white(d.tool.name)}${scope} ${mcpStatus} ${rulesStatus}`;
-  }).join("\n  ");
-}

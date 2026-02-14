@@ -20,7 +20,7 @@ function groupByType(memories: Memory[]): { title: string; memories: Memory[] }[
     .map((title) => ({ title, memories: groups[title] }));
 }
 
-export const AGENT_INSTRUCTIONS = `## Memory Management
+const AGENT_INSTRUCTIONS = `## Memory Management
 
 When you learn something important about this project, save it for future sessions.
 

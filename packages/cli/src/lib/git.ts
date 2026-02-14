@@ -4,7 +4,7 @@ import { execSync } from "node:child_process";
  * Get the git remote URL for the current repository.
  * Returns null if not in a git repo or no remote configured.
  */
-export function getGitRemoteUrl(cwd?: string): string | null {
+function getGitRemoteUrl(cwd?: string): string | null {
   try {
     const remote = execSync("git remote get-url origin", {
       cwd,
@@ -42,7 +42,7 @@ export function getGitRoot(cwd?: string): string | null {
  *   git@github.com:user/repo.git -> github.com/user/repo
  *   https://github.com/user/repo.git -> github.com/user/repo
  */
-export function normalizeGitUrl(url: string): string {
+function normalizeGitUrl(url: string): string {
   let normalized = url.trim();
 
   // Remove .git suffix

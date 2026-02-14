@@ -72,13 +72,3 @@ export async function removeTeamSeat({
   return { action: "decremented" }
 }
 
-export async function getTeamSeatCount(stripeSubscriptionId: string): Promise<number> {
-  try {
-    const stripe = getStripe()
-    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-    return subscription.items.data[0]?.quantity || 0
-  } catch (error) {
-    console.error("Failed to retrieve team seat count:", error)
-    return 0
-  }
-}
