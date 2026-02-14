@@ -1,4 +1,4 @@
-export const TEAM_INVITE_TTL_HOURS = 24
+const TEAM_INVITE_TTL_HOURS = 24
 
 const ONE_HOUR_MS = 60 * 60 * 1000
 

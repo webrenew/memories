@@ -30,7 +30,7 @@ async function ensureLinksTable(): Promise<void> {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_links_target ON memory_links(target_id)`);
 }
 
-export async function getLinkedMemories(memoryId: string): Promise<{ memory: Memory; linkType: string; direction: "from" | "to" }[]> {
+async function getLinkedMemories(memoryId: string): Promise<{ memory: Memory; linkType: string; direction: "from" | "to" }[]> {
   const db = await getDb();
   await ensureLinksTable();
   

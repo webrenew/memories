@@ -188,10 +188,5 @@ export const TOOLS: Tool[] = [
   },
 ];
 
-/** Tools that have a `memories generate <cmd>` command */
-export const GENERATOR_TOOLS = TOOLS.filter(
-  (t): t is Tool & { cmd: string; file: string } => !!t.cmd && !!t.file
-);
-
 /** All tools except the "Any MCP Client" meta-entry — used for logo marquees */
 export const MARQUEE_TOOLS = TOOLS.filter((t) => t.slug !== "mcp");

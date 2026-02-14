@@ -1,6 +1,6 @@
 import type { GithubCaptureCandidate, GithubCaptureEvent } from "@/lib/github-capture"
 
-export const GITHUB_CAPTURE_EVENT_VALUES = ["pull_request", "issues", "push", "release"] as const
+const GITHUB_CAPTURE_EVENT_VALUES = ["pull_request", "issues", "push", "release"] as const
 
 export type GithubCaptureAllowedEvent = (typeof GITHUB_CAPTURE_EVENT_VALUES)[number]
 
@@ -34,7 +34,7 @@ export interface GithubCaptureSettingsRow {
   updated_at?: string | null
 }
 
-export const DEFAULT_GITHUB_CAPTURE_SETTINGS: GithubCaptureSettings = {
+const DEFAULT_GITHUB_CAPTURE_SETTINGS: GithubCaptureSettings = {
   allowed_events: [...GITHUB_CAPTURE_EVENT_VALUES],
   repo_allow_list: [],
   repo_block_list: [],

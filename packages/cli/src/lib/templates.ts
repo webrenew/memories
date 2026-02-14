@@ -14,7 +14,7 @@ export interface Template {
   format: (values: Record<string, string>) => string;
 }
 
-export const BUILT_IN_TEMPLATES: Template[] = [
+const BUILT_IN_TEMPLATES: Template[] = [
   {
     name: "decision",
     description: "Document an architectural or technical decision",

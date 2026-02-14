@@ -7,7 +7,7 @@ import { logger } from "./logger.js";
  * Record a history entry for a memory change.
  * Used for version tracking.
  */
-export async function recordMemoryHistory(
+async function recordMemoryHistory(
   memory: Memory,
   changeType: "created" | "updated" | "deleted"
 ): Promise<void> {

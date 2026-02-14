@@ -85,7 +85,7 @@ export interface GraphRolloutQualitySummary {
   previous: GraphRolloutEvalWindow
 }
 
-export const GRAPH_ROLLOUT_QUALITY_THRESHOLDS = {
+const GRAPH_ROLLOUT_QUALITY_THRESHOLDS = {
   windowHours: 24,
   minHybridSamples: 20,
   minCanarySamplesForRelevance: 12,
@@ -128,7 +128,7 @@ function toRate(numerator: number, denominator: number): number {
   return toMetric(numerator / denominator)
 }
 
-export async function ensureGraphRolloutTables(turso: TursoClient): Promise<void> {
+async function ensureGraphRolloutTables(turso: TursoClient): Promise<void> {
   if (ensuredRolloutTables.has(turso)) {
     return
   }

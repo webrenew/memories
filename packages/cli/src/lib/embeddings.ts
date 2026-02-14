@@ -75,13 +75,6 @@ export function getAvailableModels(): EmbeddingModel[] {
   return Object.values(EMBEDDING_MODELS);
 }
 
-/**
- * Get model by ID
- */
-export function getModelById(id: string): EmbeddingModel | undefined {
-  return EMBEDDING_MODELS[id];
-}
-
 // ─── Model Configuration Persistence ──────────────────────────────────────────
 
 interface EmbeddingConfig {
@@ -97,7 +90,7 @@ function getEmbeddingConfigPath(): string {
 /**
  * Get the currently configured embedding model
  */
-export function getConfiguredModel(): EmbeddingModel {
+function getConfiguredModel(): EmbeddingModel {
   const configPath = getEmbeddingConfigPath();
   
   if (existsSync(configPath)) {
@@ -159,7 +152,7 @@ let currentModelId: string | null = null;
 /**
  * Reset the cached embedder (used when model changes)
  */
-export function resetEmbedder(): void {
+function resetEmbedder(): void {
   embedder = null;
   modelLoading = null;
   currentModelId = null;
@@ -352,26 +345,6 @@ export async function storeEmbedding(memoryId: string, embedding: Float32Array):
     sql: "UPDATE memories SET embedding = ? WHERE id = ?",
     args: [buffer, memoryId],
   });
-}
-
-/**
- * Get embedding for a memory
- */
-export async function getStoredEmbedding(memoryId: string): Promise<Float32Array | null> {
-  const db = await getDb();
-  
-  const result = await db.execute({
-    sql: "SELECT embedding FROM memories WHERE id = ?",
-    args: [memoryId],
-  });
-  
-  if (result.rows.length === 0) return null;
-  
-  const row = result.rows[0] as unknown as { embedding: ArrayBuffer | null };
-  if (!row.embedding) return null;
-  
-  // Use bufferToEmbedding for consistent conversion
-  return bufferToEmbedding(Buffer.from(row.embedding));
 }
 
 /**

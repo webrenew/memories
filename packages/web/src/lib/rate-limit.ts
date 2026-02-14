@@ -73,7 +73,7 @@ export const apiRateLimit = createRateLimiter(60, 60, "rl:api")
  * Pre-auth rate limiter for authenticated API routes.
  * 120 requests per 60 seconds per IP.
  */
-export const preAuthApiRateLimit = createRateLimiter(120, 60, "rl:preauth")
+const preAuthApiRateLimit = createRateLimiter(120, 60, "rl:preauth")
 
 /**
  * Strict rate limiter for expensive operations (db provisioning, account deletion).

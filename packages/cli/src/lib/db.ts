@@ -83,10 +83,6 @@ export function setCloudMode(url: string, token: string): void {
   }
 }
 
-export function isCloudMode(): boolean {
-  return cloudCredentials !== null;
-}
-
 let client: Client | undefined;
 
 export async function getDb(): Promise<Client> {
@@ -148,24 +144,6 @@ export async function readSyncConfig(): Promise<SyncConfig | null> {
   if (!existsSync(syncPath)) return null;
   const raw = await readFile(syncPath, "utf-8");
   return JSON.parse(raw) as SyncConfig;
-}
-
-export async function setConfig(key: string, value: string): Promise<void> {
-  const db = await getDb();
-  await db.execute({
-    sql: `INSERT OR REPLACE INTO configs (key, value) VALUES (?, ?)`,
-    args: [key, value],
-  });
-}
-
-export async function getConfig(key: string): Promise<string | null> {
-  const db = await getDb();
-  const result = await db.execute({
-    sql: `SELECT value FROM configs WHERE key = ?`,
-    args: [key],
-  });
-  if (result.rows.length === 0) return null;
-  return result.rows[0].value as string;
 }
 
 async function runMigrations(db: Client): Promise<void> {

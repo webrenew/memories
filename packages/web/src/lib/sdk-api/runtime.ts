@@ -6,9 +6,9 @@ import { apiError, type ApiErrorDetail, resolveTenantTurso } from "@/lib/memory-
 import { createClient as createTurso } from "@libsql/client"
 import { NextRequest, NextResponse } from "next/server"
 
-export const SDK_RESPONSE_SCHEMA_VERSION = "2026-02-11"
+const SDK_RESPONSE_SCHEMA_VERSION = "2026-02-11"
 
-export function buildMeta(endpoint: string, requestId: string): { version: string; endpoint: string; requestId: string; timestamp: string } {
+function buildMeta(endpoint: string, requestId: string): { version: string; endpoint: string; requestId: string; timestamp: string } {
   return {
     version: SDK_RESPONSE_SCHEMA_VERSION,
     endpoint,
@@ -61,7 +61,7 @@ export function invalidRequestResponse(
   )
 }
 
-export function errorTypeForStatus(status: number): ApiErrorDetail["type"] {
+function errorTypeForStatus(status: number): ApiErrorDetail["type"] {
   if (status === 400) return "validation_error"
   if (status === 401 || status === 403) return "auth_error"
   if (status === 404) return "not_found_error"

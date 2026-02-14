@@ -39,7 +39,7 @@ export function parseFrontmatter(content: string): ParsedFrontmatter {
  * Parse MDC-style frontmatter (used by Cursor .mdc files).
  * MDC files use `---` delimiters just like YAML frontmatter.
  */
-export function parseMdcFrontmatter(content: string): ParsedFrontmatter {
+function parseMdcFrontmatter(content: string): ParsedFrontmatter {
   return parseFrontmatter(content);
 }
 
@@ -142,7 +142,7 @@ export const PROJECT_SKILLS_DIRS = [
  * Ingest rules from a directory of markdown files with paths frontmatter.
  * Shared logic used by Claude rules, .agents/rules, and other YAML-frontmatter rule dirs.
  */
-export async function ingestRulesFromDir(
+async function ingestRulesFromDir(
   rulesDir: string,
   label: string,
   fileExtension: string,

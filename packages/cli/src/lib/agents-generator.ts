@@ -106,7 +106,7 @@ async function fetchAllMemories(): Promise<Memory[]> {
  * Generate `.agents/instructions.md` from non-path-scoped rule/decision/fact memories.
  * Path-scoped memories are excluded (they go to rules/*.md instead).
  */
-export async function generateInstructions(
+async function generateInstructions(
   memories: Memory[],
   outputDir: string,
 ): Promise<string[]> {
@@ -155,7 +155,7 @@ export async function generateInstructions(
  * Generate `.agents/rules/*.md` files from path-scoped memories.
  * Groups by category, cleans stale files that have our marker.
  */
-export async function generateRules(
+async function generateRules(
   memories: Memory[],
   outputDir: string,
 ): Promise<{ created: string[]; cleaned: string[] }> {
@@ -236,7 +236,7 @@ export async function generateRules(
  * Warns about skills without a category (they're skipped).
  * Cleans up stale skill directories that no longer have a matching memory.
  */
-export async function generateSkills(
+async function generateSkills(
   memories: Memory[],
   outputDir: string,
 ): Promise<string[]> {
@@ -316,7 +316,7 @@ export async function generateSkills(
  * Generate `.agents/settings.json` stub if it doesn't already exist.
  * Does NOT overwrite — this file is user-managed.
  */
-export async function generateSettings(
+async function generateSettings(
   outputDir: string,
 ): Promise<string | null> {
   const outPath = join(outputDir, AGENTS_DIR, "settings.json");

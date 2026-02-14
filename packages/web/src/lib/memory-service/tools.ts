@@ -20,20 +20,12 @@ import { addMemoryPayload, editMemoryPayload, forgetMemoryPayload, bulkForgetMem
 
 export {
   apiError,
-  DEFAULT_RESPONSE_SCHEMA_VERSION,
   type ApiErrorDetail,
-  type ApiErrorType,
-  type MemoryLayer,
-  type MemoryRow,
-  type StructuredMemory,
-  type ToolName,
-  type ToolResponseEnvelope,
-  type ToolStructuredContent,
   ToolExecutionError,
   toToolExecutionError,
 } from "./types"
 
-export { ensureMemoryUserIdSchema, parseMemoryLayer, parseTenantId, parseUserId, resolveTenantTurso } from "./scope"
+export { ensureMemoryUserIdSchema, parseTenantId, parseUserId, resolveTenantTurso } from "./scope"
 
 function parseRetrievalStrategy(args: Record<string, unknown>): ContextRetrievalStrategy {
   const raw = args.retrieval_strategy

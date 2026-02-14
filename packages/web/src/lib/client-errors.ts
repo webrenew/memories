@@ -53,7 +53,3 @@ export function extractErrorMessage(payload: unknown, fallback: string): string 
   return fallback
 }
 
-export async function readApiError(response: Response, fallback: string): Promise<string> {
-  const payload = await response.json().catch(() => null)
-  return extractErrorMessage(payload, `${fallback} (HTTP ${response.status})`)
-}

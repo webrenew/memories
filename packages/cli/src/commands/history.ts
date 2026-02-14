@@ -38,7 +38,7 @@ async function ensureHistoryTable(): Promise<void> {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_history_memory ON memory_history(memory_id)`);
 }
 
-export async function recordHistory(memory: Memory, changeType: "created" | "updated" | "deleted"): Promise<void> {
+async function recordHistory(memory: Memory, changeType: "created" | "updated" | "deleted"): Promise<void> {
   await ensureHistoryTable();
   const db = await getDb();
   const id = `${memory.id}-${Date.now()}`;
