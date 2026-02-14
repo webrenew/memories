@@ -111,7 +111,7 @@ export async function clearAuth(): Promise<void> {
 /**
  * Creates a fetch wrapper that includes CLI auth headers.
  */
-export function getApiClient(auth: AuthConfig) {
+export function getApiClient(auth: AuthConfig): (path: string, opts?: RequestInit) => Promise<Response> {
   return async function apiFetch(
     path: string,
     opts?: RequestInit
