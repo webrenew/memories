@@ -19,13 +19,20 @@ export async function POST(request: Request) {
     const admin = createAdminClient()
     const { data: user } = await admin
       .from("users")
-      .select("cli_token, email")
+      .select("cli_token, email, id")
       .eq("cli_auth_code", parsed.data.code)
       .single()
 
     if (!user || !user.cli_token) {
       // Still waiting or code not found
       return NextResponse.json({ status: "pending" }, { status: 202 })
+    }
+
+    // Resolve email — fall back to auth.users if custom table has no email
+    let email = user.email
+    if (!email && user.id) {
+      const { data: authData } = await admin.auth.admin.getUserById(user.id)
+      email = authData?.user?.email ?? null
     }
 
     // Clear the auth code so it can't be reused
@@ -36,7 +43,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       token: user.cli_token,
-      email: user.email,
+      email,
     })
   }
 
