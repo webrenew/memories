@@ -88,15 +88,15 @@ export function Pricing({ user }: { user?: User | null }) {
   return (
     <section id="pricing" className="py-28 border-t border-border relative overflow-hidden">
       <div className="w-full px-6 lg:px-16 xl:px-24 relative z-10">
-        <div className="mb-12 max-w-3xl text-left">
+        <div className="mb-20 max-w-3xl text-left">
           <motion.div 
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/30 text-[11px] uppercase tracking-[0.25em] font-bold mb-6 text-primary rounded-md"
+            className="inline-flex items-center gap-2 mb-4"
           >
-            <span className="w-1.5 h-1.5 bg-primary animate-pulse" />
-            Pricing
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">Pricing</span>
           </motion.div>
           <h2 className="font-mono font-normal text-2xl sm:text-4xl mb-6 text-foreground">
             <ScrambleText text="Simple, Transparent Pricing" delayMs={200} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { ScrambleText } from "./animations/ScrambleText";
 import { getSyntaxTokenClass, tokenizeJson } from "./ui/syntax";
@@ -105,22 +105,22 @@ const apiShowcase: ApiShowcaseItem[] = [
   },
 ];
 
-const contractPoints = [
+const contractPoints: { title: string; detail: React.ReactNode }[] = [
   {
     title: "Single Envelope",
-    detail: "`ok / data / error / meta` on every SDK endpoint.",
+    detail: <><code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1 py-0.5 rounded">ok / data / error / meta</code> on every SDK endpoint.</>,
   },
   {
     title: "Request Tracing",
-    detail: "Every response includes `meta.requestId` for support and logs.",
+    detail: <>Every response includes <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1 py-0.5 rounded">meta.requestId</code> for support and logs.</>,
   },
   {
     title: "Typed Errors",
-    detail: "Stable `error.type` and `error.code` for deterministic client handling.",
+    detail: <>Stable <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1 py-0.5 rounded">error.type</code> and <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1 py-0.5 rounded">error.code</code> for deterministic client handling.</>,
   },
   {
     title: "Versioned Surface",
-    detail: "Breaking changes move to `/api/sdk/v2/*`, not v1 drift.",
+    detail: <>Breaking changes move to <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1 py-0.5 rounded">/api/sdk/v2/*</code>, not v1 drift.</>,
   },
 ];
 
@@ -152,7 +152,7 @@ export function ApiSection() {
         }}
       />
       <div className="relative w-full px-6 lg:px-16 xl:px-24">
-        <div className="mb-16 flex max-w-3xl flex-col items-start text-left">
+        <div className="mb-20 flex max-w-3xl flex-col items-start text-left">
           <div className="inline-flex items-center gap-2 mb-4">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">
@@ -263,14 +263,18 @@ export function ApiSection() {
 
         <div className="mt-8 grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {contractPoints.map((point) => (
-            <div key={point.title} className="border border-border bg-card/20 rounded-lg p-4">
-              <p className="text-[10px] uppercase tracking-[0.17em] font-bold text-primary mb-2">{point.title}</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">{point.detail}</p>
+            <div key={point.title} className="relative border border-border bg-card/20 rounded-lg p-4 overflow-hidden">
+              <div
+                className="absolute inset-0 opacity-[0.07] bg-cover bg-center bg-no-repeat pointer-events-none"
+                style={{ backgroundImage: "url(/bg-texture_memories.webp)" }}
+              />
+              <p className="relative text-[10px] uppercase tracking-[0.17em] font-bold text-foreground mb-2">{point.title}</p>
+              <p className="relative text-xs text-muted-foreground leading-relaxed">{point.detail}</p>
             </div>
           ))}
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-3">
+        <div className="mt-14 flex flex-wrap items-center gap-3">
           <Link
             href="/docs/sdk/endpoint-contract"
             className="inline-flex items-center gap-2 px-4 py-2 border border-primary/40 bg-primary/10 text-primary text-xs uppercase tracking-[0.16em] font-bold hover:bg-primary/20 transition-colors rounded-md"
