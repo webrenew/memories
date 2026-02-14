@@ -200,7 +200,12 @@ function normalizeLabels(labels: unknown): string[] {
   return Array.from(
     new Set(
       labels
-        .map((label) => normalizeGithubLogin((label as { name?: unknown })?.name))
+        .map((label) => {
+          if (typeof label === "object" && label !== null && "name" in label) {
+            return normalizeGithubLogin((label as Record<string, unknown>).name)
+          }
+          return null
+        })
         .filter((label): label is string => Boolean(label)),
     ),
   )
@@ -283,8 +288,9 @@ export function verifyGithubWebhookSignature(params: {
   return mismatch === 0
 }
 
-export function inferTargetOwnerLogin(payload: GithubWebhookPayload): string | null {
-  const repo = parseRepository(payload)
+export function inferTargetOwnerLogin(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null
+  const repo = parseRepository(payload as GithubWebhookPayload)
   if (!repo) return null
   return repo.ownerLogin
 }

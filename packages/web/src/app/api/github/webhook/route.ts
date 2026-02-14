@@ -34,20 +34,12 @@ function isMissingTableError(error: unknown, tableName: string): boolean {
 }
 
 function isDuplicateConstraintError(error: unknown): boolean {
-  const code =
-    typeof error === "object" && error !== null && "code" in error
-      ? String((error as { code?: unknown }).code ?? "")
-      : ""
+  if (typeof error !== "object" || error === null) return false
 
-  if (code === "23505") {
-    return true
-  }
+  const code = "code" in error ? String((error as Record<string, unknown>).code ?? "") : ""
+  if (code === "23505") return true
 
-  const message =
-    typeof error === "object" && error !== null && "message" in error
-      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
-      : ""
-
+  const message = "message" in error ? String((error as Record<string, unknown>).message ?? "").toLowerCase() : ""
   return message.includes("duplicate key")
 }
 
@@ -161,7 +153,7 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ ok: true, ignored: `unsupported_event:${eventName}` })
   }
 
-  const ownerLogin = inferTargetOwnerLogin(payload as Record<string, unknown>)
+  const ownerLogin = inferTargetOwnerLogin(payload)
   if (!ownerLogin) {
     return NextResponse.json({ ok: true, ignored: "missing_repo_owner" })
   }
