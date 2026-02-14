@@ -117,27 +117,33 @@ export const loginCommand = new Command("login")
 
         if (res.ok) {
           const data = (await res.json()) as {
-            token: string;
-            email: string;
+            token?: string;
+            email?: string;
+            status?: string;
           };
-          await saveAuth({
-            token: data.token,
-            email: data.email,
-            apiUrl,
-          });
-          spinner.stop();
-          console.log("");
-          ui.success(`Logged in as ${chalk.bold(data.email)}`);
-          ui.dim("Your cloud database has been provisioned automatically.");
-          
-          ui.nextSteps([
-            `${chalk.cyan("memories sync")} ${chalk.dim("to sync your memories")}`,
-            `${chalk.cyan("memories.sh/app")} ${chalk.dim("to view your dashboard")}`,
-          ]);
-          return;
-        }
 
-        if (res.status !== 202) {
+          // Only accept if we actually received a valid token
+          if (typeof data.token === "string" && data.token.length > 0) {
+            await saveAuth({
+              token: data.token,
+              email: data.email || "",
+              apiUrl,
+            });
+            spinner.stop();
+            console.log("");
+            ui.success(`Logged in as ${chalk.bold(data.email || "your account")}`);
+            ui.dim("Your cloud database has been provisioned automatically.");
+            
+            ui.nextSteps([
+              `${chalk.cyan("memories sync")} ${chalk.dim("to sync your memories")}`,
+              `${chalk.cyan("memories.sh/app")} ${chalk.dim("to view your dashboard")}`,
+            ]);
+            return;
+          }
+
+          // Server returned 200 but without a token (e.g. {"status":"pending"})
+          // Continue polling
+        } else if (res.status !== 202) {
           // 202 = still waiting, anything else is an error
           const text = await res.text();
           spinner.stop();
