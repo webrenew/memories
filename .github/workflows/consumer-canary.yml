@@ -28,6 +28,9 @@ jobs:
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
+    env:
+      MEMORIES_CANARY_API_KEY: ${{ secrets.MEMORIES_CANARY_API_KEY }}
+      MEMORIES_CANARY_BASE_URL: ${{ secrets.MEMORIES_CANARY_BASE_URL }}
 
     steps:
       - name: Setup Node
@@ -138,10 +141,7 @@ jobs:
           "
 
       - name: Runtime smoke (optional, read-only)
-        if: ${{ secrets.MEMORIES_CANARY_API_KEY != '' }}
-        env:
-          MEMORIES_CANARY_API_KEY: ${{ secrets.MEMORIES_CANARY_API_KEY }}
-          MEMORIES_CANARY_BASE_URL: ${{ secrets.MEMORIES_CANARY_BASE_URL }}
+        if: ${{ env.MEMORIES_CANARY_API_KEY != '' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -190,6 +190,6 @@ jobs:
           NODE
 
       - name: Runtime smoke skipped
-        if: ${{ secrets.MEMORIES_CANARY_API_KEY == '' }}
+        if: ${{ env.MEMORIES_CANARY_API_KEY == '' }}
         shell: bash
         run: echo "MEMORIES_CANARY_API_KEY not configured; skipping optional read-only runtime smoke."
