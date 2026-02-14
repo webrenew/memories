@@ -6,6 +6,8 @@ import { ThemeSwitcher } from "./ThemeSwitcher";
 import { StatusIndicator } from "./StatusIndicator";
 
 export function Footer() {
+  const currentYear = new Date().getFullYear();
+
   return (
     <footer className="py-24 px-6 lg:px-10 border-t border-white/10 bg-background">
       <div className="w-full px-6 lg:px-16 xl:px-24">
@@ -48,12 +50,17 @@ export function Footer() {
         </div>
         
         <div className="pt-12 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-8">
-          <Link
-            href="/"
-            className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.2em] font-bold hover:text-muted-foreground transition-colors"
-          >
-            memories.sh
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.2em] font-bold hover:text-muted-foreground transition-colors"
+            >
+              memories.sh
+            </Link>
+            <span className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.2em] font-bold">
+              &copy; {currentYear}
+            </span>
+          </div>
           <div className="flex items-center gap-8">
             <ThemeSwitcher />
             <StatusIndicator />

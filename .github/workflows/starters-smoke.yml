@@ -46,7 +46,7 @@ jobs:
           MEMORIES_API_KEY=mem_ci_test \
           MEMORIES_BASE_URL=http://127.0.0.1:5010 \
           MEMORIES_PROJECT_ID=ci-starter \
-          APP_AUTH_TOKENS=ci-flow-token|ci-starter|ci-user \
+          APP_AUTH_TOKENS='ci-flow-token|ci-starter|ci-user' \
           PORT=3100 \
           npm run start > /tmp/nextjs-starter.log 2>&1 &
           echo $! > /tmp/nextjs-starter.pid
@@ -105,7 +105,7 @@ jobs:
           MEMORIES_API_KEY=mem_ci_test \
           MEMORIES_BASE_URL=http://127.0.0.1:5010 \
           MEMORIES_PROJECT_ID=ci-starter \
-          APP_AUTH_TOKENS=ci-flow-token|ci-starter|ci-user \
+          APP_AUTH_TOKENS='ci-flow-token|ci-starter|ci-user' \
           PORT=8788 \
           npm run start > /tmp/express-starter.log 2>&1 &
           echo $! > /tmp/express-starter.pid
