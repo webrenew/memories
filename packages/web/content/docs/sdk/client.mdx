@@ -200,7 +200,7 @@ console.log(preview.count, preview.memories) // preview list
 // Actually delete
 const result = await client.memories.bulkForget({
   tags: ["temporary"],
-  pattern: "TODO%",
+  pattern: "TODO*",
 })
 console.log(result.count, result.ids) // deleted IDs
 ```

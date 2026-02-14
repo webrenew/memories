@@ -457,6 +457,32 @@ describe("/api/sdk/v1/memories/*", () => {
     )
   })
 
+  it("vacuum returns zero when nothing to purge", async () => {
+    mockVacuumMemoriesPayload.mockResolvedValue({
+      text: "No soft-deleted memories to vacuum",
+      data: {
+        purged: 0,
+        message: "No soft-deleted memories to vacuum",
+      },
+    })
+
+    const response = await vacuumPOST(
+      makePost(
+        "/api/sdk/v1/memories/vacuum",
+        {
+          scope: { userId: "end-user-1" },
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.ok).toBe(true)
+    expect(body.data.purged).toBe(0)
+    expect(body.data.message).toContain("No soft-deleted")
+  })
+
   it("vacuum returns 401 without API key", async () => {
     const response = await vacuumPOST(
       makePost("/api/sdk/v1/memories/vacuum", {})

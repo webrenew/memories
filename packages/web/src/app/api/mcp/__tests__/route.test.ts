@@ -1215,11 +1215,7 @@ describe("/api/mcp", () => {
 
     it("should return dry run preview without deleting", async () => {
       setupAuth()
-      mockExecute.mockImplementation(async (input: { sql: string } | string) => {
-        const sql = typeof input === "string" ? input : input.sql
-        if (sql.includes("COUNT(*)")) {
-          return { rows: [{ cnt: 2 }] }
-        }
+      mockExecute.mockImplementation(async () => {
         return {
           rows: [
             { id: "m1", type: "note", content: "Short note" },
@@ -1437,6 +1433,19 @@ describe("/api/mcp", () => {
       expect(body.error.data.code).toBe("BULK_FORGET_INVALID_FILTERS")
     })
 
+    it("should treat empty arrays as no filter", async () => {
+      setupAuth()
+      const response = await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "bulk_forget_memories",
+          arguments: { types: [], tags: [] },
+        })
+      ))
+      const body = await response.json()
+      expect(body.error.code).toBe(-32602)
+      expect(body.error.data.code).toBe("BULK_FORGET_NO_FILTERS")
+    })
+
     it("should accept all:true alone", async () => {
       setupAuth()
       mockExecute.mockImplementation(async (input: { sql: string } | string) => {
@@ -1612,6 +1621,35 @@ describe("/api/mcp", () => {
       const stmts = mockBatch.mock.calls[0][0] as { sql: string; args: unknown[] }[]
       const deleteStmt = stmts.find((s) => s.sql.includes("DELETE FROM memories"))
       expect(deleteStmt!.sql).toContain("deleted_at IS NOT NULL")
+    })
+
+    it("should route vacuum through tenant database when tenant_id is provided", async () => {
+      setupAuth()
+      mockTenantSelect.mockReturnValue({
+        data: {
+          turso_db_url: "libsql://tenant-x.turso.io",
+          turso_db_token: "tenant-token",
+          status: "ready",
+        },
+      })
+      mockBatch.mockResolvedValue([
+        { rows: [] },
+        { rows: [{ cnt: 3 }] },
+      ])
+
+      const response = await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "vacuum_memories",
+          arguments: { tenant_id: "tenant-x", user_id: "user-1" },
+        })
+      ))
+      const body = await response.json()
+      expect(body.result.structuredContent.data.purged).toBe(3)
+      expect(mockTenantSelect).toHaveBeenCalled()
+      const tenantLookup = mockTenantSelect.mock.calls[0]?.[0] as {
+        filters?: Record<string, string>
+      }
+      expect(tenantLookup.filters?.tenant_id).toBe("tenant-x")
     })
   })
 

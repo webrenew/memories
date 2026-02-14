@@ -371,8 +371,10 @@ export async function bulkForgetMemoriesPayload(params: {
 }> {
   const { turso, args, userId, nowIso } = params
 
-  const types = Array.isArray(args.types) ? (args.types as string[]).filter((t) => VALID_TYPES.has(t)) : undefined
-  const tags = Array.isArray(args.tags) ? (args.tags as string[]).filter(Boolean) : undefined
+  const typesRaw = Array.isArray(args.types) ? (args.types as string[]).filter((t) => VALID_TYPES.has(t)) : undefined
+  const types = typesRaw && typesRaw.length > 0 ? typesRaw : undefined
+  const tagsRaw = Array.isArray(args.tags) ? (args.tags as string[]).filter(Boolean) : undefined
+  const tags = tagsRaw && tagsRaw.length > 0 ? tagsRaw : undefined
   const olderThanDays = typeof args.older_than_days === "number" && Number.isFinite(args.older_than_days) && args.older_than_days > 0 ? Math.max(1, Math.ceil(args.older_than_days)) : undefined
   const pattern = typeof args.pattern === "string" ? args.pattern.trim() : undefined
   const projectId = typeof args.project_id === "string" ? args.project_id.trim() : undefined

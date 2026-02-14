@@ -131,7 +131,7 @@ List recent memories with optional filters.
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `type` | string | No | — | Filter by type: `"rule"`, `"decision"`, `"fact"`, `"note"`, `"skill"` |
-| `tags` | string | No | — | Filter by tag (partial match) |
+| `tags` | string | No | — | Filter by tag (substring match — `"test"` also matches `"testing"`) |
 | `project_id` | string | No | — | Project identifier to include project-specific memories |
 | `limit` | number | No | 20 | Max results |
 
@@ -174,7 +174,7 @@ Bulk soft-delete memories matching filters. Use `dry_run: true` to preview match
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `types` | string[] | No | — | Filter by memory types (`rule`, `decision`, `fact`, `note`, `skill`) |
-| `tags` | string[] | No | — | Filter by tags (substring match) |
+| `tags` | string[] | No | — | Filter by tags (substring match — `"test"` also matches `"testing"`) |
 | `older_than_days` | integer | No | — | Delete memories older than N days (must be >= 1) |
 | `pattern` | string | No | — | Content pattern match (`*` = any chars, `?` = single char; matches anywhere in content) |
 | `project_id` | string | No | — | Filter by project identifier |
