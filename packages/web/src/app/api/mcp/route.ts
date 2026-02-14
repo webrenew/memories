@@ -599,7 +599,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
 
       case "tools/call": {
-        const parsedParams = (params && typeof params === "object") ? (params as Record<string, unknown>) : {}
+        const parsedParams = (params && typeof params === "object" && !Array.isArray(params)) ? (params as Record<string, unknown>) : {}
         const toolName = typeof parsedParams.name === "string" ? parsedParams.name : ""
         if (!toolName) {
           return jsonRpcErrorResponse(
@@ -615,7 +615,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             400
           )
         }
-        const args = (parsedParams.arguments && typeof parsedParams.arguments === "object")
+        const args = (parsedParams.arguments && typeof parsedParams.arguments === "object" && !Array.isArray(parsedParams.arguments))
           ? (parsedParams.arguments as Record<string, unknown>)
           : {}
 
