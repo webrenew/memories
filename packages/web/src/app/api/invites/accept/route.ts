@@ -6,6 +6,7 @@ import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, acceptInviteSchema } from "@/lib/validations"
 import { getInviteTokenCandidates } from "@/lib/team-invites"
+import { hasServiceRoleKey } from "@/lib/env"
 
 // POST /api/invites/accept - Accept an invite
 export async function POST(request: Request): Promise<Response> {
@@ -24,7 +25,7 @@ export async function POST(request: Request): Promise<Response> {
   const { token, billing } = parsed.data
   const tokenCandidates = getInviteTokenCandidates(token)
   const inviteToken = tokenCandidates[0] ?? token.trim()
-  const adminSupabase = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : null
+  const adminSupabase = hasServiceRoleKey() ? createAdminClient() : null
   const inviteLookup = adminSupabase ?? supabase
 
   // Find invite with org details

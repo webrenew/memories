@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { reconcileUserAccountByEmail } from "@/lib/account-reconciliation"
 import { autoJoinOrganizationsForEmails, extractUserEmails } from "@/lib/domain-auto-join"
+import { hasServiceRoleKey } from "@/lib/env"
 
 export async function GET(request: Request): Promise<Response> {
   const { searchParams, origin } = new URL(request.url)
@@ -20,7 +21,7 @@ export async function GET(request: Request): Promise<Response> {
 
         if (user) {
           const tasks: Promise<unknown>[] = [reconcileUserAccountByEmail(user)]
-          if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+          if (hasServiceRoleKey()) {
             tasks.push(autoJoinOrganizationsForEmails({
               userId: user.id,
               emails: extractUserEmails(user),

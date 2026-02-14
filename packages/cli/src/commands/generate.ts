@@ -4,7 +4,7 @@ import { writeFile, readFile, mkdir } from "node:fs/promises";
 import * as ui from "../lib/ui.js";
 import { existsSync, watch as fsWatch } from "node:fs";
 import { dirname, resolve, join, relative } from "node:path";
-import { homedir } from "node:os";
+import { getDataDir } from "../lib/env.js";
 import { checkbox } from "@inquirer/prompts";
 import { listMemories, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
 import { getProjectId } from "../lib/git.js";
@@ -232,8 +232,7 @@ function parseTypes(raw: string | undefined): MemoryType[] {
 // ── Watch Mode ──────────────────────────────────────────────────────
 
 function getDbPath(): string {
-  const dataDir = process.env.MEMORIES_DATA_DIR ?? join(homedir(), ".config", "memories");
-  return join(dataDir, "local.db");
+  return join(getDataDir(), "local.db");
 }
 
 /**

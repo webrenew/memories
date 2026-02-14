@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { getInviteTokenCandidates } from "@/lib/team-invites"
 import { redirect } from "next/navigation"
 import { AcceptInviteContent } from "./accept-content"
+import { hasServiceRoleKey } from "@/lib/env"
 
 export const metadata = {
   title: "Accept Invite",
@@ -22,7 +23,7 @@ export default async function AcceptInvitePage({
 
   const tokenCandidates = getInviteTokenCandidates(token)
   const inviteToken = tokenCandidates[0] ?? token.trim()
-  const adminSupabase = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : null
+  const adminSupabase = hasServiceRoleKey() ? createAdminClient() : null
   const supabase = await createClient()
   
   // Get invite details

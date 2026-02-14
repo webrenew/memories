@@ -6,8 +6,9 @@ import { authenticateRequest } from "@/lib/auth"
 import { apiRateLimit, checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createDatabase, createDatabaseToken, initSchema } from "@/lib/turso"
+import { getTursoOrgSlug } from "@/lib/env"
 
-const TURSO_ORG = process.env.TURSO_ORG_SLUG ?? "webrenew"
+const TURSO_ORG = getTursoOrgSlug()
 const LEGACY_ENDPOINT = "/api/mcp/tenants"
 const SUCCESSOR_ENDPOINT = "/api/sdk/v1/management/tenants"
 const LEGACY_SUNSET = "Tue, 30 Jun 2026 00:00:00 GMT"

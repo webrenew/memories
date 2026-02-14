@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getResend } from "@/lib/resend"
 import { checkRateLimit, getClientIp, publicRateLimit } from "@/lib/rate-limit"
 import { enterpriseContactSchema, parseBody } from "@/lib/validations"
+import { hasResendApiKey, getEnterpriseContactTo, getResendFromEmail } from "@/lib/env"
 
 const CACHE_CONTROL_NO_STORE = "no-store"
 const SUCCESS_MESSAGE = "Thanks. We received your request and will follow up shortly."
@@ -23,9 +24,9 @@ export async function POST(request: Request): Promise<Response> {
     )
   }
 
-  const resendConfigured = Boolean(process.env.RESEND_API_KEY)
-  const to = process.env.ENTERPRISE_CONTACT_TO || "hello@memories.sh"
-  const from = process.env.RESEND_FROM_EMAIL || "memories.sh <team@memories.sh>"
+  const resendConfigured = hasResendApiKey()
+  const to = getEnterpriseContactTo()
+  const from = getResendFromEmail()
 
   if (!resendConfigured) {
     console.warn("Enterprise contact submitted but RESEND_API_KEY is not configured", {

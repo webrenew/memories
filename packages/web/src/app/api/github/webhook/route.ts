@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getGithubWebhookSecret } from "@/lib/env"
 import {
   buildGithubCaptureCandidates,
   inferTargetOwnerLogin,
@@ -119,7 +120,7 @@ async function loadCaptureSettingsForTarget(
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const secret = process.env.GITHUB_WEBHOOK_SECRET
+  const secret = getGithubWebhookSecret()
   if (!secret) {
     return NextResponse.json({ error: "GitHub webhook is not configured" }, { status: 503 })
   }

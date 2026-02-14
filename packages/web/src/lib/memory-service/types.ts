@@ -1,27 +1,17 @@
 import { createClient as createTurso } from "@libsql/client"
 
-function parsePositiveInt(value: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(value ?? "", 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
-}
+// Re-export env-derived constants for backward compatibility with existing imports.
+export {
+  parsePositiveInt,
+  parseBooleanFlag,
+  MCP_WORKING_MEMORY_TTL_HOURS,
+  MCP_WORKING_MEMORY_MAX_ITEMS_PER_USER,
+  GRAPH_MAPPING_ENABLED,
+  GRAPH_RETRIEVAL_ENABLED,
+  GRAPH_LLM_EXTRACTION_ENABLED,
+} from "@/lib/env"
 
-function parseBooleanFlag(value: string | undefined, fallback = false): boolean {
-  if (!value) return fallback
-  const normalized = value.trim().toLowerCase()
-  if (["1", "true", "yes", "on"].includes(normalized)) return true
-  if (["0", "false", "no", "off"].includes(normalized)) return false
-  return fallback
-}
-
-export const MCP_WORKING_MEMORY_TTL_HOURS = parsePositiveInt(process.env.MCP_WORKING_MEMORY_TTL_HOURS, 24)
-export const MCP_WORKING_MEMORY_MAX_ITEMS_PER_USER = parsePositiveInt(
-  process.env.MCP_WORKING_MEMORY_MAX_ITEMS_PER_USER,
-  200
-)
 export const DEFAULT_RESPONSE_SCHEMA_VERSION = "2026-02-10"
-export const GRAPH_MAPPING_ENABLED = parseBooleanFlag(process.env.GRAPH_MAPPING_ENABLED, false)
-export const GRAPH_RETRIEVAL_ENABLED = parseBooleanFlag(process.env.GRAPH_RETRIEVAL_ENABLED, false)
-export const GRAPH_LLM_EXTRACTION_ENABLED = parseBooleanFlag(process.env.GRAPH_LLM_EXTRACTION_ENABLED, false)
 
 export type TursoClient = ReturnType<typeof createTurso>
 

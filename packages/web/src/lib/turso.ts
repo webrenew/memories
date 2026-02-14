@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid"
 import { createClient } from "@libsql/client"
+import { getTursoPlatformApiToken } from "@/lib/env"
 
 const API_BASE = "https://api.turso.tech/v1"
 
@@ -15,14 +16,6 @@ interface CreateTokenResponse {
   jwt: string
 }
 
-function getApiToken(): string {
-  const token = process.env.TURSO_PLATFORM_API_TOKEN
-  if (!token) {
-    throw new Error("TURSO_PLATFORM_API_TOKEN not set")
-  }
-  return token
-}
-
 async function api<T>(
   path: string,
   opts?: { method?: string; body?: unknown }
@@ -30,7 +23,7 @@ async function api<T>(
   const res = await fetch(`${API_BASE}${path}`, {
     method: opts?.method ?? "GET",
     headers: {
-      Authorization: `Bearer ${getApiToken()}`,
+      Authorization: `Bearer ${getTursoPlatformApiToken()}`,
       "Content-Type": "application/json",
     },
     body: opts?.body ? JSON.stringify(opts.body) : undefined,

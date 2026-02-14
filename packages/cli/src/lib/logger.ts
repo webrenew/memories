@@ -6,6 +6,8 @@
  * All output goes to stderr so it doesn't interfere with MCP stdio protocol.
  */
 
+import { isDebug } from "./env.js";
+
 const PREFIX = "[memories]";
 
 export const logger = {
@@ -22,7 +24,7 @@ export const logger = {
   },
 
   debug(msg: string, ...args: unknown[]): void {
-    if (process.env.DEBUG) {
+    if (isDebug()) {
       console.error(`${PREFIX} DEBUG ${msg}`, ...args);
     }
   },

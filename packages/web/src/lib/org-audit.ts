@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { isTestEnvironment, getSupabaseUrl, hasServiceRoleKey } from "@/lib/env"
 
 type SupabaseLikeClient = {
   from: (table: string) => {
@@ -18,8 +19,8 @@ interface OrgAuditEventInput {
 }
 
 function hasServiceRoleConfig(): boolean {
-  if (process.env.NODE_ENV === "test") return false
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+  if (isTestEnvironment()) return false
+  return Boolean(getSupabaseUrl() && hasServiceRoleKey())
 }
 
 function asErrorMessage(error: unknown): string {

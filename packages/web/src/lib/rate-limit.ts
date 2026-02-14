@@ -1,6 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
+import { getUpstashRedisConfig } from "@/lib/env"
 
 interface RateLimitResult {
   success: boolean
@@ -48,11 +49,10 @@ class InMemorySlidingWindowLimiter implements RateLimiter {
 }
 
 function createRateLimiter(max: number, windowSeconds: number, prefix: string): RateLimiter {
-  const url = process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  const redisConfig = getUpstashRedisConfig()
 
-  if (url && token) {
-    const redis = new Redis({ url, token })
+  if (redisConfig) {
+    const redis = new Redis(redisConfig)
     return new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(max, `${windowSeconds} s`),

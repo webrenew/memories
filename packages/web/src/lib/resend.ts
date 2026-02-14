@@ -1,14 +1,12 @@
 import { Resend } from "resend"
 import { getTeamInviteExpiryLabel } from "./team-invites"
+import { getResendApiKey, getResendFromEmail } from "@/lib/env"
 
 let resend: Resend | null = null
 
 export function getResend(): Resend {
   if (!resend) {
-    if (!process.env.RESEND_API_KEY) {
-      throw new Error("RESEND_API_KEY is not set")
-    }
-    resend = new Resend(process.env.RESEND_API_KEY)
+    resend = new Resend(getResendApiKey())
   }
   return resend
 }
@@ -29,7 +27,7 @@ export async function sendTeamInviteEmail({
   const resend = getResend()
   const inviteExpiryLabel = getTeamInviteExpiryLabel()
 
-  const fromEmail = process.env.RESEND_FROM_EMAIL || "memories.sh <team@memories.sh>"
+  const fromEmail = getResendFromEmail()
   
   await resend.emails.send({
     from: fromEmail,

@@ -2,10 +2,9 @@ import { getStripe } from "@/lib/stripe"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 import type Stripe from "stripe"
+import { getStripeProPriceIds, getStripeWebhookSecret } from "@/lib/env"
 
-const PRO_PRICE_IDS = new Set(
-  [process.env.STRIPE_PRO_PRICE_ID, process.env.STRIPE_PRO_PRICE_ID_ANNUAL].filter(Boolean)
-)
+const PRO_PRICE_IDS = getStripeProPriceIds()
 
 function hasProPrice(items: { price?: { id: string } | null }[]): boolean {
   return items.some((item) => item.price?.id && PRO_PRICE_IDS.has(item.price.id))
@@ -78,7 +77,7 @@ export async function POST(request: Request): Promise<Response> {
     event = getStripe().webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      getStripeWebhookSecret()
     )
   } catch (err) {
     console.error("Webhook signature verification failed:", err)

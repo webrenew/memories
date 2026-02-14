@@ -5,6 +5,11 @@ import { checkRateLimit, getClientIp, mcpRateLimit } from "@/lib/rate-limit"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { hashMcpApiKey, isValidMcpApiKey } from "@/lib/mcp-api-key"
 import {
+  MCP_MAX_CONNECTIONS_PER_KEY,
+  MCP_MAX_CONNECTIONS_PER_IP,
+  MCP_SESSION_IDLE_MS,
+} from "@/lib/env"
+import {
   apiError,
   type ApiErrorDetail,
   executeMemoryTool,
@@ -14,15 +19,6 @@ import {
   ToolExecutionError,
   toToolExecutionError,
 } from "@/lib/memory-service/tools"
-
-function parsePositiveInt(value: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(value ?? "", 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
-}
-
-const MCP_MAX_CONNECTIONS_PER_KEY = parsePositiveInt(process.env.MCP_MAX_CONNECTIONS_PER_KEY, 5)
-const MCP_MAX_CONNECTIONS_PER_IP = parsePositiveInt(process.env.MCP_MAX_CONNECTIONS_PER_IP, 20)
-const MCP_SESSION_IDLE_MS = parsePositiveInt(process.env.MCP_SESSION_IDLE_MS, 15 * 60 * 1000)
 const MCP_RESPONSE_SCHEMA_VERSION = "2026-02-10"
 const encoder = new TextEncoder()
 

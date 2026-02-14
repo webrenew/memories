@@ -10,6 +10,7 @@ import { select } from "@inquirer/prompts";
 import { listMemories, updateMemory, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
 import { getDb } from "../lib/db.js";
 import { getProjectId } from "../lib/git.js";
+import { getEditor } from "../lib/env.js";
 
 function truncate(str: string, max: number): string {
   if (str.length <= max) return str;
@@ -84,7 +85,7 @@ export const editCommand = new Command("edit")
 
       // If no flags provided, open $EDITOR
       if (newContent === undefined && opts.tags === undefined && opts.type === undefined && opts.paths === undefined && opts.category === undefined) {
-        const editor = process.env.EDITOR || process.env.VISUAL || "vi";
+        const editor = getEditor();
         const tmpFile = join(tmpdir(), `memories-edit-${nanoid(6)}.md`);
 
         writeFileSync(tmpFile, memory.content, "utf-8");

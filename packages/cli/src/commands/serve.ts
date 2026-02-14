@@ -2,8 +2,9 @@ import { Command } from "commander";
 import { startMcpServer, startMcpHttpServer, setCloudCredentials } from "../mcp/index.js";
 import { getProjectId } from "../lib/git.js";
 import { logger } from "../lib/logger.js";
+import { getApiUrl } from "../lib/env.js";
 
-const MEMORIES_API = process.env.MEMORIES_API_URL || "https://memories.sh";
+const MEMORIES_API = getApiUrl();
 
 interface CloudCredentials {
   turso_db_url: string;

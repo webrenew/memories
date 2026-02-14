@@ -2,7 +2,7 @@ import { createClient, type Client } from "@libsql/client";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
+import { getDataDir } from "./env.js";
 
 interface FtsTriggerDefinition {
   name: string;
@@ -49,7 +49,7 @@ const FTS_TRIGGER_DEFINITIONS: FtsTriggerDefinition[] = [
 ];
 
 function resolveConfigDir(): string {
-  return process.env.MEMORIES_DATA_DIR ?? join(homedir(), ".config", "memories");
+  return getDataDir();
 }
 
 export function getConfigDir(): string {

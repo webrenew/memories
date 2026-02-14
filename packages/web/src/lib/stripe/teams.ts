@@ -1,4 +1,5 @@
 import { getStripe } from "./index"
+import { getStripeProPriceId } from "@/lib/env"
 
 export async function addTeamSeat({
   orgId,
@@ -12,9 +13,7 @@ export async function addTeamSeat({
   billing?: "monthly" | "annual"
 }): Promise<{ subscriptionId: string; action: "created" | "updated" }> {
   const stripe = getStripe()
-  const priceId = billing === "annual" 
-    ? process.env.STRIPE_PRO_PRICE_ID_ANNUAL!
-    : process.env.STRIPE_PRO_PRICE_ID!
+  const priceId = getStripeProPriceId(billing)
 
   // If org already has a subscription, increment quantity
   if (stripeSubscriptionId) {

@@ -5,6 +5,7 @@ import { checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import { parseBody, checkoutSchema } from "@/lib/validations"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { resolveWorkspaceContext } from "@/lib/workspace"
+import { getStripeProPriceId } from "@/lib/env"
 
 function jsonError(message: string, status: number, code: string) {
   return NextResponse.json({ error: message, code }, { status })
@@ -129,10 +130,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success) return parsed.response
   const { billing } = parsed.data
 
-  const priceId =
-    billing === "annual"
-      ? process.env.STRIPE_PRO_PRICE_ID_ANNUAL!
-      : process.env.STRIPE_PRO_PRICE_ID!
+  const priceId = getStripeProPriceId(billing)
 
   let customerId: string | null = null
   if (workspace.ownerType === "organization") {

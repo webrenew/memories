@@ -3,6 +3,11 @@ import { createDatabase, createDatabaseToken, initSchema } from "@/lib/turso"
 import { createClient as createTurso } from "@libsql/client"
 import { setTimeout as delay } from "node:timers/promises"
 import {
+  getTursoOrgSlug,
+  hasTursoPlatformApiToken,
+  shouldAutoProvisionTenants,
+} from "@/lib/env"
+import {
   apiError,
   MCP_WORKING_MEMORY_TTL_HOURS,
   type MemoryLayer,
@@ -10,8 +15,6 @@ import {
   ToolExecutionError,
   VALID_LAYERS,
 } from "./types"
-
-const TURSO_ORG = process.env.TURSO_ORG_SLUG ?? "webrenew"
 
 function addHours(iso: string, hours: number): string {
   return new Date(new Date(iso).getTime() + hours * 60 * 60 * 1000).toISOString()
@@ -148,10 +151,7 @@ export function buildUserScopeFilter(
 }
 
 function shouldAutoProvisionTenantDatabases(): boolean {
-  const flag = process.env.SDK_AUTO_PROVISION_TENANTS
-  if (!flag) return true
-  const normalized = flag.trim().toLowerCase()
-  return !(normalized === "0" || normalized === "false" || normalized === "off" || normalized === "no")
+  return shouldAutoProvisionTenants()
 }
 
 async function readTenantMapping(
@@ -208,12 +208,13 @@ async function autoProvisionTenantDatabase(params: {
 }): Promise<void> {
   const { apiKeyHash, tenantId, ownerUserId, existingMetadata } = params
 
-  if (!process.env.TURSO_PLATFORM_API_TOKEN) {
+  if (!hasTursoPlatformApiToken()) {
     return
   }
 
-  const db = await createDatabase(TURSO_ORG)
-  const token = await createDatabaseToken(TURSO_ORG, db.name)
+  const tursoOrg = getTursoOrgSlug()
+  const db = await createDatabase(tursoOrg)
+  const token = await createDatabaseToken(tursoOrg, db.name)
   const url = `libsql://${db.hostname}`
 
   await delay(3000)
@@ -270,7 +271,7 @@ export async function resolveTenantTurso(
   const canAutoProvision =
     (options.autoProvision ?? true) &&
     shouldAutoProvisionTenantDatabases() &&
-    Boolean(process.env.TURSO_PLATFORM_API_TOKEN)
+    hasTursoPlatformApiToken()
 
   if (
     canAutoProvision &&

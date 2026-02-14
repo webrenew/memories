@@ -6,6 +6,7 @@ import { resolveWorkspaceContext } from "@/lib/workspace"
 import type { OrgMembership } from "@/components/dashboard/WorkspaceSwitcher"
 import { autoJoinOrganizationsForEmails } from "@/lib/domain-auto-join"
 import { syncGithubAccountLink } from "@/lib/github-account-links"
+import { hasServiceRoleKey } from "@/lib/env"
 
 export const metadata = {
   title: "Dashboard",
@@ -23,7 +24,7 @@ export default async function AppLayout({
     redirect("/login")
   }
 
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY && user.email) {
+  if (hasServiceRoleKey() && user.email) {
     void autoJoinOrganizationsForEmails({
       userId: user.id,
       emails: [user.email],

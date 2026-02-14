@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { getStripe } from "@/lib/stripe"
 import { NextResponse } from "next/server"
 import { checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
+import { getTursoOrgSlug, getTursoApiToken, getSupabaseUrl, getSupabaseServiceRoleKey } from "@/lib/env"
 
 export async function DELETE(): Promise<Response> {
   const supabase = await createClient()
@@ -42,8 +43,8 @@ export async function DELETE(): Promise<Response> {
     // Delete Turso database if exists
     if (profile?.turso_db_name) {
       try {
-        const tursoOrgSlug = process.env.TURSO_ORG_SLUG
-        const tursoApiToken = process.env.TURSO_API_TOKEN
+        const tursoOrgSlug = getTursoOrgSlug()
+        const tursoApiToken = getTursoApiToken()
         
         if (tursoOrgSlug && tursoApiToken) {
           await fetch(
@@ -71,8 +72,8 @@ export async function DELETE(): Promise<Response> {
 
     // Delete auth user (requires admin client)
     const adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      getSupabaseUrl(),
+      getSupabaseServiceRoleKey()
     )
     
     const { error: authError } = await adminClient.auth.admin.deleteUser(user.id)

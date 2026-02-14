@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, createInviteSchema } from "@/lib/validations"
 import { getTeamInviteExpiresAt } from "@/lib/team-invites"
+import { getAppUrl, hasResendApiKey } from "@/lib/env"
 
 // GET /api/orgs/[orgId]/invites - List pending invites
 export async function GET(
@@ -162,11 +163,11 @@ export async function POST(
     .eq("id", user.id)
     .single()
 
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://memories.sh"}/invite/accept?token=${invite.token}`
+  const inviteUrl = `${getAppUrl()}/invite/accept?token=${invite.token}`
 
   // Send invite email
-  const emailSent = Boolean(process.env.RESEND_API_KEY)
-  if (process.env.RESEND_API_KEY) {
+  const emailSent = hasResendApiKey()
+  if (emailSent) {
     try {
       await sendTeamInviteEmail({
         to: email.toLowerCase(),
@@ -200,9 +201,9 @@ export async function POST(
     invite,
     inviteUrl,
     emailSent,
-    message: process.env.RESEND_API_KEY 
-      ? `Invite sent to ${email}` 
-      : `Invite created. Share this link: ${inviteUrl}` 
+    message: emailSent
+      ? `Invite sent to ${email}`
+      : `Invite created. Share this link: ${inviteUrl}`
   }, { status: 201 })
 }
 
