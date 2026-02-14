@@ -188,12 +188,23 @@ export async function expandMemoryGraph(params: ExpandMemoryGraphParams): Promis
   }
 
   const traversalNodePlaceholders = placeholders(traversalNodeIds.length)
-  const nodeDetailsResult = await turso.execute({
-    sql: `SELECT id, node_type, node_key
-          FROM graph_nodes
-          WHERE id IN (${traversalNodePlaceholders})`,
-    args: traversalNodeIds,
-  })
+  const seedPlaceholders = placeholders(seedMemoryIds.length)
+
+  const [nodeDetailsResult, candidateLinkResult] = await Promise.all([
+    turso.execute({
+      sql: `SELECT id, node_type, node_key
+            FROM graph_nodes
+            WHERE id IN (${traversalNodePlaceholders})`,
+      args: traversalNodeIds,
+    }),
+    turso.execute({
+      sql: `SELECT memory_id, node_id
+            FROM memory_node_links
+            WHERE node_id IN (${traversalNodePlaceholders})
+              AND memory_id NOT IN (${seedPlaceholders})`,
+      args: [...traversalNodeIds, ...seedMemoryIds],
+    }),
+  ])
 
   type NodeDetailRow = {
     id: string
@@ -205,15 +216,6 @@ export async function expandMemoryGraph(params: ExpandMemoryGraphParams): Promis
   for (const row of detailRows) {
     nodeDetails.set(row.id, { nodeType: row.node_type, nodeKey: row.node_key })
   }
-
-  const seedPlaceholders = placeholders(seedMemoryIds.length)
-  const candidateLinkResult = await turso.execute({
-    sql: `SELECT memory_id, node_id
-          FROM memory_node_links
-          WHERE node_id IN (${traversalNodePlaceholders})
-            AND memory_id NOT IN (${seedPlaceholders})`,
-    args: [...traversalNodeIds, ...seedMemoryIds],
-  })
 
   type CandidateLinkRow = {
     memory_id: string

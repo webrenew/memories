@@ -34,27 +34,27 @@ export async function getLinkedMemories(memoryId: string): Promise<{ memory: Mem
   const db = await getDb();
   await ensureLinksTable();
   
-  // Get outgoing links
-  const outgoing = await db.execute({
-    sql: `
-      SELECT m.*, ml.link_type 
-      FROM memory_links ml 
-      JOIN memories m ON ml.target_id = m.id 
-      WHERE ml.source_id = ? AND m.deleted_at IS NULL
-    `,
-    args: [memoryId],
-  });
-
-  // Get incoming links
-  const incoming = await db.execute({
-    sql: `
-      SELECT m.*, ml.link_type 
-      FROM memory_links ml 
-      JOIN memories m ON ml.source_id = m.id 
-      WHERE ml.target_id = ? AND m.deleted_at IS NULL
-    `,
-    args: [memoryId],
-  });
+  // Get outgoing and incoming links in parallel
+  const [outgoing, incoming] = await Promise.all([
+    db.execute({
+      sql: `
+        SELECT m.*, ml.link_type
+        FROM memory_links ml
+        JOIN memories m ON ml.target_id = m.id
+        WHERE ml.source_id = ? AND m.deleted_at IS NULL
+      `,
+      args: [memoryId],
+    }),
+    db.execute({
+      sql: `
+        SELECT m.*, ml.link_type
+        FROM memory_links ml
+        JOIN memories m ON ml.source_id = m.id
+        WHERE ml.target_id = ? AND m.deleted_at IS NULL
+      `,
+      args: [memoryId],
+    }),
+  ]);
 
   const results: { memory: Memory; linkType: string; direction: "from" | "to" }[] = [];
 
@@ -93,8 +93,7 @@ export const linkCommand = new Command("link")
       }
 
       // Verify both memories exist
-      const m1 = await getMemoryById(id1);
-      const m2 = await getMemoryById(id2);
+      const [m1, m2] = await Promise.all([getMemoryById(id1), getMemoryById(id2)]);
 
       if (!m1) {
         ui.error(`Memory ${id1} not found`);

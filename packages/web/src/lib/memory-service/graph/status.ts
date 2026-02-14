@@ -451,45 +451,46 @@ export async function getGraphStatusPayload(input: GraphStatusInput): Promise<Gr
     }
   }
 
-  const nodes = await scalarCount(turso, "SELECT COUNT(*) as count FROM graph_nodes")
-  const edges = await scalarCount(turso, "SELECT COUNT(*) as count FROM graph_edges")
-  const memoryLinks = await scalarCount(turso, "SELECT COUNT(*) as count FROM memory_node_links")
-  const activeEdges = await scalarCount(
-    turso,
-    "SELECT COUNT(*) as count FROM graph_edges WHERE expires_at IS NULL OR expires_at > ?",
-    [nowIso]
-  )
-  const expiredEdges = await scalarCount(
-    turso,
-    "SELECT COUNT(*) as count FROM graph_edges WHERE expires_at IS NOT NULL AND expires_at <= ?",
-    [nowIso]
-  )
-  const orphanNodes = await scalarCount(
-    turso,
-    `SELECT COUNT(*) as count
-     FROM graph_nodes n
-     WHERE NOT EXISTS (SELECT 1 FROM memory_node_links l WHERE l.node_id = n.id)
-       AND NOT EXISTS (
-         SELECT 1 FROM graph_edges e
-         WHERE (e.from_node_id = n.id OR e.to_node_id = n.id)
-           AND (e.expires_at IS NULL OR e.expires_at > ?)
-       )`,
-    [nowIso]
-  )
-
-  const topNodesResult = await turso.execute({
-    sql: `SELECT
-            n.node_type,
-            n.node_key,
-            n.label,
-            (SELECT COUNT(*) FROM memory_node_links l WHERE l.node_id = n.id) AS memory_links,
-            (SELECT COUNT(*) FROM graph_edges e WHERE e.from_node_id = n.id AND (e.expires_at IS NULL OR e.expires_at > ?)) AS outbound_edges,
-            (SELECT COUNT(*) FROM graph_edges e WHERE e.to_node_id = n.id AND (e.expires_at IS NULL OR e.expires_at > ?)) AS inbound_edges
-          FROM graph_nodes n
-          ORDER BY (memory_links + outbound_edges + inbound_edges) DESC, n.node_type ASC, n.node_key ASC
-          LIMIT ?`,
-    args: [nowIso, nowIso, topNodesLimit],
-  })
+  const [nodes, edges, memoryLinks, activeEdges, expiredEdges, orphanNodes, topNodesResult] = await Promise.all([
+    scalarCount(turso, "SELECT COUNT(*) as count FROM graph_nodes"),
+    scalarCount(turso, "SELECT COUNT(*) as count FROM graph_edges"),
+    scalarCount(turso, "SELECT COUNT(*) as count FROM memory_node_links"),
+    scalarCount(
+      turso,
+      "SELECT COUNT(*) as count FROM graph_edges WHERE expires_at IS NULL OR expires_at > ?",
+      [nowIso]
+    ),
+    scalarCount(
+      turso,
+      "SELECT COUNT(*) as count FROM graph_edges WHERE expires_at IS NOT NULL AND expires_at <= ?",
+      [nowIso]
+    ),
+    scalarCount(
+      turso,
+      `SELECT COUNT(*) as count
+       FROM graph_nodes n
+       WHERE NOT EXISTS (SELECT 1 FROM memory_node_links l WHERE l.node_id = n.id)
+         AND NOT EXISTS (
+           SELECT 1 FROM graph_edges e
+           WHERE (e.from_node_id = n.id OR e.to_node_id = n.id)
+             AND (e.expires_at IS NULL OR e.expires_at > ?)
+         )`,
+      [nowIso]
+    ),
+    turso.execute({
+      sql: `SELECT
+              n.node_type,
+              n.node_key,
+              n.label,
+              (SELECT COUNT(*) FROM memory_node_links l WHERE l.node_id = n.id) AS memory_links,
+              (SELECT COUNT(*) FROM graph_edges e WHERE e.from_node_id = n.id AND (e.expires_at IS NULL OR e.expires_at > ?)) AS outbound_edges,
+              (SELECT COUNT(*) FROM graph_edges e WHERE e.to_node_id = n.id AND (e.expires_at IS NULL OR e.expires_at > ?)) AS inbound_edges
+            FROM graph_nodes n
+            ORDER BY (memory_links + outbound_edges + inbound_edges) DESC, n.node_type ASC, n.node_key ASC
+            LIMIT ?`,
+      args: [nowIso, nowIso, topNodesLimit],
+    }),
+  ])
 
   const topConnectedNodes = (topNodesResult.rows as unknown as GraphTopNodeRow[]).map((row) => {
     const memoryLinksCount = Number(row.memory_links ?? 0)
