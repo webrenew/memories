@@ -3,90 +3,34 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { 
-  Users, 
-  Plus, 
-  Crown, 
-  Shield, 
-  User, 
+import {
+  Users,
+  Plus,
+  Crown,
+  Shield,
+  User,
   Mail,
   Trash2,
   Check,
 } from "lucide-react"
 import { InviteModal } from "./invite-modal"
 import { MemoryMigrationCard } from "./memory-migration-card"
-
-interface Organization {
-  id: string
-  name: string
-  slug: string
-  owner_id: string
-  plan: string
-  created_at: string
-  role: string
-  domain_auto_join_enabled?: boolean | null
-  domain_auto_join_domain?: string | null
-}
-
-interface OrganizationDetails {
-  id: string
-  domain_auto_join_enabled?: boolean | null
-  domain_auto_join_domain?: string | null
-  updated_at?: string | null
-}
-
-interface GithubCaptureSettings {
-  allowed_events: Array<"pull_request" | "issues" | "push" | "release">
-  repo_allow_list: string[]
-  repo_block_list: string[]
-  branch_filters: string[]
-  label_filters: string[]
-  actor_filters: string[]
-  include_prerelease: boolean
-}
-
-interface Member {
-  id: string
-  role: string
-  joined_at: string | null
-  last_login_at: string | null
-  memory_count: number
-  user_memory_count: number
-  user: {
-    id: string
-    email: string
-    name: string | null
-    avatar_url: string | null
-  }
-}
-
-interface Invite {
-  id: string
-  email: string
-  role: string
-  created_at: string
-  expires_at: string
-  inviter: {
-    name: string | null
-    email: string
-  }
-}
-
-interface AuditEvent {
-  id: string
-  action: string
-  target_type: string | null
-  target_id: string | null
-  target_label: string | null
-  metadata: Record<string, unknown> | null
-  created_at: string
-  actor_user_id: string | null
-  actor: {
-    id: string
-    email: string | null
-    name: string | null
-  } | null
-}
+import type {
+  Organization,
+  OrganizationDetails,
+  GithubCaptureSettings,
+  Member,
+  Invite,
+  AuditEvent,
+} from "./team-types"
+import {
+  formatLastLogin,
+  formatAuditAction,
+  summarizeAuditMetadata,
+  formatListField,
+  parseListField,
+  sameStringList,
+} from "./team-helpers"
 
 function roleIcon(role: string) {
   switch (role) {
@@ -94,68 +38,6 @@ function roleIcon(role: string) {
     case "admin": return <Shield className="h-3 w-3 text-blue-400" />
     default: return <User className="h-3 w-3 text-muted-foreground" />
   }
-}
-
-function formatLastLogin(lastLoginAt: string | null): string {
-  if (!lastLoginAt) return "Never"
-  const date = new Date(lastLoginAt)
-  if (Number.isNaN(date.getTime())) return "Unknown"
-  return date.toLocaleString()
-}
-
-function formatAuditAction(action: string): string {
-  return action
-    .split("_")
-    .map((part) => (part ? `${part[0].toUpperCase()}${part.slice(1)}` : part))
-    .join(" ")
-}
-
-function summarizeAuditMetadata(metadata: Record<string, unknown> | null): string | null {
-  if (!metadata || typeof metadata !== "object") return null
-
-  const keys = [
-    "role",
-    "previousRole",
-    "nextRole",
-    "removedBySelf",
-    "domain_auto_join_enabled",
-    "domain_auto_join_domain",
-  ]
-
-  const parts: string[] = []
-  for (const key of keys) {
-    if (!(key in metadata)) continue
-    const value = metadata[key]
-    if (value === null || value === undefined) continue
-    parts.push(`${key}=${String(value)}`)
-  }
-
-  return parts.length > 0 ? parts.join(" • ") : null
-}
-
-function formatListField(values: string[] | null | undefined): string {
-  if (!Array.isArray(values) || values.length === 0) return ""
-  return values.join("\n")
-}
-
-function parseListField(value: string): string[] {
-  return Array.from(
-    new Set(
-      value
-        .split(/\r?\n|,/)
-        .map((entry) => entry.trim())
-        .filter(Boolean)
-    )
-  )
-}
-
-function sameStringList(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) return false
-
-  const leftSorted = [...left].sort()
-  const rightSorted = [...right].sort()
-
-  return leftSorted.every((value, index) => value === rightSorted[index])
 }
 
 export function TeamContent({ 

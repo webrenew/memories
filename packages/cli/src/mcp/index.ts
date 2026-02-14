@@ -1,7 +1,5 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { createServer, IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import {
   addMemory,
@@ -19,95 +17,31 @@ import {
   finalizeMemoryStream,
   cancelMemoryStream,
   getStreamState,
-  type Memory,
-  type MemoryType,
 } from "../lib/memory.js";
 import { getProjectId } from "../lib/git.js";
 import { setCloudMode } from "../lib/db.js";
 import { CLI_VERSION } from "../lib/version.js";
-import { logger } from "../lib/logger.js";
 import { resolveMemoryScopeInput } from "./scope.js";
 import {
-  formatStorageWarningsForText,
-  getStorageWarnings,
-  type StorageWarning,
-} from "../lib/storage-health.js";
+  TYPE_LABELS,
+  formatMemory,
+  formatRulesSection,
+  formatMemoriesSection,
+  withStorageWarnings,
+} from "./mcp-helpers.js";
+
+// Re-export startMcpHttpServer for backward compatibility
+export { startMcpHttpServer } from "./mcp-http.js";
+
+// Re-export withStorageWarnings for tests
+export { withStorageWarnings } from "./mcp-helpers.js";
 
 // Re-export for use by serve command
 export function setCloudCredentials(url: string, token: string): void {
   setCloudMode(url, token);
 }
 
-const TYPE_LABELS: Record<MemoryType, string> = {
-  rule: "📌 RULE",
-  decision: "💡 DECISION",
-  fact: "📋 FACT",
-  note: "📝 NOTE",
-  skill: "🔧 SKILL",
-};
-
-function formatMemory(m: Memory): string {
-  const tags = m.tags ? ` [${m.tags}]` : "";
-  const scope = m.scope === "global" ? "G" : "P";
-  const typeLabel = TYPE_LABELS[m.type] || "📝 NOTE";
-  const paths = m.paths ? ` (paths: ${m.paths})` : "";
-  const cat = m.category ? ` {${m.category}}` : "";
-  return `${typeLabel} (${scope}) ${m.id}: ${m.content}${tags}${paths}${cat}`;
-}
-
-function formatRulesSection(rules: Memory[]): string {
-  if (rules.length === 0) return "";
-  return `## Active Rules\n${rules.map(r => `- ${r.content}`).join("\n")}`;
-}
-
-function formatMemoriesSection(memories: Memory[], title: string): string {
-  if (memories.length === 0) return "";
-  return `## ${title}\n${memories.map(formatMemory).join("\n")}`;
-}
-
-interface ToolTextPart {
-  type: "text";
-  text: string;
-}
-
-interface ToolResponsePayload {
-  content: ToolTextPart[];
-  isError?: boolean;
-  [key: string]: unknown;
-}
-
-export async function withStorageWarnings(
-  result: ToolResponsePayload,
-  warningsOverride?: StorageWarning[]
-): Promise<ToolResponsePayload> {
-  if (result.isError) return result;
-
-  if (result.content.length === 0) return result;
-
-  try {
-    const warnings = warningsOverride ?? (await getStorageWarnings()).warnings;
-    if (warnings.length === 0) return result;
-
-    const warningBlock = formatStorageWarningsForText(warnings);
-    if (!warningBlock) return result;
-
-    const nextContent = [...result.content];
-    const textPart = nextContent[0];
-    nextContent[0] = {
-      ...textPart,
-      text: `${textPart.text}\n\n${warningBlock}`,
-    };
-
-    return {
-      ...result,
-      content: nextContent,
-    };
-  } catch {
-    return result;
-  }
-}
-
-async function createMcpServer(): Promise<McpServer> {
+export async function createMcpServer(): Promise<McpServer> {
   const projectId = getProjectId();
 
   const server = new McpServer({
@@ -238,11 +172,11 @@ Use this at the start of tasks to understand project conventions and recall past
         });
 
         const parts: string[] = [];
-        
+
         if (rules.length > 0) {
           parts.push(formatRulesSection(rules));
         }
-        
+
         if (memories.length > 0) {
           parts.push(formatMemoriesSection(memories, query ? `Relevant to: "${query}"` : "Recent Memories"));
         }
@@ -329,8 +263,8 @@ Use category to group related memories (e.g., "api", "testing").`,
     },
     async ({ query, limit, types }) => {
       try {
-        const memories = await searchMemories(query, { 
-          limit, 
+        const memories = await searchMemories(query, {
+          limit,
           projectId: projectId ?? undefined,
           types,
         });
@@ -408,9 +342,9 @@ Use category to group related memories (e.g., "api", "testing").`,
     },
     async ({ limit, tags, types }) => {
       try {
-        const memories = await listMemories({ 
-          limit, 
-          tags, 
+        const memories = await listMemories({
+          limit,
+          tags,
           projectId: projectId ?? undefined,
           types,
         });
@@ -649,9 +583,9 @@ Use this when you're receiving content in chunks via Server-Sent Events:
           ...scopeOpts,
         });
         return {
-          content: [{ 
-            type: "text", 
-            text: `Started stream ${streamId}. Use append_memory_chunk to add content, then finalize_memory_stream when complete.` 
+          content: [{
+            type: "text",
+            text: `Started stream ${streamId}. Use append_memory_chunk to add content, then finalize_memory_stream when complete.`
           }],
         };
       } catch (error) {
@@ -678,9 +612,9 @@ Chunks are concatenated in order when the stream is finalized.`,
         appendMemoryChunk(stream_id, chunk);
         const state = getStreamState(stream_id);
         return {
-          content: [{ 
-            type: "text", 
-            text: `Appended chunk (${chunk.length} chars). Stream now has ${state?.chunkCount ?? 0} chunks, ${state?.contentLength ?? 0} total chars.` 
+          content: [{
+            type: "text",
+            text: `Appended chunk (${chunk.length} chars). Stream now has ${state?.chunkCount ?? 0} chunks, ${state?.contentLength ?? 0} total chars.`
           }],
         };
       } catch (error) {
@@ -705,18 +639,18 @@ The stream is cleaned up after finalization.`,
       try {
         const state = getStreamState(stream_id);
         const memory = await finalizeMemoryStream(stream_id);
-        
+
         if (!memory) {
           return {
             content: [{ type: "text", text: `Stream ${stream_id} was empty - no memory created.` }],
           };
         }
-        
+
         const typeLabel = TYPE_LABELS[memory.type];
         return withStorageWarnings({
-          content: [{ 
-            type: "text", 
-            text: `Created ${typeLabel} ${memory.id} from ${state?.chunkCount ?? 0} chunks (${memory.content.length} chars). Embedding generation started.` 
+          content: [{
+            type: "text",
+            text: `Created ${typeLabel} ${memory.id} from ${state?.chunkCount ?? 0} chunks (${memory.content.length} chars). Embedding generation started.`
           }],
         });
       } catch (error) {
@@ -739,12 +673,12 @@ The stream is cleaned up after finalization.`,
       try {
         const state = getStreamState(stream_id);
         const cancelled = cancelMemoryStream(stream_id);
-        
+
         if (cancelled) {
           return {
-            content: [{ 
-              type: "text", 
-              text: `Cancelled stream ${stream_id} (discarded ${state?.chunkCount ?? 0} chunks, ${state?.contentLength ?? 0} chars).` 
+            content: [{
+              type: "text",
+              text: `Cancelled stream ${stream_id} (discarded ${state?.chunkCount ?? 0} chunks, ${state?.contentLength ?? 0} chars).`
             }],
           };
         }
@@ -768,79 +702,4 @@ export async function startMcpServer(): Promise<void> {
   const server = await createMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-}
-
-export async function startMcpHttpServer(options: {
-  port: number;
-  host: string;
-  cors?: boolean;
-}): Promise<void> {
-  const { port, host, cors } = options;
-  const server = await createMcpServer();
-
-  // Create a transport that will be reused across requests
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // Stateless mode
-  });
-
-  // Connect the MCP server to the transport
-  await server.connect(transport);
-
-  const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    // Handle CORS preflight
-    if (cors) {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
-    }
-
-    if (req.method === "OPTIONS") {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-
-    const url = new URL(req.url || "/", `http://${host}:${port}`);
-
-    // Health check
-    if (url.pathname === "/health") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok" }));
-      return;
-    }
-
-    // MCP endpoint
-    if (url.pathname === "/mcp" || url.pathname === "/") {
-      try {
-        // Parse body for POST requests
-        let body: unknown = undefined;
-        if (req.method === "POST") {
-          const chunks: Buffer[] = [];
-          for await (const chunk of req) {
-            chunks.push(chunk);
-          }
-          const rawBody = Buffer.concat(chunks).toString("utf-8");
-          if (rawBody) {
-            body = JSON.parse(rawBody);
-          }
-        }
-
-        await transport.handleRequest(req, res, body);
-      } catch (error) {
-        logger.error("Error handling MCP request:", error);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Internal server error" }));
-      }
-      return;
-    }
-
-    // 404 for unknown paths
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Not found" }));
-  });
-
-  httpServer.listen(port, host);
-
-  // Keep the process alive
-  await new Promise(() => {});
 }
