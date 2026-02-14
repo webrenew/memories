@@ -37,6 +37,14 @@ export const TOOLS: Tool[] = [
     file: ".cursor/rules/memories.mdc",
   },
   {
+    name: "v0",
+    logo: "/logos/v0.svg",
+    slug: "v0",
+    status: "Available",
+    desc: "Vercel's AI frontend builder. Connects to memories.sh through MCP for live context.",
+    docsUrl: "/docs/integrations/v0",
+  },
+  {
     name: "GitHub Copilot",
     logo: "/logos/copilot.svg",
     slug: "copilot",
@@ -175,7 +183,7 @@ export const TOOLS: Tool[] = [
     logo: "/logos/mcp.svg",
     slug: "mcp",
     status: "Available",
-    desc: "7 tools at full CLI parity with FTS5 search. For v0, bolt.new, Lovable, and any MCP client.",
+    desc: "7 tools at full CLI parity with FTS5 search. For bolt.new, Lovable, and any MCP client.",
     docsUrl: "/docs/integrations/mcp",
   },
 ];
