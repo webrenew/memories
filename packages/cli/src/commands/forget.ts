@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { createInterface } from "node:readline";
+import { createInterface } from "node:readline/promises";
 import chalk from "chalk";
 import * as ui from "../lib/ui.js";
 import {
@@ -23,12 +23,9 @@ const TYPE_ICONS: Record<MemoryType, string> = {
 
 async function confirm(message: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
-  return new Promise((resolve) => {
-    rl.question(message, (answer) => {
-      rl.close();
-      resolve(answer.toLowerCase().startsWith("y"));
-    });
-  });
+  const answer = await rl.question(message);
+  rl.close();
+  return answer.toLowerCase().startsWith("y");
 }
 
 export const forgetCommand = new Command("forget")

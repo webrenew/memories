@@ -2,6 +2,7 @@ import { authenticateRequest } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createDatabase, createDatabaseToken, initSchema } from "@/lib/turso"
 import { NextResponse } from "next/server"
+import { setTimeout as delay } from "node:timers/promises"
 import { checkPreAuthApiRateLimit, checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import { resolveWorkspaceContext } from "@/lib/workspace"
 
@@ -79,7 +80,7 @@ export async function POST(request: Request): Promise<Response> {
     const url = `libsql://${db.hostname}`
 
     // Wait for Turso to finish provisioning
-    await new Promise((r) => setTimeout(r, 3000))
+    await delay(3000)
 
     // Initialize the schema
     await initSchema(url, token)

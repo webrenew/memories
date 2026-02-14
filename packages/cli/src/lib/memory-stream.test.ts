@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 
 // Use a temp directory so tests never hit sync
 process.env.MEMORIES_DATA_DIR = mkdtempSync(join(tmpdir(), "memories-stream-test-"));
@@ -166,7 +167,7 @@ describe("streaming memory API", () => {
       const state1 = getStreamState(streamId);
       
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await delay(50);
       
       const state2 = getStreamState(streamId);
       expect(state2?.ageMs).toBeGreaterThan(state1?.ageMs ?? 0);

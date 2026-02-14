@@ -1,6 +1,7 @@
 import { createClient as createTurso } from "@libsql/client"
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { setTimeout as delay } from "node:timers/promises"
 import { authenticateRequest } from "@/lib/auth"
 import { apiRateLimit, checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -213,7 +214,7 @@ export async function POST(request: Request): Promise<Response> {
       const url = `libsql://${db.hostname}`
 
       // Give Turso a moment to finish provisioning before schema init.
-      await new Promise((resolve) => setTimeout(resolve, 3000))
+      await delay(3000)
       await initSchema(url, token)
 
       tursoDbUrl = url
