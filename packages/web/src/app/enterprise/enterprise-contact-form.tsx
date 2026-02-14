@@ -4,6 +4,11 @@ import React, { FormEvent, useState } from "react"
 
 type Interest = "enterprise" | "usage_based" | "both"
 
+const VALID_INTERESTS: readonly Interest[] = ["enterprise", "usage_based", "both"] as const
+function isInterest(value: string): value is Interest {
+  return (VALID_INTERESTS as readonly string[]).includes(value)
+}
+
 interface FormState {
   name: string
   workEmail: string
@@ -120,7 +125,10 @@ export function EnterpriseContactForm(): React.JSX.Element {
         <select
           value={form.interest}
           onChange={(event) =>
-            setForm((prev) => ({ ...prev, interest: event.target.value as Interest }))
+            setForm((prev) => {
+              const value = event.target.value
+              return isInterest(value) ? { ...prev, interest: value } : prev
+            })
           }
           className={inputClassName}
         >
