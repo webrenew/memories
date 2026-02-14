@@ -1,0 +1,239 @@
+import type { TursoClient } from "./types"
+import { workingMemoryExpiresAt } from "./scope-parsers"
+
+// ─── Schema State ─────────────────────────────────────────────────────────────
+
+const userIdSchemaEnsuredClients = new WeakSet<TursoClient>()
+const userIdSchemaEnsuredKeys = new Set<string>()
+const MEMORY_SCHEMA_STATE_TABLE = "memory_schema_state"
+const MEMORY_SCHEMA_STATE_KEY = "memory_user_id_v1"
+
+// ─── Graph Schema ─────────────────────────────────────────────────────────────
+
+async function ensureGraphSchema(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS graph_nodes (
+      id TEXT PRIMARY KEY,
+      node_type TEXT NOT NULL,
+      node_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      metadata TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await turso.execute(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_graph_nodes_type_key ON graph_nodes(node_type, node_key)"
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_nodes_type ON graph_nodes(node_type)")
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS graph_edges (
+      id TEXT PRIMARY KEY,
+      from_node_id TEXT NOT NULL,
+      to_node_id TEXT NOT NULL,
+      edge_type TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 1.0,
+      confidence REAL NOT NULL DEFAULT 1.0,
+      evidence_memory_id TEXT,
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_from_node_id ON graph_edges(from_node_id)")
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_to_node_id ON graph_edges(to_node_id)")
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_graph_edges_type_from_node_id ON graph_edges(edge_type, from_node_id)"
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_edges_expires_at ON graph_edges(expires_at)")
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_node_links (
+      memory_id TEXT NOT NULL,
+      node_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (memory_id, node_id, role)
+    )`
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memory_node_links_node_id ON memory_node_links(node_id)")
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memory_node_links_memory_id ON memory_node_links(memory_id)")
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS graph_rollout_config (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      mode TEXT NOT NULL DEFAULT 'off',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_by TEXT
+    )`
+  )
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS graph_rollout_metrics (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      requested_strategy TEXT NOT NULL,
+      applied_strategy TEXT NOT NULL,
+      shadow_executed INTEGER NOT NULL DEFAULT 0,
+      baseline_candidates INTEGER NOT NULL DEFAULT 0,
+      graph_candidates INTEGER NOT NULL DEFAULT 0,
+      graph_expanded_count INTEGER NOT NULL DEFAULT 0,
+      total_candidates INTEGER NOT NULL DEFAULT 0,
+      fallback_triggered INTEGER NOT NULL DEFAULT 0,
+      fallback_reason TEXT
+    )`
+  )
+
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_created_at ON graph_rollout_metrics(created_at)"
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_mode ON graph_rollout_metrics(mode)")
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_fallback ON graph_rollout_metrics(fallback_triggered, created_at)"
+  )
+}
+
+// ─── Skill File Schema ────────────────────────────────────────────────────────
+
+async function ensureSkillFileSchema(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS skill_files (
+      id TEXT PRIMARY KEY,
+      path TEXT NOT NULL,
+      content TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'global',
+      project_id TEXT,
+      user_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      deleted_at TEXT
+    )`
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_skill_files_scope_project_path ON skill_files(scope, project_id, path)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_skill_files_user_scope_project ON skill_files(user_id, scope, project_id)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_skill_files_updated_at ON skill_files(updated_at)"
+  )
+}
+
+// ─── Schema State Helpers ─────────────────────────────────────────────────────
+
+async function ensureSchemaStateTable(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS ${MEMORY_SCHEMA_STATE_TABLE} (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+}
+
+async function isMemorySchemaMarked(turso: TursoClient): Promise<boolean> {
+  const result = await turso.execute({
+    sql: `SELECT value
+          FROM ${MEMORY_SCHEMA_STATE_TABLE}
+          WHERE key = ?
+          LIMIT 1`,
+    args: [MEMORY_SCHEMA_STATE_KEY],
+  })
+  const rows = Array.isArray(result.rows) ? result.rows : []
+  return String(rows[0]?.value ?? "") === "1"
+}
+
+async function markMemorySchemaApplied(turso: TursoClient): Promise<void> {
+  await turso.execute({
+    sql: `INSERT OR REPLACE INTO ${MEMORY_SCHEMA_STATE_TABLE} (key, value, updated_at)
+          VALUES (?, '1', datetime('now'))`,
+    args: [MEMORY_SCHEMA_STATE_KEY],
+  })
+}
+
+async function memoryColumns(turso: TursoClient): Promise<Set<string>> {
+  const result = await turso.execute("PRAGMA table_info(memories)")
+  const columns = new Set<string>()
+  const rows = Array.isArray(result.rows) ? result.rows : []
+  for (const row of rows) {
+    const name = row.name
+    if (typeof name === "string" && name.length > 0) {
+      columns.add(name)
+    }
+  }
+  return columns
+}
+
+// ─── Main Schema Migration ────────────────────────────────────────────────────
+
+export interface EnsureMemoryUserIdSchemaOptions {
+  cacheKey?: string | null
+}
+
+export async function ensureMemoryUserIdSchema(
+  turso: TursoClient,
+  options: EnsureMemoryUserIdSchemaOptions = {}
+): Promise<void> {
+  const normalizedCacheKey =
+    typeof options.cacheKey === "string" && options.cacheKey.trim().length > 0
+      ? options.cacheKey.trim()
+      : null
+
+  if (userIdSchemaEnsuredClients.has(turso)) {
+    return
+  }
+  if (normalizedCacheKey && userIdSchemaEnsuredKeys.has(normalizedCacheKey)) {
+    userIdSchemaEnsuredClients.add(turso)
+    return
+  }
+
+  await ensureSchemaStateTable(turso)
+  if (await isMemorySchemaMarked(turso)) {
+    await ensureSkillFileSchema(turso)
+    userIdSchemaEnsuredClients.add(turso)
+    if (normalizedCacheKey) {
+      userIdSchemaEnsuredKeys.add(normalizedCacheKey)
+    }
+    return
+  }
+
+  const columns = await memoryColumns(turso)
+
+  if (!columns.has("user_id")) {
+    await turso.execute("ALTER TABLE memories ADD COLUMN user_id TEXT")
+  }
+
+  if (!columns.has("memory_layer")) {
+    await turso.execute("ALTER TABLE memories ADD COLUMN memory_layer TEXT NOT NULL DEFAULT 'long_term'")
+  }
+
+  if (!columns.has("expires_at")) {
+    await turso.execute("ALTER TABLE memories ADD COLUMN expires_at TEXT")
+  }
+
+  await turso.execute(
+    "UPDATE memories SET memory_layer = 'rule' WHERE (memory_layer IS NULL OR memory_layer = 'long_term') AND type = 'rule'"
+  )
+  await turso.execute("UPDATE memories SET memory_layer = 'long_term' WHERE memory_layer IS NULL")
+  const defaultExpiresAt = workingMemoryExpiresAt(new Date().toISOString())
+  await turso.execute({
+    sql: "UPDATE memories SET expires_at = ? WHERE memory_layer = 'working' AND expires_at IS NULL",
+    args: [defaultExpiresAt],
+  })
+
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memories_user_scope_project ON memories(user_id, scope, project_id)")
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memories_layer_scope_project ON memories(memory_layer, scope, project_id)"
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memories_layer_expires ON memories(memory_layer, expires_at)")
+  await ensureGraphSchema(turso)
+  await ensureSkillFileSchema(turso)
+  await markMemorySchemaApplied(turso)
+  userIdSchemaEnsuredClients.add(turso)
+  if (normalizedCacheKey) {
+    userIdSchemaEnsuredKeys.add(normalizedCacheKey)
+  }
+}
