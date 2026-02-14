@@ -41,7 +41,7 @@ function emptyContext(): ContextResult {
   return { rules: [], memories: [], skillFiles: [], raw: "" }
 }
 
-export function memoriesMiddleware(options: MemoriesMiddlewareOptions = {}) {
+export function memoriesMiddleware(options: MemoriesMiddlewareOptions = {}): { transformParams: (input: unknown) => Promise<unknown> } {
   const client = resolveClient(options)
   const includeRules = options.includeRules ?? true
   const limit = options.limit ?? 10

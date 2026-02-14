@@ -2,7 +2,7 @@ import type { ContextGetInput, MemoryAddInput, MemoryEditInput, MemoryListOption
 import { resolveClient } from "./client"
 import type { MemoriesBaseOptions, MemoriesTools } from "./types"
 
-export function getContext(options: MemoriesBaseOptions = {}) {
+export function getContext(options: MemoriesBaseOptions = {}): MemoriesTools["getContext"] {
   const client = resolveClient(options)
   return async (input: ContextGetInput = {}) =>
     client.context.get({
@@ -19,7 +19,7 @@ export function getContext(options: MemoriesBaseOptions = {}) {
     })
 }
 
-export function storeMemory(options: MemoriesBaseOptions = {}) {
+export function storeMemory(options: MemoriesBaseOptions = {}): MemoriesTools["storeMemory"] {
   const client = resolveClient(options)
   return async (input: MemoryAddInput) =>
     client.memories.add({
@@ -28,7 +28,7 @@ export function storeMemory(options: MemoriesBaseOptions = {}) {
     })
 }
 
-export function searchMemories(options: MemoriesBaseOptions = {}) {
+export function searchMemories(options: MemoriesBaseOptions = {}): MemoriesTools["searchMemories"] {
   const client = resolveClient(options)
   return async (input: {
     query: string
@@ -45,7 +45,7 @@ export function searchMemories(options: MemoriesBaseOptions = {}) {
     })
 }
 
-export function listMemories(options: MemoriesBaseOptions = {}) {
+export function listMemories(options: MemoriesBaseOptions = {}): MemoriesTools["listMemories"] {
   const client = resolveClient(options)
   return async (input: {
     type?: MemoryType
@@ -63,18 +63,18 @@ export function listMemories(options: MemoriesBaseOptions = {}) {
     })
 }
 
-export function forgetMemory(options: MemoriesBaseOptions = {}) {
+export function forgetMemory(options: MemoriesBaseOptions = {}): MemoriesTools["forgetMemory"] {
   const client = resolveClient(options)
   return async (input: { id: string }) => client.memories.forget(input.id)
 }
 
-export function editMemory(options: MemoriesBaseOptions = {}) {
+export function editMemory(options: MemoriesBaseOptions = {}): MemoriesTools["editMemory"] {
   const client = resolveClient(options)
   return async (input: { id: string; updates: MemoryEditInput }) =>
     client.memories.edit(input.id, input.updates)
 }
 
-export function upsertSkillFile(options: MemoriesBaseOptions = {}) {
+export function upsertSkillFile(options: MemoriesBaseOptions = {}): MemoriesTools["upsertSkillFile"] {
   const client = resolveClient(options)
   return async (input: { path: string; content: string; projectId?: string; userId?: string; tenantId?: string }) =>
     client.skills.upsertFile({
@@ -85,7 +85,7 @@ export function upsertSkillFile(options: MemoriesBaseOptions = {}) {
     })
 }
 
-export function listSkillFiles(options: MemoriesBaseOptions = {}) {
+export function listSkillFiles(options: MemoriesBaseOptions = {}): MemoriesTools["listSkillFiles"] {
   const client = resolveClient(options)
   return async (input: { limit?: number; projectId?: string; userId?: string; tenantId?: string } = {}) =>
     client.skills.listFiles({
@@ -96,7 +96,7 @@ export function listSkillFiles(options: MemoriesBaseOptions = {}) {
     })
 }
 
-export function deleteSkillFile(options: MemoriesBaseOptions = {}) {
+export function deleteSkillFile(options: MemoriesBaseOptions = {}): MemoriesTools["deleteSkillFile"] {
   const client = resolveClient(options)
   return async (input: { path: string; projectId?: string; userId?: string; tenantId?: string }) =>
     client.skills.deleteFile({
@@ -107,7 +107,7 @@ export function deleteSkillFile(options: MemoriesBaseOptions = {}) {
     })
 }
 
-export function bulkForgetMemories(options: MemoriesBaseOptions = {}) {
+export function bulkForgetMemories(options: MemoriesBaseOptions = {}): MemoriesTools["bulkForgetMemories"] {
   const client = resolveClient(options)
   return async (input: { filters: BulkForgetFilter; dryRun?: boolean }) =>
     client.memories.bulkForget(
@@ -119,7 +119,7 @@ export function bulkForgetMemories(options: MemoriesBaseOptions = {}) {
     )
 }
 
-export function vacuumMemories(options: MemoriesBaseOptions = {}) {
+export function vacuumMemories(options: MemoriesBaseOptions = {}): MemoriesTools["vacuumMemories"] {
   const client = resolveClient(options)
   return async () => client.memories.vacuum()
 }

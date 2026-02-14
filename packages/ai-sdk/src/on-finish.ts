@@ -1,7 +1,7 @@
 import { resolveClient } from "./client"
 import type { CreateMemoriesOnFinishOptions } from "./types"
 
-export function createMemoriesOnFinish(options: CreateMemoriesOnFinishOptions = {}) {
+export function createMemoriesOnFinish(options: CreateMemoriesOnFinishOptions = {}): (payload: unknown) => Promise<void> {
   const mode = options.mode ?? "tool-calls-only"
   const client = resolveClient(options)
 
