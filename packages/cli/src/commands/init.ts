@@ -764,7 +764,7 @@ export const initCommand = new Command("init")
       console.log(chalk.dim("  Your rules will be available via MCP and in generated files."));
       console.log("");
     } catch (error) {
-      if ((error as Error).name === "ExitPromptError") return;
+      if (error instanceof Error && error.name === "ExitPromptError") return;
       ui.error("Failed to initialize: " + (error instanceof Error ? error.message : "Unknown error"));
       process.exit(1);
     }

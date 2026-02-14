@@ -6,7 +6,7 @@ import { existsSync, watch as fsWatch } from "node:fs";
 import { dirname, resolve, join, relative } from "node:path";
 import { homedir } from "node:os";
 import { checkbox } from "@inquirer/prompts";
-import { listMemories, type Memory, type MemoryType } from "../lib/memory.js";
+import { listMemories, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
 import { getProjectId } from "../lib/git.js";
 import { generateAgentsDir } from "../lib/agents-generator.js";
 import {
@@ -16,8 +16,6 @@ import {
 } from "../lib/tool-adapters.js";
 import { formatMemoriesAsMarkdown, formatCursorMdc, formatWindsurf } from "../lib/formatters.js";
 import { MARKER, makeFooter, hasOurMarker } from "../lib/markers.js";
-
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 // ── Target Registry ─────────────────────────────────────────────────
 
@@ -221,14 +219,14 @@ async function fetchMemories(types: MemoryType[]): Promise<Memory[]> {
 
 function parseTypes(raw: string | undefined): MemoryType[] {
   if (!raw) return ["rule", "decision", "fact"];
-  const types = raw.split(",").map((s) => s.trim()) as MemoryType[];
-  for (const t of types) {
-    if (!VALID_TYPES.includes(t)) {
-      ui.error(`Invalid type "${t}". Valid: ${VALID_TYPES.join(", ")}`);
+  const parts = raw.split(",").map((s) => s.trim());
+  for (const t of parts) {
+    if (!isMemoryType(t)) {
+      ui.error(`Invalid type "${t}". Valid: ${MEMORY_TYPES.join(", ")}`);
       process.exit(1);
     }
   }
-  return types;
+  return parts.filter(isMemoryType);
 }
 
 // ── Watch Mode ──────────────────────────────────────────────────────
@@ -292,7 +290,7 @@ async function runWatch(
         const mems = await memories();
         await runGenerationCycle(targets, mems, opts);
       } catch (err) {
-        ui.error("Watch error: " + (err as Error).message);
+        ui.error("Watch error: " + (err instanceof Error ? err.message : "Unknown error"));
       }
     }, 500);
   });
@@ -365,7 +363,7 @@ export const generateCommand = new Command("generate")
         await runWatch(TARGETS, () => fetchMemories(types), opts);
       }
     } catch (error) {
-      if ((error as Error).name === "ExitPromptError") return;
+      if (error instanceof Error && error.name === "ExitPromptError") return;
       ui.error("Failed to generate: " + (error instanceof Error ? error.message : "Unknown error"));
       process.exit(1);
     }

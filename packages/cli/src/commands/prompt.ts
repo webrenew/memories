@@ -1,13 +1,11 @@
 import { Command } from "commander";
 import { execFileSync } from "node:child_process";
 import chalk from "chalk";
-import { getRules, listMemories, type Memory, type MemoryType } from "../lib/memory.js";
+import { getRules, listMemories, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
 import * as ui from "../lib/ui.js";
 import { getProjectId } from "../lib/git.js";
 
 type Format = "markdown" | "xml" | "plain";
-
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 function formatMarkdown(sections: { title: string; memories: Memory[] }[]): string {
   return sections
@@ -67,11 +65,12 @@ export const promptCommand = new Command("prompt")
     quiet?: boolean;
   }) => {
     try {
-      const format = (opts.format ?? "markdown") as Format;
-      if (!["markdown", "xml", "plain"].includes(format)) {
+      const formatStr = opts.format ?? "markdown";
+      if (!["markdown", "xml", "plain"].includes(formatStr)) {
         ui.error(`Invalid format "${opts.format}". Use: markdown, xml, plain`);
         process.exit(1);
       }
+      const format = formatStr as Format;
 
       const projectId = getProjectId() ?? undefined;
 
@@ -85,8 +84,8 @@ export const promptCommand = new Command("prompt")
       } else if (opts.include) {
         for (const t of opts.include.split(",").map((s) => s.trim())) {
           // Allow plural or singular
-          const normalized = t.replace(/s$/, "") as MemoryType;
-          if (!VALID_TYPES.includes(normalized)) {
+          const normalized = t.replace(/s$/, "");
+          if (!isMemoryType(normalized)) {
             ui.error(`Invalid type "${t}". Valid: decisions, facts, notes`);
             process.exit(1);
           }

@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { addMemory, type MemoryType } from "../lib/memory.js";
+import { addMemory, isMemoryType, MEMORY_TYPES, type MemoryType } from "../lib/memory.js";
 import { getDb } from "../lib/db.js";
 import {
   dedupKey,
@@ -56,8 +56,6 @@ const DIRECTORY_PATH_PATTERNS: Array<{ pattern: string; handler: string }> = [
 ];
 
 import { MARKER } from "../lib/markers.js";
-
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 function inferType(line: string): MemoryType {
   const lower = line.toLowerCase();
@@ -180,8 +178,8 @@ export const ingestCommand = new Command("ingest")
   .action(async (source: string | undefined, opts: { type?: string; dryRun?: boolean; all?: boolean; dedup?: boolean }) => {
     try {
       // Validate --type early
-      if (opts.type && !VALID_TYPES.includes(opts.type as MemoryType)) {
-        console.error(chalk.red("✗") + ` Invalid type "${opts.type}". Valid types: ${VALID_TYPES.join(", ")}`);
+      if (opts.type && !isMemoryType(opts.type)) {
+        console.error(chalk.red("✗") + ` Invalid type "${opts.type}". Valid types: ${MEMORY_TYPES.join(", ")}`);
         process.exit(1);
       }
 
@@ -194,7 +192,7 @@ export const ingestCommand = new Command("ingest")
         for (const key of populated) existingSet.add(key);
       }
 
-      const typeOverride = opts.type ? (opts.type as MemoryType) : undefined;
+      const typeOverride = opts.type && isMemoryType(opts.type) ? opts.type : undefined;
       let totalImported = 0;
       let totalSkipped = 0;
 

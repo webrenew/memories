@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { writeFile } from "node:fs/promises";
 import * as ui from "../lib/ui.js";
-import { listMemories, type Memory, type MemoryType } from "../lib/memory.js";
+import { listMemories, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
 import { getProjectId } from "../lib/git.js";
 
 interface ExportData {
@@ -53,7 +53,11 @@ export const exportCommand = new Command("export")
       }
 
       // Type filter
-      const types = opts.type ? [opts.type as MemoryType] : undefined;
+      if (opts.type && !isMemoryType(opts.type)) {
+        ui.error(`Invalid type "${opts.type}". Valid types: ${MEMORY_TYPES.join(", ")}`);
+        process.exit(1);
+      }
+      const types = opts.type && isMemoryType(opts.type) ? [opts.type] : undefined;
 
       const memories = await listMemories({
         limit: 10000, // Export all

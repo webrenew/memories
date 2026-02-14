@@ -2,7 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { readFile } from "node:fs/promises";
 import * as ui from "../lib/ui.js";
-import { addMemory, type MemoryType } from "../lib/memory.js";
+import { addMemory, isMemoryType, type MemoryType } from "../lib/memory.js";
 
 interface ImportMemory {
   id?: string;
@@ -54,7 +54,6 @@ export const importCommand = new Command("import")
         process.exit(1);
       }
 
-      const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
       const importData = data as ImportData;
 
       // Validate and filter entries
@@ -65,7 +64,7 @@ export const importCommand = new Command("import")
           skipped++;
           continue;
         }
-        if (m.type && !VALID_TYPES.includes(m.type)) {
+        if (m.type && !isMemoryType(m.type)) {
           ui.warn(`Skipping memory with invalid type "${m.type}": ${m.content.slice(0, 50)}`);
           skipped++;
           continue;

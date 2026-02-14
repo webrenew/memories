@@ -295,10 +295,10 @@ Use category to group related memories (e.g., "api", "testing").`,
         const memory = await addMemory(content, {
           tags,
           ...scopeOpts,
-          type: type as MemoryType | undefined,
+          type,
           paths,
           category,
-          metadata: metadata as Record<string, unknown> | undefined,
+          metadata,
         });
         const typeLabel = TYPE_LABELS[memory.type];
         return withStorageWarnings({
@@ -332,7 +332,7 @@ Use category to group related memories (e.g., "api", "testing").`,
         const memories = await searchMemories(query, { 
           limit, 
           projectId: projectId ?? undefined,
-          types: types as MemoryType[] | undefined,
+          types,
         });
 
         if (memories.length === 0) {
@@ -412,7 +412,7 @@ Use category to group related memories (e.g., "api", "testing").`,
           limit, 
           tags, 
           projectId: projectId ?? undefined,
-          types: types as MemoryType[] | undefined,
+          types,
         });
 
         if (memories.length === 0) {
@@ -463,11 +463,11 @@ Find the memory ID first with search_memories or list_memories.`,
         }
         const updated = await updateMemory(id, {
           content,
-          type: type as MemoryType | undefined,
+          type,
           tags,
           paths,
           category,
-          metadata: metadata as Record<string, unknown> | null | undefined,
+          metadata,
         });
         if (updated) {
           const typeLabel = TYPE_LABELS[updated.type];
@@ -550,7 +550,7 @@ Requires at least one filter, or all:true to delete everything. Cannot combine a
 
         const scopeOpts = resolveMemoryScopeInput({ project_id });
         const filter = {
-          types: types as MemoryType[] | undefined,
+          types,
           tags,
           olderThanDays: older_than_days,
           pattern,
@@ -644,7 +644,7 @@ Use this when you're receiving content in chunks via Server-Sent Events:
       try {
         const scopeOpts = resolveMemoryScopeInput({ global: isGlobal, project_id });
         const streamId = startMemoryStream({
-          type: type as MemoryType | undefined,
+          type,
           tags,
           ...scopeOpts,
         });

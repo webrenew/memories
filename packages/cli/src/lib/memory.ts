@@ -44,6 +44,12 @@ export type Scope = "global" | "project";
  */
 export type MemoryType = "rule" | "decision" | "fact" | "note" | "skill";
 
+export const MEMORY_TYPES: readonly MemoryType[] = ["rule", "decision", "fact", "note", "skill"] as const;
+
+export function isMemoryType(value: string): value is MemoryType {
+  return (MEMORY_TYPES as readonly string[]).includes(value);
+}
+
 export interface Memory {
   id: string;
   content: string;

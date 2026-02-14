@@ -3,9 +3,7 @@ import chalk from "chalk";
 import { getDb } from "../lib/db.js";
 import * as ui from "../lib/ui.js";
 import { getProjectId } from "../lib/git.js";
-import type { MemoryType } from "../lib/memory.js";
-
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
+import { isMemoryType, MEMORY_TYPES, type MemoryType } from "../lib/memory.js";
 
 interface TagFilters {
   type?: string;
@@ -21,8 +19,8 @@ function buildWhere(filters: TagFilters): { where: string; args: (string | numbe
   const projectId = getProjectId();
 
   if (filters.type) {
-    if (!VALID_TYPES.includes(filters.type as MemoryType)) {
-      throw new Error(`Invalid type "${filters.type}". Valid: ${VALID_TYPES.join(", ")}`);
+    if (!isMemoryType(filters.type)) {
+      throw new Error(`Invalid type "${filters.type}". Valid: ${MEMORY_TYPES.join(", ")}`);
     }
     conditions.push("type = ?");
     args.push(filters.type);

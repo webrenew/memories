@@ -1,12 +1,10 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { addMemory, type MemoryType } from "../lib/memory.js";
+import { addMemory, isMemoryType, MEMORY_TYPES, type MemoryType } from "../lib/memory.js";
 import { readAuth, getApiClient } from "../lib/auth.js";
 import { getTemplate, fillTemplate } from "../lib/templates.js";
 import { getStorageWarnings } from "../lib/storage-health.js";
 import * as ui from "../lib/ui.js";
-
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 export const addCommand = new Command("add")
   .description("Add a new memory")
@@ -89,11 +87,11 @@ export const addCommand = new Command("add")
       else if (opts.decision) type = "decision";
       else if (opts.fact) type = "fact";
       else if (opts.type) {
-        if (!VALID_TYPES.includes(opts.type as MemoryType)) {
-          console.error(chalk.red("✗") + ` Invalid type "${opts.type}". Valid types: ${VALID_TYPES.join(", ")}`);
+        if (!isMemoryType(opts.type)) {
+          console.error(chalk.red("✗") + ` Invalid type "${opts.type}". Valid types: ${MEMORY_TYPES.join(", ")}`);
           process.exit(1);
         }
-        type = opts.type as MemoryType;
+        type = opts.type;
       }
 
       const paths = opts.paths?.split(",").map((s) => s.trim()).filter(Boolean);

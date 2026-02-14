@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { listMemories, type Memory, type MemoryType } from "../lib/memory.js";
+import { listMemories, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
 import * as ui from "../lib/ui.js";
 import { getProjectId } from "../lib/git.js";
 
@@ -20,7 +20,6 @@ const TYPE_LABELS: Record<MemoryType, string> = {
   skill: "skill",
 };
 
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 const MAX_CONTENT_WIDTH = 80;
 
 function truncate(str: string, max: number): string {
@@ -60,11 +59,11 @@ export const listCommand = new Command("list")
       // Type filter
       let types: MemoryType[] | undefined;
       if (opts.type) {
-        if (!VALID_TYPES.includes(opts.type as MemoryType)) {
-          ui.error(`Invalid type "${opts.type}". Valid types: ${VALID_TYPES.join(", ")}`);
+        if (!isMemoryType(opts.type)) {
+          ui.error(`Invalid type "${opts.type}". Valid types: ${MEMORY_TYPES.join(", ")}`);
           process.exit(1);
         }
-        types = [opts.type as MemoryType];
+        types = [opts.type];
       }
       
       // Determine scope filtering

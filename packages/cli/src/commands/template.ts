@@ -84,7 +84,7 @@ templateCommand
       console.log(chalk.dim(`  "${content}"`));
     } catch (error) {
       // User likely cancelled with Ctrl+C
-      if ((error as Error).message?.includes("User force closed")) {
+      if (error instanceof Error && error.message?.includes("User force closed")) {
         console.log("\nCancelled.");
         return;
       }

@@ -7,11 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { nanoid } from "nanoid";
 import { select } from "@inquirer/prompts";
-import { listMemories, updateMemory, type Memory, type MemoryType } from "../lib/memory.js";
+import { listMemories, updateMemory, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
 import { getDb } from "../lib/db.js";
 import { getProjectId } from "../lib/git.js";
-
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 function truncate(str: string, max: number): string {
   if (str.length <= max) return str;
@@ -77,8 +75,8 @@ export const editCommand = new Command("edit")
       };
 
       // Validate type if provided
-      if (opts.type && !VALID_TYPES.includes(opts.type as MemoryType)) {
-        ui.error(`Invalid type "${opts.type}". Valid: ${VALID_TYPES.join(", ")}`);
+      if (opts.type && !isMemoryType(opts.type)) {
+        ui.error(`Invalid type "${opts.type}". Valid: ${MEMORY_TYPES.join(", ")}`);
         process.exit(1);
       }
 
@@ -108,7 +106,7 @@ export const editCommand = new Command("edit")
       const updates: { content?: string; tags?: string[]; type?: MemoryType; paths?: string[]; category?: string | null } = {};
       if (newContent !== undefined) updates.content = newContent;
       if (opts.tags !== undefined) updates.tags = opts.tags.split(",").map((s) => s.trim()).filter(Boolean);
-      if (opts.type !== undefined) updates.type = opts.type as MemoryType;
+      if (opts.type !== undefined && isMemoryType(opts.type)) updates.type = opts.type;
       if (opts.paths !== undefined) updates.paths = opts.paths.split(",").map((s) => s.trim()).filter(Boolean);
       if (opts.category !== undefined) updates.category = opts.category || null;
 
@@ -128,7 +126,7 @@ export const editCommand = new Command("edit")
 
       ui.success(`Updated ${chalk.dim(id)} (${changes.join(", ")})`);
     } catch (error) {
-      if ((error as Error).name === "ExitPromptError") return;
+      if (error instanceof Error && error.name === "ExitPromptError") return;
       ui.error("Failed to edit memory: " + (error instanceof Error ? error.message : "Unknown error"));
       process.exit(1);
     }

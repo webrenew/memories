@@ -4,11 +4,10 @@ import { readFile } from "node:fs/promises";
 import * as ui from "../lib/ui.js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { listMemories, type Memory, type MemoryType } from "../lib/memory.js";
+import { listMemories, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
 import { getProjectId } from "../lib/git.js";
 
 import { MARKER } from "../lib/markers.js";
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 interface Target {
   name: string;
@@ -51,14 +50,14 @@ function extractTimestamp(content: string): string | null {
 
 function parseTypes(raw: string | undefined): MemoryType[] {
   if (!raw) return ["rule", "decision", "fact"];
-  const types = raw.split(",").map((s) => s.trim()) as MemoryType[];
-  for (const t of types) {
-    if (!VALID_TYPES.includes(t)) {
-      ui.error(`Invalid type "${t}". Valid: ${VALID_TYPES.join(", ")}`);
+  const parts = raw.split(",").map((s) => s.trim());
+  for (const t of parts) {
+    if (!isMemoryType(t)) {
+      ui.error(`Invalid type "${t}". Valid: ${MEMORY_TYPES.join(", ")}`);
       process.exit(1);
     }
   }
-  return types;
+  return parts.filter(isMemoryType);
 }
 
 async function fetchMemories(types: MemoryType[]): Promise<Memory[]> {

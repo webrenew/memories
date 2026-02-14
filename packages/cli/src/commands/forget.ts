@@ -6,12 +6,12 @@ import {
   forgetMemory,
   findMemoriesToForget,
   bulkForgetByIds,
+  isMemoryType,
+  MEMORY_TYPES,
   type MemoryType,
   type BulkForgetFilter,
 } from "../lib/memory.js";
 import { getProjectId } from "../lib/git.js";
-
-const VALID_TYPES: MemoryType[] = ["rule", "decision", "fact", "note", "skill"];
 
 const TYPE_ICONS: Record<MemoryType, string> = {
   rule: "📌",
@@ -76,8 +76,8 @@ export const forgetCommand = new Command("forget")
       }
 
       // Validate type
-      if (opts.type && !VALID_TYPES.includes(opts.type as MemoryType)) {
-        ui.error(`Invalid type "${opts.type}". Valid: ${VALID_TYPES.join(", ")}`);
+      if (opts.type && !isMemoryType(opts.type)) {
+        ui.error(`Invalid type "${opts.type}". Valid: ${MEMORY_TYPES.join(", ")}`);
         process.exit(1);
       }
 
@@ -89,7 +89,7 @@ export const forgetCommand = new Command("forget")
 
       // Build filter
       const filter: BulkForgetFilter = {
-        types: opts.type ? [opts.type as MemoryType] : undefined,
+        types: opts.type && isMemoryType(opts.type) ? [opts.type] : undefined,
         tags: opts.tag ? [opts.tag] : undefined,
         olderThanDays: opts.olderThan ? parseInt(opts.olderThan, 10) : undefined,
         pattern: opts.pattern,
