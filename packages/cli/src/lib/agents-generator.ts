@@ -256,9 +256,10 @@ async function generateSkills(
     const category = m.category!;
     activeCategories.add(category);
     const meta = parseMetadata(m.metadata);
-
-    const name = (meta.name as string) || category;
-    const description = (meta.description as string) || "";
+ 
+    // Fallback to category when name is missing or empty string
+    const name = typeof meta.name === "string" && meta.name ? meta.name : category;
+    const description = typeof meta.description === "string" ? meta.description : "";
 
     const frontmatter = [
       "---",

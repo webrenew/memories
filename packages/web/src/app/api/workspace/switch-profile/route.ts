@@ -5,10 +5,10 @@ import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, workspaceSwitchProfileSchema } from "@/lib/validations"
 
 function isMissingTableError(error: unknown, tableName: string): boolean {
-  const message =
-    typeof error === "object" && error !== null && "message" in error
-      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
-      : ""
+  let message = ""
+  if (typeof error === "object" && error !== null && "message" in error) {
+    message = String(error.message ?? "").toLowerCase()
+  }
 
   return (
     message.includes(tableName.toLowerCase()) &&
