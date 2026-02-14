@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
 
@@ -11,7 +11,7 @@ interface NoiseTextureProps {
   staticOpacity?: boolean;
 }
 
-export function NoiseTexture({ parentRef, className, staticOpacity = false }: NoiseTextureProps) {
+export function NoiseTexture({ parentRef, className, staticOpacity = false }: NoiseTextureProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [opacity, setOpacity] = useState(staticOpacity ? 1 : 0);
 

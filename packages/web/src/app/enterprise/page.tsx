@@ -1,3 +1,4 @@
+import React from "react"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { TopNav } from "@/components/TopNav"
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
   description: "Talk to memories.sh about enterprise deployment and usage-based SaaS pricing.",
 }
 
-export default function EnterprisePage() {
+export default function EnterprisePage(): React.JSX.Element {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <TopNav />

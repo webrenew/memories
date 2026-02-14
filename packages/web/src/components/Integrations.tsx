@@ -1,9 +1,10 @@
+import React from "react"
 import Link from "next/link";
 import { ScrambleText } from "./animations/ScrambleText";
 import { ToolLogo } from "./ui/tool-logo";
 import { TOOLS } from "@/lib/tools";
 
-export function Integrations() {
+export function Integrations(): React.JSX.Element {
     return (
       <section id="integrations" className="py-28 border-t border-border">
         <div className="w-full px-6 lg:px-16 xl:px-24">

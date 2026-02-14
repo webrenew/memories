@@ -1,3 +1,4 @@
+import React from "react"
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "@/components/Footer";
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 
 const LAST_UPDATED = "February 13, 2026";
 
-export default function PrivacyPage() {
+export default function PrivacyPage(): React.JSX.Element {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <TopNav />

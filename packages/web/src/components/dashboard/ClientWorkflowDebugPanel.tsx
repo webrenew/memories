@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import {
   CLIENT_WORKFLOW_EVENT_NAME,
   clearClientWorkflowEvents,
@@ -22,7 +22,7 @@ function formatDetails(details?: Record<string, unknown>): string | null {
   }
 }
 
-export function ClientWorkflowDebugPanel() {
+export function ClientWorkflowDebugPanel(): React.JSX.Element | null {
   const [enabled, setEnabled] = useState(false)
   const [events, setEvents] = useState<ClientWorkflowEvent[]>([])
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { ArrowRightLeft, Loader2 } from "lucide-react"
 
 interface MemoryMigrationCardProps {
@@ -18,7 +18,7 @@ interface MigrateResult {
   }
 }
 
-export function MemoryMigrationCard({ orgId }: MemoryMigrationCardProps) {
+export function MemoryMigrationCard({ orgId }: MemoryMigrationCardProps): React.JSX.Element {
   const [migrating, setMigrating] = useState(false)
   const [result, setResult] = useState<MigrateResult | null>(null)
   const [error, setError] = useState<string | null>(null)

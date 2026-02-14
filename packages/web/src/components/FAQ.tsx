@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScrambleText } from "./animations/ScrambleText";
 
-export function FAQ() {
+export function FAQ(): React.JSX.Element {
   const c = "font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded";
   const faqs: { q: string; a: React.ReactNode }[] = [
     {

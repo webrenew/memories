@@ -1,10 +1,11 @@
+import React from "react"
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import type { ReactNode } from 'react';
 import { source } from '@/lib/source';
 import Image from 'next/image';
 
-export default function Layout({ children }: { children: ReactNode }) {
+export default function Layout({ children }: { children: ReactNode }): React.JSX.Element {
   return (
     <RootProvider theme={{ enabled: false }}>
       <DocsLayout

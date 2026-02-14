@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useMemo, useRef, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import * as THREE from "three";
 
 import { cn } from "@/lib/utils";
@@ -133,7 +133,7 @@ export function ShaderBackground({
   className,
   color = "#b855f7",
   backgroundColor = "#0a0a0f",
-}: ShaderBackgroundProps) {
+}: ShaderBackgroundProps): React.JSX.Element {
   const [mounted, setMounted] = useState(false);
   const [ready, setReady] = useState(false);
   const [hasWebGL, setHasWebGL] = useState(true);

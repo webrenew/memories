@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { AlertTriangle, Database, Link2, RefreshCw, Server, Trash2 } from "lucide-react"
 import { extractErrorMessage } from "@/lib/client-errors"
 import { recordClientWorkflowEvent } from "@/lib/client-workflow-debug"
@@ -66,7 +66,7 @@ function statusClass(status: string): string {
 export function TenantDatabaseMappingsSection({
   hasApiKey,
   apiKeyExpired,
-}: TenantDatabaseMappingsSectionProps) {
+}: TenantDatabaseMappingsSectionProps): React.JSX.Element {
   const [tenantId, setTenantId] = useState("")
   const [mode, setMode] = useState<ProvisionMode>("provision")
   const [spendControl, setSpendControl] = useState<SpendControlMode>("attach_only")

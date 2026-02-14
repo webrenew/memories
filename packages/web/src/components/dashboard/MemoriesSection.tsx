@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { ChevronDown, Search } from "lucide-react"
 import { MemoriesList } from "./MemoriesList"
 import { AddRuleForm } from "./AddRuleForm"
@@ -27,7 +27,7 @@ function getShortProjectName(scope: string): string {
   return scope.replace(/^github\.com\//, "").split("/").pop() || scope
 }
 
-export function MemoriesSection({ initialMemories }: { initialMemories: Memory[] }) {
+export function MemoriesSection({ initialMemories }: { initialMemories: Memory[] }): React.JSX.Element {
   const [memories, setMemories] = useState(initialMemories)
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all")

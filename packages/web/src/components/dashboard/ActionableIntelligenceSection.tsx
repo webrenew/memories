@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import type { MemoryInsights, InsightAction } from "@/lib/memory-insights"
 import type { ApplyMemoryInsightActionResult } from "@/lib/memory-insight-actions"
 
@@ -27,7 +27,7 @@ function projectLabel(project: string): string {
 
 export function ActionableIntelligenceSection({
   insights,
-}: ActionableIntelligenceSectionProps) {
+}: ActionableIntelligenceSectionProps): React.JSX.Element {
   const [applyingActionId, setApplyingActionId] = useState<string | null>(null)
   const [appliedActionIds, setAppliedActionIds] = useState<Set<string>>(new Set())
   const [applyError, setApplyError] = useState<string | null>(null)

@@ -1,3 +1,4 @@
+import React from "react"
 /**
  * Claude icon (from simple-icons)
  */
@@ -7,7 +8,7 @@ interface IconProps {
   size?: number;
 }
 
-export function ClaudeIcon({ className, size = 24 }: IconProps) {
+export function ClaudeIcon({ className, size = 24 }: IconProps): React.JSX.Element {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

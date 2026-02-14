@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -22,7 +22,7 @@ export function AcceptInviteContent({
   email,
   isLoggedIn,
   userEmails 
-}: AcceptInviteContentProps) {
+}: AcceptInviteContentProps): React.JSX.Element {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

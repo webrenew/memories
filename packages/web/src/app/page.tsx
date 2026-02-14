@@ -1,3 +1,4 @@
+import React from "react"
 import { TopNav } from "@/components/TopNav";
 import { Hero } from "@/components/Hero";
 import { HowItWorks } from "@/components/HowItWorks";
@@ -9,7 +10,7 @@ import { Pricing } from "@/components/Pricing";
 import { FAQ } from "@/components/FAQ";
 import { Footer } from "@/components/Footer";
 
-export default function Home() {
+export default function Home(): React.JSX.Element {
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/30">
       

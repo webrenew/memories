@@ -1,6 +1,6 @@
 "use client"
 
-import { FormEvent, useState } from "react"
+import React, { FormEvent, useState } from "react"
 
 type Interest = "enterprise" | "usage_based" | "both"
 
@@ -27,7 +27,7 @@ const initialState: FormState = {
 const inputClassName =
   "w-full border border-border bg-card/30 px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary/50"
 
-export function EnterpriseContactForm() {
+export function EnterpriseContactForm(): React.JSX.Element {
   const [form, setForm] = useState<FormState>(initialState)
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle")
   const [message, setMessage] = useState<string>("")

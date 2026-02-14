@@ -1,3 +1,4 @@
+import React from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { OAuthButtons } from "./oauth-buttons"
@@ -6,7 +7,7 @@ export const metadata = {
   title: "Sign In or Sign Up",
 }
 
-export default function LoginPage() {
+export default function LoginPage(): React.JSX.Element {
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-6 relative overflow-hidden">
       {/* Background texture */}

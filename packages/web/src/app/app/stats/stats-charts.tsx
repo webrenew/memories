@@ -1,4 +1,5 @@
 "use client"
+import React from "react"
 
 import {
   BarChart,
@@ -110,7 +111,7 @@ export function StatsCharts({
   byProject: ProjectCount[]
   recent: RecentMemory[]
   globalVsProject: { global: number; project: number }
-}) {
+}): React.JSX.Element {
   // Transform daily data for stacked bar chart
   const dailyData = byDayAndType.reduce((acc, item) => {
     const existing = acc.find(d => d.date === item.date)

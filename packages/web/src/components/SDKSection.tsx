@@ -1,3 +1,4 @@
+import React from "react"
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ScrambleText } from "./animations/ScrambleText";
@@ -39,7 +40,7 @@ const layers: {
   },
 ];
 
-export function SDKSection() {
+export function SDKSection(): React.JSX.Element {
   return (
     <section className="py-28 border-t border-border">
       <div className="w-full px-6 lg:px-16 xl:px-24">

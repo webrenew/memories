@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { 
@@ -166,7 +166,7 @@ export function TeamContent({
   organizations: Organization[]
   currentOrgId: string | null
   userId: string
-}) {
+}): React.JSX.Element {
   const router = useRouter()
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(() => {
     if (!currentOrgId) return null

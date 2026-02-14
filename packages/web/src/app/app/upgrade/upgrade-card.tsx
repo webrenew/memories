@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { Check } from "@/components/icons/ui"
 import { toast } from "sonner"
 
@@ -13,7 +13,7 @@ const features = [
   "Usage stats and analytics",
 ]
 
-export function UpgradeCard() {
+export function UpgradeCard(): React.JSX.Element {
   const [billing, setBilling] = useState<"monthly" | "annual">("annual")
   const [loading, setLoading] = useState(false)
 

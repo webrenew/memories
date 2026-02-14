@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Copy, Check } from "lucide-react";
 
 interface CopyMarkdownButtonProps {
   slug?: string[];
 }
 
-export function CopyMarkdownButton({ slug }: CopyMarkdownButtonProps) {
+export function CopyMarkdownButton({ slug }: CopyMarkdownButtonProps): React.JSX.Element {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {

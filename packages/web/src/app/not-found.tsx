@@ -1,4 +1,5 @@
 "use client";
+import React from "react"
 
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -27,7 +28,7 @@ const GeometricPattern = ({ className = "" }: { className?: string }) => (
   </svg>
 );
 
-export default function NotFound() {
+export default function NotFound(): React.JSX.Element {
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {

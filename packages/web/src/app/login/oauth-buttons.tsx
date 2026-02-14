@@ -1,9 +1,9 @@
 "use client"
 
 import { createClient } from "@/lib/supabase/client"
-import { useState } from "react"
+import React, { useState } from "react"
 
-export function OAuthButtons() {
+export function OAuthButtons(): React.JSX.Element {
   const [loading, setLoading] = useState<string | null>(null)
 
   async function signIn(provider: "google" | "github") {

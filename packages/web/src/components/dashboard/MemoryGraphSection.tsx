@@ -1,6 +1,6 @@
 "use client"
 
-import {
+import React, {
   type PointerEvent,
   type WheelEvent,
   useCallback,
@@ -326,7 +326,7 @@ function buildGraphCanvasModel(
   return { nodes, edges, nodeTypes }
 }
 
-export function MemoryGraphSection({ status }: MemoryGraphSectionProps) {
+export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.JSX.Element {
   const [localStatus, setLocalStatus] = useState(status)
   const [modeError, setModeError] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<GraphNodeSelection | null>(null)

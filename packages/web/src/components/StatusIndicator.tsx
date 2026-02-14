@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 type Status = "healthy" | "unhealthy" | "checking";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
-export function StatusIndicator() {
+export function StatusIndicator(): React.JSX.Element {
   const [status, setStatus] = useState<Status>("checking");
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
 

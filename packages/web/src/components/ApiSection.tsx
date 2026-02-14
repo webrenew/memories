@@ -130,7 +130,7 @@ function methodClass(method: ApiShowcaseItem["method"]): string {
   return "text-sky-200 border-sky-300/30 bg-sky-500/10";
 }
 
-export function ApiSection() {
+export function ApiSection(): React.JSX.Element | null {
   const [selected, setSelected] = useState(apiShowcase[0]?.id ?? "context");
 
   const active = useMemo(

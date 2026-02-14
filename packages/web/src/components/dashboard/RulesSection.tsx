@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import React, { useState, useMemo } from "react"
 import { ChevronDown } from "lucide-react"
 import { MemoriesList } from "./MemoriesList"
 import { AddRuleForm } from "./AddRuleForm"
@@ -18,7 +18,7 @@ function getShortProjectName(projectId: string): string {
   return projectId.replace(/^github\.com\//, "").split("/").pop() || projectId
 }
 
-export function RulesSection({ initialRules }: { initialRules: Memory[] }) {
+export function RulesSection({ initialRules }: { initialRules: Memory[] }): React.JSX.Element {
   const [rules, setRules] = useState(initialRules)
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all")
   const [showProjectDropdown, setShowProjectDropdown] = useState(false)

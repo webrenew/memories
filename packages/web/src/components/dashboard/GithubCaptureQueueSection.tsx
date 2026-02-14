@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { extractErrorMessage } from "@/lib/client-errors"
 
 type QueueStatus = "pending" | "approved" | "rejected"
@@ -59,7 +59,7 @@ function trim(value: string, max = 280): string {
   return `${value.slice(0, max - 1)}…`
 }
 
-export function GithubCaptureQueueSection() {
+export function GithubCaptureQueueSection(): React.JSX.Element {
   const [status, setStatus] = useState<QueueStatus | "all">("pending")
   const [event, setEvent] = useState<QueueEvent>("all")
   const [search, setSearch] = useState("")

@@ -1,7 +1,7 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
-import { useState, Suspense } from "react"
+import React, { useState, Suspense } from "react"
 
 function CLIAuthContent() {
   const searchParams = useSearchParams()
@@ -99,7 +99,7 @@ function CLIAuthContent() {
   )
 }
 
-export default function CLIAuthPage() {
+export default function CLIAuthPage(): React.JSX.Element {
   return (
     <Suspense
       fallback={

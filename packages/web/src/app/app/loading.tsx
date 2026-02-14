@@ -1,4 +1,5 @@
-export default function AppLoading() {
+import React from "react"
+export default function AppLoading(): React.JSX.Element {
   return (
     <div className="space-y-6" aria-busy="true" aria-live="polite">
       <div className="space-y-2">

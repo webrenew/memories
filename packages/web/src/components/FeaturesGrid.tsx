@@ -1,3 +1,4 @@
+import React from "react"
 import Link from "next/link";
 import { ScrambleText } from "./animations/ScrambleText";
 
@@ -36,7 +37,7 @@ const FeatureIcon = ({ index }: { index: number }) => {
   return icons[index % icons.length];
 };
 
-export function FeaturesGrid() {
+export function FeaturesGrid(): React.JSX.Element {
   const features = [
     {
       title: "Durable Local State",

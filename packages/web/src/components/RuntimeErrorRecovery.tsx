@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import React, { useEffect } from "react"
 
 const RETRY_KEY = "__memories_chunk_retry_at"
 const RETRY_COOLDOWN_MS = 20_000
@@ -43,7 +43,7 @@ function reloadOnceForChunkError() {
   }
 }
 
-export function RuntimeErrorRecovery() {
+export function RuntimeErrorRecovery(): React.JSX.Element | null {
   useEffect(() => {
     function onError(event: ErrorEvent) {
       const message = [event.message, readErrorMessage(event.error)].filter(Boolean).join(" ")

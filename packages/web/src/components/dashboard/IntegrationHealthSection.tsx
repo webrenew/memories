@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { IntegrationHealthPayload } from "@/lib/integration-health"
 import { extractErrorMessage } from "@/lib/client-errors"
 
@@ -45,7 +45,7 @@ function workspaceSwitchLargeTenantCoverage(health: IntegrationHealthPayload): s
   return `${profiling.largeTenantSampleCount}/${profiling.profiledSampleCount}`
 }
 
-export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSectionProps) {
+export function IntegrationHealthSection({ initialHealth }: IntegrationHealthSectionProps): React.JSX.Element {
   const [health, setHealth] = useState<IntegrationHealthPayload | null>(initialHealth)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

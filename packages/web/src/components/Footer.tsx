@@ -1,11 +1,12 @@
 "use client";
+import React from "react"
 
 import Link from "next/link";
 import Image from "next/image";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { StatusIndicator } from "./StatusIndicator";
 
-export function Footer() {
+export function Footer(): React.JSX.Element {
   const currentYear = new Date().getFullYear();
 
   return (

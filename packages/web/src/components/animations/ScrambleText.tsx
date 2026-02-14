@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
+import React, { useEffect, useState, useRef, useCallback } from "react"
 import gsap from "gsap"
 
 // ── Shared constants & helpers ────────────────────────────────────────────────
@@ -71,7 +71,7 @@ export function ScrambleText({
   className,
   delayMs = 0,
   duration = 0.9,
-}: ScrambleTextProps) {
+}: ScrambleTextProps): React.JSX.Element {
   const [displayText, setDisplayText] = useState(text)
   const hasAnimated = useRef(false)
   const containerRef = useRef<HTMLSpanElement>(null)
@@ -153,7 +153,7 @@ export function ScrambleTextOnHover({
   className,
   duration = 0.4,
   onClick,
-}: ScrambleTextOnHoverProps) {
+}: ScrambleTextOnHoverProps): React.JSX.Element {
   const [displayText, setDisplayText] = useState(text)
   const isAnimating = useRef(false)
   const animationRef = useRef<gsap.core.Tween | null>(null)

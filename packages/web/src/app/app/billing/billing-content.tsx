@@ -72,7 +72,7 @@ export function BillingContent({
   orgRole,
   canManageBilling,
   tenantRouting,
-}: BillingContentProps) {
+}: BillingContentProps): React.JSX.Element {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)

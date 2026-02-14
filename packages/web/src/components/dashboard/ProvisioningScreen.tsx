@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 
-export function ProvisioningScreen() {
+export function ProvisioningScreen(): React.JSX.Element {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const provisioningRef = useRef(false)

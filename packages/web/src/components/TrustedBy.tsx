@@ -1,4 +1,5 @@
 "use client";
+import React from "react"
 
 import { motion } from "framer-motion";
 import { ToolLogo } from "./ui/tool-logo";
@@ -6,7 +7,7 @@ import { MARQUEE_TOOLS } from "@/lib/tools";
 
 const marqueeItems = [...MARQUEE_TOOLS, ...MARQUEE_TOOLS, ...MARQUEE_TOOLS];
 
-export function TrustedBy() {
+export function TrustedBy(): React.JSX.Element {
   return (
     <motion.section
       initial={{ opacity: 0 }}

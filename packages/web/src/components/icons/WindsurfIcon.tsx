@@ -1,3 +1,4 @@
+import React from "react"
 /**
  * Windsurf icon (placeholder - wave shape)
  */
@@ -7,7 +8,7 @@ interface IconProps {
   size?: number;
 }
 
-export function WindsurfIcon({ className, size = 24 }: IconProps) {
+export function WindsurfIcon({ className, size = 24 }: IconProps): React.JSX.Element {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

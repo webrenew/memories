@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { Copy, RefreshCw, Trash2, Key, Eye, EyeOff, Check } from "lucide-react"
 import { TenantDatabaseMappingsSection } from "@/components/dashboard/TenantDatabaseMappingsSection"
 import { extractErrorMessage } from "@/lib/client-errors"
@@ -46,7 +46,7 @@ interface KeyMetadataResponse {
   isExpired?: boolean
 }
 
-export function ApiKeySection() {
+export function ApiKeySection(): React.JSX.Element {
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [hasKey, setHasKey] = useState(false)
   const [keyPreview, setKeyPreview] = useState<string | null>(null)

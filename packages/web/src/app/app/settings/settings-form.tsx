@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner"
 import { ChevronDown } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
@@ -85,7 +85,7 @@ const OAUTH_PROVIDERS: Array<{ id: OAuthProvider; label: string; scopes: string 
   { id: "google", label: "Google", scopes: "openid profile email" },
 ]
 
-export function SettingsForm({ profile }: SettingsFormProps) {
+export function SettingsForm({ profile }: SettingsFormProps): React.JSX.Element {
   const [supabase] = useState(() => createClient())
   const [name, setName] = useState(profile.name)
   const [embeddingModel, setEmbeddingModel] = useState(

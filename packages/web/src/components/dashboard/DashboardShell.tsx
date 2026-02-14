@@ -58,7 +58,7 @@ export function DashboardShell({
   currentOrgId: string | null
   memberships: OrgMembership[]
   children: React.ReactNode
-}) {
+}): React.JSX.Element {
   const pathname = usePathname()
   const router = useRouter()
   const displayName = profile?.name ?? user.email?.split("@")[0] ?? "User"

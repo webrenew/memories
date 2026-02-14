@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useId } from "react"
+import React, { useState, useRef, useEffect, useId } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronDown, Check, Crown, Shield, User, Loader2 } from "lucide-react"
 import { extractErrorMessage } from "@/lib/client-errors"
@@ -77,7 +77,7 @@ const roleIcon = (role: string) => {
   }
 }
 
-export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitcherProps) {
+export function WorkspaceSwitcher({ currentOrgId, memberships }: WorkspaceSwitcherProps): React.JSX.Element {
   const router = useRouter()
   const menuId = useId()
   const [isOpen, setIsOpen] = useState(false)

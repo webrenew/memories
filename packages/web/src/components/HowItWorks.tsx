@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useInView } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Check, Copy } from "lucide-react";
 import { ScrambleText } from "./animations/ScrambleText";
 import { getSyntaxTokenClass, type SyntaxLine } from "./ui/syntax";
@@ -58,7 +58,7 @@ const sdkCodeLines: SyntaxLine[] = [
 
 // ── Component ───────────────────────────────────────────────────────────────
 
-export function HowItWorks() {
+export function HowItWorks(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<"cli" | "mcp" | "sdk">("cli");
   const [copied, setCopied] = useState(false);
   const [endpointCopied, setEndpointCopied] = useState(false);

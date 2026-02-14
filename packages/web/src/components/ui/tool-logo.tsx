@@ -1,3 +1,4 @@
+import React from "react"
 import Image from "next/image";
 
 type ToolLogoSize = "xs" | "sm" | "md" | "md-lg" | "lg";
@@ -18,7 +19,7 @@ interface ToolLogoProps {
   className?: string;
 }
 
-export function ToolLogo({ src, alt, size = "md", className = "" }: ToolLogoProps) {
+export function ToolLogo({ src, alt, size = "md", className = "" }: ToolLogoProps): React.JSX.Element {
   const { px, className: sizeClass } = sizeMap[size];
   return (
     <Image

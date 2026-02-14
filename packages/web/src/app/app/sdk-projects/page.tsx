@@ -1,3 +1,4 @@
+import React from "react"
 import Link from "next/link"
 import { ApiKeySection } from "@/components/dashboard/ApiKeySection"
 
@@ -26,7 +27,7 @@ const scopeCards = [
   },
 ]
 
-export default function SdkProjectsPage() {
+export default function SdkProjectsPage(): React.JSX.Element {
   return (
     <div className="space-y-8">
       <div>

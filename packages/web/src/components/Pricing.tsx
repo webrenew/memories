@@ -80,7 +80,7 @@ function getTierCtaHref(tierName: string, isAuthenticated: boolean): string {
   return isAuthenticated ? "/app" : "/docs/getting-started";
 }
 
-export function Pricing({ user }: { user?: User | null }) {
+export function Pricing({ user }: { user?: User | null }): React.JSX.Element {
   const { user: sessionUser } = useUser();
   const effectiveUser = sessionUser ?? user ?? null;
   const [isYearly, setIsYearly] = useState(false);

@@ -1,7 +1,8 @@
+import React from "react"
 // Spinner icon in iconoir style (use with animate-spin)
 import type { SVGProps } from "react";
 
-export function LoaderCircle({ className, ...props }: SVGProps<SVGSVGElement>) {
+export function LoaderCircle({ className, ...props }: SVGProps<SVGSVGElement>): React.JSX.Element {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

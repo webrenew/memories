@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,7 +18,7 @@ const navItems = [
   { href: "#faq", label: "FAQ" },
 ];
 
-export function TopNav({ user }: { user?: User | null }) {
+export function TopNav({ user }: { user?: User | null }): React.JSX.Element {
   const { user: sessionUser } = useUser();
   const effectiveUser = sessionUser ?? user ?? null;
   const isSignedIn = Boolean(effectiveUser);

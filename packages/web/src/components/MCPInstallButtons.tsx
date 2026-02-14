@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { Check, Copy, ChevronDown, ArrowDown, ExternalLink } from "lucide-react";
 import { CursorIcon } from "@/components/icons/CursorIcon";
 import { ClaudeIcon } from "@/components/icons/ClaudeIcon";
@@ -77,7 +77,7 @@ function CopyButton({ value, className = "" }: CopyButtonProps) {
   );
 }
 
-export function MCPInstallButtons() {
+export function MCPInstallButtons(): React.JSX.Element {
   const [showCursorConfig, setShowCursorConfig] = useState(false);
   const [showClaudeCodeCommand, setShowClaudeCodeCommand] = useState(false);
   const [copiedSSE, setCopiedSSE] = useState(false);

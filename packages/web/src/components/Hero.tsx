@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { ScrambleText } from "./animations/ScrambleText";
 import { ToolLogo } from "./ui/tool-logo";
@@ -121,7 +121,7 @@ function CopyCommand() {
   );
 }
 
-export function Hero() {
+export function Hero(): React.JSX.Element {
   const sectionRef = useRef<HTMLElement | null>(null);
   const containerVariants = {
     hidden: { opacity: 0 },

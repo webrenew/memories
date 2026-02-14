@@ -5,7 +5,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
-export function ThemeSwitcher() {
+export function ThemeSwitcher(): React.JSX.Element {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 

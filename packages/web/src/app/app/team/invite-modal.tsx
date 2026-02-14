@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { X, Copy, Check } from "lucide-react"
 import { getTeamInviteExpiryLabel } from "@/lib/team-invites"
 
@@ -12,7 +12,7 @@ interface InviteModalProps {
   onInviteSent: () => void
 }
 
-export function InviteModal({ orgId, isOwner, loading: parentLoading, onClose, onInviteSent }: InviteModalProps) {
+export function InviteModal({ orgId, isOwner, loading: parentLoading, onClose, onInviteSent }: InviteModalProps): React.JSX.Element {
   const inviteExpiryLabel = getTeamInviteExpiryLabel()
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState<"member" | "admin">("member")
