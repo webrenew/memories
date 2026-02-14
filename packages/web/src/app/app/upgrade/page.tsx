@@ -1,3 +1,4 @@
+import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { UpgradeCard } from "./upgrade-card"
@@ -7,7 +8,7 @@ export const metadata = {
   title: "Upgrade to Pro",
 }
 
-export default async function UpgradePage() {
+export default async function UpgradePage(): Promise<React.JSX.Element | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

@@ -1,3 +1,4 @@
+import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { TeamContent } from "./team-content"
@@ -6,7 +7,7 @@ export const metadata = {
   title: "Team",
 }
 
-export default async function TeamPage() {
+export default async function TeamPage(): Promise<React.JSX.Element> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

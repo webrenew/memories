@@ -1,3 +1,4 @@
+import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createTurso } from "@libsql/client"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
@@ -10,7 +11,7 @@ export const metadata = {
   title: "Graph Explorer",
 }
 
-export default async function GraphExplorerPage() {
+export default async function GraphExplorerPage(): Promise<React.JSX.Element | null> {
   const supabase = await createClient()
   const {
     data: { user },

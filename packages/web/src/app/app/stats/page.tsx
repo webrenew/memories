@@ -1,3 +1,4 @@
+import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { StatsCharts } from "./stats-charts"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
@@ -50,7 +51,7 @@ interface Stats {
   globalVsProject: { global: number; project: number }
 }
 
-export default async function StatsPage() {
+export default async function StatsPage(): Promise<React.JSX.Element | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

@@ -1,3 +1,4 @@
+import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createTurso } from "@libsql/client"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
@@ -31,7 +32,7 @@ async function listMemories(turso: ReturnType<typeof createTurso>) {
   }
 }
 
-export default async function MemoriesPage() {
+export default async function MemoriesPage(): Promise<React.JSX.Element | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

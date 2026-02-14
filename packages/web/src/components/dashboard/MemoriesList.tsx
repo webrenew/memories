@@ -1,19 +1,20 @@
 "use client"
 
+import React from "react"
 import { MemoryCard } from "./MemoryCard"
 import type { Memory } from "@/types/memory"
 
-export function MemoriesList({ 
+export function MemoriesList({
   memories,
   onDeleteMemory,
   onUpdateMemory,
   onFilterByProject
-}: { 
+}: {
   memories: Memory[]
   onDeleteMemory?: (id: string) => void
   onUpdateMemory?: (id: string, content: string) => void
   onFilterByProject?: (scope: string) => void
-}) {
+}): React.JSX.Element | null {
   const handleDelete = (id: string) => {
     onDeleteMemory?.(id)
   }

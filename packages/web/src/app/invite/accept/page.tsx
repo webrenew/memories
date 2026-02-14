@@ -1,3 +1,4 @@
+import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getInviteTokenCandidates } from "@/lib/team-invites"
@@ -12,7 +13,7 @@ export default async function AcceptInvitePage({
   searchParams,
 }: {
   searchParams: Promise<{ token?: string }>
-}) {
+}): Promise<React.JSX.Element> {
   const { token } = await searchParams
 
   if (!token) {

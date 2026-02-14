@@ -1,3 +1,4 @@
+import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard/DashboardShell"
@@ -14,7 +15,7 @@ export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode
-}) {
+}): Promise<React.JSX.Element> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

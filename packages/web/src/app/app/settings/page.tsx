@@ -1,3 +1,4 @@
+import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { SettingsForm } from "./settings-form"
 
@@ -5,7 +6,7 @@ export const metadata = {
   title: "Settings",
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage(): Promise<React.JSX.Element | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

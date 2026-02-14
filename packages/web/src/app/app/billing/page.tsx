@@ -1,3 +1,4 @@
+import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient as createTurso } from "@libsql/client"
@@ -129,7 +130,7 @@ async function getTenantRoutingStatus(userId: string): Promise<TenantRoutingStat
   }
 }
 
-export default async function BillingPage() {
+export default async function BillingPage(): Promise<React.JSX.Element | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 

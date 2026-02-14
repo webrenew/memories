@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { Plus } from "lucide-react"
 import type { Memory } from "@/types/memory"
 
-export function AddRuleForm({ onAdd }: { onAdd: (memory: Memory) => void }) {
+export function AddRuleForm({ onAdd }: { onAdd: (memory: Memory) => void }): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false)
   const [content, setContent] = useState("")
   const [scope, setScope] = useState<"global" | "project">("global")

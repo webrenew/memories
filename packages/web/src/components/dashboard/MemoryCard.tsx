@@ -1,20 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { Trash2, Pencil, Check, X } from "lucide-react"
 import type { Memory } from "@/types/memory"
 
-export function MemoryCard({ 
-  memory, 
+export function MemoryCard({
+  memory,
   onDelete,
   onUpdate,
   onFilterByProject
-}: { 
+}: {
   memory: Memory
   onDelete: (id: string) => void
   onUpdate: (id: string, content: string) => void
   onFilterByProject?: (scope: string) => void
-}) {
+}): React.JSX.Element {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [isEditing, setIsEditing] = useState(false)

@@ -1,3 +1,4 @@
+import React from "react"
 import { source } from '@/lib/source';
 import {
   DocsPage,
@@ -15,7 +16,7 @@ interface PageProps {
   params: Promise<{ slug?: string[] }>;
 }
 
-export default async function Page({ params }: PageProps) {
+export default async function Page({ params }: PageProps): Promise<React.JSX.Element> {
   const { slug } = await params;
   const page = source.getPage(slug);
   if (!page) notFound();
@@ -38,7 +39,7 @@ export default async function Page({ params }: PageProps) {
   );
 }
 
-export async function generateStaticParams() {
+export async function generateStaticParams(): Promise<{ slug: string[] }[]> {
   return source.generateParams();
 }
 
