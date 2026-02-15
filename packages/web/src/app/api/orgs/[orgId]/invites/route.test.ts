@@ -24,7 +24,7 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mockCheckRateLimit,
 }))
 
-import { GET, POST } from "./route"
+import { DELETE, GET, POST } from "./route"
 
 describe("/api/orgs/[orgId]/invites GET", () => {
   beforeEach(() => {
@@ -121,6 +121,48 @@ describe("/api/orgs/[orgId]/invites POST", () => {
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toMatchObject({
       error: "Failed to create invite",
+    })
+  })
+})
+
+describe("/api/orgs/[orgId]/invites DELETE", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue(null)
+  })
+
+  it("returns 500 when membership lookup fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "DB read failed" },
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn(), maybeSingle: vi.fn() })),
+      }
+    })
+
+    const response = await DELETE(
+      new Request("https://example.com/api/orgs/org-1/invites?inviteId=inv-1", { method: "DELETE" }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to revoke invite",
     })
   })
 })

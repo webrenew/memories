@@ -249,12 +249,22 @@ export async function DELETE(
   if (rateLimited) return rateLimited
 
   // Check user is admin or owner
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("org_members")
     .select("role")
     .eq("org_id", orgId)
     .eq("user_id", user.id)
     .single()
+
+  if (membershipError) {
+    console.error("Failed to verify invite revoke membership:", {
+      error: membershipError,
+      orgId,
+      userId: user.id,
+      inviteId,
+    })
+    return NextResponse.json({ error: "Failed to revoke invite" }, { status: 500 })
+  }
 
   if (!membership || !["owner", "admin"].includes(membership.role)) {
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
