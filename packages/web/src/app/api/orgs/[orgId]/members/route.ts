@@ -284,12 +284,22 @@ export async function DELETE(
   }
 
   // Get target user's membership
-  const { data: targetMembership } = await supabase
+  const { data: targetMembership, error: targetMembershipError } = await supabase
     .from("org_members")
     .select("role")
     .eq("org_id", orgId)
     .eq("user_id", targetUserId)
     .single()
+
+  if (targetMembershipError) {
+    console.error("Failed to verify target membership before removing org member:", {
+      error: targetMembershipError,
+      orgId,
+      actorUserId: user.id,
+      targetUserId,
+    })
+    return NextResponse.json({ error: "Failed to remove member" }, { status: 500 })
+  }
 
   if (!targetMembership) {
     return NextResponse.json({ error: "User is not a member" }, { status: 404 })
