@@ -35,7 +35,11 @@ export async function GET(request: Request): Promise<Response> {
     .eq("user_id", auth.userId)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Failed to load user organizations:", {
+      error,
+      userId: auth.userId,
+    })
+    return NextResponse.json({ error: "Failed to load organizations" }, { status: 500 })
   }
 
   const organizations = orgs?.map(m => ({
