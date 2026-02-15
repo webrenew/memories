@@ -588,4 +588,53 @@ describe("/api/orgs/[orgId]/members PATCH", () => {
       error: "Failed to update member role",
     })
   })
+
+  it("returns 500 when role update fails", async () => {
+    let membershipLookupCount = 0
+
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockImplementation(async () => {
+                  membershipLookupCount += 1
+                  if (membershipLookupCount === 1) {
+                    return { data: { role: "owner" }, error: null }
+                  }
+                  return { data: { role: "member" }, error: null }
+                }),
+              }),
+            }),
+          })),
+          update: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({
+                error: { message: "DB write failed" },
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
+      }
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/orgs/org-1/members", {
+        method: "PATCH",
+        body: JSON.stringify({ userId: "user-2", role: "member" }),
+        headers: { "content-type": "application/json" },
+      }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to update member role",
+    })
+  })
 })

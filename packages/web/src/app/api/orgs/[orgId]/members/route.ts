@@ -473,7 +473,14 @@ export async function PATCH(
     .eq("user_id", userId)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Failed to update org member role row:", {
+      error,
+      orgId,
+      actorUserId: user.id,
+      targetUserId: userId,
+      targetRole: role,
+    })
+    return NextResponse.json({ error: "Failed to update member role" }, { status: 500 })
   }
 
   await logOrgAuditEvent({
