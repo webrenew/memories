@@ -123,6 +123,56 @@ describe("/api/orgs/[orgId]/invites POST", () => {
       error: "Failed to create invite",
     })
   })
+
+  it("returns 500 when existing-user lookup fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { role: "owner" },
+                  error: null,
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      if (table === "users") {
+        return {
+          select: vi.fn(() => ({
+            ilike: vi.fn().mockResolvedValue({
+              data: null,
+              error: { message: "DB read failed" },
+            }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
+      }
+    })
+
+    const response = await POST(
+      new Request("https://example.com/api/orgs/org-1/invites", {
+        method: "POST",
+        body: JSON.stringify({ email: "new@example.com", role: "member" }),
+        headers: { "content-type": "application/json" },
+      }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to create invite",
+    })
+  })
 })
 
 describe("/api/orgs/[orgId]/invites DELETE", () => {

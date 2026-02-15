@@ -113,10 +113,20 @@ export async function POST(
   }
 
   // Check if any account with this email is already a member.
-  const { data: existingUsers } = await supabase
+  const { data: existingUsers, error: existingUsersError } = await supabase
     .from("users")
     .select("id")
     .ilike("email", email.toLowerCase())
+
+  if (existingUsersError) {
+    console.error("Failed to look up existing invite users:", {
+      error: existingUsersError,
+      orgId,
+      email: email.toLowerCase(),
+      userId: user.id,
+    })
+    return NextResponse.json({ error: "Failed to create invite" }, { status: 500 })
+  }
 
   if (existingUsers && existingUsers.length > 0) {
     const existingUserIds = existingUsers.map((u) => u.id)
