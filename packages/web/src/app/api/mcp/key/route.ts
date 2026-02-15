@@ -149,11 +149,16 @@ export async function GET(): Promise<Response> {
   if (rateLimited) return applyLegacyHeaders(rateLimited)
 
   const admin = createAdminClient()
-  const { data: userData } = await admin
+  const { data: userData, error: userDataError } = await admin
     .from("users")
     .select("mcp_api_key_hash, mcp_api_key_prefix, mcp_api_key_last4, mcp_api_key_created_at, mcp_api_key_expires_at")
     .eq("id", user.id)
     .single()
+
+  if (userDataError) {
+    console.error("Failed to load API key status metadata:", userDataError)
+    return legacyJson({ error: "Failed to load API key status metadata" }, { status: 500 })
+  }
 
   if (!userData?.mcp_api_key_hash) {
     return legacyJson({ hasKey: false })
