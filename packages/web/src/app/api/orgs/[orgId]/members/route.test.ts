@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const {
   mockGetUser,
+  mockSupabaseFrom,
   mockAdminFrom,
   mockAdminListUsers,
   mockCheckRateLimit,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
+  mockSupabaseFrom: vi.fn(),
   mockAdminFrom: vi.fn(),
   mockAdminListUsers: vi.fn(),
   mockCheckRateLimit: vi.fn(),
@@ -17,6 +19,7 @@ vi.mock("@/lib/supabase/server", () => ({
     auth: {
       getUser: mockGetUser,
     },
+    from: mockSupabaseFrom,
   })),
 }))
 
@@ -36,7 +39,7 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mockCheckRateLimit,
 }))
 
-import { GET } from "./route"
+import { DELETE, GET } from "./route"
 
 describe("/api/orgs/[orgId]/members", () => {
   beforeEach(() => {
@@ -262,5 +265,46 @@ describe("/api/orgs/[orgId]/members", () => {
     expect(body.members[0].joined_at).toBeNull()
     expect(body.members[0].user.email).toBe("charles@webrenew.io")
     expect(body.members[0].memory_count).toBe(0)
+  })
+})
+
+describe("/api/orgs/[orgId]/members DELETE", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue(null)
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+  })
+
+  it("returns 500 when actor membership lookup fails", async () => {
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "DB read failed" },
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
+      }
+    })
+
+    const response = await DELETE(
+      new Request("https://example.com/api/orgs/org-1/members?userId=user-2", { method: "DELETE" }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to remove member",
+    })
   })
 })
