@@ -204,7 +204,13 @@ export async function PATCH(
         { status: 409 },
       )
     }
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Failed to update organization row:", {
+      error,
+      orgId,
+      userId: user.id,
+      updatedFields: Object.keys(updates).sort(),
+    })
+    return NextResponse.json({ error: "Failed to update organization" }, { status: 500 })
   }
 
   await logOrgAuditEvent({

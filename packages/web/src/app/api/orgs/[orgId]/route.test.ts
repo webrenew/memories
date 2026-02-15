@@ -98,6 +98,53 @@ describe("/api/orgs/[orgId] PATCH", () => {
     })
   })
 
+  it("returns 500 when organization update fails", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { role: "owner" }, error: null }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      if (table === "organizations") {
+        return {
+          update: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "DB write failed", code: "XX000" },
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/orgs/org-1", {
+        method: "PATCH",
+        body: JSON.stringify({ name: "New org name" }),
+        headers: { "content-type": "application/json" },
+      }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to update organization",
+    })
+  })
+
   it("requires a domain before enabling auto-join", async () => {
     mockFrom.mockImplementation((table: string) => {
       if (table === "org_members") {
