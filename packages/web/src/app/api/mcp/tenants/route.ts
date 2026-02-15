@@ -74,7 +74,17 @@ async function getActiveApiKeyHash(
     .eq("id", userId)
     .single()
 
-  if (error || !data?.mcp_api_key_hash) {
+  if (error) {
+    console.error("Failed to load API key metadata for tenant management:", error)
+    return {
+      error: legacyJson(
+        { error: "Failed to load API key metadata" },
+        { status: 500 }
+      ),
+    }
+  }
+
+  if (!data?.mcp_api_key_hash) {
     return {
       error: legacyJson(
         { error: "Generate an API key before configuring tenant databases" },
