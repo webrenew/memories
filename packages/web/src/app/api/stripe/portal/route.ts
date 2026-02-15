@@ -39,7 +39,7 @@ export async function POST(request: Request): Promise<Response> {
       .from("organizations")
       .select("stripe_customer_id")
       .eq("id", workspace.orgId)
-      .single()
+      .maybeSingle()
 
     if (orgError) {
       console.error("Failed to load organization billing customer:", orgError)
@@ -52,7 +52,7 @@ export async function POST(request: Request): Promise<Response> {
       .from("users")
       .select("stripe_customer_id")
       .eq("id", auth.userId)
-      .single()
+      .maybeSingle()
 
     if (profileError) {
       console.error("Failed to load user billing customer:", profileError)
