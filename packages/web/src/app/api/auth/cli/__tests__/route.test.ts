@@ -43,7 +43,7 @@ describe("POST /api/auth/cli", () => {
       mockAdminFrom.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: null }),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null }),
           }),
         }),
       })
@@ -59,7 +59,7 @@ describe("POST /api/auth/cli", () => {
       mockAdminFrom.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
+            maybeSingle: vi.fn().mockResolvedValue({
               data: { cli_token: "cli_abc123", email: "user@example.com" },
             }),
           }),
@@ -81,7 +81,7 @@ describe("POST /api/auth/cli", () => {
       mockAdminFrom.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
+            maybeSingle: vi.fn().mockResolvedValue({
               data: null,
               error: { message: "DB read failed" },
             }),
@@ -99,7 +99,7 @@ describe("POST /api/auth/cli", () => {
       mockAdminFrom.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
+            maybeSingle: vi.fn().mockResolvedValue({
               data: { cli_token: "cli_abc123", email: "user@example.com" },
               error: null,
             }),
