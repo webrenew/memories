@@ -197,7 +197,14 @@ export async function POST(
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Failed to create org invite row:", {
+      error,
+      orgId,
+      userId: user.id,
+      email: email.toLowerCase(),
+      role,
+    })
+    return NextResponse.json({ error: "Failed to create invite" }, { status: 500 })
   }
 
   // Get org name and inviter name for email
