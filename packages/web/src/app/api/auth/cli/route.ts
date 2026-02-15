@@ -21,7 +21,7 @@ export async function POST(request: Request): Promise<Response> {
       .from("users")
       .select("cli_token, email, id")
       .eq("cli_auth_code", parsed.data.code)
-      .single()
+      .maybeSingle()
 
     if (userError) {
       console.error("CLI auth poll lookup failed:", userError)
