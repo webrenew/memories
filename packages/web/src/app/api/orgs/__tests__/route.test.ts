@@ -144,7 +144,7 @@ describe("/api/orgs", () => {
             return {
               select: vi.fn().mockReturnValue({
                 eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({ data: null }),
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
                 }),
               }),
             }
@@ -197,6 +197,38 @@ describe("/api/orgs", () => {
       const body = await response.json()
       expect(body.organization.name).toBe("New Team")
       expect(body.organization.slug).toBe("new-team")
+    })
+
+    it("should return 500 when slug uniqueness check fails", async () => {
+      mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
+
+      mockAdminFrom.mockImplementation((table: string) => {
+        if (table === "organizations") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "DB read failed" },
+                }),
+              }),
+            }),
+          }
+        }
+
+        return {}
+      })
+
+      const request = new Request("https://example.com/api/orgs", {
+        method: "POST",
+        body: JSON.stringify({ name: "New Team" }),
+        headers: { "content-type": "application/json" },
+      })
+
+      const response = await POST(request)
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error).toBe("Failed to create organization")
     })
   })
 })
