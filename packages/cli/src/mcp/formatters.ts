@@ -1,12 +1,11 @@
-import {
-  type Memory,
-  type MemoryType,
-} from "../lib/memory.js";
+import type { Memory, MemoryType } from "../lib/memory.js";
 import {
   formatStorageWarningsForText,
   getStorageWarnings,
   type StorageWarning,
 } from "../lib/storage-health.js";
+
+// ─── Type Labels ──────────────────────────────────────────────────────────────
 
 export const TYPE_LABELS: Record<MemoryType, string> = {
   rule: "📌 RULE",
@@ -15,6 +14,8 @@ export const TYPE_LABELS: Record<MemoryType, string> = {
   note: "📝 NOTE",
   skill: "🔧 SKILL",
 };
+
+// ─── Format Helpers ───────────────────────────────────────────────────────────
 
 export function formatMemory(m: Memory): string {
   const tags = m.tags ? ` [${m.tags}]` : "";
@@ -35,6 +36,8 @@ export function formatMemoriesSection(memories: Memory[], title: string): string
   return `## ${title}\n${memories.map(formatMemory).join("\n")}`;
 }
 
+// ─── Tool Response Types ──────────────────────────────────────────────────────
+
 export interface ToolTextPart {
   type: "text";
   text: string;
@@ -45,6 +48,8 @@ export interface ToolResponsePayload {
   isError?: boolean;
   [key: string]: unknown;
 }
+
+// ─── Storage Warning Helper ───────────────────────────────────────────────────
 
 export async function withStorageWarnings(
   result: ToolResponsePayload,
