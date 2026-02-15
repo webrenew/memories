@@ -72,11 +72,20 @@ export async function POST(request: Request): Promise<Response> {
 
   // Check for slug uniqueness
   while (true) {
-    const { data: existing } = await admin
+    const { data: existing, error: existingError } = await admin
       .from("organizations")
       .select("id")
       .eq("slug", slug)
-      .single()
+      .maybeSingle()
+
+    if (existingError) {
+      console.error("Failed to verify organization slug uniqueness:", {
+        error: existingError,
+        slug,
+        userId: auth.userId,
+      })
+      return NextResponse.json({ error: "Failed to create organization" }, { status: 500 })
+    }
 
     if (!existing) break
     slug = `${baseSlug}-${counter++}`
