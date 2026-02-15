@@ -472,4 +472,71 @@ describe("memory mutations graph integration", () => {
     expect(errorSpy).toHaveBeenCalledTimes(3)
     errorSpy.mockRestore()
   })
+
+  it("rejects empty edit content", async () => {
+    const db = await setupDb("memories-mutations-edit-content-validation")
+    const { addMemoryPayload, editMemoryPayload } = await loadMutationsModule(false)
+
+    const added = await addMemoryPayload({
+      turso: db,
+      args: {
+        content: "Editable memory",
+        type: "note",
+      },
+      userId: "user-validation",
+      nowIso: "2026-02-11T18:30:00.000Z",
+    })
+
+    await expect(
+      editMemoryPayload({
+        turso: db,
+        args: { id: added.data.id, content: "   " },
+        userId: "user-validation",
+        nowIso: "2026-02-11T18:31:00.000Z",
+      })
+    ).rejects.toMatchObject({
+      detail: expect.objectContaining({
+        code: "MEMORY_CONTENT_REQUIRED",
+        status: 400,
+      }),
+    })
+  })
+
+  it("returns not_found when edit target does not exist", async () => {
+    const db = await setupDb("memories-mutations-edit-not-found")
+    const { editMemoryPayload } = await loadMutationsModule(false)
+
+    await expect(
+      editMemoryPayload({
+        turso: db,
+        args: { id: "missing", content: "test" },
+        userId: "user-missing",
+        nowIso: "2026-02-11T18:40:00.000Z",
+      })
+    ).rejects.toMatchObject({
+      detail: expect.objectContaining({
+        code: "MEMORY_NOT_FOUND",
+        status: 404,
+      }),
+    })
+  })
+
+  it("returns not_found when forget target does not exist", async () => {
+    const db = await setupDb("memories-mutations-forget-not-found")
+    const { forgetMemoryPayload } = await loadMutationsModule(false)
+
+    await expect(
+      forgetMemoryPayload({
+        turso: db,
+        args: { id: "missing" },
+        userId: "user-missing",
+        nowIso: "2026-02-11T18:50:00.000Z",
+      })
+    ).rejects.toMatchObject({
+      detail: expect.objectContaining({
+        code: "MEMORY_NOT_FOUND",
+        status: 404,
+      }),
+    })
+  })
 })

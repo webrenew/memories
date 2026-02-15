@@ -55,6 +55,19 @@ function parseGraphLimit(args: Record<string, unknown>): number {
   return Math.max(1, Math.min(Math.floor(raw), 50))
 }
 
+function parseLimit(
+  value: unknown,
+  options: {
+    fallback: number
+    max: number
+  }
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return options.fallback
+  }
+  return Math.max(1, Math.min(Math.floor(value), options.max))
+}
+
 function buildToolEnvelope<T extends Record<string, unknown>>(
   tool: ToolName,
   data: T,
@@ -91,10 +104,7 @@ export async function executeMemoryTool(
   switch (toolName) {
     case "get_context": {
       const query = typeof args.query === "string" ? args.query.trim() : ""
-      const limit =
-        typeof args.limit === "number" && Number.isFinite(args.limit) && args.limit > 0
-          ? Math.floor(args.limit)
-          : 5
+      const limit = parseLimit(args.limit, { fallback: 5, max: 50 })
       const retrievalStrategy = parseRetrievalStrategy(args)
       const graphDepth = parseGraphDepth(args)
       const graphLimit = parseGraphLimit(args)
@@ -148,7 +158,14 @@ export async function executeMemoryTool(
     }
 
     case "search_memories": {
-      const payload = await searchMemoriesPayload({ turso, args, projectId, userId, nowIso })
+      const limit = parseLimit(args.limit, { fallback: 10, max: 50 })
+      const payload = await searchMemoriesPayload({
+        turso,
+        args: { ...args, limit },
+        projectId,
+        userId,
+        nowIso,
+      })
       return {
         content: [{ type: "text", text: payload.text }],
         structuredContent: buildToolEnvelope("search_memories", payload.data, responseSchemaVersion),
@@ -156,7 +173,14 @@ export async function executeMemoryTool(
     }
 
     case "list_memories": {
-      const payload = await listMemoriesPayload({ turso, args, projectId, userId, nowIso })
+      const limit = parseLimit(args.limit, { fallback: 20, max: 100 })
+      const payload = await listMemoriesPayload({
+        turso,
+        args: { ...args, limit },
+        projectId,
+        userId,
+        nowIso,
+      })
       return {
         content: [{ type: "text", text: payload.text }],
         structuredContent: buildToolEnvelope("list_memories", payload.data, responseSchemaVersion),

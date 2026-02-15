@@ -12,6 +12,33 @@ import {
 import { buildNotExpiredFilter, parseMemoryLayer, workingMemoryExpiresAt } from "./scope"
 import { bulkRemoveMemoryGraphMappings, removeMemoryGraphMapping, syncMemoryGraphMapping } from "./graph/upsert"
 
+function getRowsAffected(result: unknown): number | null {
+  if (!result || typeof result !== "object") {
+    return null
+  }
+
+  const rowsAffected = (result as { rowsAffected?: unknown }).rowsAffected
+  if (typeof rowsAffected === "number" && Number.isFinite(rowsAffected)) {
+    return rowsAffected
+  }
+
+  return null
+}
+
+function notFoundError(id: string): ToolExecutionError {
+  return new ToolExecutionError(
+    apiError({
+      type: "not_found_error",
+      code: "MEMORY_NOT_FOUND",
+      message: `Memory not found: ${id}`,
+      status: 404,
+      retryable: false,
+      details: { id },
+    }),
+    { rpcCode: -32004 }
+  )
+}
+
 async function compactWorkingMemoriesForUser(
   turso: TursoClient,
   userId: string | null,
@@ -186,8 +213,22 @@ export async function editMemoryPayload(params: {
   const requestedLayer = parseMemoryLayer(args)
 
   if (args.content !== undefined) {
+    const nextContent = typeof args.content === "string" ? args.content.trim() : ""
+    if (!nextContent) {
+      throw new ToolExecutionError(
+        apiError({
+          type: "validation_error",
+          code: "MEMORY_CONTENT_REQUIRED",
+          message: "Memory content is required",
+          status: 400,
+          retryable: false,
+          details: { field: "content" },
+        }),
+        { rpcCode: -32602 }
+      )
+    }
     updates.push("content = ?")
-    updateArgs.push(args.content as string)
+    updateArgs.push(nextContent)
   }
   if (args.type !== undefined && VALID_TYPES.has(args.type as string)) {
     updates.push("type = ?")
@@ -227,12 +268,16 @@ export async function editMemoryPayload(params: {
     whereArgs.push(userId)
   }
 
-  await turso.execute({
+  const updateResult = await turso.execute({
     sql: `UPDATE memories SET ${updates.join(", ")} WHERE id = ? AND deleted_at IS NULL${
       userId ? " AND user_id = ?" : " AND user_id IS NULL"
     }`,
     args: [...updateArgs, ...whereArgs],
   })
+  const rowsAffected = getRowsAffected(updateResult)
+  if (rowsAffected === 0) {
+    throw notFoundError(id)
+  }
 
   if (requestedLayer === "working") {
     await compactWorkingMemoriesForUser(turso, userId, nowIso)
@@ -328,12 +373,16 @@ export async function forgetMemoryPayload(params: {
     )
   }
 
-  await turso.execute({
-    sql: `UPDATE memories SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL${
+  const forgetResult = await turso.execute({
+    sql: `UPDATE memories SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL${
       userId ? " AND user_id = ?" : " AND user_id IS NULL"
     }${onlyWorkingLayer ? " AND memory_layer = 'working'" : ""}`,
-    args: userId ? [nowIso, id, userId] : [nowIso, id],
+    args: userId ? [nowIso, nowIso, id, userId] : [nowIso, nowIso, id],
   })
+  const rowsAffected = getRowsAffected(forgetResult)
+  if (rowsAffected === 0 && !onlyWorkingLayer) {
+    throw notFoundError(id)
+  }
 
   if (GRAPH_MAPPING_ENABLED) {
     try {

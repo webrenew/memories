@@ -343,6 +343,40 @@ describe("/api/mcp", () => {
       expect(body.result.content[0].text).toContain("Relevant Memories")
     })
 
+    it("clamps oversized context limits to safe bounds", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rows: [] })
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "get_context",
+          arguments: { query: "auth", limit: 5000 },
+        })
+      ))
+
+      const workingCall = getExecuteCallBySqlFragment("m.memory_layer = 'working'")
+      const longTermCall = getExecuteCallBySqlFragment("m.type != ?")
+      expect(workingCall.args?.at(-1)).toBe(3)
+      expect(longTermCall.args?.at(-1)).toBe(50)
+    })
+
+    it("falls back to default context limit when limit is non-positive", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rows: [] })
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "get_context",
+          arguments: { query: "auth", limit: -1 },
+        })
+      ))
+
+      const workingCall = getExecuteCallBySqlFragment("m.memory_layer = 'working'")
+      const longTermCall = getExecuteCallBySqlFragment("m.type != ?")
+      expect(workingCall.args?.at(-1)).toBe(3)
+      expect(longTermCall.args?.at(-1)).toBe(5)
+    })
+
     it("should return fallback text when no rules or memories", async () => {
       setupAuth()
       mockExecute.mockResolvedValue({ rows: [] })
@@ -753,6 +787,37 @@ describe("/api/mcp", () => {
       expect(sql).toContain("deleted_at IS NULL")
     })
 
+    it("returns validation error when content is empty", async () => {
+      setupAuth()
+
+      const response = await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "edit_memory",
+          arguments: { id: "abc123", content: "   " },
+        })
+      ))
+
+      const body = await response.json()
+      expect(body.error.code).toBe(-32602)
+      expect(body.error.data.code).toBe("MEMORY_CONTENT_REQUIRED")
+    })
+
+    it("returns not found when edit target does not exist", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rowsAffected: 0 })
+
+      const response = await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "edit_memory",
+          arguments: { id: "missing-id", content: "test" },
+        })
+      ))
+
+      const body = await response.json()
+      expect(body.error.code).toBe(-32004)
+      expect(body.error.data.code).toBe("MEMORY_NOT_FOUND")
+    })
+
     it("constrains edits by user_id when provided", async () => {
       setupAuth()
       mockExecute.mockResolvedValue({})
@@ -837,6 +902,22 @@ describe("/api/mcp", () => {
       const call = getExecuteCallBySqlFragment("UPDATE memories SET deleted_at")
       expect(call.sql).toContain("AND user_id = ?")
       expect(call.args).toContain("user-42")
+    })
+
+    it("returns not found when delete target does not exist", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rowsAffected: 0 })
+
+      const response = await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "forget_memory",
+          arguments: { id: "missing-id" },
+        })
+      ))
+
+      const body = await response.json()
+      expect(body.error.code).toBe(-32004)
+      expect(body.error.data.code).toBe("MEMORY_NOT_FOUND")
     })
   })
 
@@ -956,6 +1037,36 @@ describe("/api/mcp", () => {
       const body = await response.json()
       expect(body.error.code).toBe(-32602)
       expect(body.error.data.code).toBe("MEMORY_LAYER_INVALID")
+    })
+
+    it("clamps oversized search limits", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rows: [] })
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "search_memories",
+          arguments: { query: "auth", limit: 5000 },
+        })
+      ))
+
+      const call = getExecuteCallBySqlFragment("FROM memories_fts")
+      expect(call.args?.at(-1)).toBe(50)
+    })
+
+    it("falls back to default search limit when non-positive", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rows: [] })
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "search_memories",
+          arguments: { query: "auth", limit: -1 },
+        })
+      ))
+
+      const call = getExecuteCallBySqlFragment("FROM memories_fts")
+      expect(call.args?.at(-1)).toBe(10)
     })
   })
 
@@ -1092,6 +1203,36 @@ describe("/api/mcp", () => {
 
       const sql = getLastExecuteCall().sql
       expect(sql).toContain("memory_layer = 'working'")
+    })
+
+    it("clamps oversized list limits", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rows: [] })
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "list_memories",
+          arguments: { limit: 5000 },
+        })
+      ))
+
+      const call = getLastExecuteCall()
+      expect(call.args?.at(-1)).toBe(100)
+    })
+
+    it("falls back to default list limit when non-positive", async () => {
+      setupAuth()
+      mockExecute.mockResolvedValue({ rows: [] })
+
+      await POST(makePostRequest(
+        jsonrpc("tools/call", {
+          name: "list_memories",
+          arguments: { limit: -1 },
+        })
+      ))
+
+      const call = getLastExecuteCall()
+      expect(call.args?.at(-1)).toBe(20)
     })
   })
 
