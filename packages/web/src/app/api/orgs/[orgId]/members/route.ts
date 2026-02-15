@@ -262,12 +262,22 @@ export async function DELETE(
   if (rateLimited) return rateLimited
 
   // Check current user's role
-  const { data: currentMembership } = await supabase
+  const { data: currentMembership, error: currentMembershipError } = await supabase
     .from("org_members")
     .select("role")
     .eq("org_id", orgId)
     .eq("user_id", user.id)
     .single()
+
+  if (currentMembershipError) {
+    console.error("Failed to verify acting membership before removing org member:", {
+      error: currentMembershipError,
+      orgId,
+      actorUserId: user.id,
+      targetUserId,
+    })
+    return NextResponse.json({ error: "Failed to remove member" }, { status: 500 })
+  }
 
   if (!currentMembership) {
     return NextResponse.json({ error: "Not a member of this organization" }, { status: 403 })
