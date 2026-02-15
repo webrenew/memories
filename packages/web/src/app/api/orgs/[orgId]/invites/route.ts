@@ -60,7 +60,12 @@ export async function GET(
     .order("created_at", { ascending: false })
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Failed to load pending invites:", {
+      error,
+      orgId,
+      userId: user.id,
+    })
+    return NextResponse.json({ error: "Failed to load invites" }, { status: 500 })
   }
 
   return NextResponse.json({ invites })

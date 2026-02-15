@@ -77,6 +77,58 @@ describe("/api/orgs/[orgId]/invites GET", () => {
       error: "Failed to load invites",
     })
   })
+
+  it("returns 500 when invites query fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { role: "owner" },
+                  error: null,
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      if (table === "org_invites") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              is: vi.fn().mockReturnValue({
+                gt: vi.fn().mockReturnValue({
+                  order: vi.fn().mockResolvedValue({
+                    data: null,
+                    error: { message: "DB read failed" },
+                  }),
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({ eq: vi.fn(), is: vi.fn(), gt: vi.fn(), order: vi.fn() })),
+      }
+    })
+
+    const response = await GET(
+      new Request("https://example.com/api/orgs/org-1/invites"),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to load invites",
+    })
+  })
 })
 
 describe("/api/orgs/[orgId]/invites POST", () => {
