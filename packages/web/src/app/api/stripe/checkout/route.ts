@@ -16,11 +16,16 @@ async function getOrCreateUserCustomerId(
   userId: string,
   email: string
 ): Promise<string | null> {
-  const { data: profile } = await admin
+  const { data: profile, error: profileError } = await admin
     .from("users")
     .select("stripe_customer_id, email")
     .eq("id", userId)
     .single()
+
+  if (profileError) {
+    console.error("Failed to load user billing customer:", profileError)
+    return null
+  }
 
   let customerId = profile?.stripe_customer_id
   if (customerId) return customerId
@@ -60,11 +65,16 @@ async function getOrCreateOrganizationCustomerId(
   admin: ReturnType<typeof createAdminClient>,
   orgId: string
 ): Promise<string | null> {
-  const { data: org } = await admin
+  const { data: org, error: orgError } = await admin
     .from("organizations")
     .select("stripe_customer_id, name")
     .eq("id", orgId)
     .single()
+
+  if (orgError) {
+    console.error("Failed to load organization billing customer:", orgError)
+    return null
+  }
 
   let customerId = org?.stripe_customer_id
   if (customerId) return customerId
