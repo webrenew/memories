@@ -104,12 +104,21 @@ export async function GET(
   if (rateLimited) return rateLimited
 
   // Check user is member
-  const { data: membership } = await admin
+  const { data: membership, error: membershipError } = await admin
     .from("org_members")
     .select("role")
     .eq("org_id", orgId)
     .eq("user_id", user.id)
     .single()
+
+  if (membershipError) {
+    console.error("Failed to verify org membership before listing members:", {
+      error: membershipError,
+      orgId,
+      userId: user.id,
+    })
+    return NextResponse.json({ error: "Failed to load organization members" }, { status: 500 })
+  }
 
   if (!membership) {
     return NextResponse.json({ error: "Not a member of this organization" }, { status: 403 })

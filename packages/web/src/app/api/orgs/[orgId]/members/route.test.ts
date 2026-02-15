@@ -62,6 +62,44 @@ describe("/api/orgs/[orgId]/members", () => {
     expect(response.status).toBe(401)
   })
 
+  it("returns 500 when membership lookup fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn((columns: string) => {
+            if (columns === "role") {
+              const single = vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "DB read failed" },
+              })
+              const eqUser = vi.fn().mockReturnValue({ single })
+              const eqOrg = vi.fn().mockReturnValue({ eq: eqUser })
+              return { eq: eqOrg }
+            }
+
+            return { eq: vi.fn() }
+          }),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({ eq: vi.fn(), in: vi.fn(), single: vi.fn(), order: vi.fn() })),
+      }
+    })
+
+    const response = await GET(
+      new Request("https://example.com/api/orgs/org-1/members"),
+      { params: Promise.resolve({ orgId: "org-1" }) }
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to load organization members",
+    })
+  })
+
   it("returns member list including owner", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
 
