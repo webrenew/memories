@@ -174,6 +174,76 @@ describe("/api/orgs/[orgId]/invites POST", () => {
     })
   })
 
+  it("returns 500 when existing-member lookup fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+
+    let orgMembersLookupCount = 0
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        orgMembersLookupCount += 1
+
+        if (orgMembersLookupCount === 1) {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { role: "owner" },
+                    error: null,
+                  }),
+                }),
+              }),
+            })),
+          }
+        }
+
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              in: vi.fn().mockReturnValue({
+                limit: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: null,
+                    error: { message: "DB read failed" },
+                  }),
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      if (table === "users") {
+        return {
+          select: vi.fn(() => ({
+            ilike: vi.fn().mockResolvedValue({
+              data: [{ id: "existing-user-1" }],
+              error: null,
+            }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
+      }
+    })
+
+    const response = await POST(
+      new Request("https://example.com/api/orgs/org-1/invites", {
+        method: "POST",
+        body: JSON.stringify({ email: "existing@example.com", role: "member" }),
+        headers: { "content-type": "application/json" },
+      }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to create invite",
+    })
+  })
+
   it("returns 500 when pending-invite lookup fails", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
 

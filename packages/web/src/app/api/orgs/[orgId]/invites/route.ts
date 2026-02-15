@@ -139,7 +139,14 @@ export async function POST(
       .maybeSingle()
 
     if (existingMemberError) {
-      return NextResponse.json({ error: existingMemberError.message }, { status: 500 })
+      console.error("Failed to look up existing invite member:", {
+        error: existingMemberError,
+        orgId,
+        email: email.toLowerCase(),
+        userId: user.id,
+        existingUserIds,
+      })
+      return NextResponse.json({ error: "Failed to create invite" }, { status: 500 })
     }
 
     if (existingMember) {
