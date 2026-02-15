@@ -39,7 +39,7 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mockCheckRateLimit,
 }))
 
-import { DELETE, GET } from "./route"
+import { DELETE, GET, PATCH } from "./route"
 
 describe("/api/orgs/[orgId]/members", () => {
   beforeEach(() => {
@@ -305,6 +305,51 @@ describe("/api/orgs/[orgId]/members DELETE", () => {
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toMatchObject({
       error: "Failed to remove member",
+    })
+  })
+})
+
+describe("/api/orgs/[orgId]/members PATCH", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue(null)
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+  })
+
+  it("returns 500 when actor membership lookup fails", async () => {
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "DB read failed" },
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
+      }
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/orgs/org-1/members", {
+        method: "PATCH",
+        body: JSON.stringify({ userId: "user-2", role: "member" }),
+        headers: { "content-type": "application/json" },
+      }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to update member role",
     })
   })
 })

@@ -385,12 +385,23 @@ export async function PATCH(
   const { userId, role } = parsed.data
 
   // Check current user is owner or admin
-  const { data: currentMembership } = await supabase
+  const { data: currentMembership, error: currentMembershipError } = await supabase
     .from("org_members")
     .select("role")
     .eq("org_id", orgId)
     .eq("user_id", user.id)
     .single()
+
+  if (currentMembershipError) {
+    console.error("Failed to verify acting membership before updating org member role:", {
+      error: currentMembershipError,
+      orgId,
+      actorUserId: user.id,
+      targetUserId: userId,
+      targetRole: role,
+    })
+    return NextResponse.json({ error: "Failed to update member role" }, { status: 500 })
+  }
 
   if (!currentMembership || !["owner", "admin"].includes(currentMembership.role)) {
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
