@@ -159,6 +159,28 @@ describe("/api/mcp/key", () => {
       expect(body.expiresAt).toBe("2099-01-01T00:00:00.000Z")
       expect(body.isExpired).toBe(false)
     })
+
+    it("should return 500 when loading key status metadata fails", async () => {
+      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+      mockAdminFrom.mockImplementation((table: string) => {
+        if (table !== "users") return {}
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "DB read failed" },
+              }),
+            }),
+          }),
+        }
+      })
+
+      const response = await GET()
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error).toContain("API key status metadata")
+    })
   })
 
   describe("POST", () => {
