@@ -139,9 +139,7 @@ export async function POST(request: Request): Promise<Response> {
     if (deleteError) {
       console.error("Failed to rollback org creation:", deleteError)
     }
-    return NextResponse.json({ 
-      error: memberError.message || "Failed to add you as organization owner. This may be a permissions issue." 
-    }, { status: 500 })
+    return NextResponse.json({ error: "Failed to add organization owner" }, { status: 500 })
   }
 
   // Set as user's current org if they don't have one
