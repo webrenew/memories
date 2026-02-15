@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@memories.sh/core": "^0.3.0",
+    "@memories.sh/core": "^0.3.2",
     "next": "16.1.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

@@ -74,16 +74,20 @@ export async function GET(request: Request) {
       mode,
       limit,
       projectId: scope.projectId,
+      strategy,
+      graphDepth,
+      graphLimit,
     })
 
     return NextResponse.json({
       ok: true,
       rules: context.rules,
       memories: context.memories,
-      trace: {
+      trace: context.trace ?? {
         requestedStrategy: strategy,
-        requestedGraphDepth: graphDepth,
-        requestedGraphLimit: graphLimit,
+        strategy,
+        graphDepth,
+        graphLimit,
       },
     })
   } catch (error) {
