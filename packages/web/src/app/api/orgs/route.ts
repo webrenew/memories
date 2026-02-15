@@ -112,7 +112,7 @@ export async function POST(request: Request): Promise<Response> {
       userId: auth.userId,
       orgName: name.trim(),
     })
-    return NextResponse.json({ error: orgError.message || "Failed to create organization" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to create organization" }, { status: 500 })
   }
 
   // Add creator as owner member

@@ -232,5 +232,49 @@ describe("/api/orgs", () => {
       const body = await response.json()
       expect(body.error).toBe("Failed to create organization")
     })
+
+    it("should return 500 when organization insert fails", async () => {
+      mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
+
+      let orgCallCount = 0
+      mockAdminFrom.mockImplementation((table: string) => {
+        if (table === "organizations") {
+          orgCallCount += 1
+          if (orgCallCount === 1) {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }
+          }
+
+          return {
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "DB write failed" },
+                }),
+              }),
+            }),
+          }
+        }
+
+        return {}
+      })
+
+      const request = new Request("https://example.com/api/orgs", {
+        method: "POST",
+        body: JSON.stringify({ name: "New Team" }),
+        headers: { "content-type": "application/json" },
+      })
+
+      const response = await POST(request)
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error).toBe("Failed to create organization")
+    })
   })
 })
