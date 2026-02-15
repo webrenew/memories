@@ -345,7 +345,13 @@ export async function DELETE(
     .eq("user_id", targetUserId)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Failed to delete org member row:", {
+      error,
+      orgId,
+      actorUserId: user.id,
+      targetUserId,
+    })
+    return NextResponse.json({ error: "Failed to remove member" }, { status: 500 })
   }
 
   await logOrgAuditEvent({

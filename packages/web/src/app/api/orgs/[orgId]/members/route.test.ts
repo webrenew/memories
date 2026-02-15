@@ -443,6 +443,64 @@ describe("/api/orgs/[orgId]/members DELETE", () => {
       error: "Failed to remove member",
     })
   })
+
+  it("returns 500 when member deletion fails", async () => {
+    let membershipLookupCount = 0
+
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockImplementation(async () => {
+                  membershipLookupCount += 1
+                  if (membershipLookupCount === 1) {
+                    return { data: { role: "owner" }, error: null }
+                  }
+                  return { data: { role: "member" }, error: null }
+                }),
+              }),
+            }),
+          })),
+          delete: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({
+                error: { message: "DB write failed" },
+              }),
+            }),
+          })),
+        }
+      }
+
+      if (table === "organizations") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { stripe_subscription_id: null },
+                error: null,
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
+      }
+    })
+
+    const response = await DELETE(
+      new Request("https://example.com/api/orgs/org-1/members?userId=user-2", { method: "DELETE" }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to remove member",
+    })
+  })
 })
 
 describe("/api/orgs/[orgId]/members PATCH", () => {
