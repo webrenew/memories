@@ -18,11 +18,16 @@ export async function DELETE(): Promise<Response> {
 
   try {
     // Get user profile
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("users")
       .select("stripe_customer_id, turso_db_name")
       .eq("id", user.id)
       .single()
+
+    if (profileError) {
+      console.error("Failed to load user profile for account deletion:", profileError)
+      return NextResponse.json({ error: "Failed to delete account" }, { status: 500 })
+    }
 
     // Cancel Stripe subscription if exists
     if (profile?.stripe_customer_id) {
@@ -68,6 +73,7 @@ export async function DELETE(): Promise<Response> {
 
     if (deleteError) {
       console.error("Failed to delete user record:", deleteError)
+      return NextResponse.json({ error: "Failed to delete account" }, { status: 500 })
     }
 
     // Delete auth user (requires admin client)
