@@ -99,7 +99,7 @@ describe("/api/stripe/portal", () => {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
+              maybeSingle: vi.fn().mockResolvedValue({
                 data: { stripe_customer_id: "cus_org_123" },
                 error: null,
               }),
@@ -144,7 +144,7 @@ describe("/api/stripe/portal", () => {
         return {
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
+              maybeSingle: vi.fn().mockResolvedValue({
                 data: { stripe_customer_id: "cus_user_123" },
                 error: null,
               }),
@@ -166,5 +166,81 @@ describe("/api/stripe/portal", () => {
         return_url: "https://example.com/app/billing",
       })
     )
+  })
+
+  it("returns 500 when organization billing customer lookup fails", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "owner@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "organization",
+      orgId: "org-1",
+      orgRole: "owner",
+      plan: "pro",
+      hasDatabase: true,
+      canProvision: true,
+      canManageBilling: true,
+      turso_db_url: "libsql://org.turso.io",
+      turso_db_token: "token",
+      turso_db_name: "org-db",
+      userId: "user-1",
+    })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "organizations") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "db read failed" },
+              }),
+            }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    const response = await POST(makeRequest())
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.code).toBe("BILLING_CUSTOMER_LOOKUP_FAILED")
+  })
+
+  it("returns 500 when personal billing customer lookup fails", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "user@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "user",
+      orgId: null,
+      orgRole: null,
+      plan: "pro",
+      hasDatabase: true,
+      canProvision: true,
+      canManageBilling: true,
+      turso_db_url: "libsql://user.turso.io",
+      turso_db_token: "token",
+      turso_db_name: "user-db",
+      userId: "user-1",
+    })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "db read failed" },
+              }),
+            }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    const response = await POST(makeRequest())
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.code).toBe("BILLING_CUSTOMER_LOOKUP_FAILED")
   })
 })

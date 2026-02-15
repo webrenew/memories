@@ -43,7 +43,7 @@ describe("POST /api/auth/cli", () => {
       mockAdminFrom.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: null }),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null }),
           }),
         }),
       })
@@ -59,7 +59,7 @@ describe("POST /api/auth/cli", () => {
       mockAdminFrom.mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
+            maybeSingle: vi.fn().mockResolvedValue({
               data: { cli_token: "cli_abc123", email: "user@example.com" },
             }),
           }),
@@ -75,6 +75,45 @@ describe("POST /api/auth/cli", () => {
       const body = await response.json()
       expect(body.token).toBe("cli_abc123")
       expect(body.email).toBe("user@example.com")
+    })
+
+    it("should return 500 when poll lookup fails", async () => {
+      mockAdminFrom.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: null,
+              error: { message: "DB read failed" },
+            }),
+          }),
+        }),
+      })
+
+      const response = await POST(makeRequest({ action: "poll", code: VALID_CODE }))
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error).toContain("check auth status")
+    })
+
+    it("should return 500 when clearing auth code fails after token retrieval", async () => {
+      mockAdminFrom.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { cli_token: "cli_abc123", email: "user@example.com" },
+              error: null,
+            }),
+          }),
+        }),
+        update: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ error: { message: "DB update failed" } }),
+        }),
+      })
+
+      const response = await POST(makeRequest({ action: "poll", code: VALID_CODE }))
+      expect(response.status).toBe(500)
+      const body = await response.json()
+      expect(body.error).toContain("finalize token exchange")
     })
 
     it("should return 400 for invalid code format", async () => {

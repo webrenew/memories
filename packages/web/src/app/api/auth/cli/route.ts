@@ -17,11 +17,16 @@ export async function POST(request: Request): Promise<Response> {
 
     // CLI is polling for its token — look up by cli_auth_code in the database
     const admin = createAdminClient()
-    const { data: user } = await admin
+    const { data: user, error: userError } = await admin
       .from("users")
       .select("cli_token, email, id")
       .eq("cli_auth_code", parsed.data.code)
-      .single()
+      .maybeSingle()
+
+    if (userError) {
+      console.error("CLI auth poll lookup failed:", userError)
+      return NextResponse.json({ error: "Failed to check auth status" }, { status: 500 })
+    }
 
     if (!user || !user.cli_token) {
       // Still waiting or code not found
@@ -36,10 +41,15 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Clear the auth code so it can't be reused
-    await admin
+    const { error: clearCodeError } = await admin
       .from("users")
       .update({ cli_auth_code: null })
       .eq("cli_auth_code", parsed.data.code)
+
+    if (clearCodeError) {
+      console.error("Failed to clear CLI auth code after token poll:", clearCodeError)
+      return NextResponse.json({ error: "Failed to finalize token exchange" }, { status: 500 })
+    }
 
     return NextResponse.json({
       token: user.cli_token,

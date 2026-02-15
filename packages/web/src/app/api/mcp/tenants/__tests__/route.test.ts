@@ -106,6 +106,30 @@ describe("/api/mcp/tenants", () => {
     expect(response.status).toBe(401)
   })
 
+  it("returns 500 when api key lookup fails", async () => {
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "db read failed" },
+              }),
+            }),
+          }),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await GET(new Request("http://localhost/api/mcp/tenants"))
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.error).toContain("API key metadata")
+  })
+
   it("lists tenant database mappings for the active API key", async () => {
     mockAdminFrom.mockImplementation((table: string) => {
       if (table === "users") {

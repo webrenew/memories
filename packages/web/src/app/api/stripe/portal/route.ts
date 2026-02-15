@@ -35,18 +35,30 @@ export async function POST(request: Request): Promise<Response> {
       return jsonError("Failed to resolve organization workspace", 500, "ORG_WORKSPACE_RESOLUTION_FAILED")
     }
 
-    const { data: org } = await admin
+    const { data: org, error: orgError } = await admin
       .from("organizations")
       .select("stripe_customer_id")
       .eq("id", workspace.orgId)
-      .single()
+      .maybeSingle()
+
+    if (orgError) {
+      console.error("Failed to load organization billing customer:", orgError)
+      return jsonError("Failed to load billing account", 500, "BILLING_CUSTOMER_LOOKUP_FAILED")
+    }
+
     customerId = org?.stripe_customer_id ?? null
   } else {
-    const { data: profile } = await admin
+    const { data: profile, error: profileError } = await admin
       .from("users")
       .select("stripe_customer_id")
       .eq("id", auth.userId)
-      .single()
+      .maybeSingle()
+
+    if (profileError) {
+      console.error("Failed to load user billing customer:", profileError)
+      return jsonError("Failed to load billing account", 500, "BILLING_CUSTOMER_LOOKUP_FAILED")
+    }
+
     customerId = profile?.stripe_customer_id ?? null
   }
 
