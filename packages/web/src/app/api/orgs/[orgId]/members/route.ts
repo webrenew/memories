@@ -145,7 +145,12 @@ export async function GET(
   }
 
   if (membersError) {
-    return NextResponse.json({ error: membersError.message }, { status: 500 })
+    console.error("Failed to load org member rows:", {
+      error: membersError,
+      orgId,
+      userId: user.id,
+    })
+    return NextResponse.json({ error: "Failed to load organization members" }, { status: 500 })
   }
 
   const memberRows = members ?? []
