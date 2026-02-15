@@ -204,4 +204,88 @@ describe("/api/stripe/checkout", () => {
       })
     )
   })
+
+  it("returns 500 when organization customer lookup fails", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "owner@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "organization",
+      orgId: "org-1",
+      orgRole: "owner",
+      plan: "free",
+      hasDatabase: true,
+      canProvision: true,
+      canManageBilling: true,
+      turso_db_url: "libsql://org.turso.io",
+      turso_db_token: "token",
+      turso_db_name: "org-db",
+      userId: "user-1",
+    })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "organizations") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "db read failed" },
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    const response = await POST(makeRequest({ billing: "annual" }))
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.code).toBe("BILLING_CUSTOMER_CREATE_FAILED")
+    expect(mockCustomersCreate).not.toHaveBeenCalled()
+  })
+
+  it("returns 500 when user customer lookup fails", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "user@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "user",
+      orgId: null,
+      orgRole: null,
+      plan: "free",
+      hasDatabase: true,
+      canProvision: true,
+      canManageBilling: true,
+      turso_db_url: "libsql://user.turso.io",
+      turso_db_token: "token",
+      turso_db_name: "user-db",
+      userId: "user-1",
+    })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "db read failed" },
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    const response = await POST(makeRequest({ billing: "monthly" }))
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.code).toBe("BILLING_CUSTOMER_CREATE_FAILED")
+    expect(mockCustomersCreate).not.toHaveBeenCalled()
+  })
 })
