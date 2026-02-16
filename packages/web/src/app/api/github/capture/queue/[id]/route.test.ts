@@ -75,6 +75,41 @@ describe("/api/github/capture/queue/[id] PATCH", () => {
     expect(response.status).toBe(401)
   })
 
+  it("returns 500 with stable error when queue item lookup fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "github_capture_queue") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "db timeout" },
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/github/capture/queue/q-1", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "reject" }),
+        headers: { "content-type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "q-1" }) }
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: "Failed to load capture queue item",
+    })
+  })
+
   it("rejects pending user queue item", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
 
