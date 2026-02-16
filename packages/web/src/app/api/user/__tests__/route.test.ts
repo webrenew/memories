@@ -99,7 +99,7 @@ describe("/api/user", () => {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
                 eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({ data: null, error: { message: "not found" } }),
+                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
                 }),
               }),
             }),
@@ -140,6 +140,63 @@ describe("/api/user", () => {
       )
     })
 
+    it("returns 500 when workspace switch membership lookup fails", async () => {
+      mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
+      const mockInsertSwitchEvent = vi.fn().mockResolvedValue({ error: null })
+
+      mockAdminFrom.mockImplementation((table: string) => {
+        if (table === "org_members") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: null,
+                    error: { message: "DB read failed" },
+                  }),
+                }),
+              }),
+            }),
+          }
+        }
+
+        if (table === "users") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({ data: { current_org_id: null }, error: null }),
+              }),
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          }
+        }
+
+        if (table === "workspace_switch_events") {
+          return { insert: mockInsertSwitchEvent }
+        }
+
+        return {}
+      })
+
+      const response = await PATCH(makePatchRequest({ current_org_id: "org-1" }))
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toMatchObject({
+        error: "Failed to update user",
+      })
+      expect(mockInsertSwitchEvent).toHaveBeenCalledTimes(1)
+      expect(mockInsertSwitchEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: "user-1",
+          from_org_id: null,
+          to_org_id: "org-1",
+          success: false,
+          error_code: "membership_lookup_failed",
+        }),
+      )
+    })
+
     it("updates current_org_id when membership is valid", async () => {
       mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
 
@@ -154,7 +211,7 @@ describe("/api/user", () => {
             select: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
                 eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({ data: { id: "membership-1" }, error: null }),
+                  maybeSingle: vi.fn().mockResolvedValue({ data: { id: "membership-1" }, error: null }),
                 }),
               }),
             }),

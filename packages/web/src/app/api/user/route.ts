@@ -177,12 +177,33 @@ export async function PATCH(request: Request): Promise<Response> {
     if (nextOrgId == null) {
       updates.current_org_id = null
     } else if (typeof nextOrgId === "string") {
-      const { data: membership } = await admin
+      const { data: membership, error: membershipError } = await admin
         .from("org_members")
         .select("id")
         .eq("org_id", nextOrgId)
         .eq("user_id", auth.userId)
-        .single()
+        .maybeSingle()
+
+      if (membershipError) {
+        if (switchStartedAt !== null) {
+          await recordWorkspaceSwitchEvent(admin, {
+            userId: auth.userId,
+            fromOrgId: switchFromOrgId,
+            toOrgId: switchToOrgId,
+            durationMs: Date.now() - switchStartedAt,
+            success: false,
+            errorCode: "membership_lookup_failed",
+          })
+        }
+
+        console.error("Workspace switch membership lookup failed:", {
+          error: membershipError,
+          userId: auth.userId,
+          fromOrgId: switchFromOrgId,
+          toOrgId: switchToOrgId,
+        })
+        return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
+      }
 
       if (!membership) {
         if (switchStartedAt !== null) {
