@@ -71,6 +71,37 @@ describe("/api/orgs/[orgId]/audit", () => {
     expect(response.status).toBe(403)
   })
 
+  it("returns 500 when membership lookup fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "DB read failed" },
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+      return {}
+    })
+
+    const response = await GET(
+      new Request("https://example.com/api/orgs/org-1/audit"),
+      { params: Promise.resolve({ orgId: "org-1" }) }
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to load audit events",
+    })
+  })
+
   it("returns audit events with actor details", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "owner-1" } } })
 
