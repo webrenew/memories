@@ -37,14 +37,16 @@ export async function POST(request: Request): Promise<Response> {
     .gt("expires_at", new Date().toISOString())
     .maybeSingle()
 
-  if (inviteError || !invite) {
-    if (inviteError) {
-      console.error("Invite accept lookup failed", {
-        message: inviteError.message,
-        code: inviteError.code,
-        tokenPrefix: inviteToken.slice(0, 8),
-      })
-    }
+  if (inviteError) {
+    console.error("Invite accept lookup failed", {
+      message: inviteError.message,
+      code: inviteError.code,
+      tokenPrefix: inviteToken.slice(0, 8),
+    })
+    return NextResponse.json({ error: "Failed to accept invite" }, { status: 500 })
+  }
+
+  if (!invite) {
     return NextResponse.json({ error: "Invalid or expired invite" }, { status: 400 })
   }
 

@@ -149,4 +149,54 @@ describe("/api/invites/accept", () => {
     })
     expect(mockLogOrgAuditEvent).not.toHaveBeenCalled()
   })
+
+  it("returns 500 with stable error when invite lookup fails", async () => {
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-1",
+          email: "member@example.com",
+          identities: [],
+        },
+      },
+    })
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_invites") {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn().mockReturnValue({
+              is: vi.fn().mockReturnValue({
+                gt: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: null,
+                    error: { message: "db timeout", code: "57014" },
+                  }),
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await POST(
+      new Request("https://example.com/api/invites/accept", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          token: "invite-token-1",
+          billing: "monthly",
+        }),
+      }),
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: "Failed to accept invite",
+    })
+    expect(mockAddTeamSeat).not.toHaveBeenCalled()
+  })
 })
