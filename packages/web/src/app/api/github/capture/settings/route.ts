@@ -128,11 +128,11 @@ export async function GET(): Promise<Response> {
       )
     }
 
-    const message =
-      typeof error === "object" && error !== null && "message" in error
-        ? String((error as { message?: unknown }).message ?? "Failed to load settings")
-        : "Failed to load settings"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("Failed to load GitHub capture settings:", {
+      userId: user.id,
+      error,
+    })
+    return NextResponse.json({ error: "Failed to load settings" }, { status: 500 })
   }
 
   return NextResponse.json({
