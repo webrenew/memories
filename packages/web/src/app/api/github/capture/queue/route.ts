@@ -223,7 +223,10 @@ export async function GET(request: Request): Promise<Response> {
 
     return NextResponse.json({ queue })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to load queue"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("Failed to load capture queue rows:", {
+      userId: user.id,
+      error,
+    })
+    return NextResponse.json({ error: "Failed to load queue" }, { status: 500 })
   }
 }
