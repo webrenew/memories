@@ -208,6 +208,7 @@ export function Hero(): React.JSX.Element {
                 width={250}
                 height={54}
                 src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1080000&theme=dark&t=1771250990244"
+                unoptimized
                 className="h-[54px] w-[250px] rounded-sm opacity-90 transition-opacity hover:opacity-100"
               />
             </motion.a>
