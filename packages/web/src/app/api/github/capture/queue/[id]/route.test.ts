@@ -129,4 +129,70 @@ describe("/api/github/capture/queue/[id] PATCH", () => {
       })
     )
   })
+
+  it("returns 500 with stable error when reject update fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+
+    const mockUpdate = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({
+        error: { message: "db timeout" },
+      }),
+    }))
+
+    let githubQueueReadUsed = false
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "github_capture_queue" && !githubQueueReadUsed) {
+        githubQueueReadUsed = true
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: "q-1",
+                  target_owner_type: "user",
+                  target_user_id: "user-1",
+                  target_org_id: null,
+                  status: "pending",
+                  source_event: "issues",
+                  source_action: "opened",
+                  repo_full_name: "webrenew/memories",
+                  project_id: "github.com/webrenew/memories",
+                  actor_login: "charles",
+                  source_id: "issue:1:2",
+                  title: "Issue",
+                  content: "Issue content",
+                  source_url: "https://github.com/webrenew/memories/issues/2",
+                  metadata: {},
+                },
+                error: null,
+              }),
+            }),
+          })),
+        }
+      }
+
+      if (table === "github_capture_queue") {
+        return {
+          update: mockUpdate,
+        }
+      }
+
+      return {}
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/github/capture/queue/q-1", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "reject", note: "noise" }),
+        headers: { "content-type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "q-1" }) }
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: "Failed to update capture queue item",
+    })
+  })
 })

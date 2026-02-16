@@ -156,7 +156,12 @@ export async function PATCH(
       .eq("id", id)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error("Failed to reject capture queue item:", {
+        queueId: id,
+        reviewerUserId: user.id,
+        error,
+      })
+      return NextResponse.json({ error: "Failed to update capture queue item" }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true, status: "rejected" })
