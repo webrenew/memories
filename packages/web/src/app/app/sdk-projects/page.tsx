@@ -41,12 +41,15 @@ export default async function SdkProjectsPage(): Promise<React.JSX.Element> {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">AI SDK Projects</h1>
         <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-          The entry point for SaaS integrations. Create API keys, provision project databases, and map the right
-          scope model for your app.
+          The entry point for SaaS integrations. Create API keys, use trusted `tenantId`/`userId` scopes, and let
+          tenant databases route automatically on first use.
         </p>
         <p className="text-xs text-muted-foreground mt-2 max-w-3xl">
           Growth billing includes 500 AI SDK projects per month, then usage is metered at $0.05 per additional
           project.
+        </p>
+        <p className="text-xs text-muted-foreground mt-2 max-w-3xl">
+          Advanced tenant DB overrides are optional and intended for migration, sharding, or existing Turso fleets.
         </p>
         <p className="text-xs text-muted-foreground mt-2 max-w-3xl">
           If your app only uses SDK endpoints (`/api/sdk/v1/*`), you do not need MCP multitenancy.

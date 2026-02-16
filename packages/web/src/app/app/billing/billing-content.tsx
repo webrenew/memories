@@ -480,6 +480,9 @@ export function BillingContent({
           <p className="text-muted-foreground">
             Routes SDK traffic by <code className="text-foreground">tenantId</code> to isolated Turso databases.
           </p>
+          <p className="text-xs text-muted-foreground">
+            Tenant databases auto-route on first use. Manual overrides are optional for advanced control.
+          </p>
           {plan === "growth" ? (
             <p className="text-xs text-emerald-300/90">
               Includes {GROWTH_INCLUDED_PROJECTS_PER_MONTH.toLocaleString()} projects per month, then $

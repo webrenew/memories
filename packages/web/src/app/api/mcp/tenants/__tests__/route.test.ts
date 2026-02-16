@@ -61,7 +61,7 @@ vi.mock("@/lib/sdk-project-billing", () => ({
 import { DELETE, GET, POST } from "../route"
 
 describe("/api/mcp/tenants", () => {
-  const expectedLink = '</api/sdk/v1/management/tenants>; rel="successor-version"'
+  const expectedLink = '</api/sdk/v1/management/tenant-overrides>; rel="successor-version"'
 
   beforeEach(() => {
     vi.clearAllMocks()

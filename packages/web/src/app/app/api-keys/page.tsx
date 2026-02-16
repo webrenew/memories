@@ -23,7 +23,7 @@ export default async function ApiKeysPage(): Promise<React.JSX.Element> {
           Generate and rotate `mem_` keys for hosted MCP clients and SDK runtime calls.
         </p>
         <p className="text-xs text-muted-foreground mt-2 max-w-3xl">
-          Need tenant routing and project database mappings? Use{" "}
+          Need tenant routing and optional database overrides? Use{" "}
           <Link href="/app/sdk-projects" className="text-primary hover:text-primary/80">
             AI SDK Projects
           </Link>

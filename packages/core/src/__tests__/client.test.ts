@@ -576,7 +576,7 @@ describe("MemoriesClient", () => {
         )
       }
 
-      if (url === "https://example.com/api/sdk/v1/management/tenants" && method === "GET") {
+      if (url === "https://example.com/api/sdk/v1/management/tenant-overrides" && method === "GET") {
         return new Response(
           JSON.stringify({
             ok: true,
@@ -598,7 +598,7 @@ describe("MemoriesClient", () => {
         )
       }
 
-      if (url === "https://example.com/api/sdk/v1/management/tenants" && method === "POST") {
+      if (url === "https://example.com/api/sdk/v1/management/tenant-overrides" && method === "POST") {
         const body = JSON.parse((init?.body as string) ?? "{}") as { tenantId?: string; mode?: string }
         expect(body.tenantId).toBe("tenant-b")
         expect(body.mode).toBe("provision")
@@ -623,7 +623,7 @@ describe("MemoriesClient", () => {
         )
       }
 
-      if (url === "https://example.com/api/sdk/v1/management/tenants?tenantId=tenant-b" && method === "DELETE") {
+      if (url === "https://example.com/api/sdk/v1/management/tenant-overrides?tenantId=tenant-b" && method === "DELETE") {
         return new Response(
           JSON.stringify({
             ok: true,

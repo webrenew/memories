@@ -7,7 +7,6 @@ import { recordClientWorkflowEvent } from "@/lib/client-workflow-debug"
 import type { WorkspacePlan } from "@/lib/workspace"
 
 type ProvisionMode = "provision" | "attach"
-type SpendControlMode = "attach_only" | "allow_provision"
 
 type TenantStatus = "provisioning" | "ready" | "disabled" | "error"
 
@@ -31,9 +30,6 @@ interface TenantDatabaseMappingsSectionProps {
   apiKeyExpired: boolean
   workspacePlan: WorkspacePlan
 }
-
-const SPEND_CONTROL_STORAGE_KEY = "memories.tenant-db.spend-control"
-const PROVISION_ACK_STORAGE_KEY = "memories.tenant-db.provision-ack"
 
 function formatDateTime(value: string | null): string {
   if (!value) return "Not set"
@@ -71,9 +67,7 @@ export function TenantDatabaseMappingsSection({
   workspacePlan,
 }: TenantDatabaseMappingsSectionProps): React.JSX.Element {
   const [tenantId, setTenantId] = useState("")
-  const [mode, setMode] = useState<ProvisionMode>("provision")
-  const [spendControl, setSpendControl] = useState<SpendControlMode>("attach_only")
-  const [provisionAcknowledged, setProvisionAcknowledged] = useState(false)
+  const [mode, setMode] = useState<ProvisionMode>("attach")
   const [tursoDbUrl, setTursoDbUrl] = useState("")
   const [tursoDbToken, setTursoDbToken] = useState("")
   const [tursoDbName, setTursoDbName] = useState("")
@@ -109,18 +103,18 @@ export function TenantDatabaseMappingsSection({
 
       try {
         setError(null)
-        const res = await fetch("/api/mcp/tenants")
+        const res = await fetch("/api/sdk/v1/management/tenant-overrides")
         const payload = await res.json().catch(() => null)
 
         if (!res.ok) {
-          throw new Error(extractErrorMessage(payload, `Failed to load AI SDK projects (HTTP ${res.status})`))
+          throw new Error(extractErrorMessage(payload, `Failed to load tenant overrides (HTTP ${res.status})`))
         }
 
-        const data = (payload ?? {}) as TenantListResponse
+        const data = ((payload ?? {}) as { data?: TenantListResponse }).data ?? (payload ?? {})
         setMappings(Array.isArray(data.tenantDatabases) ? data.tenantDatabases : [])
       } catch (err) {
-        console.error("Failed to fetch tenant mappings:", err)
-        setError(err instanceof Error ? err.message : "Failed to load AI SDK projects")
+        console.error("Failed to fetch tenant overrides:", err)
+        setError(err instanceof Error ? err.message : "Failed to load tenant overrides")
       } finally {
         setLoading(false)
         setRefreshing(false)
@@ -133,47 +127,6 @@ export function TenantDatabaseMappingsSection({
     void fetchMappings()
   }, [fetchMappings])
 
-  useEffect(() => {
-    if (typeof window === "undefined") return
-
-    try {
-      const storedControl = window.localStorage.getItem(SPEND_CONTROL_STORAGE_KEY)
-      if (storedControl === "attach_only" || storedControl === "allow_provision") {
-        setSpendControl(storedControl)
-      }
-
-      setProvisionAcknowledged(window.localStorage.getItem(PROVISION_ACK_STORAGE_KEY) === "true")
-    } catch {
-      // Ignore storage failures in strict browser contexts.
-    }
-  }, [])
-
-  useEffect(() => {
-    if (spendControl === "attach_only" && mode === "provision") {
-      setMode("attach")
-    }
-  }, [mode, spendControl])
-
-  function handleSpendControlChange(next: SpendControlMode) {
-    setSpendControl(next)
-    if (typeof window === "undefined") return
-    try {
-      window.localStorage.setItem(SPEND_CONTROL_STORAGE_KEY, next)
-    } catch {
-      // Ignore storage failures in strict browser contexts.
-    }
-  }
-
-  function handleProvisionAcknowledgedChange(checked: boolean) {
-    setProvisionAcknowledged(checked)
-    if (typeof window === "undefined") return
-    try {
-      window.localStorage.setItem(PROVISION_ACK_STORAGE_KEY, checked ? "true" : "false")
-    } catch {
-      // Ignore storage failures in strict browser contexts.
-    }
-  }
-
   async function handleCreateOrAttach() {
     if (!isGrowthPlan) {
       setError("AI SDK project routing requires the Growth plan.")
@@ -182,20 +135,8 @@ export function TenantDatabaseMappingsSection({
 
     const trimmedTenantId = tenantId.trim()
     if (!trimmedTenantId) {
-      setError("Project ID (`tenantId`) is required")
+      setError("Tenant ID (`tenantId`) is required")
       return
-    }
-
-    if (mode === "provision") {
-      if (spendControl !== "allow_provision") {
-        setError("Provisioning is disabled by spend control. Switch to “Allow provisioning”.")
-        return
-      }
-
-      if (!provisionAcknowledged) {
-        setError("Acknowledge the provisioning warning before creating project databases.")
-        return
-      }
     }
 
     setSaving(true)
@@ -235,17 +176,17 @@ export function TenantDatabaseMappingsSection({
         }
       }
 
-      const res = await fetch("/api/mcp/tenants", {
+      const res = await fetch("/api/sdk/v1/management/tenant-overrides", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
-        throw new Error(extractErrorMessage(data, `Failed to save AI SDK project (HTTP ${res.status})`))
+        throw new Error(extractErrorMessage(data, `Failed to save tenant override (HTTP ${res.status})`))
       }
 
-      setStatusMessage(mode === "provision" ? "Project database provisioned" : "Project database attached")
+      setStatusMessage(mode === "provision" ? "Tenant override provisioned" : "Tenant override attached")
       setTenantId("")
       if (mode === "attach") {
         setTursoDbUrl("")
@@ -264,8 +205,8 @@ export function TenantDatabaseMappingsSection({
         },
       })
     } catch (err) {
-      console.error("Failed to create tenant mapping:", err)
-      const message = err instanceof Error ? err.message : "Failed to save AI SDK project"
+      console.error("Failed to create tenant override:", err)
+      const message = err instanceof Error ? err.message : "Failed to save tenant override"
       setError(message)
       recordClientWorkflowEvent({
         workflow: "tenant_mapping_create",
@@ -283,7 +224,7 @@ export function TenantDatabaseMappingsSection({
   }
 
   async function handleDisable(tenantToDisable: string) {
-    if (!confirm(`Disable AI SDK project ${tenantToDisable}?`)) {
+    if (!confirm(`Disable tenant override ${tenantToDisable}?`)) {
       return
     }
 
@@ -299,15 +240,15 @@ export function TenantDatabaseMappingsSection({
     })
     try {
       setError(null)
-      const res = await fetch(`/api/mcp/tenants?tenantId=${encodeURIComponent(tenantToDisable)}`, {
+      const res = await fetch(`/api/sdk/v1/management/tenant-overrides?tenantId=${encodeURIComponent(tenantToDisable)}`, {
         method: "DELETE",
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
-        throw new Error(extractErrorMessage(data, `Failed to disable AI SDK project (HTTP ${res.status})`))
+        throw new Error(extractErrorMessage(data, `Failed to disable tenant override (HTTP ${res.status})`))
       }
 
-      setStatusMessage(`Disabled project ${tenantToDisable}`)
+      setStatusMessage(`Disabled override ${tenantToDisable}`)
       await fetchMappings({ silent: true })
       recordClientWorkflowEvent({
         workflow: "tenant_mapping_disable",
@@ -319,7 +260,7 @@ export function TenantDatabaseMappingsSection({
       })
     } catch (err) {
       console.error("Failed to disable tenant mapping:", err)
-      const message = err instanceof Error ? err.message : "Failed to disable AI SDK project"
+      const message = err instanceof Error ? err.message : "Failed to disable tenant override"
       setError(message)
       recordClientWorkflowEvent({
         workflow: "tenant_mapping_disable",
@@ -340,21 +281,21 @@ export function TenantDatabaseMappingsSection({
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2">
           <Database className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold">Step 2: AI SDK Projects</h3>
+          <h3 className="font-semibold">Tenant Routing</h3>
         </div>
         <p className="text-sm text-muted-foreground mt-1">
-          Map `tenantId` to isolated Turso databases for SaaS customer workspaces.
+          New `tenantId` values are routed automatically. Configure overrides only when you need explicit DB control.
         </p>
       </div>
 
       <div className="p-4 space-y-4">
         {!hasApiKey ? (
           <p className="text-sm text-muted-foreground">
-            Generate an API key first, then create your first AI SDK project.
+            Generate an API key first, then tenant routing works automatically on first use.
           </p>
         ) : apiKeyExpired ? (
           <p className="text-sm text-muted-foreground">
-            Your API key is expired. Regenerate it before managing AI SDK projects.
+            Your API key is expired. Regenerate it before managing tenant routing.
           </p>
         ) : !isGrowthPlan ? (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
@@ -362,7 +303,7 @@ export function TenantDatabaseMappingsSection({
               Growth plan required
             </p>
             <p className="text-sm text-amber-100/90">
-              AI SDK project routing is a Growth feature. Your current workspace plan is{" "}
+              Tenant override management is a Growth feature. Your current workspace plan is{" "}
               <span className="font-semibold uppercase">{workspacePlan.replace("_", " ")}</span>.
             </p>
             <a
@@ -376,63 +317,21 @@ export function TenantDatabaseMappingsSection({
           <>
             <div className="rounded-md border border-border bg-muted/20 p-3">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                `tenantId` here is your SaaS project/customer boundary. It is separate from git repo scope
-                (`projectId`) used by coding agents. `userId` is optional end-user scope inside the same `tenantId`.
+                `tenantId` is your SaaS security/database boundary and is separate from git `projectId`. Runtime
+                provisioning is automatic; use overrides only for migrations, regional sharding, or pre-existing DBs.
               </p>
             </div>
 
-            <div className="border border-amber-500/30 bg-amber-500/10 rounded-md p-3 space-y-3">
+            <div className="border border-amber-500/30 bg-amber-500/10 rounded-md p-3 space-y-2">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-amber-200">Project provisioning can increase infrastructure spend</p>
+                  <p className="text-sm font-medium text-amber-200">Overrides can increase infrastructure spend</p>
                   <p className="text-sm text-amber-100/80 mt-1">
-                    Provisioning creates a new Turso database per project. Use spend controls to prevent accidental database creation.
+                    Provision mode creates a new Turso database for the specified tenant. Use attach mode for existing DBs.
                   </p>
                 </div>
               </div>
-
-              <div className="grid gap-2 md:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => handleSpendControlChange("attach_only")}
-                  className={`text-left rounded border p-2 transition-colors ${
-                    spendControl === "attach_only"
-                      ? "border-primary bg-primary/15"
-                      : "border-border hover:bg-muted/30"
-                  }`}
-                >
-                  <p className="text-xs font-semibold">Attach Existing DBs (Recommended)</p>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Prevent one-click creation; only map existing project DBs.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSpendControlChange("allow_provision")}
-                  className={`text-left rounded border p-2 transition-colors ${
-                    spendControl === "allow_provision"
-                      ? "border-primary bg-primary/15"
-                      : "border-border hover:bg-muted/30"
-                  }`}
-                >
-                  <p className="text-xs font-semibold">Allow One-Click Provisioning</p>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Enable one-click project DB provisioning from this dashboard.
-                  </p>
-                </button>
-              </div>
-
-              <label className="flex items-start gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={provisionAcknowledged}
-                  onChange={(event) => handleProvisionAcknowledgedChange(event.target.checked)}
-                  className="mt-0.5"
-                />
-                I understand that provisioning project databases may create billable infrastructure costs.
-              </label>
             </div>
 
             <div className="border border-border bg-muted/20 rounded-md p-3 space-y-3">
@@ -440,15 +339,14 @@ export function TenantDatabaseMappingsSection({
                 <button
                   type="button"
                   onClick={() => setMode("provision")}
-                  disabled={spendControl !== "allow_provision"}
                   className={`px-3 py-1.5 text-xs rounded border transition-colors ${
                     mode === "provision"
                       ? "bg-primary text-primary-foreground border-primary"
                       : "border-border hover:bg-muted/30"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  }`}
                 >
                   <Server className="h-3 w-3 inline mr-1.5" />
-                  Provision New Project DB
+                  Provision Override DB
                 </button>
                 <button
                   type="button"
@@ -460,19 +358,13 @@ export function TenantDatabaseMappingsSection({
                   }`}
                 >
                   <Link2 className="h-3 w-3 inline mr-1.5" />
-                  Attach Existing DB
+                  Attach Override DB
                 </button>
               </div>
 
-              {spendControl === "attach_only" && (
-                <p className="text-sm text-muted-foreground">
-                  Spend control is set to Attach Existing DBs. Switch to Allow One-Click Provisioning to create project databases from this page.
-                </p>
-              )}
-
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1">
-                  <span className="text-xs text-muted-foreground">Project ID (`tenantId`)</span>
+                  <span className="text-xs text-muted-foreground">Tenant ID (`tenantId`)</span>
                   <input
                     value={tenantId}
                     onChange={(event) => setTenantId(event.target.value)}
@@ -535,21 +427,21 @@ export function TenantDatabaseMappingsSection({
               >
                 {saving
                   ? mode === "provision"
-                    ? "Provisioning Project..."
-                    : "Attaching Project..."
+                    ? "Provisioning Override..."
+                    : "Attaching Override..."
                   : mode === "provision"
-                    ? "Provision Project Database"
-                    : "Attach Project Database"}
+                    ? "Provision Tenant Override"
+                    : "Attach Tenant Override"}
               </button>
 
               <p className="text-sm text-muted-foreground">
-                Existing project mappings move automatically when you rotate your API key.
+                Existing overrides move automatically when you rotate your API key.
               </p>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">Current AI SDK Projects</p>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Current Tenant Overrides</p>
                 <button
                   type="button"
                   onClick={() => void fetchMappings({ silent: true })}
@@ -565,7 +457,7 @@ export function TenantDatabaseMappingsSection({
                 <div className="animate-pulse h-20 bg-muted/20 rounded" />
               ) : sortedMappings.length === 0 ? (
                 <div className="border border-dashed border-border rounded p-4 text-sm text-muted-foreground">
-                  No AI SDK projects yet.
+                  No tenant overrides configured. Automatic tenant provisioning remains active.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -609,7 +501,7 @@ export function TenantDatabaseMappingsSection({
                           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-red-400 border border-red-500/30 rounded hover:bg-red-500/10 transition-colors disabled:opacity-50"
                         >
                           <Trash2 className="h-3 w-3" />
-                          {disablingTenantId === mapping.tenantId ? "Disabling..." : "Disable"}
+                          {disablingTenantId === mapping.tenantId ? "Disabling..." : "Disable Override"}
                         </button>
                       )}
                     </div>
