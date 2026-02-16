@@ -249,7 +249,7 @@ export async function PATCH(request: Request): Promise<Response> {
     }
 
     console.error("User update error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
   }
 
   if (switchStartedAt !== null) {

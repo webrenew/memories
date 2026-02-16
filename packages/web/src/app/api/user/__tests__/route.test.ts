@@ -312,5 +312,26 @@ describe("/api/user", () => {
       expect(response.status).toBe(200)
       expect(mockUpdate).toHaveBeenCalledWith({ repo_workspace_routing_mode: "active_workspace" })
     })
+
+    it("returns 500 when user update mutation fails", async () => {
+      mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
+
+      const mockUpdate = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: { message: "DB write failed" } }),
+      })
+
+      mockAdminFrom.mockImplementation((table: string) => {
+        if (table === "users") {
+          return { update: mockUpdate }
+        }
+        return {}
+      })
+
+      const response = await PATCH(makePatchRequest({ repo_workspace_routing_mode: "active_workspace" }))
+      expect(response.status).toBe(500)
+      await expect(response.json()).resolves.toMatchObject({
+        error: "Failed to update user",
+      })
+    })
   })
 })
