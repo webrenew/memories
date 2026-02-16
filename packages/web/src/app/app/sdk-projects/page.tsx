@@ -1,6 +1,8 @@
 import React from "react"
 import Link from "next/link"
 import { ApiKeySection } from "@/components/dashboard/ApiKeySection"
+import { createClient } from "@/lib/supabase/server"
+import { resolveWorkspaceContext } from "@/lib/workspace"
 
 export const metadata = {
   title: "AI SDK Projects",
@@ -27,7 +29,13 @@ const scopeCards = [
   },
 ]
 
-export default function SdkProjectsPage(): React.JSX.Element {
+export default async function SdkProjectsPage(): Promise<React.JSX.Element> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const workspace = user ? await resolveWorkspaceContext(supabase, user.id) : null
+
   return (
     <div className="space-y-8">
       <div>
@@ -83,7 +91,7 @@ export default function SdkProjectsPage(): React.JSX.Element {
         </p>
       </div>
 
-      <ApiKeySection />
+      <ApiKeySection workspacePlan={workspace?.plan ?? "free"} />
     </div>
   )
 }

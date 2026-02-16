@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { AlertTriangle, Database, Link2, RefreshCw, Server, Trash2 } from "lucide-react"
 import { extractErrorMessage } from "@/lib/client-errors"
 import { recordClientWorkflowEvent } from "@/lib/client-workflow-debug"
+import type { WorkspacePlan } from "@/lib/workspace"
 
 type ProvisionMode = "provision" | "attach"
 type SpendControlMode = "attach_only" | "allow_provision"
@@ -28,6 +29,7 @@ interface TenantListResponse {
 interface TenantDatabaseMappingsSectionProps {
   hasApiKey: boolean
   apiKeyExpired: boolean
+  workspacePlan: WorkspacePlan
 }
 
 const SPEND_CONTROL_STORAGE_KEY = "memories.tenant-db.spend-control"
@@ -66,6 +68,7 @@ function statusClass(status: string): string {
 export function TenantDatabaseMappingsSection({
   hasApiKey,
   apiKeyExpired,
+  workspacePlan,
 }: TenantDatabaseMappingsSectionProps): React.JSX.Element {
   const [tenantId, setTenantId] = useState("")
   const [mode, setMode] = useState<ProvisionMode>("provision")
@@ -83,6 +86,7 @@ export function TenantDatabaseMappingsSection({
   const [disablingTenantId, setDisablingTenantId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const isGrowthPlan = workspacePlan === "growth"
 
   const sortedMappings = useMemo(
     () => [...mappings].sort((a, b) => a.tenantId.localeCompare(b.tenantId)),
@@ -91,8 +95,9 @@ export function TenantDatabaseMappingsSection({
 
   const fetchMappings = useCallback(
     async (opts?: { silent?: boolean }) => {
-      if (!hasApiKey || apiKeyExpired) {
+      if (!isGrowthPlan || !hasApiKey || apiKeyExpired) {
         setMappings([])
+        setError(null)
         return
       }
 
@@ -121,7 +126,7 @@ export function TenantDatabaseMappingsSection({
         setRefreshing(false)
       }
     },
-    [apiKeyExpired, hasApiKey]
+    [apiKeyExpired, hasApiKey, isGrowthPlan]
   )
 
   useEffect(() => {
@@ -170,6 +175,11 @@ export function TenantDatabaseMappingsSection({
   }
 
   async function handleCreateOrAttach() {
+    if (!isGrowthPlan) {
+      setError("AI SDK project routing requires the Growth plan.")
+      return
+    }
+
     const trimmedTenantId = tenantId.trim()
     if (!trimmedTenantId) {
       setError("Project ID (`tenantId`) is required")
@@ -346,6 +356,22 @@ export function TenantDatabaseMappingsSection({
           <p className="text-sm text-muted-foreground">
             Your API key is expired. Regenerate it before managing AI SDK projects.
           </p>
+        ) : !isGrowthPlan ? (
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
+            <p className="text-sm text-amber-200 font-medium">
+              Growth plan required
+            </p>
+            <p className="text-sm text-amber-100/90">
+              AI SDK project routing is a Growth feature. Your current workspace plan is{" "}
+              <span className="font-semibold uppercase">{workspacePlan.replace("_", " ")}</span>.
+            </p>
+            <a
+              href="/app/upgrade?plan=growth&source=sdk-projects"
+              className="inline-flex items-center px-3 py-2 text-xs font-semibold rounded border border-primary bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
+            >
+              Upgrade to Growth
+            </a>
+          </div>
         ) : (
           <>
             <div className="rounded-md border border-border bg-muted/20 p-3">

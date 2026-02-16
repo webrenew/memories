@@ -5,6 +5,7 @@ import { Copy, RefreshCw, Trash2, Key, Eye, EyeOff, Check } from "lucide-react"
 import { TenantDatabaseMappingsSection } from "@/components/dashboard/TenantDatabaseMappingsSection"
 import { extractErrorMessage } from "@/lib/client-errors"
 import { recordClientWorkflowEvent } from "@/lib/client-workflow-debug"
+import type { WorkspacePlan } from "@/lib/workspace"
 
 const MCP_ENDPOINT = "https://memories.sh/api/mcp"
 const DEFAULT_EXPIRY_DAYS = 30
@@ -46,7 +47,11 @@ interface KeyMetadataResponse {
   isExpired?: boolean
 }
 
-export function ApiKeySection(): React.JSX.Element {
+interface ApiKeySectionProps {
+  workspacePlan: WorkspacePlan
+}
+
+export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.Element {
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [hasKey, setHasKey] = useState(false)
   const [keyPreview, setKeyPreview] = useState<string | null>(null)
@@ -419,7 +424,11 @@ export function ApiKeySection(): React.JSX.Element {
         </div>
       </div>
 
-      <TenantDatabaseMappingsSection hasApiKey={hasKey} apiKeyExpired={isExpired} />
+      <TenantDatabaseMappingsSection
+        hasApiKey={hasKey}
+        apiKeyExpired={isExpired}
+        workspacePlan={workspacePlan}
+      />
     </div>
   )
 }
