@@ -127,6 +127,7 @@ describe("/api/sdk/v1/management/tenant-overrides", () => {
                     turso_db_url: "libsql://tenant-a.turso.io",
                     turso_db_name: "tenant-a",
                     status: "ready",
+                    mapping_source: "override",
                     metadata: {},
                     created_at: "2026-02-11T00:00:00.000Z",
                     updated_at: "2026-02-11T00:00:00.000Z",
@@ -150,6 +151,73 @@ describe("/api/sdk/v1/management/tenant-overrides", () => {
     expect(body.meta.endpoint).toBe("/api/sdk/v1/management/tenant-overrides")
     expect(body.data.count).toBe(1)
     expect(body.data.tenantDatabases[0].tenantId).toBe("tenant-a")
+    expect(body.data.tenantDatabases[0].source).toBe("override")
+  })
+
+  it("assigns override source when saving managed tenant mappings", async () => {
+    let sdkCalls = 0
+    const upsertMock = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: {
+            tenant_id: "tenant-b",
+            turso_db_url: "libsql://tenant-b.turso.io",
+            turso_db_name: "tenant-b",
+            status: "ready",
+            mapping_source: "override",
+            metadata: {},
+            created_at: "2026-02-11T00:00:00.000Z",
+            updated_at: "2026-02-11T00:00:00.000Z",
+            last_verified_at: "2026-02-11T00:00:00.000Z",
+          },
+          error: null,
+        }),
+      }),
+    })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table !== "sdk_tenant_databases") return {}
+      sdkCalls += 1
+
+      if (sdkCalls === 1) {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }),
+            }),
+          }),
+        }
+      }
+
+      return { upsert: upsertMock }
+    })
+
+    const response = await POST(
+      new Request("https://example.com", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          tenantId: "tenant-b",
+          mode: "attach",
+          tursoDbUrl: "libsql://tenant-b.turso.io",
+          tursoDbToken: "token-b",
+        }),
+      }) as never
+    )
+
+    expect(response.status).toBe(200)
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenant_id: "tenant-b",
+        mapping_source: "override",
+      }),
+      { onConflict: "owner_scope_key,tenant_id" }
+    )
+
+    const body = await response.json()
+    expect(body.data.tenantDatabase.source).toBe("override")
   })
 
   it("returns unauthorized envelope when session auth fails and no api key is present", async () => {

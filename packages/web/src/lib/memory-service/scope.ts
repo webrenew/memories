@@ -124,6 +124,7 @@ async function autoProvisionTenantDatabase(params: {
       {
         owner_scope_key: ownerScopeKey,
         api_key_hash: apiKeyHash,
+        mapping_source: "auto",
         tenant_id: tenantId,
         turso_db_url: url,
         turso_db_token: token,

@@ -22,6 +22,7 @@ export type {
   ManagementTenantListResult,
   ManagementTenantMapping,
   ManagementTenantMode,
+  ManagementTenantSource,
   ManagementTenantUpsertInput,
   ManagementTenantUpsertResult,
   MemoryAddInput,

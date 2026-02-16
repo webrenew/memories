@@ -206,6 +206,7 @@ describe("/api/mcp/tenants", () => {
                     turso_db_url: "libsql://tenant-a.turso.io",
                     turso_db_name: "memories-tenant-a",
                     status: "ready",
+                    mapping_source: "auto",
                     metadata: { plan: "pro" },
                     created_at: "2026-02-10T00:00:00.000Z",
                     updated_at: "2026-02-10T00:00:00.000Z",
@@ -232,6 +233,7 @@ describe("/api/mcp/tenants", () => {
       tursoDbUrl: "libsql://tenant-a.turso.io",
       tursoDbName: "memories-tenant-a",
       status: "ready",
+      source: "auto",
     })
   })
 
@@ -245,6 +247,7 @@ describe("/api/mcp/tenants", () => {
             turso_db_url: "libsql://tenant-a.turso.io",
             turso_db_name: "memories-tenant-a",
             status: "ready",
+            mapping_source: "override",
             metadata: { env: "prod" },
             created_at: "2026-02-10T00:00:00.000Z",
             updated_at: "2026-02-10T00:00:00.000Z",
@@ -314,6 +317,7 @@ describe("/api/mcp/tenants", () => {
       expect.objectContaining({
         owner_scope_key: "user:user-1",
         api_key_hash: "hash_123",
+        mapping_source: "override",
         tenant_id: "tenant-b",
         status: "ready",
       }),
@@ -394,6 +398,7 @@ describe("/api/mcp/tenants", () => {
             turso_db_url: "libsql://tenant-a.turso.io",
             turso_db_name: "memories-tenant-a",
             status: "ready",
+            mapping_source: "override",
             metadata: { attempt: 2 },
             created_at: "2026-02-10T00:00:00.000Z",
             updated_at: "2026-02-10T00:00:00.000Z",
@@ -471,6 +476,7 @@ describe("/api/mcp/tenants", () => {
     expect(mockInitSchema).toHaveBeenCalledOnce()
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        mapping_source: "override",
         tenant_id: "tenant-retry",
         status: "ready",
       }),

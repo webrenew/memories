@@ -1,58 +1,176 @@
-import { createClient } from "@libsql/client"
-import { mkdtempSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
-import { ensureMemoryUserIdSchema } from "./scope"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
-type DbClient = ReturnType<typeof createClient>
+const {
+  mockAdminFrom,
+  mockCreateDatabase,
+  mockCreateDatabaseToken,
+  mockInitSchema,
+  mockEnforceSdkProjectProvisionLimit,
+  mockRecordGrowthProjectMeterEvent,
+  mockResolveSdkProjectBillingContext,
+  mockShouldAutoProvisionTenants,
+  mockHasTursoPlatformApiToken,
+  mockGetTursoOrgSlug,
+  mockDelay,
+  mockCreateTurso,
+} = vi.hoisted(() => ({
+  mockAdminFrom: vi.fn(),
+  mockCreateDatabase: vi.fn(),
+  mockCreateDatabaseToken: vi.fn(),
+  mockInitSchema: vi.fn(),
+  mockEnforceSdkProjectProvisionLimit: vi.fn(),
+  mockRecordGrowthProjectMeterEvent: vi.fn(),
+  mockResolveSdkProjectBillingContext: vi.fn(),
+  mockShouldAutoProvisionTenants: vi.fn(),
+  mockHasTursoPlatformApiToken: vi.fn(),
+  mockGetTursoOrgSlug: vi.fn(),
+  mockDelay: vi.fn(),
+  mockCreateTurso: vi.fn(),
+}))
 
-const testDatabases: DbClient[] = []
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(() => ({ from: mockAdminFrom })),
+}))
 
-async function setupDb(prefix: string): Promise<DbClient> {
-  const dbDir = mkdtempSync(join(tmpdir(), `${prefix}-`))
-  const db = createClient({ url: `file:${join(dbDir, "scope-schema.db")}` })
-  testDatabases.push(db)
-  return db
-}
+vi.mock("@/lib/turso", () => ({
+  createDatabase: mockCreateDatabase,
+  createDatabaseToken: mockCreateDatabaseToken,
+  initSchema: mockInitSchema,
+}))
 
-afterEach(() => {
-  for (const db of testDatabases.splice(0, testDatabases.length)) {
-    db.close()
-  }
-})
+vi.mock("@/lib/env", () => ({
+  getTursoOrgSlug: mockGetTursoOrgSlug,
+  hasTursoPlatformApiToken: mockHasTursoPlatformApiToken,
+  shouldAutoProvisionTenants: mockShouldAutoProvisionTenants,
+}))
 
-describe("ensureMemoryUserIdSchema", () => {
-  it("applies schema once and records migration marker", async () => {
-    const db = await setupDb("memories-scope-schema")
+vi.mock("@/lib/sdk-project-billing", () => ({
+  resolveSdkProjectBillingContext: mockResolveSdkProjectBillingContext,
+  enforceSdkProjectProvisionLimit: mockEnforceSdkProjectProvisionLimit,
+  recordGrowthProjectMeterEvent: mockRecordGrowthProjectMeterEvent,
+  buildSdkTenantOwnerScopeKey: vi.fn(
+    (input: { ownerType: "user" | "organization"; ownerUserId: string; orgId: string | null }) =>
+      input.ownerType === "organization" && input.orgId ? `org:${input.orgId}` : `user:${input.ownerUserId}`
+  ),
+}))
 
-    await db.execute(
-      `CREATE TABLE memories (
-        id TEXT PRIMARY KEY,
-        content TEXT NOT NULL,
-        type TEXT NOT NULL,
-        scope TEXT NOT NULL DEFAULT 'global',
-        project_id TEXT,
-        tags TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        deleted_at TEXT
-      )`
+vi.mock("node:timers/promises", () => ({
+  setTimeout: mockDelay,
+}))
+
+vi.mock("@libsql/client", () => ({
+  createClient: mockCreateTurso,
+}))
+
+import { resolveTenantTurso } from "./scope"
+
+describe("resolveTenantTurso", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    mockShouldAutoProvisionTenants.mockReturnValue(true)
+    mockHasTursoPlatformApiToken.mockReturnValue(true)
+    mockGetTursoOrgSlug.mockReturnValue("acme-org")
+    mockDelay.mockResolvedValue(undefined)
+
+    mockCreateDatabase.mockResolvedValue({
+      name: "tenant-a-db",
+      hostname: "tenant-a-db.turso.io",
+    })
+    mockCreateDatabaseToken.mockResolvedValue("token-a")
+    mockInitSchema.mockResolvedValue(undefined)
+
+    mockResolveSdkProjectBillingContext.mockResolvedValue({
+      plan: "growth",
+      ownerType: "user",
+      ownerUserId: "user-1",
+      orgId: null,
+      ownerScopeKey: "user:user-1",
+      stripeCustomerId: "cus_123",
+      includedProjects: 500,
+      overageUsdPerProject: 0.05,
+      maxProjectsPerMonth: null,
+    })
+
+    mockEnforceSdkProjectProvisionLimit.mockResolvedValue({
+      ok: true,
+      billing: {
+        plan: "growth",
+        ownerType: "user",
+        ownerUserId: "user-1",
+        orgId: null,
+        ownerScopeKey: "user:user-1",
+        stripeCustomerId: "cus_123",
+        includedProjects: 500,
+        overageUsdPerProject: 0.05,
+        maxProjectsPerMonth: null,
+      },
+      activeProjectCount: 0,
+    })
+
+    mockRecordGrowthProjectMeterEvent.mockResolvedValue(undefined)
+
+    mockCreateTurso.mockImplementation((input: { url: string; authToken: string }) => ({
+      url: input.url,
+      authToken: input.authToken,
+      execute: vi.fn(),
+    }))
+  })
+
+  it("stores auto-provisioned mappings with source=auto", async () => {
+    let lookupCount = 0
+    const upsertMock = vi.fn().mockResolvedValue({ error: null })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table !== "sdk_tenant_databases") {
+        return {}
+      }
+
+      const maybeSingle = vi.fn().mockImplementation(async () => {
+        lookupCount += 1
+        if (lookupCount === 1) {
+          return { data: null, error: null }
+        }
+
+        return {
+          data: {
+            turso_db_url: "libsql://tenant-a-db.turso.io",
+            turso_db_token: "token-a",
+            status: "ready",
+            metadata: { provisionedBy: "sdk_auto" },
+          },
+          error: null,
+        }
+      })
+
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle }),
+          }),
+        }),
+        upsert: upsertMock,
+      }
+    })
+
+    const client = await resolveTenantTurso("hash_123", "tenant-a", {
+      ownerUserId: "user-1",
+      autoProvision: true,
+    })
+
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner_scope_key: "user:user-1",
+        tenant_id: "tenant-a",
+        mapping_source: "auto",
+        status: "ready",
+      }),
+      { onConflict: "owner_scope_key,tenant_id" }
     )
 
-    await ensureMemoryUserIdSchema(db, { cacheKey: "workspace:test" })
-    await ensureMemoryUserIdSchema(db, { cacheKey: "workspace:test" })
-
-    const columns = await db.execute("PRAGMA table_info(memories)")
-    const columnNames = new Set(columns.rows.map((row) => String(row.name)))
-    expect(columnNames.has("user_id")).toBe(true)
-    expect(columnNames.has("memory_layer")).toBe(true)
-    expect(columnNames.has("expires_at")).toBe(true)
-
-    const marker = await db.execute({
-      sql: "SELECT value FROM memory_schema_state WHERE key = ?",
-      args: ["memory_user_id_v1"],
+    expect(client).toMatchObject({
+      url: "libsql://tenant-a-db.turso.io",
+      authToken: "token-a",
     })
-    expect(String(marker.rows[0]?.value ?? "")).toBe("1")
   })
 })

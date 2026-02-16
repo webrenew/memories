@@ -217,12 +217,14 @@ export interface ManagementKeyRevokeResult {
 }
 
 export type ManagementTenantMode = "provision" | "attach"
+export type ManagementTenantSource = "auto" | "override"
 
 export interface ManagementTenantMapping {
   tenantId: string
   tursoDbUrl: string
   tursoDbName?: string | null
   status: string
+  source: ManagementTenantSource
   metadata?: Record<string, unknown>
   createdAt?: string
   updatedAt?: string

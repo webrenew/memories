@@ -9,12 +9,14 @@ import type { WorkspacePlan } from "@/lib/workspace"
 type ProvisionMode = "provision" | "attach"
 
 type TenantStatus = "provisioning" | "ready" | "disabled" | "error"
+type TenantMappingSource = "auto" | "override"
 
 interface TenantDatabase {
   tenantId: string
   tursoDbUrl: string
   tursoDbName: string | null
   status: TenantStatus | string
+  source: TenantMappingSource | string
   metadata: Record<string, unknown>
   createdAt: string
   updatedAt: string
@@ -59,6 +61,11 @@ function statusClass(status: string): string {
   if (status === "disabled") return "text-amber-400 border-amber-500/30 bg-amber-500/10"
   if (status === "error") return "text-red-400 border-red-500/30 bg-red-500/10"
   return "text-blue-400 border-blue-500/30 bg-blue-500/10"
+}
+
+function sourceClass(source: string): string {
+  if (source === "override") return "text-violet-300 border-violet-500/40 bg-violet-500/10"
+  return "text-cyan-300 border-cyan-500/40 bg-cyan-500/10"
 }
 
 export function TenantDatabaseMappingsSection({
@@ -186,7 +193,7 @@ export function TenantDatabaseMappingsSection({
         throw new Error(extractErrorMessage(data, `Failed to save tenant override (HTTP ${res.status})`))
       }
 
-      setStatusMessage(mode === "provision" ? "Tenant override provisioned" : "Tenant override attached")
+      setStatusMessage(mode === "provision" ? "Tenant mapping provisioned" : "Tenant mapping attached")
       setTenantId("")
       if (mode === "attach") {
         setTursoDbUrl("")
@@ -248,7 +255,7 @@ export function TenantDatabaseMappingsSection({
         throw new Error(extractErrorMessage(data, `Failed to disable tenant override (HTTP ${res.status})`))
       }
 
-      setStatusMessage(`Disabled override ${tenantToDisable}`)
+      setStatusMessage(`Disabled mapping ${tenantToDisable}`)
       await fetchMappings({ silent: true })
       recordClientWorkflowEvent({
         workflow: "tenant_mapping_disable",
@@ -435,13 +442,13 @@ export function TenantDatabaseMappingsSection({
               </button>
 
               <p className="text-sm text-muted-foreground">
-                Existing overrides move automatically when you rotate your API key.
+                Mappings are owner-scoped and remain stable across API key rotation.
               </p>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">Current Tenant Overrides</p>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Current Tenant Mappings</p>
                 <button
                   type="button"
                   onClick={() => void fetchMappings({ silent: true })}
@@ -470,9 +477,14 @@ export function TenantDatabaseMappingsSection({
                             {mapping.tursoDbName || hostFromLibsql(mapping.tursoDbUrl)}
                           </p>
                         </div>
-                        <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border rounded ${statusClass(mapping.status)}`}>
-                          {mapping.status}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border rounded ${sourceClass(mapping.source)}`}>
+                            {mapping.source}
+                          </span>
+                          <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border rounded ${statusClass(mapping.status)}`}>
+                            {mapping.status}
+                          </span>
+                        </div>
                       </div>
 
                       <p className="text-xs text-muted-foreground break-all">
@@ -493,7 +505,7 @@ export function TenantDatabaseMappingsSection({
                         </details>
                       )}
 
-                      {mapping.status !== "disabled" && (
+                      {mapping.status !== "disabled" && mapping.source === "override" && (
                         <button
                           type="button"
                           onClick={() => void handleDisable(mapping.tenantId)}
@@ -501,7 +513,7 @@ export function TenantDatabaseMappingsSection({
                           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-red-400 border border-red-500/30 rounded hover:bg-red-500/10 transition-colors disabled:opacity-50"
                         >
                           <Trash2 className="h-3 w-3" />
-                          {disablingTenantId === mapping.tenantId ? "Disabling..." : "Disable Override"}
+                          {disablingTenantId === mapping.tenantId ? "Disabling..." : "Disable Mapping"}
                         </button>
                       )}
                     </div>

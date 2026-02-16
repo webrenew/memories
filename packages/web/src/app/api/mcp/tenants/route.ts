@@ -14,6 +14,7 @@ import {
   recordGrowthProjectMeterEvent,
   resolveSdkProjectBillingContext,
 } from "@/lib/sdk-project-billing"
+import { normalizeTenantMappingSource } from "@/lib/tenant-routing"
 
 const TURSO_ORG = getTursoOrgSlug()
 const LEGACY_ENDPOINT = "/api/mcp/tenants"
@@ -36,6 +37,7 @@ type TenantRow = {
   turso_db_url: string
   turso_db_name: string | null
   status: string
+  mapping_source: "auto" | "override" | null
   metadata: Record<string, unknown> | null
   created_at: string
   updated_at: string
@@ -64,6 +66,10 @@ function mapTenantRow(row: TenantRow) {
     tursoDbUrl: row.turso_db_url,
     tursoDbName: row.turso_db_name,
     status: row.status,
+    source: normalizeTenantMappingSource({
+      source: row.mapping_source,
+      metadata: row.metadata,
+    }),
     metadata: row.metadata ?? {},
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -163,7 +169,7 @@ export async function GET(request: Request): Promise<Response> {
 
   const { data, error } = await admin
     .from("sdk_tenant_databases")
-    .select("tenant_id, turso_db_url, turso_db_name, status, metadata, created_at, updated_at, last_verified_at")
+    .select("tenant_id, turso_db_url, turso_db_name, status, mapping_source, metadata, created_at, updated_at, last_verified_at")
     .eq("owner_scope_key", ownerScopeKey)
     .order("created_at", { ascending: true })
 
@@ -215,7 +221,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const { data: existing, error: existingError } = await admin
     .from("sdk_tenant_databases")
-    .select("tenant_id, turso_db_url, turso_db_name, status, metadata, created_at, updated_at, last_verified_at")
+    .select("tenant_id, turso_db_url, turso_db_name, status, mapping_source, metadata, created_at, updated_at, last_verified_at")
     .eq("owner_scope_key", billingState.billing.ownerScopeKey)
     .eq("tenant_id", tenantId)
     .maybeSingle()
@@ -289,6 +295,7 @@ export async function POST(request: Request): Promise<Response> {
   const payload = {
     owner_scope_key: billingState.billing.ownerScopeKey,
     api_key_hash: keyState.apiKeyHash,
+    mapping_source: "override",
     tenant_id: tenantId,
     turso_db_url: tursoDbUrl,
     turso_db_token: tursoDbToken,
@@ -307,7 +314,7 @@ export async function POST(request: Request): Promise<Response> {
   const { data: saved, error: saveError } = await admin
     .from("sdk_tenant_databases")
     .upsert(payload, { onConflict: "owner_scope_key,tenant_id" })
-    .select("tenant_id, turso_db_url, turso_db_name, status, metadata, created_at, updated_at, last_verified_at")
+    .select("tenant_id, turso_db_url, turso_db_name, status, mapping_source, metadata, created_at, updated_at, last_verified_at")
     .single()
 
   if (saveError || !saved) {
