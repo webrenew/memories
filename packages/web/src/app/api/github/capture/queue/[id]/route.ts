@@ -49,7 +49,7 @@ function memoryTypeForEvent(event: QueueItemRow["source_event"]): "rule" | "deci
 async function fetchQueueItem(
   admin: ReturnType<typeof createAdminClient>,
   queueId: string
-): Promise<QueueItemRow | null> {
+): Promise<{ item: QueueItemRow | null; error: unknown }> {
   const { data, error } = await admin
     .from("github_capture_queue")
     .select(
@@ -58,8 +58,14 @@ async function fetchQueueItem(
     .eq("id", queueId)
     .single()
 
-  if (error || !data) return null
-  return data as QueueItemRow
+  if (error) {
+    return { item: null, error }
+  }
+
+  return {
+    item: (data as QueueItemRow | null) ?? null,
+    error: null,
+  }
 }
 
 async function resolveOrgRole(
@@ -125,7 +131,16 @@ export async function PATCH(
   if (!parsed.success) return parsed.response
 
   const admin = createAdminClient()
-  const item = await fetchQueueItem(admin, id)
+  const { item, error: itemLookupError } = await fetchQueueItem(admin, id)
+  if (itemLookupError) {
+    console.error("Failed to load capture queue item:", {
+      queueId: id,
+      reviewerUserId: user.id,
+      error: itemLookupError,
+    })
+    return NextResponse.json({ error: "Failed to load capture queue item" }, { status: 500 })
+  }
+
   if (!item) {
     return NextResponse.json({ error: "Capture queue item not found" }, { status: 404 })
   }
