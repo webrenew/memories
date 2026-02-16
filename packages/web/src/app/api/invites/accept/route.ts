@@ -142,12 +142,18 @@ export async function POST(request: Request): Promise<Response> {
     })
 
   if (memberError) {
+    console.error("Failed to insert org member during invite accept:", {
+      inviteId: invite.id,
+      orgId: invite.org_id,
+      userId: user.id,
+      error: memberError,
+    })
     // Rollback invite acceptance if member insert fails
     await writeClient
       .from("org_invites")
       .update({ accepted_at: null })
       .eq("id", invite.id)
-    return NextResponse.json({ error: memberError.message }, { status: 500 })
+    return NextResponse.json({ error: "Failed to accept invite" }, { status: 500 })
   }
 
   await logOrgAuditEvent({
