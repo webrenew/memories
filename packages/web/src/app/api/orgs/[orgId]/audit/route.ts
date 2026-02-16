@@ -61,12 +61,21 @@ export async function GET(
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("org_members")
     .select("role")
     .eq("org_id", orgId)
     .eq("user_id", user.id)
     .single()
+
+  if (membershipError) {
+    console.error("Failed to verify audit log access membership:", {
+      error: membershipError,
+      orgId,
+      userId: user.id,
+    })
+    return NextResponse.json({ error: "Failed to load audit events" }, { status: 500 })
+  }
 
   if (!membership || !["owner", "admin"].includes(membership.role)) {
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
