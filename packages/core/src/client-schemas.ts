@@ -134,7 +134,7 @@ export const managementTenantSchema = z.object({
   tursoDbUrl: z.string(),
   tursoDbName: z.string().nullable().optional(),
   status: z.string(),
-  source: z.union([z.literal("auto"), z.literal("override")]),
+  source: z.union([z.literal("auto"), z.literal("override")]).default("override"),
   metadata: z.record(z.string(), z.unknown()).optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
