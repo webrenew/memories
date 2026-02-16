@@ -67,4 +67,47 @@ describe("/api/github/capture/queue GET", () => {
       error: "Failed to load queue",
     })
   })
+
+  it("returns 500 with stable error when queue row loading fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({
+              data: [],
+              error: null,
+            }),
+          })),
+        }
+      }
+
+      if (table === "github_capture_queue") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  limit: vi.fn().mockResolvedValue({
+                    data: null,
+                    error: { message: "queue read failed" },
+                  }),
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await GET(
+      new Request("https://example.com/api/github/capture/queue?status=all")
+    )
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: "Failed to load queue",
+    })
+  })
 })
