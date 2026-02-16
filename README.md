@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://memories.sh">
-    <img src="packages/web/public/readme.jpg" alt="memories.sh — The unified agent memory layer" />
+    <img src="packages/web/public/readme.webp" alt="memories.sh — The unified agent memory layer" />
   </a>
 </p>
 

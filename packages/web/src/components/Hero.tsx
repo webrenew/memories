@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import React, { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { ScrambleText } from "./animations/ScrambleText";
 import { ToolLogo } from "./ui/tool-logo";
 import { MARQUEE_TOOLS } from "@/lib/tools";
@@ -194,6 +195,23 @@ export function Hero(): React.JSX.Element {
             </motion.p>
 
             <CopyCommand />
+
+            <motion.a
+              variants={itemVariants}
+              href="https://www.producthunt.com/products/memories-sh?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-memories-sh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-12 inline-flex"
+            >
+              <Image
+                alt="memories.sh - One layer for memories, skills, and rules across any agent | Product Hunt"
+                width={250}
+                height={54}
+                src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1080000&theme=dark&t=1771250990244"
+                unoptimized
+                className="h-[54px] w-[250px] rounded-sm opacity-90 transition-opacity hover:opacity-100"
+              />
+            </motion.a>
             </motion.div>
 
             <motion.div
