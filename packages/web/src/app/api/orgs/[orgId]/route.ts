@@ -274,7 +274,12 @@ export async function DELETE(
     .eq("id", orgId)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Failed to delete organization row:", {
+      error,
+      orgId,
+      userId: user.id,
+    })
+    return NextResponse.json({ error: "Failed to delete organization" }, { status: 500 })
   }
 
   return NextResponse.json({ success: true })

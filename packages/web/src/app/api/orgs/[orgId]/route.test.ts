@@ -338,4 +338,45 @@ describe("/api/orgs/[orgId] DELETE", () => {
       error: "Failed to delete organization",
     })
   })
+
+  it("returns 500 when organization deletion fails", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { role: "owner" },
+                  error: null,
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      if (table === "organizations") {
+        return {
+          delete: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({
+              error: { message: "DB write failed" },
+            }),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await DELETE(
+      new Request("https://example.com/api/orgs/org-1", { method: "DELETE" }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to delete organization",
+    })
+  })
 })
