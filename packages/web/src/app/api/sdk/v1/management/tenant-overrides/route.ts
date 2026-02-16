@@ -2,14 +2,11 @@ import { createClient as createTurso } from "@libsql/client"
 import { setTimeout as delay } from "node:timers/promises"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { authenticateRequest } from "@/lib/auth"
+import { resolveManagementIdentity } from "../identity"
 import { getTursoOrgSlug } from "@/lib/env"
 import { apiError } from "@/lib/memory-service/tools"
-import { apiRateLimit, checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import {
-  authenticateApiKey,
   errorResponse,
-  getApiKey,
   invalidRequestResponse,
   successResponse,
 } from "@/lib/sdk-api/runtime"
@@ -48,12 +45,6 @@ type TenantRow = {
   created_at: string
   updated_at: string
   last_verified_at: string | null
-}
-
-type ManagementIdentity = {
-  userId: string
-  apiKeyHash: string
-  authMode: "api_key" | "session"
 }
 
 async function resolveOwnerScopeKey(
@@ -97,143 +88,18 @@ function errorTypeForStatus(status: number): "auth_error" | "validation_error" |
   return "internal_error"
 }
 
-function rateLimitEnvelopeResponse(requestId: string, source: NextResponse): NextResponse {
-  const retryAfter = Number(source.headers.get("Retry-After") ?? "60")
-  const response = errorResponse(
-    ENDPOINT,
-    requestId,
-    apiError({
-      type: "rate_limit_error",
-      code: "RATE_LIMITED",
-      message: "Too many requests",
-      status: 429,
-      retryable: true,
-      details: {
-        retryAfterSeconds: Number.isFinite(retryAfter) ? retryAfter : 60,
-      },
-    })
-  )
-
-  const rateHeaders = ["Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"]
-  for (const headerName of rateHeaders) {
-    const value = source.headers.get(headerName)
-    if (value) response.headers.set(headerName, value)
-  }
-
-  return response
-}
-
-async function resolveSessionIdentity(request: NextRequest, requestId: string, method: "GET" | "POST" | "DELETE"): Promise<ManagementIdentity | NextResponse> {
-  const auth = await authenticateRequest(request)
-  if (!auth) {
-    return errorResponse(
-      ENDPOINT,
-      requestId,
-      apiError({
-        type: "auth_error",
-        code: "UNAUTHORIZED",
-        message: "Unauthorized",
-        status: 401,
-        retryable: false,
-      })
-    )
-  }
-
-  const limiter = method === "POST" ? strictRateLimit : apiRateLimit
-  const rateLimited = await checkRateLimit(limiter, auth.userId)
-  if (rateLimited) {
-    return rateLimitEnvelopeResponse(requestId, rateLimited)
-  }
-
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from("users")
-    .select("mcp_api_key_hash, mcp_api_key_expires_at")
-    .eq("id", auth.userId)
-    .single()
-
-  if (error) {
-    console.error("Failed to load API key metadata for tenant override management:", error)
-    return errorResponse(
-      ENDPOINT,
-      requestId,
-      apiError({
-        type: "internal_error",
-        code: "API_KEY_METADATA_LOOKUP_FAILED",
-        message: "Failed to load API key metadata",
-        status: 500,
-        retryable: true,
-      })
-    )
-  }
-
-  if (!data?.mcp_api_key_hash) {
-    return errorResponse(
-      ENDPOINT,
-      requestId,
-      apiError({
-        type: "validation_error",
-        code: "MISSING_API_KEY",
-        message: "Generate an API key before configuring tenant overrides",
-        status: 400,
-        retryable: false,
-      })
-    )
-  }
-
-  if (!data.mcp_api_key_expires_at || new Date(data.mcp_api_key_expires_at).getTime() <= Date.now()) {
-    return errorResponse(
-      ENDPOINT,
-      requestId,
-      apiError({
-        type: "auth_error",
-        code: "API_KEY_EXPIRED",
-        message: "API key expired. Generate a new key before configuring tenant overrides.",
-        status: 401,
-        retryable: false,
-      })
-    )
-  }
-
-  return {
-    userId: auth.userId,
-    apiKeyHash: data.mcp_api_key_hash as string,
-    authMode: "session",
-  }
-}
-
-async function resolveManagementIdentity(
-  request: NextRequest,
-  requestId: string,
-  method: "GET" | "POST" | "DELETE"
-): Promise<ManagementIdentity | NextResponse> {
-  const apiKey = getApiKey(request)
-  if (apiKey) {
-    const auth = await authenticateApiKey(apiKey, ENDPOINT, requestId)
-    if (auth instanceof NextResponse) {
-      return auth
-    }
-
-    if (method === "POST") {
-      const strictLimited = await checkRateLimit(strictRateLimit, auth.userId)
-      if (strictLimited) {
-        return rateLimitEnvelopeResponse(requestId, strictLimited)
-      }
-    }
-
-    return {
-      userId: auth.userId,
-      apiKeyHash: auth.apiKeyHash,
-      authMode: "api_key",
-    }
-  }
-
-  return resolveSessionIdentity(request, requestId, method)
-}
-
 export async function GET(request: NextRequest): Promise<Response> {
   const requestId = crypto.randomUUID()
-  const identity = await resolveManagementIdentity(request, requestId, "GET")
+  const identity = await resolveManagementIdentity({
+    endpoint: ENDPOINT,
+    request,
+    requestId,
+    method: "GET",
+    strictRateLimitMethods: ["POST"],
+    missingApiKeyMessage: "Generate an API key before configuring tenant overrides",
+    expiredApiKeyMessage: "API key expired. Generate a new key before configuring tenant overrides.",
+    apiKeyMetadataLookupLogContext: "Failed to load API key metadata for tenant override management:",
+  })
   if (identity instanceof NextResponse) return identity
 
   const admin = createAdminClient()
@@ -285,7 +151,16 @@ export async function GET(request: NextRequest): Promise<Response> {
 
 export async function POST(request: NextRequest): Promise<Response> {
   const requestId = crypto.randomUUID()
-  const identity = await resolveManagementIdentity(request, requestId, "POST")
+  const identity = await resolveManagementIdentity({
+    endpoint: ENDPOINT,
+    request,
+    requestId,
+    method: "POST",
+    strictRateLimitMethods: ["POST"],
+    missingApiKeyMessage: "Generate an API key before configuring tenant overrides",
+    expiredApiKeyMessage: "API key expired. Generate a new key before configuring tenant overrides.",
+    apiKeyMetadataLookupLogContext: "Failed to load API key metadata for tenant override management:",
+  })
   if (identity instanceof NextResponse) return identity
 
   const parsed = tenantCreateSchema.safeParse(await request.json().catch(() => ({})))
@@ -476,7 +351,16 @@ export async function POST(request: NextRequest): Promise<Response> {
 
 export async function DELETE(request: NextRequest): Promise<Response> {
   const requestId = crypto.randomUUID()
-  const identity = await resolveManagementIdentity(request, requestId, "DELETE")
+  const identity = await resolveManagementIdentity({
+    endpoint: ENDPOINT,
+    request,
+    requestId,
+    method: "DELETE",
+    strictRateLimitMethods: ["POST"],
+    missingApiKeyMessage: "Generate an API key before configuring tenant overrides",
+    expiredApiKeyMessage: "API key expired. Generate a new key before configuring tenant overrides.",
+    apiKeyMetadataLookupLogContext: "Failed to load API key metadata for tenant override management:",
+  })
   if (identity instanceof NextResponse) return identity
 
   const url = new URL(request.url)
