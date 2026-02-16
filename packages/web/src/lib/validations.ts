@@ -112,11 +112,47 @@ const VALID_EMBEDDING_MODELS = [
   "mxbai-embed-large-v1",
 ] as const
 
+const GITHUB_OWNER_PATTERN = /^[a-z\d](?:[a-z\d-]{0,38})$/i
+
+const repoOwnerOrgMappingSchema = z.object({
+  owner: z
+    .string()
+    .trim()
+    .min(1, "GitHub owner is required")
+    .max(100, "GitHub owner is too long")
+    .transform((value) => value.replace(/^@/, "").toLowerCase())
+    .refine((value) => GITHUB_OWNER_PATTERN.test(value), {
+      message: "Use a valid GitHub owner (for example: acme)",
+    }),
+  org_id: z.string().trim().min(1, "Organization id is required"),
+})
+
+const repoOwnerOrgMappingsSchema = z
+  .array(repoOwnerOrgMappingSchema)
+  .max(50, "Add at most 50 repo owner mappings")
+  .superRefine((mappings, ctx) => {
+    const seenOwners = new Set<string>()
+    for (let index = 0; index < mappings.length; index += 1) {
+      const owner = mappings[index]?.owner
+      if (!owner) continue
+      if (seenOwners.has(owner)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Each GitHub owner can only be mapped once",
+          path: [index, "owner"],
+        })
+      } else {
+        seenOwners.add(owner)
+      }
+    }
+  })
+
 export const updateUserSchema = z.object({
   name: z.string().max(200).optional(),
   embedding_model: z.enum(VALID_EMBEDDING_MODELS).optional(),
   current_org_id: z.string().min(1, "Organization id is required").nullable().optional(),
   repo_workspace_routing_mode: z.enum(["auto", "active_workspace"]).optional(),
+  repo_owner_org_mappings: repoOwnerOrgMappingsSchema.optional(),
 })
 
 export const workspaceSwitchProfileSchema = z.object({

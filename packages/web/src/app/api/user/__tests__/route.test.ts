@@ -66,6 +66,7 @@ describe("/api/user", () => {
                 embedding_model: "all-MiniLM-L6-v2",
                 current_org_id: "org-1",
                 repo_workspace_routing_mode: "auto",
+                repo_owner_org_mappings: [{ owner: "acme", org_id: "org-1" }],
               },
               error: null,
             }),
@@ -79,6 +80,7 @@ describe("/api/user", () => {
       expect(body.user.id).toBe("user-1")
       expect(body.user.current_org_id).toBe("org-1")
       expect(body.user.repo_workspace_routing_mode).toBe("auto")
+      expect(body.user.repo_owner_org_mappings).toEqual([{ owner: "acme", org_id: "org-1" }])
     })
 
     it("returns 500 when profile lookup fails", async () => {
@@ -331,6 +333,38 @@ describe("/api/user", () => {
       const response = await PATCH(makePatchRequest({ repo_workspace_routing_mode: "active_workspace" }))
       expect(response.status).toBe(200)
       expect(mockUpdate).toHaveBeenCalledWith({ repo_workspace_routing_mode: "active_workspace" })
+    })
+
+    it("updates repo owner org mappings", async () => {
+      mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
+
+      const mockUpdate = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      })
+
+      mockAdminFrom.mockImplementation((table: string) => {
+        if (table === "users") {
+          return { update: mockUpdate }
+        }
+        return {}
+      })
+
+      const response = await PATCH(
+        makePatchRequest({
+          repo_owner_org_mappings: [
+            { owner: "webrenew", org_id: "org-webrenew" },
+            { owner: "acme-platform", org_id: "org-acme" },
+          ],
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(mockUpdate).toHaveBeenCalledWith({
+        repo_owner_org_mappings: [
+          { owner: "webrenew", org_id: "org-webrenew" },
+          { owner: "acme-platform", org_id: "org-acme" },
+        ],
+      })
     })
 
     it("returns 500 when user update mutation fails", async () => {

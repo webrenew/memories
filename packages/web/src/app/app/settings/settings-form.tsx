@@ -73,17 +73,41 @@ interface SettingsFormProps {
     plan: string
     embedding_model: string | null
     repo_workspace_routing_mode: RepoWorkspaceRoutingMode
+    repo_owner_org_mappings: RepoOwnerOrgMapping[]
+    organizations: OrgRoutingOption[]
     auth_providers: string[]
   }
 }
 
 type OAuthProvider = "github" | "google"
 type RepoWorkspaceRoutingMode = "auto" | "active_workspace"
+type RepoOwnerOrgMapping = { owner: string; org_id: string }
+type OrgRoutingOption = {
+  id: string
+  name: string
+  slug: string
+  role: "owner" | "admin" | "member"
+}
 
 const OAUTH_PROVIDERS: Array<{ id: OAuthProvider; label: string; scopes: string }> = [
   { id: "github", label: "GitHub", scopes: "read:user user:email" },
   { id: "google", label: "Google", scopes: "openid profile email" },
 ]
+
+const PAID_USER_PLANS = new Set(["individual", "pro", "team", "growth", "enterprise"])
+
+function normalizeOwnerInput(value: string): string {
+  return value.trim().replace(/^@/, "").toLowerCase()
+}
+
+function serializeRepoOwnerOrgMappings(mappings: RepoOwnerOrgMapping[]): string {
+  return JSON.stringify(
+    mappings.map((mapping) => ({
+      owner: normalizeOwnerInput(mapping.owner),
+      org_id: mapping.org_id.trim(),
+    }))
+  )
+}
 
 export function SettingsForm({ profile }: SettingsFormProps): React.JSX.Element {
   const [supabase] = useState(() => createClient())
@@ -93,6 +117,9 @@ export function SettingsForm({ profile }: SettingsFormProps): React.JSX.Element 
   )
   const [repoRoutingMode, setRepoRoutingMode] = useState<RepoWorkspaceRoutingMode>(
     profile.repo_workspace_routing_mode
+  )
+  const [repoOwnerMappings, setRepoOwnerMappings] = useState<RepoOwnerOrgMapping[]>(
+    profile.repo_owner_org_mappings ?? []
   )
   const [saving, setSaving] = useState(false)
   const [showModelDropdown, setShowModelDropdown] = useState(false)
@@ -106,6 +133,9 @@ export function SettingsForm({ profile }: SettingsFormProps): React.JSX.Element 
   const originalModel = EMBEDDING_MODELS.find(
     (m) => m.id === (profile.embedding_model || "all-MiniLM-L6-v2")
   )
+  const hasPaidPlan = PAID_USER_PLANS.has((profile.plan || "").toLowerCase())
+  const hasOrganizations = profile.organizations.length > 0
+  const canConfigureOrgMappings = hasPaidPlan && hasOrganizations
 
   function handleModelSelect(modelId: string) {
     const newModel = EMBEDDING_MODELS.find((m) => m.id === modelId)
@@ -125,6 +155,40 @@ export function SettingsForm({ profile }: SettingsFormProps): React.JSX.Element 
   }
 
   async function handleSave() {
+    const normalizedMappings = repoOwnerMappings.map((mapping) => ({
+      owner: normalizeOwnerInput(mapping.owner),
+      org_id: mapping.org_id.trim(),
+    }))
+    const hasIncompleteMapping = normalizedMappings.some((mapping) => {
+      const ownerFilled = mapping.owner.length > 0
+      const orgFilled = mapping.org_id.length > 0
+      return ownerFilled !== orgFilled
+    })
+
+    if (hasIncompleteMapping) {
+      toast.error("Fill out both owner and workspace for each mapping, or remove the row")
+      return
+    }
+
+    const filteredMappings = normalizedMappings.filter(
+      (mapping) => mapping.owner.length > 0 && mapping.org_id.length > 0
+    )
+    const duplicateOwner = (() => {
+      const seen = new Set<string>()
+      for (const mapping of filteredMappings) {
+        if (seen.has(mapping.owner)) {
+          return mapping.owner
+        }
+        seen.add(mapping.owner)
+      }
+      return null
+    })()
+
+    if (duplicateOwner) {
+      toast.error(`Owner "${duplicateOwner}" is already mapped`)
+      return
+    }
+
     setSaving(true)
     try {
       const res = await fetch("/api/user", {
@@ -134,6 +198,7 @@ export function SettingsForm({ profile }: SettingsFormProps): React.JSX.Element 
           name,
           embedding_model: embeddingModel,
           repo_workspace_routing_mode: repoRoutingMode,
+          repo_owner_org_mappings: filteredMappings,
         }),
       })
 
@@ -155,7 +220,32 @@ export function SettingsForm({ profile }: SettingsFormProps): React.JSX.Element 
   const hasChanges =
     name !== profile.name ||
     embeddingModel !== (profile.embedding_model || "all-MiniLM-L6-v2") ||
-    repoRoutingMode !== profile.repo_workspace_routing_mode
+    repoRoutingMode !== profile.repo_workspace_routing_mode ||
+    serializeRepoOwnerOrgMappings(repoOwnerMappings) !==
+      serializeRepoOwnerOrgMappings(profile.repo_owner_org_mappings ?? [])
+
+  function handleAddRepoOwnerMapping() {
+    setRepoOwnerMappings((current) => [
+      ...current,
+      { owner: "", org_id: profile.organizations[0]?.id ?? "" },
+    ])
+  }
+
+  function handleRepoOwnerMappingChange(
+    index: number,
+    key: keyof RepoOwnerOrgMapping,
+    value: string
+  ) {
+    setRepoOwnerMappings((current) =>
+      current.map((mapping, mappingIndex) =>
+        mappingIndex === index ? { ...mapping, [key]: value } : mapping
+      )
+    )
+  }
+
+  function handleRemoveRepoOwnerMapping(index: number) {
+    setRepoOwnerMappings((current) => current.filter((_, mappingIndex) => mappingIndex !== index))
+  }
 
   const effectiveProviders = (identities.length > 0
     ? identities.map((identity) => identity.provider)
@@ -453,6 +543,89 @@ export function SettingsForm({ profile }: SettingsFormProps): React.JSX.Element 
               Always route to your currently selected workspace, ignoring repo owner.
             </p>
           </button>
+        </div>
+
+        <div className="border-t border-border/70 pt-4 space-y-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.1em]">Org Owner Mappings</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Map GitHub owners to one of your org workspaces when auto routing is enabled.
+            </p>
+          </div>
+
+          {!hasOrganizations && (
+            <p className="text-xs text-muted-foreground">
+              Join an organization to add owner mappings.
+            </p>
+          )}
+
+          {hasOrganizations && !canConfigureOrgMappings && (
+            <p className="text-xs text-muted-foreground">
+              Owner mappings are available on paid plans. Upgrade on{" "}
+              <a href="/app/upgrade" className="text-primary underline underline-offset-4">
+                Billing
+              </a>{" "}
+              to unlock this control.
+            </p>
+          )}
+
+          {canConfigureOrgMappings && (
+            <div className="space-y-3">
+              {repoOwnerMappings.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No mappings yet. Add one to route org-owned repos that don&apos;t match your org slug.
+                </p>
+              )}
+
+              {repoOwnerMappings.map((mapping, index) => (
+                <div
+                  key={`${mapping.owner}-${mapping.org_id}-${index}`}
+                  className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 items-center"
+                >
+                  <input
+                    type="text"
+                    value={mapping.owner}
+                    onChange={(event) =>
+                      handleRepoOwnerMappingChange(index, "owner", event.target.value)
+                    }
+                    placeholder="GitHub owner (for example: acme)"
+                    className="w-full px-3 py-2 bg-background border border-border text-xs focus:border-primary/50 focus:outline-none transition-colors"
+                  />
+
+                  <select
+                    value={mapping.org_id}
+                    onChange={(event) =>
+                      handleRepoOwnerMappingChange(index, "org_id", event.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-background border border-border text-xs focus:border-primary/50 focus:outline-none transition-colors"
+                  >
+                    <option value="">Select workspace</option>
+                    {profile.organizations.map((organization) => (
+                      <option key={organization.id} value={organization.id}>
+                        {organization.name} ({organization.slug})
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRepoOwnerMapping(index)}
+                    className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] border border-border bg-background hover:bg-muted/30 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={handleAddRepoOwnerMapping}
+                className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+              >
+                Add Owner Mapping
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -12,6 +12,7 @@ type UserProfileRow = {
   embedding_model: string | null
   current_org_id: string | null
   repo_workspace_routing_mode?: "auto" | "active_workspace" | null
+  repo_owner_org_mappings?: Array<{ owner: string; org_id: string }> | null
 }
 
 type WorkspaceSwitchEventInput = {
@@ -25,6 +26,12 @@ type WorkspaceSwitchEventInput = {
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
+const USER_PROFILE_SELECT_VARIANTS = [
+  "id, email, name, plan, embedding_model, current_org_id, repo_workspace_routing_mode, repo_owner_org_mappings",
+  "id, email, name, plan, embedding_model, current_org_id, repo_workspace_routing_mode",
+  "id, email, name, plan, embedding_model, current_org_id",
+] as const
+
 function isMissingColumnError(error: unknown, columnName: string): boolean {
   const message =
     typeof error === "object" && error !== null && "message" in error
@@ -36,6 +43,10 @@ function isMissingColumnError(error: unknown, columnName: string): boolean {
     message.includes(columnName.toLowerCase()) &&
     message.includes("does not exist")
   )
+}
+
+function isMissingAnyColumnError(error: unknown, columnNames: string[]): boolean {
+  return columnNames.some((columnName) => isMissingColumnError(error, columnName))
 }
 
 function isMissingTableError(error: unknown, tableName: string): boolean {
@@ -91,6 +102,31 @@ async function recordWorkspaceSwitchEvent(admin: AdminClient, event: WorkspaceSw
   }
 }
 
+async function readUserProfile(
+  admin: AdminClient,
+  userId: string
+): Promise<{ profile: UserProfileRow | null; error: unknown }> {
+  for (const selectColumns of USER_PROFILE_SELECT_VARIANTS) {
+    const query = await admin
+      .from("users")
+      .select(selectColumns)
+      .eq("id", userId)
+      .single()
+
+    if (!query.error || !isMissingAnyColumnError(query.error, ["repo_owner_org_mappings", "repo_workspace_routing_mode"])) {
+      return {
+        profile: query.data as UserProfileRow | null,
+        error: query.error,
+      }
+    }
+  }
+
+  return {
+    profile: null,
+    error: { message: "Failed to load user profile" },
+  }
+}
+
 export async function GET(request: Request): Promise<Response> {
   const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
   if (preAuthRateLimited) return preAuthRateLimited
@@ -104,23 +140,7 @@ export async function GET(request: Request): Promise<Response> {
   if (rateLimited) return rateLimited
 
   const admin = createAdminClient()
-  const primaryQuery = await admin
-    .from("users")
-    .select("id, email, name, plan, embedding_model, current_org_id, repo_workspace_routing_mode")
-    .eq("id", auth.userId)
-    .single()
-  let profile = primaryQuery.data as UserProfileRow | null
-  let error = primaryQuery.error
-
-  if (error && isMissingColumnError(error, "repo_workspace_routing_mode")) {
-    const fallback = await admin
-      .from("users")
-      .select("id, email, name, plan, embedding_model, current_org_id")
-      .eq("id", auth.userId)
-      .single()
-    profile = fallback.data as UserProfileRow | null
-    error = fallback.error
-  }
+  const { profile, error } = await readUserProfile(admin, auth.userId)
 
   if (error) {
     console.error("Failed to load user profile:", {
@@ -138,6 +158,7 @@ export async function GET(request: Request): Promise<Response> {
     user: {
       ...profile,
       repo_workspace_routing_mode: profile.repo_workspace_routing_mode ?? "auto",
+      repo_owner_org_mappings: profile.repo_owner_org_mappings ?? [],
     },
   })
 }
@@ -158,7 +179,7 @@ export async function PATCH(request: Request): Promise<Response> {
   if (!parsed.success) return parsed.response
 
   const admin = createAdminClient()
-  const updates: Record<string, string | null> = {}
+  const updates: Record<string, unknown> = {}
 
   if (parsed.data.name !== undefined) {
     updates.name = parsed.data.name
@@ -170,6 +191,10 @@ export async function PATCH(request: Request): Promise<Response> {
 
   if (parsed.data.repo_workspace_routing_mode !== undefined) {
     updates.repo_workspace_routing_mode = parsed.data.repo_workspace_routing_mode
+  }
+
+  if (parsed.data.repo_owner_org_mappings !== undefined) {
+    updates.repo_owner_org_mappings = parsed.data.repo_owner_org_mappings
   }
 
   const switchRequested = parsed.data.current_org_id !== undefined
@@ -245,6 +270,15 @@ export async function PATCH(request: Request): Promise<Response> {
     .eq("id", auth.userId)
 
   if (error) {
+    if (
+      isMissingAnyColumnError(error, ["repo_owner_org_mappings", "repo_workspace_routing_mode"])
+    ) {
+      return NextResponse.json(
+        { error: "Profile routing settings are not available yet. Run the latest database migration first." },
+        { status: 503 }
+      )
+    }
+
     if (switchStartedAt !== null) {
       await recordWorkspaceSwitchEvent(admin, {
         userId: auth.userId,

@@ -81,6 +81,14 @@ Graph data respects the same routing model as memories:
 
 When workspace repo-routing mode is `auto`, org repos route to org workspace memory and personal repos route to personal workspace memory by default.
 
+You can also set explicit owner mappings in **Settings → Repo Workspace Routing** to handle org-owned repos that do not match your workspace slug.
+
+Examples:
+
+- `projectId: "github.com/jane/side-project"` with no mapping routes to personal memory.
+- `projectId: "github.com/webrenew/memories"` routes to the `webrenew` org workspace when you are a member.
+- Mapping `acme-platform -> org_acme` routes `projectId: "github.com/acme-platform/backend"` to the selected `org_acme` workspace even if the slug differs.
+
 ## Dashboard Explorer Mapping
 
 The dashboard graph explorer (`Memory Graph` section) reads from `/api/graph/explore` and renders:

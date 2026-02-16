@@ -11,8 +11,10 @@ interface Fixtures {
     turso_db_token: string | null
     turso_db_name: string | null
     repo_workspace_routing_mode?: "auto" | "active_workspace" | null
+    repo_owner_org_mappings?: Array<{ owner: string; org_id: string }> | null
   } | null
   membership: { role: "owner" | "admin" | "member" } | null
+  membershipsByOrgId?: Record<string, { role: "owner" | "admin" | "member" }>
   organization: {
     id: string
     slug: string | null
@@ -49,10 +51,15 @@ function makeClient(fixtures: Fixtures) {
         if (
           table === "org_members" &&
           filters.org_id &&
-          filters.user_id &&
-          fixtures.membership
+          filters.user_id
         ) {
-          return { data: fixtures.membership, error: null }
+          const membershipByOrg = fixtures.membershipsByOrgId?.[filters.org_id]
+          if (membershipByOrg) {
+            return { data: membershipByOrg, error: null }
+          }
+          if (fixtures.membership) {
+            return { data: fixtures.membership, error: null }
+          }
         }
 
         if (table === "organizations" && filters.slug) {
@@ -289,6 +296,78 @@ describe("resolveActiveMemoryContext", () => {
     expect(context?.ownerType).toBe("organization")
     expect(context?.orgId).toBe("org-webrenew")
     expect(context?.turso_db_url).toBe("libsql://org-webrenew.turso.io")
+  })
+
+  it("routes repo-scoped requests using explicit owner mappings in auto mode", async () => {
+    const client = makeClient({
+      user: {
+        id: "user-1",
+        current_org_id: null,
+        plan: "free",
+        turso_db_url: "libsql://user.turso.io",
+        turso_db_token: "user-token",
+        turso_db_name: "user-db",
+        repo_workspace_routing_mode: "auto",
+        repo_owner_org_mappings: [{ owner: "acme-platform", org_id: "org-webrenew" }],
+      },
+      membership: null,
+      membershipsByOrgId: {
+        "org-webrenew": { role: "admin" },
+      },
+      organization: {
+        id: "org-webrenew",
+        slug: "webrenew",
+        plan: "team",
+        subscription_status: "active",
+        stripe_subscription_id: "sub_123",
+        turso_db_url: "libsql://org-webrenew.turso.io",
+        turso_db_token: "org-token",
+        turso_db_name: "org-db",
+      },
+      organizationBySlug: null,
+    })
+
+    const context = await resolveActiveMemoryContext(client, "user-1", {
+      projectId: "github.com/acme-platform/memories",
+    })
+
+    expect(context?.ownerType).toBe("organization")
+    expect(context?.orgId).toBe("org-webrenew")
+    expect(context?.turso_db_url).toBe("libsql://org-webrenew.turso.io")
+  })
+
+  it("falls back to slug routing when explicit owner mapping is invalid", async () => {
+    const client = makeClient({
+      user: {
+        id: "user-1",
+        current_org_id: null,
+        plan: "free",
+        turso_db_url: "libsql://user.turso.io",
+        turso_db_token: "user-token",
+        turso_db_name: "user-db",
+        repo_workspace_routing_mode: "auto",
+        repo_owner_org_mappings: [{ owner: "webrenew", org_id: "org-missing" }],
+      },
+      membership: { role: "admin" },
+      organization: null,
+      organizationBySlug: {
+        id: "org-webrenew",
+        slug: "webrenew",
+        plan: "team",
+        subscription_status: "active",
+        stripe_subscription_id: "sub_123",
+        turso_db_url: "libsql://org-webrenew.turso.io",
+        turso_db_token: "org-token",
+        turso_db_name: "org-db",
+      },
+    })
+
+    const context = await resolveActiveMemoryContext(client, "user-1", {
+      projectId: "github.com/webrenew/memories",
+    })
+
+    expect(context?.ownerType).toBe("organization")
+    expect(context?.orgId).toBe("org-webrenew")
   })
 
   it("routes non-org repo scopes to personal workspace in auto mode", async () => {

@@ -371,6 +371,39 @@ describe("updateUserSchema", () => {
     expect(result.success).toBe(false)
   })
 
+  it("should accept valid repo owner org mappings", () => {
+    const result = updateUserSchema.safeParse({
+      repo_owner_org_mappings: [
+        { owner: "WebRenew", org_id: "org-1" },
+        { owner: "@acme", org_id: "org-2" },
+      ],
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.repo_owner_org_mappings).toEqual([
+        { owner: "webrenew", org_id: "org-1" },
+        { owner: "acme", org_id: "org-2" },
+      ])
+    }
+  })
+
+  it("should reject invalid repo owner values", () => {
+    const result = updateUserSchema.safeParse({
+      repo_owner_org_mappings: [{ owner: "not valid owner", org_id: "org-1" }],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it("should reject duplicate repo owner mappings", () => {
+    const result = updateUserSchema.safeParse({
+      repo_owner_org_mappings: [
+        { owner: "acme", org_id: "org-1" },
+        { owner: "ACME", org_id: "org-2" },
+      ],
+    })
+    expect(result.success).toBe(false)
+  })
+
   it("should reject name over 200 chars", () => {
     const result = updateUserSchema.safeParse({ name: "a".repeat(201) })
     expect(result.success).toBe(false)
