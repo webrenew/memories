@@ -20,18 +20,19 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- 3. RLS policies
 CREATE POLICY "Users can read own row"
-  ON public.users FOR SELECT
-  USING (auth.uid() = id);
+  ON public.users FOR SELECT TO authenticated
+  USING ((SELECT auth.uid()) = id);
 
 CREATE POLICY "Users can update own row"
-  ON public.users FOR UPDATE
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
+  ON public.users FOR UPDATE TO authenticated
+  USING ((SELECT auth.uid()) = id)
+  WITH CHECK ((SELECT auth.uid()) = id);
 
 -- Service role can do everything (for webhooks)
 CREATE POLICY "Service role full access"
-  ON public.users
-  USING (auth.role() = 'service_role');
+  ON public.users FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
 
 -- 4. Auto-create user row on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -46,7 +47,7 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -59,7 +60,7 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 CREATE TRIGGER on_users_updated
   BEFORE UPDATE ON public.users
