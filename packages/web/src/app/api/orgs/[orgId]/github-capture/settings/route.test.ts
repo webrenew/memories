@@ -121,6 +121,41 @@ describe("/api/orgs/[orgId]/github-capture/settings", () => {
     })
   })
 
+  it("returns 500 when GET settings lookup fails", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return createMembershipSelect("owner")
+      }
+
+      if (table === "github_capture_settings") {
+        return {
+          select: vi.fn(() => {
+            const chain = {
+              eq: vi.fn(() => chain),
+              limit: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "DB read failed" },
+              }),
+            }
+
+            return chain
+          }),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await GET(new Request("https://example.com/api/orgs/org-1/github-capture/settings"), {
+      params: Promise.resolve({ orgId: "org-1" }),
+    })
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to load settings",
+    })
+  })
+
   it("saves normalized org capture policy", async () => {
     const insertedRow = {
       id: "settings-1",
@@ -191,6 +226,90 @@ describe("/api/orgs/[orgId]/github-capture/settings", () => {
     })
 
     expect(mockLogOrgAuditEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it("returns 500 when PATCH settings lookup fails", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return createMembershipSelect("owner")
+      }
+
+      if (table === "github_capture_settings") {
+        return {
+          select: vi.fn(() => {
+            const chain = {
+              eq: vi.fn(() => chain),
+              limit: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "DB read failed" },
+              }),
+            }
+
+            return chain
+          }),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/orgs/org-1/github-capture/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ include_prerelease: false }),
+      }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to save settings",
+    })
+  })
+
+  it("returns 500 when PATCH settings write fails", async () => {
+    let settingsSelectCount = 0
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return createMembershipSelect("owner")
+      }
+
+      if (table === "github_capture_settings") {
+        settingsSelectCount += 1
+
+        if (settingsSelectCount === 1) {
+          return createSettingsSelect([])
+        }
+
+        return {
+          insert: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "DB write failed" },
+              }),
+            })),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/orgs/org-1/github-capture/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ include_prerelease: false }),
+      }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to save settings",
+    })
   })
 
   it("returns 500 when PATCH membership lookup fails", async () => {

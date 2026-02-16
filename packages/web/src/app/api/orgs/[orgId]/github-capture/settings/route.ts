@@ -163,11 +163,13 @@ export async function GET(
       )
     }
 
-    const message =
-      typeof error === "object" && error !== null && "message" in error
-        ? String((error as { message?: unknown }).message ?? "Failed to load settings")
-        : "Failed to load settings"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("Failed to load GitHub capture settings row:", {
+      error,
+      orgId,
+      userId: user.id,
+      method: "GET",
+    })
+    return NextResponse.json({ error: "Failed to load settings" }, { status: 500 })
   }
 
   return NextResponse.json({
@@ -238,11 +240,13 @@ export async function PATCH(
         { status: 503 },
       )
     }
-    const message =
-      typeof existingError === "object" && existingError !== null && "message" in existingError
-        ? String((existingError as { message?: unknown }).message ?? "Failed to load settings")
-        : "Failed to load settings"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("Failed to load existing GitHub capture settings row:", {
+      error: existingError,
+      orgId,
+      userId: user.id,
+      method: "PATCH",
+    })
+    return NextResponse.json({ error: "Failed to save settings" }, { status: 500 })
   }
 
   const timestamp = new Date().toISOString()
@@ -279,8 +283,14 @@ export async function PATCH(
       )
     }
 
-    const message = response.error?.message ?? "Failed to save settings"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("Failed to persist GitHub capture settings row:", {
+      error: response.error,
+      orgId,
+      userId: user.id,
+      method: existingRow ? "PATCH:update" : "PATCH:insert",
+      updatedFields: Object.keys(updates).sort(),
+    })
+    return NextResponse.json({ error: "Failed to save settings" }, { status: 500 })
   }
 
   const row = response.data as GithubCaptureSettingsRow

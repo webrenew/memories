@@ -191,7 +191,11 @@ export function Pricing({ user }: { user?: User | null }): React.JSX.Element {
               }`}
             >
               Yearly
-              <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-primary/20 text-primary rounded">
+              <span
+                className={`px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${
+                  isYearly ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/20 text-primary"
+                }`}
+              >
                 2 Months Free
               </span>
             </button>
