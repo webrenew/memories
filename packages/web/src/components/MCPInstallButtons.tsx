@@ -99,7 +99,7 @@ export function MCPInstallButtons(): React.JSX.Element {
         <h3 className="text-lg font-semibold mb-2">Quick Install</h3>
         <p className="text-sm text-muted-foreground mb-6">
           Add memories.sh to your AI assistant. You&apos;ll need an{" "}
-          <a href="/app" className="underline hover:text-foreground">
+          <a href="/app/api-keys" className="underline hover:text-foreground">
             API key
           </a>{" "}
           from the dashboard.
@@ -161,7 +161,7 @@ export function MCPInstallButtons(): React.JSX.Element {
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="text-xs text-muted-foreground">
                 <strong>Replace</strong> <code className="bg-muted px-1 rounded">{API_KEY_PLACEHOLDER}</code> with your{" "}
-                <a href="/app/sdk-projects" className="underline hover:text-foreground">API key</a>.
+                <a href="/app/api-keys" className="underline hover:text-foreground">API key</a>.
               </p>
               <a
                 href={CURSOR_INSTALL_URL}
