@@ -86,8 +86,8 @@ BEGIN
     IF rec.qual_expr IS NULL THEN
       new_qual := NULL;
     ELSE
-      new_qual := regexp_replace(rec.qual_expr, 'auth\\.uid\\(\\)', '(select auth.uid())', 'g');
-      new_qual := regexp_replace(new_qual, 'auth\\.role\\(\\)', '(select auth.role())', 'g');
+      new_qual := regexp_replace(rec.qual_expr, 'auth\.uid\(\)', '(select auth.uid())', 'g');
+      new_qual := regexp_replace(new_qual, 'auth\.role\(\)', '(select auth.role())', 'g');
       new_qual := replace(new_qual, '(select (select auth.uid()))', '(select auth.uid())');
       new_qual := replace(new_qual, '(select (select auth.role()))', '(select auth.role())');
     END IF;
@@ -95,8 +95,8 @@ BEGIN
     IF rec.with_check_expr IS NULL THEN
       new_check := NULL;
     ELSE
-      new_check := regexp_replace(rec.with_check_expr, 'auth\\.uid\\(\\)', '(select auth.uid())', 'g');
-      new_check := regexp_replace(new_check, 'auth\\.role\\(\\)', '(select auth.role())', 'g');
+      new_check := regexp_replace(rec.with_check_expr, 'auth\.uid\(\)', '(select auth.uid())', 'g');
+      new_check := regexp_replace(new_check, 'auth\.role\(\)', '(select auth.role())', 'g');
       new_check := replace(new_check, '(select (select auth.uid()))', '(select auth.uid())');
       new_check := replace(new_check, '(select (select auth.role()))', '(select auth.role())');
     END IF;
