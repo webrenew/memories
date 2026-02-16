@@ -147,7 +147,11 @@ export async function GET(request: Request): Promise<Response> {
     .eq("user_id", user.id)
 
   if (membershipsError) {
-    return NextResponse.json({ error: membershipsError.message }, { status: 500 })
+    console.error("Failed to load capture queue memberships:", {
+      userId: user.id,
+      error: membershipsError,
+    })
+    return NextResponse.json({ error: "Failed to load queue" }, { status: 500 })
   }
 
   const orgMemberships = (memberships ?? []) as OrgMembershipRow[]
