@@ -23,6 +23,8 @@ interface PricingTier {
   checkoutPlan?: "individual" | "team" | "growth";
 }
 
+type BillingInterval = "monthly" | "annual";
+
 const individualTiers: PricingTier[] = [
   {
     id: "free",
@@ -102,13 +104,35 @@ const companyTiers: PricingTier[] = [
   },
 ];
 
-function getTierCtaHref(tier: PricingTier, isAuthenticated: boolean): string {
+function buildCheckoutIntentPath(
+  tier: PricingTier,
+  billing: BillingInterval,
+): string | null {
+  if (!tier.checkoutPlan) return null;
+
+  const params = new URLSearchParams({
+    plan: tier.checkoutPlan,
+    billing,
+    checkout: "1",
+  });
+  return `/app/upgrade?${params.toString()}`;
+}
+
+function getTierCtaHref(
+  tier: PricingTier,
+  isAuthenticated: boolean,
+  billing: BillingInterval,
+): string {
   if (tier.id === "free") return isAuthenticated ? "/app" : "/docs/getting-started";
+  const checkoutIntentPath = buildCheckoutIntentPath(tier, billing);
+  if (checkoutIntentPath) {
+    if (!isAuthenticated) {
+      return `/login?next=${encodeURIComponent(checkoutIntentPath)}`;
+    }
+    return checkoutIntentPath;
+  }
   if (!isAuthenticated) {
     return "/login?next=/app/upgrade";
-  }
-  if (tier.checkoutPlan) {
-    return `/app/upgrade?plan=${tier.checkoutPlan}`;
   }
   return isAuthenticated ? "/app" : "/docs/getting-started";
 }
@@ -177,7 +201,11 @@ export function Pricing({ user }: { user?: User | null }): React.JSX.Element {
           {visibleTiers.map((tier) => {
             const price = isYearly ? tier.yearlyPrice : tier.monthlyPrice;
             const isCustom = price === "Custom";
-            const ctaHref = getTierCtaHref(tier, Boolean(effectiveUser));
+            const ctaHref = getTierCtaHref(
+              tier,
+              Boolean(effectiveUser),
+              isYearly ? "annual" : "monthly",
+            );
             
             return (
               <div key={tier.name} className={`relative ${tier.highlighted ? "pt-3 -mt-4 mb-[-16px] md:-mt-6 md:mb-[-24px]" : ""}`}>

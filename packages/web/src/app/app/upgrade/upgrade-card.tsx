@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Check } from "@/components/icons/ui"
 import { toast } from "sonner"
 
@@ -10,6 +10,8 @@ type CheckoutPlan = "individual" | "team" | "growth"
 interface UpgradeCardProps {
   ownerType: "user" | "organization"
   initialPlan?: CheckoutPlan
+  initialBilling?: BillingInterval
+  autoCheckout?: boolean
 }
 
 interface PlanConfig {
@@ -59,23 +61,32 @@ const PLAN_CONFIG: Record<CheckoutPlan, PlanConfig> = {
   },
 }
 
-export function UpgradeCard({ ownerType, initialPlan }: UpgradeCardProps): React.JSX.Element {
+export function UpgradeCard({
+  ownerType,
+  initialPlan,
+  initialBilling,
+  autoCheckout = false,
+}: UpgradeCardProps): React.JSX.Element {
   const availablePlans = useMemo<CheckoutPlan[]>(
     () => (ownerType === "organization" ? ["team", "growth"] : ["individual", "growth"]),
     [ownerType]
   )
+  const hasInitialPlan = Boolean(initialPlan && availablePlans.includes(initialPlan))
   const defaultPlan = useMemo<CheckoutPlan>(
-    () => (initialPlan && availablePlans.includes(initialPlan) ? initialPlan : availablePlans[0]),
-    [availablePlans, initialPlan]
+    () => (hasInitialPlan ? (initialPlan as CheckoutPlan) : availablePlans[0]),
+    [availablePlans, hasInitialPlan, initialPlan]
   )
+  const defaultBilling: BillingInterval = initialBilling === "monthly" ? "monthly" : "annual"
+  const shouldAutoCheckout = autoCheckout && hasInitialPlan
   const [plan, setPlan] = useState<CheckoutPlan>(defaultPlan)
-  const [billing, setBilling] = useState<BillingInterval>("annual")
+  const [billing, setBilling] = useState<BillingInterval>(defaultBilling)
   const [loading, setLoading] = useState(false)
+  const autoCheckoutTriggeredRef = useRef(false)
 
   const config = PLAN_CONFIG[plan]
   const amount = billing === "annual" ? config.annualPrice : config.monthlyPrice
 
-  async function handleSubscribe() {
+  const handleSubscribe = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch("/api/stripe/checkout", {
@@ -107,7 +118,13 @@ export function UpgradeCard({ ownerType, initialPlan }: UpgradeCardProps): React
       toast.error(error instanceof Error ? error.message : "Failed to start checkout. Please try again.")
       setLoading(false)
     }
-  }
+  }, [billing, plan])
+
+  useEffect(() => {
+    if (!shouldAutoCheckout || autoCheckoutTriggeredRef.current) return
+    autoCheckoutTriggeredRef.current = true
+    void handleSubscribe()
+  }, [handleSubscribe, shouldAutoCheckout])
 
   return (
     <div className="w-full max-w-sm relative border border-primary/50 bg-primary/5 ring-1 ring-primary/20 p-8">

@@ -84,6 +84,16 @@ const GROWTH_FEATURES = [
   "Usage-based metering",
 ]
 
+function getSwitchPlanTarget(
+  ownerType: "user" | "organization",
+  currentPlan: WorkspacePlan,
+): "individual" | "team" | "growth" {
+  if (ownerType === "organization") {
+    return currentPlan === "growth" ? "team" : "growth"
+  }
+  return currentPlan === "growth" ? "individual" : "growth"
+}
+
 export function BillingContent({
   plan,
   hasStripeCustomer,
@@ -112,6 +122,8 @@ export function BillingContent({
         : PRO_FEATURES
   const tenantOverageProjects = Math.max(0, tenantRouting.totalTenantCount - GROWTH_INCLUDED_PROJECTS_PER_MONTH)
   const tenantProjectedOverage = tenantOverageProjects * GROWTH_OVERAGE_USD_PER_PROJECT
+  const switchPlanTarget = getSwitchPlanTarget(ownerType, plan)
+  const switchPlanHref = `/app/upgrade?plan=${switchPlanTarget}`
 
   async function handleManageBilling() {
     if (!canManageBilling) return
@@ -304,17 +316,28 @@ export function BillingContent({
                   </span>
                 ))}
               </div>
-              {hasStripeCustomer && canManageBilling && (
-                <button
-                  onClick={handleManageBilling}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 bg-muted/30 hover:bg-muted/50 text-sm font-medium transition-colors disabled:opacity-50"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  {loading ? "Loading..." : "Manage Subscription"}
-                </button>
+              {canManageBilling && (
+                <div className="flex flex-wrap items-center gap-3">
+                  {hasStripeCustomer && (
+                    <button
+                      onClick={handleManageBilling}
+                      disabled={loading}
+                      className="flex items-center gap-2 px-4 py-2 bg-muted/30 hover:bg-muted/50 text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {loading ? "Loading..." : "Manage Subscription"}
+                    </button>
+                  )}
+                  <Link
+                    href={switchPlanHref}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                  >
+                    <Zap className="h-4 w-4" />
+                    Switch Plan
+                  </Link>
+                </div>
               )}
-              {hasStripeCustomer && !canManageBilling && (
+              {!canManageBilling && (
                 <p className="text-xs text-muted-foreground">
                   Billing changes are restricted to the organization owner.
                 </p>
