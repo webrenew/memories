@@ -91,6 +91,36 @@ describe("/api/orgs/[orgId]/github-capture/settings", () => {
     })
   })
 
+  it("returns 500 when GET membership lookup fails", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "DB read failed" },
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await GET(new Request("https://example.com/api/orgs/org-1/github-capture/settings"), {
+      params: Promise.resolve({ orgId: "org-1" }),
+    })
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to load settings",
+    })
+  })
+
   it("saves normalized org capture policy", async () => {
     const insertedRow = {
       id: "settings-1",
@@ -161,5 +191,40 @@ describe("/api/orgs/[orgId]/github-capture/settings", () => {
     })
 
     expect(mockLogOrgAuditEvent).toHaveBeenCalledTimes(1)
+  })
+
+  it("returns 500 when PATCH membership lookup fails", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "DB read failed" },
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/orgs/org-1/github-capture/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ include_prerelease: false }),
+      }),
+      { params: Promise.resolve({ orgId: "org-1" }) },
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Failed to save settings",
+    })
   })
 })

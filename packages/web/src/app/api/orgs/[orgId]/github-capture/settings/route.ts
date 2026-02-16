@@ -128,12 +128,22 @@ export async function GET(
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("org_members")
     .select("role")
     .eq("org_id", orgId)
     .eq("user_id", user.id)
     .single()
+
+  if (membershipError) {
+    console.error("Failed to verify GitHub capture settings access:", {
+      error: membershipError,
+      orgId,
+      userId: user.id,
+      method: "GET",
+    })
+    return NextResponse.json({ error: "Failed to load settings" }, { status: 500 })
+  }
 
   const role = (membership as OrgMembershipRow | null)?.role
   if (!canManage(role)) {
@@ -184,12 +194,22 @@ export async function PATCH(
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("org_members")
     .select("role")
     .eq("org_id", orgId)
     .eq("user_id", user.id)
     .single()
+
+  if (membershipError) {
+    console.error("Failed to verify GitHub capture settings access:", {
+      error: membershipError,
+      orgId,
+      userId: user.id,
+      method: "PATCH",
+    })
+    return NextResponse.json({ error: "Failed to save settings" }, { status: 500 })
+  }
 
   const role = (membership as OrgMembershipRow | null)?.role
   if (!canManage(role)) {
