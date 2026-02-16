@@ -24,7 +24,7 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mockCheckRateLimit,
 }))
 
-import { GET } from "./route"
+import { GET, PATCH } from "./route"
 
 describe("/api/github/capture/settings GET", () => {
   beforeEach(() => {
@@ -61,6 +61,50 @@ describe("/api/github/capture/settings GET", () => {
     })
 
     const response = await GET()
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: "Failed to load settings",
+    })
+  })
+})
+
+describe("/api/github/capture/settings PATCH", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCheckRateLimit.mockResolvedValue(null)
+  })
+
+  it("returns 500 with stable error when existing settings lookup fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "github_capture_settings") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "db timeout" },
+                }),
+              }),
+            }),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/github/capture/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          allowed_events: ["issues"],
+        }),
+      }),
+    )
+
     expect(response.status).toBe(500)
     await expect(response.json()).resolves.toEqual({
       error: "Failed to load settings",

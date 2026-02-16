@@ -178,11 +178,11 @@ export async function PATCH(request: Request): Promise<Response> {
       )
     }
 
-    const message =
-      typeof existingError === "object" && existingError !== null && "message" in existingError
-        ? String((existingError as { message?: unknown }).message ?? "Failed to load settings")
-        : "Failed to load settings"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("Failed to load existing GitHub capture settings for update:", {
+      userId: user.id,
+      error: existingError,
+    })
+    return NextResponse.json({ error: "Failed to load settings" }, { status: 500 })
   }
 
   const timestamp = new Date().toISOString()
