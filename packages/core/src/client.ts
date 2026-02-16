@@ -509,13 +509,13 @@ export class MemoriesClient {
 
     tenants: {
       list: async (): Promise<ManagementTenantListResult> => {
-        const endpoint = "/api/sdk/v1/management/tenants"
+        const endpoint = "/api/sdk/v1/management/tenant-overrides"
         const result = await this.callSdkRequest(endpoint, { method: "GET" })
         return parseStructuredData(managementTenantListSchema, endpoint, result.structured)
       },
 
       upsert: async (input: ManagementTenantUpsertInput): Promise<ManagementTenantUpsertResult> => {
-        const endpoint = "/api/sdk/v1/management/tenants"
+        const endpoint = "/api/sdk/v1/management/tenant-overrides"
         const result = await this.callSdkRequest(endpoint, {
           method: "POST",
           body: {
@@ -531,7 +531,7 @@ export class MemoriesClient {
       },
 
       disable: async (tenantId: string): Promise<ManagementTenantDisableResult> => {
-        const endpoint = "/api/sdk/v1/management/tenants"
+        const endpoint = "/api/sdk/v1/management/tenant-overrides"
         const normalizedTenantId = tenantId?.trim()
         if (!normalizedTenantId) {
           throw new MemoriesClientError("tenantId is required", {

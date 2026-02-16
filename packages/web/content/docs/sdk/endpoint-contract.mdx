@@ -39,7 +39,8 @@ https://memories.sh
 | Graph | `/api/sdk/v1/graph/trace` | `POST` | Bearer API key (`mem_...`) |
 | Graph | `/api/sdk/v1/graph/rollout` | `GET`, `POST`, `PATCH` | Bearer API key (`mem_...`) |
 | Management | `/api/sdk/v1/management/keys` | `GET`, `POST`, `DELETE` | Legacy management auth (session/legacy path) |
-| Management | `/api/sdk/v1/management/tenants` | `GET`, `POST`, `DELETE` | Legacy management auth (session/legacy path) |
+| Management | `/api/sdk/v1/management/tenant-overrides` | `GET`, `POST`, `DELETE` | Bearer API key (`mem_...`) or session |
+| Management | `/api/sdk/v1/management/tenants` | `GET`, `POST`, `DELETE` | Legacy compatibility wrapper |
 
 Legacy aliases are still available:
 
@@ -59,9 +60,8 @@ Content-Type: application/json
 
 ### Management endpoints
 
-`/api/sdk/v1/management/*` is currently a compatibility wrapper over legacy management routes and uses the same auth path as those endpoints.
-
-If you are doing headless server-to-server management calls, validate auth flow in your environment before rollout.
+Use `/api/sdk/v1/management/tenant-overrides` for headless server-to-server tenant routing management.
+`/api/sdk/v1/management/tenants` remains available as a legacy compatibility wrapper.
 
 ## Canonical Response Envelope
 
@@ -586,7 +586,8 @@ Response `data`:
 
 ## Management Endpoint Contracts
 
-`/api/sdk/v1/management/*` currently wraps legacy `/api/mcp/*` responses into SDK envelopes.
+`/api/sdk/v1/management/tenant-overrides` is the primary tenant override API.
+`/api/sdk/v1/management/tenants` and `/api/mcp/tenants` remain legacy-compatible aliases.
 
 ### `GET|POST|DELETE /api/sdk/v1/management/keys`
 
@@ -602,7 +603,7 @@ Response `data`:
 }
 ```
 
-### `GET|POST|DELETE /api/sdk/v1/management/tenants`
+### `GET|POST|DELETE /api/sdk/v1/management/tenant-overrides`
 
 - `GET`: list AI SDK Projects (`tenantId` mappings)
 - `POST`: upsert AI SDK Project mapping
@@ -635,7 +636,7 @@ Attach mode request:
 `DELETE` example:
 
 ```http
-DELETE /api/sdk/v1/management/tenants?tenantId=acme-prod
+DELETE /api/sdk/v1/management/tenant-overrides?tenantId=acme-prod
 ```
 
 ## cURL Quick Reference

@@ -15,7 +15,7 @@ import {
 
 const TURSO_ORG = getTursoOrgSlug()
 const LEGACY_ENDPOINT = "/api/mcp/tenants"
-const SUCCESSOR_ENDPOINT = "/api/sdk/v1/management/tenants"
+const SUCCESSOR_ENDPOINT = "/api/sdk/v1/management/tenant-overrides"
 const LEGACY_SUNSET = "Tue, 30 Jun 2026 00:00:00 GMT"
 
 const tenantIdSchema = z.string().trim().min(1, "tenantId is required").max(120, "tenantId is too long")

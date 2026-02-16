@@ -267,10 +267,10 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Key className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold">Step 1: API Key</h3>
+            <h3 className="font-semibold">API Key</h3>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Generate a `mem_` key for SDK runtime calls and MCP clients.
+            Generate a `mem_` key for SDK runtime calls and MCP clients. Tenant databases auto-route by `tenantId`.
           </p>
         </div>
 

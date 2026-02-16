@@ -12,7 +12,7 @@ Use MCP routing only when you are serving MCP-native clients.
 
 ## What is an AI SDK Project?
 
-In the dashboard, an **AI SDK Project** is a `tenantId` mapping to an isolated memory database.
+In the dashboard, an **AI SDK Project** is a `tenantId` boundary that routes to an isolated memory database.
 
 - One project per customer workspace, org, environment, or app surface
 - Works for solo devs and teams
@@ -22,10 +22,9 @@ In the dashboard, an **AI SDK Project** is a `tenantId` mapping to an isolated m
 
 1. Open **Dashboard → AI SDK Projects**.
 2. Generate a `mem_...` API key.
-3. Create your first project:
-   - **Attach Existing DB** (recommended): map an existing Turso database.
-   - **Provision New Project DB**: create a new Turso DB from the dashboard.
-4. Use that `tenantId` from your backend when calling memories.
+3. Use backend-derived `tenantId` values in SDK requests.
+4. Runtime provisions or resolves tenant DBs automatically on first use (when server provisioning is enabled).
+5. Use **Tenant Overrides** only for explicit DB attachment/provisioning control.
 
 ## Scope Cheat Sheet
 
