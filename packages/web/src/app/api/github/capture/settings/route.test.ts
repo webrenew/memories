@@ -110,4 +110,63 @@ describe("/api/github/capture/settings PATCH", () => {
       error: "Failed to load settings",
     })
   })
+
+  it("returns 500 with stable error when settings save fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "github_capture_settings") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "settings-1",
+                      allowed_events: ["issues"],
+                      repo_allow_list: [],
+                      repo_block_list: [],
+                      branch_filters: [],
+                      label_filters: [],
+                      actor_filters: [],
+                      include_prerelease: false,
+                      updated_at: null,
+                    },
+                  ],
+                  error: null,
+                }),
+              }),
+            }),
+          })),
+          update: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn(() => ({
+                single: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: { message: "db write failed" },
+                }),
+              })),
+            }),
+          })),
+        }
+      }
+
+      return {}
+    })
+
+    const response = await PATCH(
+      new Request("https://example.com/api/github/capture/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          allowed_events: ["issues", "pull_request"],
+        }),
+      }),
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: "Failed to save settings",
+    })
+  })
 })

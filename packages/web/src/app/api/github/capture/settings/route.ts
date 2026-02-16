@@ -219,8 +219,11 @@ export async function PATCH(request: Request): Promise<Response> {
       )
     }
 
-    const message = response.error?.message ?? "Failed to save settings"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("Failed to save GitHub capture settings:", {
+      userId: user.id,
+      error: response.error,
+    })
+    return NextResponse.json({ error: "Failed to save settings" }, { status: 500 })
   }
 
   const row = response.data as GithubCaptureSettingsRow
