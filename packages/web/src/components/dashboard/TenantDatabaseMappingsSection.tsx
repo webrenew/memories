@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import { AlertTriangle, Database, Link2, RefreshCw, Server, Trash2 } from "lucide-react"
+import { AlertTriangle, ChevronDown, ChevronRight, Database, Link2, RefreshCw, Server, Trash2 } from "lucide-react"
 import { extractErrorMessage } from "@/lib/client-errors"
 import { recordClientWorkflowEvent } from "@/lib/client-workflow-debug"
 import type { WorkspacePlan } from "@/lib/workspace"
@@ -85,6 +85,7 @@ export function TenantDatabaseMappingsSection({
   const [refreshing, setRefreshing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [disablingTenantId, setDisablingTenantId] = useState<string | null>(null)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const isGrowthPlan = workspacePlan === "growth"
@@ -96,7 +97,7 @@ export function TenantDatabaseMappingsSection({
 
   const fetchMappings = useCallback(
     async (opts?: { silent?: boolean }) => {
-      if (!isGrowthPlan || !hasApiKey || apiKeyExpired) {
+      if (!hasApiKey || apiKeyExpired) {
         setMappings([])
         setError(null)
         return
@@ -127,12 +128,24 @@ export function TenantDatabaseMappingsSection({
         setRefreshing(false)
       }
     },
-    [apiKeyExpired, hasApiKey, isGrowthPlan]
+    [apiKeyExpired, hasApiKey]
   )
 
   useEffect(() => {
     void fetchMappings()
   }, [fetchMappings])
+
+  const routingSummary = useMemo(() => {
+    const total = sortedMappings.length
+    const ready = sortedMappings.filter((mapping) => mapping.status === "ready").length
+    const auto = sortedMappings.filter((mapping) => mapping.source === "auto").length
+    const overrides = sortedMappings.filter((mapping) => mapping.source === "override").length
+
+    return { total, ready, auto, overrides }
+  }, [sortedMappings])
+
+  const keyHealth = !hasApiKey ? "missing" : apiKeyExpired ? "expired" : "healthy"
+  const canInspectRouting = hasApiKey && !apiKeyExpired
 
   async function handleCreateOrAttach() {
     if (!isGrowthPlan) {
@@ -231,6 +244,11 @@ export function TenantDatabaseMappingsSection({
   }
 
   async function handleDisable(tenantToDisable: string) {
+    if (!isGrowthPlan) {
+      setError("Upgrade to Growth to disable tenant overrides.")
+      return
+    }
+
     if (!confirm(`Disable tenant override ${tenantToDisable}?`)) {
       return
     }
@@ -296,233 +314,297 @@ export function TenantDatabaseMappingsSection({
       </div>
 
       <div className="p-4 space-y-4">
-        {!hasApiKey ? (
-          <p className="text-sm text-muted-foreground">
-            Generate an API key first, then tenant routing works automatically on first use.
-          </p>
-        ) : apiKeyExpired ? (
-          <p className="text-sm text-muted-foreground">
-            Your API key is expired. Regenerate it before managing tenant routing.
-          </p>
-        ) : !isGrowthPlan ? (
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
-            <p className="text-sm text-amber-200 font-medium">
-              Growth plan required
-            </p>
-            <p className="text-sm text-amber-100/90">
-              Tenant override management is a Growth feature. Your current workspace plan is{" "}
-              <span className="font-semibold uppercase">{workspacePlan.replace("_", " ")}</span>.
-            </p>
-            <a
-              href="/app/upgrade?plan=growth&source=sdk-projects"
-              className="inline-flex items-center px-3 py-2 text-xs font-semibold rounded border border-primary bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
-            >
-              Upgrade to Growth
-            </a>
-          </div>
-        ) : (
-          <>
-            <div className="rounded-md border border-border bg-muted/20 p-3">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                `tenantId` is your SaaS security/database boundary and is separate from git `projectId`. Runtime
-                provisioning is automatic; use overrides only for migrations, regional sharding, or pre-existing DBs.
-              </p>
-            </div>
-
-            <div className="border border-amber-500/30 bg-amber-500/10 rounded-md p-3 space-y-2">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-amber-200">Overrides can increase infrastructure spend</p>
-                  <p className="text-sm text-amber-100/80 mt-1">
-                    Provision mode creates a new Turso database for the specified tenant. Use attach mode for existing DBs.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="border border-border bg-muted/20 rounded-md p-3 space-y-3">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMode("provision")}
-                  className={`px-3 py-1.5 text-xs rounded border transition-colors ${
-                    mode === "provision"
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border hover:bg-muted/30"
-                  }`}
-                >
-                  <Server className="h-3 w-3 inline mr-1.5" />
-                  Provision Override DB
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("attach")}
-                  className={`px-3 py-1.5 text-xs rounded border transition-colors ${
-                    mode === "attach"
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border hover:bg-muted/30"
-                  }`}
-                >
-                  <Link2 className="h-3 w-3 inline mr-1.5" />
-                  Attach Override DB
-                </button>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-1">
-                  <span className="text-xs text-muted-foreground">Tenant ID (`tenantId`)</span>
-                  <input
-                    value={tenantId}
-                    onChange={(event) => setTenantId(event.target.value)}
-                    placeholder="acme-prod"
-                    className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
-                  />
-                </label>
-
-                <label className="space-y-1">
-                  <span className="text-xs text-muted-foreground">Project Metadata (JSON)</span>
-                  <input
-                    value={metadataInput}
-                    onChange={(event) => setMetadataInput(event.target.value)}
-                    placeholder='{"environment":"production"}'
-                    className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
-                  />
-                </label>
-              </div>
-
-              {mode === "attach" && (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <label className="space-y-1 md:col-span-2">
-                    <span className="text-xs text-muted-foreground">Database URL (`tursoDbUrl`)</span>
-                    <input
-                      value={tursoDbUrl}
-                      onChange={(event) => setTursoDbUrl(event.target.value)}
-                      placeholder="libsql://tenant-db.turso.io"
-                      className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
-                    />
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs text-muted-foreground">Database Token (`tursoDbToken`)</span>
-                    <input
-                      type="password"
-                      value={tursoDbToken}
-                      onChange={(event) => setTursoDbToken(event.target.value)}
-                      placeholder="token"
-                      className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
-                    />
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs text-muted-foreground">Database Name (`tursoDbName`, optional)</span>
-                    <input
-                      value={tursoDbName}
-                      onChange={(event) => setTursoDbName(event.target.value)}
-                      placeholder="tenant-db"
-                      className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
-                    />
-                  </label>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleCreateOrAttach}
-                disabled={saving}
-                className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
+        <div className="rounded-md border border-border bg-muted/20 p-3 space-y-3">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded border border-border bg-background/40 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">API key health</p>
+              <p
+                className={`mt-1 text-sm font-medium ${
+                  keyHealth === "healthy"
+                    ? "text-green-400"
+                    : keyHealth === "expired"
+                      ? "text-amber-300"
+                      : "text-red-300"
+                }`}
               >
-                {saving
-                  ? mode === "provision"
-                    ? "Provisioning Override..."
-                    : "Attaching Override..."
-                  : mode === "provision"
-                    ? "Provision Tenant Override"
-                    : "Attach Tenant Override"}
-              </button>
-
-              <p className="text-sm text-muted-foreground">
-                Mappings are owner-scoped and remain stable across API key rotation.
+                {keyHealth === "healthy" ? "Healthy" : keyHealth === "expired" ? "Expired" : "Missing"}
               </p>
             </div>
+            <div className="rounded border border-border bg-background/40 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Routing mode</p>
+              <p className="mt-1 text-sm font-medium">Automatic</p>
+            </div>
+            <div className="rounded border border-border bg-background/40 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Known mappings</p>
+              <p className="mt-1 text-sm font-medium">
+                {canInspectRouting ? (loading ? "Loading..." : `${routingSummary.total}`) : "Unavailable"}
+              </p>
+            </div>
+          </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">Current Tenant Mappings</p>
-                <button
-                  type="button"
-                  onClick={() => void fetchMappings({ silent: true })}
-                  disabled={refreshing || loading}
-                  className="flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded hover:bg-muted/30 transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
-                  Refresh
-                </button>
-              </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Use a stable `tenantId` in SDK calls. On first request, routing automatically resolves or provisions a tenant
+            database. Manual overrides are only needed for special cases like migration, regional sharding, or existing
+            Turso fleets.
+          </p>
 
-              {loading ? (
-                <div className="animate-pulse h-20 bg-muted/20 rounded" />
-              ) : sortedMappings.length === 0 ? (
-                <div className="border border-dashed border-border rounded p-4 text-sm text-muted-foreground">
-                  No tenant overrides configured. Automatic tenant provisioning remains active.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {sortedMappings.map((mapping) => (
-                    <div key={mapping.tenantId} className="border border-border rounded p-3 bg-muted/10 space-y-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm truncate">{mapping.tenantId}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {mapping.tursoDbName || hostFromLibsql(mapping.tursoDbUrl)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border rounded ${sourceClass(mapping.source)}`}>
-                            {mapping.source}
-                          </span>
-                          <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border rounded ${statusClass(mapping.status)}`}>
-                            {mapping.status}
-                          </span>
-                        </div>
+          {canInspectRouting && !loading && (
+            <p className="text-xs text-muted-foreground">
+              Ready: {routingSummary.ready} · Auto: {routingSummary.auto} · Overrides: {routingSummary.overrides}
+            </p>
+          )}
+
+          {!hasApiKey && (
+            <p className="text-xs text-amber-300">
+              Generate an API key to activate automatic routing and inspect tenant mappings.
+            </p>
+          )}
+          {apiKeyExpired && hasApiKey && (
+            <p className="text-xs text-amber-300">
+              Your API key is expired. Regenerate it before inspecting or managing tenant routing.
+            </p>
+          )}
+        </div>
+
+        <div className="border border-border rounded-md bg-muted/10">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((value) => !value)}
+            className="w-full flex items-center justify-between gap-3 p-3 text-left hover:bg-muted/20 transition-colors"
+          >
+            <span className="inline-flex items-center gap-2 text-sm font-medium">
+              {showAdvanced ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              Advanced: Tenant Overrides
+            </span>
+            <span className="text-xs text-muted-foreground">{showAdvanced ? "Hide" : "Show"}</span>
+          </button>
+
+          {showAdvanced && (
+            <div className="px-3 pb-3 space-y-4 border-t border-border">
+              <p className="pt-3 text-xs text-muted-foreground leading-relaxed">
+                Overrides pin a specific tenant to a specific database. This is optional and should be used only when
+                automatic routing is not sufficient.
+              </p>
+
+              {isGrowthPlan && (
+                <>
+                  <div className="border border-amber-500/30 bg-amber-500/10 rounded-md p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-200">Overrides can increase infrastructure spend</p>
+                        <p className="text-sm text-amber-100/80 mt-1">
+                          Provision mode creates a new Turso database for the specified tenant. Use attach mode for existing DBs.
+                        </p>
                       </div>
-
-                      <p className="text-xs text-muted-foreground break-all">
-                        Host: {hostFromLibsql(mapping.tursoDbUrl)}
-                      </p>
-
-                      <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-                        <p>Updated: {formatDateTime(mapping.updatedAt)}</p>
-                        <p>Verified: {formatDateTime(mapping.lastVerifiedAt)}</p>
-                      </div>
-
-                      {Object.keys(mapping.metadata || {}).length > 0 && (
-                        <details className="text-xs text-muted-foreground">
-                          <summary className="cursor-pointer">Metadata</summary>
-                          <pre className="mt-1 bg-background/70 border border-border rounded p-2 overflow-x-auto">
-                            {JSON.stringify(mapping.metadata, null, 2)}
-                          </pre>
-                        </details>
-                      )}
-
-                      {mapping.status !== "disabled" && mapping.source === "override" && (
-                        <button
-                          type="button"
-                          onClick={() => void handleDisable(mapping.tenantId)}
-                          disabled={disablingTenantId === mapping.tenantId}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-red-400 border border-red-500/30 rounded hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          {disablingTenantId === mapping.tenantId ? "Disabling..." : "Disable Mapping"}
-                        </button>
-                      )}
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="border border-border bg-muted/20 rounded-md p-3 space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMode("provision")}
+                        className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                          mode === "provision"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border hover:bg-muted/30"
+                        }`}
+                      >
+                        <Server className="h-3 w-3 inline mr-1.5" />
+                        Provision Override DB
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode("attach")}
+                        className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                          mode === "attach"
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "border-border hover:bg-muted/30"
+                        }`}
+                      >
+                        <Link2 className="h-3 w-3 inline mr-1.5" />
+                        Attach Override DB
+                      </button>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Tenant ID (`tenantId`)</span>
+                        <input
+                          value={tenantId}
+                          onChange={(event) => setTenantId(event.target.value)}
+                          placeholder="acme-prod"
+                          className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
+                        />
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Project Metadata (JSON)</span>
+                        <input
+                          value={metadataInput}
+                          onChange={(event) => setMetadataInput(event.target.value)}
+                          placeholder='{"environment":"production"}'
+                          className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
+                        />
+                      </label>
+                    </div>
+
+                    {mode === "attach" && (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className="space-y-1 md:col-span-2">
+                          <span className="text-xs text-muted-foreground">Database URL (`tursoDbUrl`)</span>
+                          <input
+                            value={tursoDbUrl}
+                            onChange={(event) => setTursoDbUrl(event.target.value)}
+                            placeholder="libsql://tenant-db.turso.io"
+                            className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-xs text-muted-foreground">Database Token (`tursoDbToken`)</span>
+                          <input
+                            type="password"
+                            value={tursoDbToken}
+                            onChange={(event) => setTursoDbToken(event.target.value)}
+                            placeholder="token"
+                            className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
+                          />
+                        </label>
+
+                        <label className="space-y-1">
+                          <span className="text-xs text-muted-foreground">Database Name (`tursoDbName`, optional)</span>
+                          <input
+                            value={tursoDbName}
+                            onChange={(event) => setTursoDbName(event.target.value)}
+                            placeholder="tenant-db"
+                            className="w-full bg-background px-3 py-2 rounded text-sm border border-border focus:outline-none focus:border-primary/50"
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleCreateOrAttach}
+                      disabled={saving || !canInspectRouting}
+                      className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {saving
+                        ? mode === "provision"
+                          ? "Provisioning Override..."
+                          : "Attaching Override..."
+                        : mode === "provision"
+                          ? "Provision Tenant Override"
+                          : "Attach Tenant Override"}
+                    </button>
+
+                    <p className="text-sm text-muted-foreground">
+                      Overrides are owner-scoped and remain stable across API key rotation.
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {!isGrowthPlan && (
+                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-4 space-y-3">
+                  <p className="text-sm text-amber-200 font-medium">Growth plan required for override management</p>
+                  <p className="text-sm text-amber-100/90">
+                    Attach/provision/disable actions require Growth. Your current workspace plan is{" "}
+                    <span className="font-semibold uppercase">{workspacePlan.replace("_", " ")}</span>.
+                  </p>
+                  <a
+                    href="/app/upgrade?plan=growth&source=sdk-projects"
+                    className="inline-flex items-center px-3 py-2 text-xs font-semibold rounded border border-primary bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
+                  >
+                    Upgrade to Growth
+                  </a>
                 </div>
               )}
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Current Tenant Mappings</p>
+                  <button
+                    type="button"
+                    onClick={() => void fetchMappings({ silent: true })}
+                    disabled={refreshing || loading || !canInspectRouting}
+                    className="flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded hover:bg-muted/30 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+                    Refresh
+                  </button>
+                </div>
+
+                {!canInspectRouting ? (
+                  <div className="border border-dashed border-border rounded p-4 text-sm text-muted-foreground">
+                    Generate a valid API key to inspect tenant mappings.
+                  </div>
+                ) : loading ? (
+                  <div className="animate-pulse h-20 bg-muted/20 rounded" />
+                ) : sortedMappings.length === 0 ? (
+                  <div className="border border-dashed border-border rounded p-4 text-sm text-muted-foreground">
+                    No tenant overrides configured. Automatic tenant provisioning remains active.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {sortedMappings.map((mapping) => (
+                      <div key={mapping.tenantId} className="border border-border rounded p-3 bg-muted/10 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">{mapping.tenantId}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {mapping.tursoDbName || hostFromLibsql(mapping.tursoDbUrl)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border rounded ${sourceClass(mapping.source)}`}>
+                              {mapping.source}
+                            </span>
+                            <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border rounded ${statusClass(mapping.status)}`}>
+                              {mapping.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-muted-foreground break-all">
+                          Host: {hostFromLibsql(mapping.tursoDbUrl)}
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                          <p>Updated: {formatDateTime(mapping.updatedAt)}</p>
+                          <p>Verified: {formatDateTime(mapping.lastVerifiedAt)}</p>
+                        </div>
+
+                        {Object.keys(mapping.metadata || {}).length > 0 && (
+                          <details className="text-xs text-muted-foreground">
+                            <summary className="cursor-pointer">Metadata</summary>
+                            <pre className="mt-1 bg-background/70 border border-border rounded p-2 overflow-x-auto">
+                              {JSON.stringify(mapping.metadata, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+
+                        {isGrowthPlan && mapping.status !== "disabled" && mapping.source === "override" && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDisable(mapping.tenantId)}
+                            disabled={disablingTenantId === mapping.tenantId}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-red-400 border border-red-500/30 rounded hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            {disablingTenantId === mapping.tenantId ? "Disabling..." : "Disable Mapping"}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </>
-        )}
+          )}
+        </div>
 
         {statusMessage && <p className="text-xs text-green-400">{statusMessage}</p>}
         {error && <p className="text-xs text-red-400">{error}</p>}
