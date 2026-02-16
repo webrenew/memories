@@ -139,7 +139,7 @@ export async function GET(request: Request): Promise<Response> {
     .from("users")
     .select("id, plan, current_org_id, turso_db_url, turso_db_token")
     .eq("id", auth.userId)
-    .single()
+    .maybeSingle()
 
   const membershipsQueryStartedAt = Date.now()
   const membershipsPromise = admin
@@ -164,7 +164,15 @@ export async function GET(request: Request): Promise<Response> {
   const membershipsQueryMs = Math.max(0, Date.now() - membershipsQueryStartedAt)
   const summaryQueryMs = userQueryMs + membershipsQueryMs
 
-  if (userResult.error || !userResult.data) {
+  if (userResult.error) {
+    console.error("Failed to load workspace user row:", {
+      userId: auth.userId,
+      error: userResult.error,
+    })
+    return NextResponse.json({ error: "Failed to load workspace" }, { status: 500 })
+  }
+
+  if (!userResult.data) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 })
   }
 

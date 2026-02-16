@@ -36,7 +36,7 @@ describe("/api/workspace", () => {
         return {
           select: vi.fn(() => ({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
+              maybeSingle: vi.fn().mockResolvedValue({
                 data: {
                   id: "user-1",
                   plan: "free",
@@ -79,7 +79,7 @@ describe("/api/workspace", () => {
       return {
         select: vi.fn(() => ({
           eq: vi.fn(),
-          single: vi.fn(),
+          maybeSingle: vi.fn(),
         })),
       }
     })
@@ -117,7 +117,7 @@ describe("/api/workspace", () => {
         return {
           select: vi.fn(() => ({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: null, error: { message: "not found" } }),
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
             }),
           })),
         }
@@ -132,7 +132,7 @@ describe("/api/workspace", () => {
       return {
         select: vi.fn(() => ({
           eq: vi.fn(),
-          single: vi.fn(),
+          maybeSingle: vi.fn(),
         })),
       }
     })
@@ -148,7 +148,7 @@ describe("/api/workspace", () => {
         return {
           select: vi.fn(() => ({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
+              maybeSingle: vi.fn().mockResolvedValue({
                 data: {
                   id: "user-1",
                   plan: "free",
@@ -177,7 +177,46 @@ describe("/api/workspace", () => {
       return {
         select: vi.fn(() => ({
           eq: vi.fn(),
-          single: vi.fn(),
+          maybeSingle: vi.fn(),
+        })),
+      }
+    })
+
+    const response = await GET(new Request("https://example.com/api/workspace"))
+    expect(response.status).toBe(500)
+
+    const body = await response.json()
+    expect(body).toEqual({ error: "Failed to load workspace" })
+  })
+
+  it("returns 500 with a stable error when user lookup fails", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "user@example.com" })
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: { message: "query timeout" },
+              }),
+            }),
+          })),
+        }
+      }
+
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(),
+          maybeSingle: vi.fn(),
         })),
       }
     })
