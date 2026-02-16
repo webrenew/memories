@@ -57,7 +57,7 @@ const individualTiers: PricingTier[] = [
       { key: "support", label: "Priority support" },
     ],
     cta: "Choose Individual",
-    highlighted: true,
+    highlighted: false,
     checkoutPlan: "individual",
   },
 ];
@@ -181,10 +181,10 @@ export function Pricing({ user }: { user?: User | null }): React.JSX.Element {
             
             return (
               <div key={tier.name} className={`relative ${tier.highlighted ? "pt-3 -mt-4 mb-[-16px] md:-mt-6 md:mb-[-24px]" : ""}`}>
-                {/* Recommended badge — outside overflow-hidden so it's never clipped */}
+                {/* Popular badge — outside overflow-hidden so it's never clipped */}
                 {tier.highlighted && (
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 px-3 py-0.5 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-widest rounded-md z-10">
-                    Recommended
+                    Popular
                   </div>
                 )}
 
