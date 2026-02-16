@@ -141,6 +141,54 @@ describe("/api/workspace", () => {
     expect(response.status).toBe(404)
   })
 
+  it("returns 500 with a stable error when memberships lookup fails", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "user@example.com" })
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: "user-1",
+                  plan: "free",
+                  current_org_id: "org-1",
+                  turso_db_url: null,
+                  turso_db_token: null,
+                },
+                error: null,
+              }),
+            }),
+          })),
+        }
+      }
+
+      if (table === "org_members") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({
+              data: null,
+              error: { message: "db timeout" },
+            }),
+          })),
+        }
+      }
+
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(),
+          single: vi.fn(),
+        })),
+      }
+    })
+
+    const response = await GET(new Request("https://example.com/api/workspace"))
+    expect(response.status).toBe(500)
+
+    const body = await response.json()
+    expect(body).toEqual({ error: "Failed to load workspace" })
+  })
+
   it("returns workspace summaries when requested", async () => {
     mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "user@example.com" })
     const response = await GET(

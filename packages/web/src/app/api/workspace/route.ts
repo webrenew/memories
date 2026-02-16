@@ -169,7 +169,11 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   if (membershipsResult.error) {
-    return NextResponse.json({ error: membershipsResult.error.message }, { status: 500 })
+    console.error("Failed to load workspace memberships:", {
+      userId: auth.userId,
+      error: membershipsResult.error,
+    })
+    return NextResponse.json({ error: "Failed to load workspace" }, { status: 500 })
   }
 
   const buildStartedAt = Date.now()
