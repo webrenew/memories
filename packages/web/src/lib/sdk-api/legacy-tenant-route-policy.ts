@@ -1,4 +1,25 @@
+import { type LegacyRouteAuthMode } from "@/lib/legacy-route-telemetry"
 import { NextResponse } from "next/server"
+
+export type LegacyMethod = "GET" | "POST" | "DELETE"
+
+export interface SdkEnvelopeLike {
+  ok?: boolean
+  data?: unknown
+  error?: {
+    message?: string
+    code?: string
+    details?: Record<string, unknown>
+  } | null
+}
+
+export function resolveLegacyRouteAuthMode(request: Request): LegacyRouteAuthMode {
+  const authorization = request.headers.get("authorization")
+  if (authorization?.startsWith("Bearer ")) {
+    return "api_key"
+  }
+  return "session"
+}
 
 export const LEGACY_MCP_TENANTS_ENDPOINT = "/api/mcp/tenants"
 export const LEGACY_MANAGEMENT_TENANTS_ENDPOINT = "/api/sdk/v1/management/tenants"
@@ -6,34 +27,6 @@ export const LEGACY_TENANT_SUCCESSOR_ENDPOINT = "/api/sdk/v1/management/tenant-o
 export const LEGACY_TENANT_SUNSET = "Tue, 30 Jun 2026 00:00:00 GMT"
 export const LEGACY_TENANT_WARNING =
   `299 - "Deprecated API: migrate to ${LEGACY_TENANT_SUCCESSOR_ENDPOINT} before ${LEGACY_TENANT_SUNSET}"`
-
-export const LEGACY_TENANT_MILESTONES = [
-  {
-    phase: "announce",
-    date: "2026-02-16",
-    detail: "Deprecation announced in docs and release notes. Compatibility wrappers enabled.",
-  },
-  {
-    phase: "warn",
-    date: "2026-04-01",
-    detail: "Warning header and telemetry alerts enforced for all legacy tenant route calls.",
-  },
-  {
-    phase: "enforce",
-    date: "2026-06-01",
-    detail: "New integrations are blocked from onboarding to legacy tenant routes.",
-  },
-  {
-    phase: "sunset",
-    date: "2026-06-30",
-    detail: "Legacy tenant routes reach announced sunset timestamp.",
-  },
-  {
-    phase: "remove",
-    date: "2026-07-15",
-    detail: "Legacy route handlers are removed after usage remains zero for 14 days.",
-  },
-] as const
 
 export const LEGACY_TENANT_PASSTHROUGH_HEADERS = [
   "Retry-After",

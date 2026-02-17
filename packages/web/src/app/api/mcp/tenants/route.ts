@@ -4,30 +4,13 @@ import {
   applyLegacyTenantHeaders,
   copySelectedHeaders,
   LEGACY_MCP_TENANTS_ENDPOINT,
+  type LegacyMethod,
   LEGACY_TENANT_PASSTHROUGH_HEADERS,
   LEGACY_TENANT_SUCCESSOR_ENDPOINT,
+  resolveLegacyRouteAuthMode,
+  type SdkEnvelopeLike,
 } from "@/lib/sdk-api/legacy-tenant-route-policy"
 import { NextRequest, NextResponse } from "next/server"
-
-type LegacyMethod = "GET" | "POST" | "DELETE"
-
-type SdkEnvelopeLike = {
-  ok?: boolean
-  data?: unknown
-  error?: {
-    message?: string
-    code?: string
-    details?: Record<string, unknown>
-  } | null
-}
-
-function resolveAuthMode(request: Request): LegacyRouteAuthMode {
-  const authorization = request.headers.get("authorization")
-  if (authorization?.startsWith("Bearer ")) {
-    return "api_key"
-  }
-  return "session"
-}
 
 function mapSdkEnvelopeToLegacyBody(payload: unknown, status: number): Record<string, unknown> {
   if (payload && typeof payload === "object") {
@@ -82,7 +65,7 @@ async function wrapLegacyResponse(
 ): Promise<NextResponse> {
   const payload = await response.json().catch(() => null)
   const body = mapSdkEnvelopeToLegacyBody(payload, response.status)
-  const authMode = resolveAuthMode(request)
+  const authMode = resolveLegacyRouteAuthMode(request)
 
   const legacyResponse = NextResponse.json(body, { status: response.status })
   copySelectedHeaders(response.headers, legacyResponse.headers, LEGACY_TENANT_PASSTHROUGH_HEADERS)

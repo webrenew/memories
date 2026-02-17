@@ -4,31 +4,14 @@ import {
   applyLegacyTenantHeaders,
   copySelectedHeaders,
   LEGACY_MANAGEMENT_TENANTS_ENDPOINT,
+  type LegacyMethod,
   LEGACY_TENANT_PASSTHROUGH_HEADERS,
   LEGACY_TENANT_SUCCESSOR_ENDPOINT,
+  resolveLegacyRouteAuthMode,
+  type SdkEnvelopeLike,
 } from "@/lib/sdk-api/legacy-tenant-route-policy"
 import { legacyErrorResponse, successResponse } from "@/lib/sdk-api/runtime"
 import { NextRequest, NextResponse } from "next/server"
-
-type LegacyMethod = "GET" | "POST" | "DELETE"
-
-type SdkEnvelopeLike = {
-  ok?: boolean
-  data?: unknown
-  error?: {
-    message?: string
-    code?: string
-    details?: Record<string, unknown>
-  } | null
-}
-
-function resolveAuthMode(request: Request): LegacyRouteAuthMode {
-  const authorization = request.headers.get("authorization")
-  if (authorization?.startsWith("Bearer ")) {
-    return "api_key"
-  }
-  return "session"
-}
 
 function logDeprecatedAccess(method: LegacyMethod, status: number, authMode: LegacyRouteAuthMode): void {
   console.warn(
@@ -43,7 +26,7 @@ async function wrapLegacyResponse(
   response: Response
 ): Promise<NextResponse> {
   const payload = await response.json().catch(() => null)
-  const authMode = resolveAuthMode(request)
+  const authMode = resolveLegacyRouteAuthMode(request)
 
   let wrapped: NextResponse
   if (payload && typeof payload === "object") {
