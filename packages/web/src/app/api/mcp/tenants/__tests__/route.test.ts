@@ -102,7 +102,7 @@ describe("/api/mcp/tenants legacy compatibility wrapper", () => {
         successorRoute: LEGACY_TENANT_SUCCESSOR_ENDPOINT,
         method: "GET",
         status: 200,
-        authMode: "session",
+        authMode: "unknown",
       })
     )
   })

@@ -19,8 +19,11 @@ function isMissingTableError(error: unknown, tableName: string): boolean {
   if (!error || typeof error !== "object") return false
   const maybe = error as { code?: string; message?: string }
   if (maybe.code === "42P01") return true
-  const message = maybe.message ?? ""
-  return typeof message === "string" && message.toLowerCase().includes(tableName)
+  const message = maybe.message?.toLowerCase() ?? ""
+  return (
+    message.includes(tableName.toLowerCase()) &&
+    (message.includes("does not exist") || message.includes("could not find the table"))
+  )
 }
 
 export async function recordLegacyRouteUsageEvent(input: LegacyRouteUsageEventInput): Promise<void> {
