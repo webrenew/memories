@@ -83,6 +83,7 @@ memories generate
 |------|--------|--------|
 | **Cursor** | `cursor` | `.cursor/rules/*.mdc` |
 | **Claude Code** | `claude` | `CLAUDE.md` + `.claude/rules/` + `.claude/skills/` |
+| **Factory (Droid)** | `factory` | `.factory/instructions.md` |
 | **GitHub Copilot** | `copilot` | `.github/copilot-instructions.md` |
 | **Windsurf** | `windsurf` | `.windsurf/rules/memories.md` |
 | **Gemini** | `gemini` | `GEMINI.md` |
@@ -109,6 +110,7 @@ memories generate agents
 # Step 2: Adapt to specific tools (or let it auto-detect)
 memories generate cursor    # .agents/ → .cursor/rules/
 memories generate claude    # .agents/ → CLAUDE.md + .claude/
+memories generate factory   # .agents/ → .factory/instructions.md
 memories generate all       # detect tools, generate everything
 ```
 

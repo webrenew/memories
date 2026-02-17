@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { TARGETS, TRACK_BY_DEFAULT } from "./generate-targets.js";
 
 describe("TARGETS", () => {
-  it("has 8 entries", () => {
-    expect(TARGETS.length).toBe(8);
+  it("has 9 entries", () => {
+    expect(TARGETS.length).toBe(9);
   });
 
   it("each target has name, defaultPath, description, and format", () => {
@@ -15,10 +15,11 @@ describe("TARGETS", () => {
     }
   });
 
-  it("includes cursor and claude targets", () => {
+  it("includes cursor, claude, and factory targets", () => {
     const names = TARGETS.map((t) => t.name);
     expect(names).toContain("cursor");
     expect(names).toContain("claude");
+    expect(names).toContain("factory");
   });
 
   it("each format function returns a string", () => {
@@ -30,8 +31,9 @@ describe("TARGETS", () => {
 });
 
 describe("TRACK_BY_DEFAULT", () => {
-  it("contains CLAUDE.md and .agents/", () => {
+  it("contains CLAUDE.md, .agents/, and Factory instructions", () => {
     expect(TRACK_BY_DEFAULT.has("CLAUDE.md")).toBe(true);
     expect(TRACK_BY_DEFAULT.has(".agents/")).toBe(true);
+    expect(TRACK_BY_DEFAULT.has(".factory/instructions.md")).toBe(true);
   });
 });

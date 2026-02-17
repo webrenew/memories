@@ -65,12 +65,12 @@ export const TOOLS: Tool[] = [
   {
     name: "Factory",
     detectPaths: [".factory", ".factory/instructions.md", ".factory/mcp.json"],
+    detectCommands: ["droid", "factory"],
     globalDetectPaths: [".factory"],
     mcpConfigPath: ".factory/mcp.json",
     mcpConfigFormat: "cursor",
     instructionFile: ".factory/instructions.md",
-    generateCmd: "claude",
-    generateArgs: ["--output", ".factory/instructions.md"],
+    generateCmd: "factory",
   },
   {
     name: "Kiro",
@@ -197,6 +197,7 @@ export const TOOLS: Tool[] = [
   {
     name: "Agent Harness (.agents)",
     detectPaths: [".agents", ".agents/instructions.md", "AGENTS.md", ".codex", ".opencode"],
+    detectCommands: ["codex"],
     instructionFile: ".agents/instructions.md",
     generateCmd: "agents",
   },

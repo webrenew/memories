@@ -24,6 +24,12 @@ export const TARGETS: Target[] = [
     format: (m) => `# Project Memories\n\n${formatMemoriesAsMarkdown(m)}`,
   },
   {
+    name: "factory",
+    defaultPath: ".factory/instructions.md",
+    description: "Factory (Droid) instructions (.factory/instructions.md)",
+    format: (m) => `# Project Memories\n\n${formatMemoriesAsMarkdown(m)}`,
+  },
+  {
     name: "agents",
     defaultPath: ".agents/",
     description: ".agents/ directory (instructions, rules, skills, settings)",
@@ -63,4 +69,10 @@ export const TARGETS: Target[] = [
 ];
 
 // Files users likely want git-tracked (shared with team)
-export const TRACK_BY_DEFAULT = new Set(["CLAUDE.md", ".agents/", "GEMINI.md", ".github/copilot-instructions.md"]);
+export const TRACK_BY_DEFAULT = new Set([
+  "CLAUDE.md",
+  ".agents/",
+  ".factory/instructions.md",
+  "GEMINI.md",
+  ".github/copilot-instructions.md",
+]);

@@ -63,6 +63,7 @@ memories serve
 | `agents` | `.agents/` (canonical directory) |
 | `cursor` | `.cursor/rules/*.mdc` |
 | `claude` | `CLAUDE.md` + `.claude/` |
+| `factory` | `.factory/instructions.md` |
 | `copilot` | `.github/copilot-instructions.md` |
 | `windsurf` | `.windsurf/rules/memories.md` |
 | `cline` | `.clinerules/memories.md` |

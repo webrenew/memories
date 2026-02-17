@@ -8,6 +8,7 @@ memories generate [target] [options]
 ```
 
 Generate native configuration files for AI coding tools from your memory store. Uses a two-step pipeline: memories are first written to a canonical `.agents/` directory, then adapted to each tool's native format.
+This command reads stored memories and writes files; it does not create new memories in the database.
 
 ## How It Works
 
@@ -27,6 +28,7 @@ This two-step pipeline means every tool gets the richest possible configuration 
 | `agents` | `.agents/` | Canonical tool-agnostic directory |
 | `cursor` | `.cursor/rules/` | Cursor rules with YAML frontmatter |
 | `claude` | `CLAUDE.md` + `.claude/` | Claude Code instructions and rules |
+| `factory` | `.factory/instructions.md` | Factory (Droid) instructions |
 | `copilot` | `.github/copilot-instructions.md` | GitHub Copilot instructions |
 | `windsurf` | `.windsurf/rules/memories.md` | Windsurf rules (6000 char limit) |
 | `cline` | `.clinerules/memories.md` | Cline rules |
@@ -64,7 +66,7 @@ memories generate cursor
 memories generate claude
 ```
 
-Generate for all detected tools:
+Generate for all detected targets:
 
 ```bash
 memories generate all

@@ -244,7 +244,7 @@ async function adaptForFlatFile(
 
 /** Target names that have adapter support. */
 export const ADAPTER_TARGETS = new Set([
-  "claude", "cursor", "copilot", "windsurf", "cline", "roo", "gemini",
+  "claude", "factory", "cursor", "copilot", "windsurf", "cline", "roo", "gemini",
 ]);
 
 /**
@@ -258,6 +258,7 @@ export async function runAdapter(
 ): Promise<AdaptResult | null> {
   switch (targetName) {
     case "claude": return adaptForClaude(agentsDir, outputDir);
+    case "factory": return adaptForFlatFile(agentsDir, join(outputDir, ".factory", "instructions.md"));
     case "cursor": return adaptForCursor(agentsDir, outputDir);
     case "copilot": return adaptForFlatFile(agentsDir, join(outputDir, ".github", "copilot-instructions.md"));
     case "windsurf": return adaptForFlatFile(agentsDir, join(outputDir, ".windsurf", "rules", "memories.md"), { maxLength: 6000 });
