@@ -110,9 +110,9 @@ export function OpenClawSetupCommandSequence(): React.JSX.Element {
   };
 
   return (
-    <div className="glass-panel p-6 rounded-xl border border-border">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+    <div className="glass-panel min-w-0 max-w-full rounded-xl border border-border p-6">
+      <div className="mb-5 flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex items-center gap-2">
           <div className="h-1.5 w-1.5 rounded-full bg-primary" />
           <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
             Recommended Flow (CLI)
@@ -129,17 +129,17 @@ export function OpenClawSetupCommandSequence(): React.JSX.Element {
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="min-w-0 space-y-2">
         {commandSteps.map((step, index) => {
           const isCopied = copiedStepId === step.id;
           return (
-            <div key={step.id} className="rounded-lg border border-border bg-background/55 px-3 py-3">
-              <div className="flex items-start justify-between gap-3">
+            <div key={step.id} className="min-w-0 rounded-lg border border-border bg-background/55 px-3 py-3">
+              <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                     Step {index + 1}: {step.title}
                   </p>
-                  <code className="mt-1 block overflow-x-auto whitespace-nowrap text-[12px] text-foreground/90">
+                  <code className="mt-1 block max-w-full overflow-x-auto whitespace-nowrap text-[12px] text-foreground/90">
                     {step.command}
                   </code>
                 </div>

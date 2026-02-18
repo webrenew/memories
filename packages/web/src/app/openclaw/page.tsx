@@ -163,7 +163,7 @@ export default function OpenClawPage(): React.JSX.Element {
         <section id="how-it-works" className="relative py-32 lg:py-44 border-y border-border bg-background-secondary">
           <div className="w-full px-6 lg:px-16 xl:px-24">
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 xl:gap-24">
-              <div className="flex flex-col items-start text-left">
+              <div className="min-w-0 flex flex-col items-start text-left">
                 <div className="inline-flex items-center gap-2 mb-6">
                   <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                   <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">
@@ -179,7 +179,7 @@ export default function OpenClawPage(): React.JSX.Element {
                 </p>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <div className="mb-5 flex items-center gap-2">
                   <Workflow className="h-4 w-4 text-primary" />
                   <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Recommended flow</span>
