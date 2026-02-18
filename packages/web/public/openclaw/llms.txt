@@ -1,0 +1,188 @@
+# memories.sh x OpenClaw (llms.txt)
+
+> Comprehensive, agent-readable runbook for using memories.sh to stabilize OpenClaw memory and workspace behavior.
+
+Last updated: 2026-02-18
+
+## What this is
+
+This file is a canonical guide for AI agents and automation scripts.
+Use it when setting up or maintaining memories.sh with OpenClaw.
+
+Primary objective:
+- Keep OpenClaw workspace instructions, memory files, and skills synchronized from memories.sh so behavior remains consistent across sessions, machines, and tools.
+
+## Why use memories.sh with OpenClaw
+
+OpenClaw uses a workspace contract (not a single prompt file). That contract can drift over time when edited manually.
+
+memories.sh solves this by:
+
+1. Durable memory source
+- Rules, decisions, facts, notes, and skills live in a searchable memory store.
+
+2. Workspace-first synchronization
+- Generate and apply OpenClaw workspace artifacts from memory, instead of hand-editing each file.
+
+3. Cross-agent portability
+- Reuse the same memory base across OpenClaw, Claude Code, Cursor, Windsurf, and other integrations.
+
+4. Repeatable operations
+- A deterministic command sequence for first setup and ongoing refresh.
+
+## How it works (high-level flow)
+
+1. OpenClaw creates or initializes workspace structure (`openclaw onboard`).
+2. memories.sh generates workspace-facing artifacts from memory (`AGENTS.md`, skills).
+3. Workspace files are synced using `memories files ingest/apply`.
+4. OpenClaw runtime reads the updated workspace contract.
+
+## Canonical links
+
+- OpenClaw landing page: https://memories.sh/openclaw
+- OpenClaw resource guide: https://memories.sh/openclaw/resources
+- memories.sh OpenClaw integration docs: https://memories.sh/docs/integrations/openclaw
+- memories.sh file sync docs: https://memories.sh/docs/cli/files
+- OpenClaw official install docs: https://docs.openclaw.ai/install/index
+- OpenClaw onboarding docs: https://docs.openclaw.ai/start/onboarding
+- OpenClaw workspace concept: https://docs.openclaw.ai/concepts/agent-workspace
+
+## Installation and setup paths
+
+### Path A: First-time setup (recommended)
+
+Use this when OpenClaw and memories are not fully configured yet.
+
+```bash
+# 1) Install memories CLI
+pnpm add -g @memories.sh/cli
+
+# 2) Initialize OpenClaw workspace
+openclaw onboard
+
+# 3) Move to your project
+cd your-project
+
+# 4) Initialize memories in project
+memories init
+
+# 5) Generate OpenClaw AGENTS workspace file
+memories generate claude -o ~/.openclaw/workspace/AGENTS.md --force
+
+# 6) Generate skills from memories
+memories generate agents
+
+# 7) Ensure OpenClaw skills directory exists
+mkdir -p ~/.openclaw/workspace/skills
+
+# 8) Copy generated skills into OpenClaw workspace
+if [ -d .agents/skills ]; then cp -R .agents/skills/. ~/.openclaw/workspace/skills/; fi
+
+# 9) Ingest workspace files (include runtime config)
+memories files ingest --global --include-config
+
+# 10) Apply workspace files
+memories files apply --global --include-config --force
+```
+
+### Path B: Ongoing refresh (after memory updates)
+
+Use this when setup already exists and you only need to refresh workspace outputs.
+
+```bash
+cd your-project
+memories generate claude -o ~/.openclaw/workspace/AGENTS.md --force
+memories generate agents
+if [ -d .agents/skills ]; then cp -R .agents/skills/. ~/.openclaw/workspace/skills/; fi
+memories files ingest --global --include-config
+memories files apply --global --include-config --force
+```
+
+## Expected OpenClaw workspace artifacts
+
+Expected files/directories managed in this integration:
+
+- `~/.openclaw/workspace/AGENTS.md`
+- `~/.openclaw/workspace/SOUL.md`
+- `~/.openclaw/workspace/TOOLS.md`
+- `~/.openclaw/workspace/IDENTITY.md`
+- `~/.openclaw/workspace/USER.md`
+- `~/.openclaw/workspace/HEARTBEAT.md`
+- `~/.openclaw/workspace/BOOTSTRAP.md`
+- `~/.openclaw/workspace/BOOT.md` (if present)
+- `~/.openclaw/workspace/MEMORY.md` or `~/.openclaw/workspace/memory.md`
+- `~/.openclaw/workspace/memory/*.md`
+- `~/.openclaw/workspace/skills/**/*`
+
+Optional config sync (explicit):
+- `~/.openclaw/openclaw.json` via `--include-config`
+
+## Verification checklist
+
+After setup, verify:
+
+```bash
+# Workspace exists
+ls -la ~/.openclaw/workspace
+
+# AGENTS file updated
+ls -la ~/.openclaw/workspace/AGENTS.md
+
+# Skills copied (if any were generated)
+ls -la ~/.openclaw/workspace/skills
+```
+
+Project-side validation:
+
+```bash
+# Generated skills exist locally (conditional)
+ls -la .agents/skills
+```
+
+## Troubleshooting quick map
+
+### `openclaw: command not found`
+- Install OpenClaw from official docs first.
+- Do not invent an install command.
+
+### Skills did not copy
+- `memories generate agents` only outputs `.agents/skills` when skills exist.
+- Keep the copy command conditional:
+  - `if [ -d .agents/skills ]; then cp -R .agents/skills/. ~/.openclaw/workspace/skills/; fi`
+
+### Wrong workspace path
+- Your workspace path may be customized in `~/.openclaw/openclaw.json`.
+- If customized, replace `~/.openclaw/workspace` paths accordingly.
+
+### Sync appears stale
+- Re-run Path B refresh sequence in order.
+- Ensure you are in the correct `your-project` before running generate commands.
+
+## Agent guidance (operational behavior)
+
+When using this integration, agents should:
+
+1. Respect order
+- Run setup commands top-to-bottom.
+- Do not skip initialization on first setup.
+
+2. Avoid unsafe assumptions
+- If OpenClaw binary is missing, stop and direct to official install docs.
+- If workspace path differs, use configured path from OpenClaw config.
+
+3. Prefer deterministic sync over manual edits
+- Generate and apply from memories.sh.
+- Do not manually patch individual workspace files unless explicitly requested.
+
+4. Preserve user environment
+- Use conditional copy for skills.
+- Do not delete workspace content unless explicitly asked.
+
+5. Keep references canonical
+- Prefer memories.sh docs + official OpenClaw docs for source-of-truth behavior.
+
+## Suggested agent prompts (optional)
+
+- "Run the first-time OpenClaw + memories setup from llms.txt and show each command before execution."
+- "Run only the ongoing refresh sequence for OpenClaw workspace sync."
+- "Validate expected workspace artifacts and report what is missing."

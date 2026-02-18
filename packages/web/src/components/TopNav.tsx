@@ -5,21 +5,35 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import type { User } from "@supabase/supabase-js";
+import { usePathname } from "next/navigation";
 import { ScrambleTextOnHover } from "./animations/ScrambleText";
 import { Github } from "./icons/app/Github";
 import { useUser } from "@/hooks/use-user";
 
-const navItems = [
-  { href: "#how-it-works", label: "How" },
-  { href: "#features", label: "Features" },
-  { href: "#api", label: "API" },
-  { href: "#integrations", label: "Apps" },
+type NavItem = {
+  href: string | { sectionId: string };
+  label: string;
+};
+
+const navItems: NavItem[] = [
+  { href: { sectionId: "how-it-works" }, label: "How" },
+  { href: { sectionId: "features" }, label: "Features" },
+  { href: { sectionId: "api" }, label: "API" },
+  { href: { sectionId: "integrations" }, label: "Apps" },
+  { href: "/openclaw", label: "OpenClaw" },
   { href: "/docs", label: "Docs" },
-  { href: "#faq", label: "FAQ" },
+  { href: { sectionId: "faq" }, label: "FAQ" },
 ];
+
+function resolveHref(pathname: string, href: NavItem["href"]): string {
+  if (typeof href === "string") return href;
+  const anchor = `#${href.sectionId}`;
+  return pathname === "/" ? anchor : `/${anchor}`;
+}
 
 export function TopNav({ user }: { user?: User | null }): React.JSX.Element {
   const { user: sessionUser } = useUser();
+  const pathname = usePathname() ?? "/";
   const effectiveUser = sessionUser ?? user ?? null;
   const isSignedIn = Boolean(effectiveUser);
   const primaryCtaHref = isSignedIn ? "/app" : "/docs/getting-started";
@@ -54,8 +68,8 @@ export function TopNav({ user }: { user?: User | null }): React.JSX.Element {
             <div className="hidden md:flex items-center gap-0">
               {navItems.map((item) => (
                 <Link 
-                  key={item.href}
-                  href={item.href} 
+                  key={item.label}
+                  href={resolveHref(pathname, item.href)} 
                   className="group relative px-4 py-2 flex items-center gap-2"
                 >
                   <ScrambleTextOnHover
@@ -143,13 +157,13 @@ export function TopNav({ user }: { user?: User | null }): React.JSX.Element {
                 <div className="flex flex-col gap-2">
                   {navItems.map((item, index) => (
                     <motion.div
-                      key={item.href}
+                      key={item.label}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
                     >
                       <Link 
-                        href={item.href}
+                        href={resolveHref(pathname, item.href)}
                         onClick={handleLinkClick}
                         className="group flex items-center justify-between py-4 border-b border-border/50 last:border-0"
                       >
