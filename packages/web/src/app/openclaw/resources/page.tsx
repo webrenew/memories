@@ -20,6 +20,7 @@ export const metadata: Metadata = {
 
 const officialReferences = [
   { label: "OpenClaw Integration (memories docs)", href: "/docs/integrations/openclaw", internal: true },
+  { label: "OpenClaw Agent Skill (GitHub)", href: "https://github.com/webrenew/memories/tree/main/skills/openclaw" },
   { label: "OpenClaw Docs Home", href: "https://docs.openclaw.ai/" },
   { label: "OpenClaw Onboarding", href: "https://docs.openclaw.ai/start/onboarding" },
   { label: "OpenClaw Agent Workspace", href: "https://docs.openclaw.ai/concepts/agent-workspace" },
