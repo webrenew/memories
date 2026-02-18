@@ -19,7 +19,8 @@ If you are integrating through the SDK HTTP surface, use `/api/sdk/v1/management
 1. Use your API key as usual (`Authorization: Bearer mem_...`).
 2. Configure per-tenant database mappings with `/api/sdk/v1/management/tenant-overrides` (or legacy `/api/sdk/v1/management/tenants` / `/api/mcp/tenants`).
 3. Include `tenant_id` in tool arguments (`get_context`, `add_memory`, etc.).
-4. The server resolves `(api_key_hash, tenant_id)` to the mapped Turso database.
+4. The server resolves `(owner_scope_key, tenant_id)` to the mapped Turso database.
+   `owner_scope_key` is derived from the authenticated key's billing owner (for example `org:<id>` or `user:<id>`), so routing survives API key rotation.
 
 If `tenant_id` is omitted, requests use the API key's default workspace database.
 
@@ -40,6 +41,7 @@ Scope mapping:
 Legacy alias: `/api/mcp/tenants`
 
 Returns all AI SDK Project mappings for your active API key.
+Returns all AI SDK Project mappings for your owner scope.
 
 ### Create or Update Tenant
 
@@ -112,12 +114,13 @@ Example JSON-RPC call:
 
 ## Key Rotation Behavior
 
-When you rotate your API key, AI SDK Project mappings are copied from the old key hash to the new key hash automatically. This keeps `tenant_id` routing working without manual remapping.
+AI SDK Project mappings are owner-scoped, so key rotation does not require tenant-mapping copy or cleanup workflows.
+Routing remains stable as long as the key resolves to the same owner scope.
 
 ## Error Codes
 
 Tenant routing returns typed JSON-RPC errors:
 
 - `TENANT_ID_INVALID` (`-32602`): `tenant_id` is not a non-empty string
-- `TENANT_DATABASE_NOT_CONFIGURED` (`-32004`): no mapping exists for `(api_key_hash, tenant_id)`
+- `TENANT_DATABASE_NOT_CONFIGURED` (`-32004`): no mapping exists for `(owner_scope_key, tenant_id)`
 - `TENANT_DATABASE_NOT_READY` (`-32009`): mapping exists but status is not `ready`
