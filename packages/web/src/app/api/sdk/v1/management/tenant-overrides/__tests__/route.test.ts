@@ -10,6 +10,7 @@ const {
   mockResolveSdkProjectBillingContext,
   mockCountActiveProjectsForBillingContext,
   mockRecordGrowthProjectMeterEvent,
+  mockDeleteDatabase,
 } = vi.hoisted(() => ({
   mockAuthenticateRequest: vi.fn(),
   mockCheckRateLimit: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockResolveSdkProjectBillingContext: vi.fn(),
   mockCountActiveProjectsForBillingContext: vi.fn(),
   mockRecordGrowthProjectMeterEvent: vi.fn(),
+  mockDeleteDatabase: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({
@@ -61,6 +63,7 @@ vi.mock("@/lib/sdk-api/runtime", async () => {
 vi.mock("@/lib/turso", () => ({
   createDatabase: vi.fn(),
   createDatabaseToken: vi.fn(),
+  deleteDatabase: mockDeleteDatabase,
   initSchema: vi.fn(),
 }))
 
@@ -75,6 +78,7 @@ import { DELETE, GET, POST } from "../route"
 describe("/api/sdk/v1/management/tenant-overrides", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockDeleteDatabase.mockResolvedValue(undefined)
 
     mockGetApiKey.mockReturnValue("mem_test_key")
     mockAuthenticateApiKey.mockResolvedValue({

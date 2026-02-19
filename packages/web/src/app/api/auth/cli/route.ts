@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
-import { randomBytes } from "node:crypto"
 import { checkRateLimit, getClientIp, publicRateLimit } from "@/lib/rate-limit"
 import { parseBody, cliAuthPollSchema, cliAuthApproveSchema } from "@/lib/validations"
+import { CLI_AUTH_CODE_TTL_MS, generateCliToken, hashCliToken } from "@/lib/cli-token"
 
 export async function POST(request: Request): Promise<Response> {
   const rateLimited = await checkRateLimit(publicRateLimit, getClientIp(request))
@@ -15,11 +15,11 @@ export async function POST(request: Request): Promise<Response> {
     const parsed = parseBody(cliAuthPollSchema, body)
     if (!parsed.success) return parsed.response
 
-    // CLI is polling for its token — look up by cli_auth_code in the database
+    // CLI is polling for token exchange completion.
     const admin = createAdminClient()
     const { data: user, error: userError } = await admin
       .from("users")
-      .select("cli_token, email, id")
+      .select("email, id, cli_auth_expires_at")
       .eq("cli_auth_code", parsed.data.code)
       .maybeSingle()
 
@@ -28,9 +28,23 @@ export async function POST(request: Request): Promise<Response> {
       return NextResponse.json({ error: "Failed to check auth status" }, { status: 500 })
     }
 
-    if (!user || !user.cli_token) {
-      // Still waiting or code not found
+    if (!user) {
+      // Still waiting or code not found.
       return NextResponse.json({ status: "pending" }, { status: 202 })
+    }
+
+    const expiresAt = user.cli_auth_expires_at ? new Date(user.cli_auth_expires_at).getTime() : 0
+    if (!expiresAt || Number.isNaN(expiresAt) || expiresAt <= Date.now()) {
+      await admin
+        .from("users")
+        .update({ cli_auth_code: null, cli_auth_expires_at: null })
+        .eq("id", user.id)
+        .eq("cli_auth_code", parsed.data.code)
+
+      return NextResponse.json(
+        { error: "Authorization code expired. Run login again from the CLI." },
+        { status: 410 }
+      )
     }
 
     // Resolve email — fall back to auth.users if custom table has no email
@@ -40,19 +54,34 @@ export async function POST(request: Request): Promise<Response> {
       email = authData?.user?.email ?? null
     }
 
-    // Clear the auth code so it can't be reused
-    const { error: clearCodeError } = await admin
-      .from("users")
-      .update({ cli_auth_code: null })
-      .eq("cli_auth_code", parsed.data.code)
+    const cliToken = generateCliToken()
+    const tokenHash = hashCliToken(cliToken)
 
-    if (clearCodeError) {
-      console.error("Failed to clear CLI auth code after token poll:", clearCodeError)
+    // Atomically consume auth code and persist token hash.
+    const { data: finalizedUser, error: finalizeError } = await admin
+      .from("users")
+      .update({
+        cli_token_hash: tokenHash,
+        cli_token: null,
+        cli_auth_code: null,
+        cli_auth_expires_at: null,
+      })
+      .eq("id", user.id)
+      .eq("cli_auth_code", parsed.data.code)
+      .select("id")
+      .maybeSingle()
+
+    if (finalizeError) {
+      console.error("Failed to finalize CLI token exchange:", finalizeError)
       return NextResponse.json({ error: "Failed to finalize token exchange" }, { status: 500 })
     }
 
+    if (!finalizedUser) {
+      return NextResponse.json({ status: "pending" }, { status: 202 })
+    }
+
     return NextResponse.json({
-      token: user.cli_token,
+      token: cliToken,
       email,
     })
   }
@@ -71,14 +100,13 @@ export async function POST(request: Request): Promise<Response> {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Generate a CLI token
-    const cliToken = `cli_${randomBytes(32).toString("hex")}`
+    const expiresAt = new Date(Date.now() + CLI_AUTH_CODE_TTL_MS).toISOString()
 
-    // Save token and auth code to user's row
+    // Save auth code and expiry to user's row.
     const admin = createAdminClient()
     const { error } = await admin
       .from("users")
-      .update({ cli_token: cliToken, cli_auth_code: parsed.data.code })
+      .update({ cli_auth_code: parsed.data.code, cli_auth_expires_at: expiresAt })
       .eq("id", user.id)
 
     if (error) {

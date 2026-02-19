@@ -19,7 +19,7 @@ import {
 } from "@/lib/sdk-project-billing"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { normalizeTenantMappingSource } from "@/lib/tenant-routing"
-import { createDatabase, createDatabaseToken, initSchema } from "@/lib/turso"
+import { createDatabase, createDatabaseToken, deleteDatabase, initSchema } from "@/lib/turso"
 
 const ENDPOINT = "/api/sdk/v1/management/tenant-overrides"
 const TURSO_ORG = getTursoOrgSlug()
@@ -226,6 +226,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   let tursoDbUrl: string
   let tursoDbToken: string
   let tursoDbName: string | null = parsed.data.tursoDbName ?? null
+  let provisionedDbName: string | null = null
 
   try {
     if (mode === "attach") {
@@ -256,6 +257,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
     } else {
       const db = await createDatabase(TURSO_ORG)
+      provisionedDbName = db.name
       const token = await createDatabaseToken(TURSO_ORG, db.name)
       const url = `libsql://${db.hostname}`
 
@@ -268,6 +270,13 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
   } catch (error) {
     console.error("Tenant override setup failed:", error)
+    if (provisionedDbName) {
+      try {
+        await deleteDatabase(TURSO_ORG, provisionedDbName)
+      } catch (cleanupError) {
+        console.error("Failed to cleanup orphaned tenant override database:", cleanupError)
+      }
+    }
     return errorResponse(
       ENDPOINT,
       requestId,
@@ -309,6 +318,13 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   if (saveError || !saved) {
     console.error("Failed to save tenant override mapping:", saveError)
+    if (provisionedDbName) {
+      try {
+        await deleteDatabase(TURSO_ORG, provisionedDbName)
+      } catch (cleanupError) {
+        console.error("Failed to cleanup orphaned tenant override database after save failure:", cleanupError)
+      }
+    }
     return errorResponse(
       ENDPOINT,
       requestId,

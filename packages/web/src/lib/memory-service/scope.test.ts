@@ -4,6 +4,7 @@ const {
   mockAdminFrom,
   mockCreateDatabase,
   mockCreateDatabaseToken,
+  mockDeleteDatabase,
   mockInitSchema,
   mockEnforceSdkProjectProvisionLimit,
   mockRecordGrowthProjectMeterEvent,
@@ -17,6 +18,7 @@ const {
   mockAdminFrom: vi.fn(),
   mockCreateDatabase: vi.fn(),
   mockCreateDatabaseToken: vi.fn(),
+  mockDeleteDatabase: vi.fn(),
   mockInitSchema: vi.fn(),
   mockEnforceSdkProjectProvisionLimit: vi.fn(),
   mockRecordGrowthProjectMeterEvent: vi.fn(),
@@ -35,6 +37,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/turso", () => ({
   createDatabase: mockCreateDatabase,
   createDatabaseToken: mockCreateDatabaseToken,
+  deleteDatabase: mockDeleteDatabase,
   initSchema: mockInitSchema,
 }))
 
@@ -78,6 +81,7 @@ describe("resolveTenantTurso", () => {
       hostname: "tenant-a-db.turso.io",
     })
     mockCreateDatabaseToken.mockResolvedValue("token-a")
+    mockDeleteDatabase.mockResolvedValue(undefined)
     mockInitSchema.mockResolvedValue(undefined)
 
     mockResolveSdkProjectBillingContext.mockResolvedValue({
@@ -172,5 +176,95 @@ describe("resolveTenantTurso", () => {
       url: "libsql://tenant-a-db.turso.io",
       authToken: "token-a",
     })
+  })
+
+  it("cleans up provisioned Turso DB when mapping persistence fails", async () => {
+    let lookupCount = 0
+    let upsertCount = 0
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table !== "sdk_tenant_databases") {
+        return {}
+      }
+
+      const maybeSingle = vi.fn().mockImplementation(async () => {
+        lookupCount += 1
+        if (lookupCount === 1) {
+          return { data: null, error: null }
+        }
+
+        return {
+          data: {
+            turso_db_url: null,
+            turso_db_token: null,
+            status: "error",
+            metadata: {},
+          },
+          error: null,
+        }
+      })
+
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({ maybeSingle }),
+          }),
+        }),
+        upsert: vi.fn().mockImplementation(async () => {
+          upsertCount += 1
+          if (upsertCount === 1) {
+            return { error: { message: "write failed" } }
+          }
+          return { error: null }
+        }),
+      }
+    })
+
+    await expect(
+      resolveTenantTurso("hash_123", "tenant-fail", {
+        ownerUserId: "user-1",
+        autoProvision: true,
+      })
+    ).rejects.toBeDefined()
+
+    expect(mockDeleteDatabase).toHaveBeenCalledWith("acme-org", "tenant-a-db")
+  })
+
+  it("respects auto-provision retry backoff when mapping is in error state", async () => {
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table !== "sdk_tenant_databases") {
+        return {}
+      }
+
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  turso_db_url: null,
+                  turso_db_token: null,
+                  status: "error",
+                  metadata: {
+                    autoProvisionRetryAfter: new Date(Date.now() + 5 * 60_000).toISOString(),
+                  },
+                },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+        upsert: vi.fn(),
+      }
+    })
+
+    await expect(
+      resolveTenantTurso("hash_123", "tenant-backoff", {
+        ownerUserId: "user-1",
+        autoProvision: true,
+      })
+    ).rejects.toBeDefined()
+
+    expect(mockCreateDatabase).not.toHaveBeenCalled()
   })
 })

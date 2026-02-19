@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
-import { createDatabase, createDatabaseToken, initSchema } from "@/lib/turso"
+import { createDatabase, createDatabaseToken, deleteDatabase, initSchema } from "@/lib/turso"
 import { createClient as createTurso } from "@libsql/client"
 import { setTimeout as delay } from "node:timers/promises"
 import {
@@ -19,6 +19,8 @@ import {
   type TursoClient,
   ToolExecutionError,
 } from "./types"
+
+const AUTO_PROVISION_RETRY_DELAY_MS = 5 * 60 * 1000
 
 // Re-export from extracted modules
 export {
@@ -103,66 +105,156 @@ async function autoProvisionTenantDatabase(params: {
   }
 
   const tursoOrg = getTursoOrgSlug()
-  const db = await createDatabase(tursoOrg)
-  const token = await createDatabaseToken(tursoOrg, db.name)
-  const url = `libsql://${db.hostname}`
+  let provisionedDbName: string | null = null
+  let mappingSaved = false
 
-  await delay(3000)
-  await initSchema(url, token)
+  try {
+    const db = await createDatabase(tursoOrg)
+    provisionedDbName = db.name
+    const token = await createDatabaseToken(tursoOrg, db.name)
+    const url = `libsql://${db.hostname}`
 
-  const now = new Date().toISOString()
-  const metadata = {
-    ...(existingMetadata ?? {}),
-    provisionedBy: "sdk_auto",
-    provisionedAt: now,
-  }
+    await delay(3000)
+    await initSchema(url, token)
 
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from("sdk_tenant_databases")
-    .upsert(
-      {
-        owner_scope_key: ownerScopeKey,
-        api_key_hash: apiKeyHash,
-        mapping_source: "auto",
-        tenant_id: tenantId,
-        turso_db_url: url,
-        turso_db_token: token,
-        turso_db_name: db.name,
-        status: "ready",
-        metadata,
-        created_by_user_id: ownerUserId ?? null,
-        billing_owner_type: billing?.ownerType ?? "user",
-        billing_owner_user_id: billing?.ownerUserId ?? ownerUserId ?? null,
-        billing_org_id: billing?.orgId ?? null,
-        stripe_customer_id: billing?.stripeCustomerId ?? null,
-        updated_at: now,
-        last_verified_at: now,
-      },
-      { onConflict: "owner_scope_key,tenant_id" }
-    )
+    const now = new Date().toISOString()
+    const metadata = {
+      ...(existingMetadata ?? {}),
+      provisionedBy: "sdk_auto",
+      provisionedAt: now,
+      autoProvisionLastError: null,
+      autoProvisionLastErrorAt: null,
+      autoProvisionRetryAfter: null,
+    }
 
-  if (error) {
+    const admin = createAdminClient()
+    const { error } = await admin
+      .from("sdk_tenant_databases")
+      .upsert(
+        {
+          owner_scope_key: ownerScopeKey,
+          api_key_hash: apiKeyHash,
+          mapping_source: "auto",
+          tenant_id: tenantId,
+          turso_db_url: url,
+          turso_db_token: token,
+          turso_db_name: db.name,
+          status: "ready",
+          metadata,
+          created_by_user_id: ownerUserId ?? null,
+          billing_owner_type: billing?.ownerType ?? "user",
+          billing_owner_user_id: billing?.ownerUserId ?? ownerUserId ?? null,
+          billing_org_id: billing?.orgId ?? null,
+          stripe_customer_id: billing?.stripeCustomerId ?? null,
+          updated_at: now,
+          last_verified_at: now,
+        },
+        { onConflict: "owner_scope_key,tenant_id" }
+      )
+
+    if (error) {
+      throw new ToolExecutionError(
+        apiError({
+          type: "internal_error",
+          code: "TENANT_AUTO_PROVISION_FAILED",
+          message: "Failed to save auto-provisioned tenant database mapping",
+          status: 500,
+          retryable: true,
+          details: { tenant_id: tenantId, error: error.message },
+        }),
+        { rpcCode: -32000 }
+      )
+    }
+
+    mappingSaved = true
+
+    if (billing) {
+      await recordGrowthProjectMeterEvent({
+        admin,
+        billing,
+        apiKeyHash,
+        tenantId,
+      })
+    }
+  } catch (error) {
+    if (provisionedDbName && !mappingSaved) {
+      try {
+        await deleteDatabase(tursoOrg, provisionedDbName)
+      } catch (cleanupError) {
+        console.error("[SDK_AUTO_PROVISION] Failed to cleanup orphaned Turso DB:", cleanupError)
+      }
+    }
+
+    if (error instanceof ToolExecutionError) {
+      throw error
+    }
+
+    const message = error instanceof Error ? error.message : String(error)
     throw new ToolExecutionError(
       apiError({
         type: "internal_error",
         code: "TENANT_AUTO_PROVISION_FAILED",
-        message: "Failed to save auto-provisioned tenant database mapping",
+        message: "Failed to auto-provision tenant database",
         status: 500,
         retryable: true,
-        details: { tenant_id: tenantId, error: error.message },
+        details: { tenant_id: tenantId, error: message },
       }),
       { rpcCode: -32000 }
     )
   }
+}
 
-  if (billing) {
-    await recordGrowthProjectMeterEvent({
-      admin,
-      billing,
-      apiKeyHash,
-      tenantId,
-    })
+function extractRetryAfterMs(metadata: Record<string, unknown> | null | undefined): number | null {
+  const raw = metadata?.autoProvisionRetryAfter
+  if (typeof raw !== "string") return null
+  const parsed = Date.parse(raw)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+async function recordAutoProvisionFailure(params: {
+  admin: ReturnType<typeof createAdminClient>
+  ownerScopeKey: string
+  apiKeyHash: string
+  tenantId: string
+  ownerUserId: string | null
+  billing: SdkProjectBillingContext | null
+  existingMapping: Awaited<ReturnType<typeof readTenantMapping>>
+  error: unknown
+}): Promise<void> {
+  const { admin, ownerScopeKey, apiKeyHash, tenantId, ownerUserId, billing, existingMapping, error } = params
+  const now = new Date().toISOString()
+  const retryAfter = new Date(Date.now() + AUTO_PROVISION_RETRY_DELAY_MS).toISOString()
+  const message = error instanceof Error ? error.message : String(error)
+
+  const metadata = {
+    ...(existingMapping?.metadata ?? {}),
+    autoProvisionLastError: message,
+    autoProvisionLastErrorAt: now,
+    autoProvisionRetryAfter: retryAfter,
+  }
+
+  const { error: upsertError } = await admin.from("sdk_tenant_databases").upsert(
+    {
+      owner_scope_key: ownerScopeKey,
+      api_key_hash: apiKeyHash,
+      mapping_source: existingMapping?.status === "disabled" ? "override" : "auto",
+      tenant_id: tenantId,
+      turso_db_url: existingMapping?.turso_db_url ?? null,
+      turso_db_token: existingMapping?.turso_db_token ?? null,
+      status: "error",
+      metadata,
+      created_by_user_id: ownerUserId ?? null,
+      billing_owner_type: billing?.ownerType ?? "user",
+      billing_owner_user_id: billing?.ownerUserId ?? ownerUserId ?? null,
+      billing_org_id: billing?.orgId ?? null,
+      stripe_customer_id: billing?.stripeCustomerId ?? null,
+      updated_at: now,
+    },
+    { onConflict: "owner_scope_key,tenant_id" }
+  )
+
+  if (upsertError) {
+    console.error("[SDK_AUTO_PROVISION] Failed to persist auto-provision failure state:", upsertError)
   }
 }
 
@@ -220,11 +312,14 @@ export async function resolveTenantTurso(
     (options.autoProvision ?? true) &&
     shouldAutoProvisionTenantDatabases() &&
     hasTursoPlatformApiToken()
+  const retryAfterMs = extractRetryAfterMs(mapping?.metadata)
+  const inRetryBackoff = retryAfterMs !== null && retryAfterMs > Date.now()
+  const mappingNeedsProvision =
+    !mapping ||
+    mapping.status === "disabled" ||
+    (mapping.status === "error" ? !inRetryBackoff : !mapping.turso_db_url || !mapping.turso_db_token)
 
-  if (
-    canAutoProvision &&
-    (!mapping || mapping.status === "disabled" || mapping.status === "error" || !mapping.turso_db_url || !mapping.turso_db_token)
-  ) {
+  if (canAutoProvision && mappingNeedsProvision) {
     if (ownerScope.ownerUserId) {
       const billingCheck = await enforceSdkProjectProvisionLimit({
         admin,
@@ -260,6 +355,17 @@ export async function resolveTenantTurso(
       console.info(`[SDK_AUTO_PROVISION] Tenant database ready for tenant_id=${tenantId}`)
     } catch (error) {
       console.error("[SDK_AUTO_PROVISION] Failed to auto-provision tenant database:", error)
+      await recordAutoProvisionFailure({
+        admin,
+        ownerScopeKey: ownerScope.ownerScopeKey,
+        apiKeyHash,
+        tenantId,
+        ownerUserId: ownerScope.ownerUserId,
+        billing: billingContext,
+        existingMapping: mapping,
+        error,
+      })
+      mapping = await readTenantMapping(ownerScope.ownerScopeKey, tenantId)
     }
   }
 

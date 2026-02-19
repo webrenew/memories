@@ -34,6 +34,15 @@ async function api<T>(
     throw new Error(`Turso API error (${res.status}): ${text}`)
   }
 
+  if (res.status === 204) {
+    return {} as T
+  }
+
+  const contentType = res.headers.get("content-type") ?? ""
+  if (!contentType.includes("application/json")) {
+    return {} as T
+  }
+
   return res.json() as Promise<T>
 }
 
@@ -68,6 +77,10 @@ export async function createDatabaseToken(
     { method: "POST" }
   )
   return jwt
+}
+
+export async function deleteDatabase(org: string, dbName: string): Promise<void> {
+  await api(`/organizations/${org}/databases/${dbName}`, { method: "DELETE" })
 }
 
 /**

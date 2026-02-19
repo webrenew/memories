@@ -1,9 +1,23 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { hashCliToken } from "@/lib/cli-token"
 
 interface AuthResult {
   userId: string
   email: string
+}
+
+function isMissingColumnError(error: unknown, column: string): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return (
+    message.includes("column") &&
+    message.includes(column.toLowerCase()) &&
+    message.includes("does not exist")
+  )
 }
 
 /**
@@ -17,15 +31,33 @@ export async function authenticateRequest(
   const authHeader = request.headers.get("authorization")
   if (authHeader?.startsWith("Bearer cli_")) {
     const token = authHeader.replace("Bearer ", "")
+    const tokenHash = hashCliToken(token)
     const admin = createAdminClient()
-    const { data: user } = await admin
+
+    const { data: hashedUser, error: hashedError } = await admin
+      .from("users")
+      .select("id, email")
+      .eq("cli_token_hash", tokenHash)
+      .maybeSingle()
+
+    if (hashedError && !isMissingColumnError(hashedError, "cli_token_hash")) {
+      console.error("CLI token hash lookup failed:", hashedError)
+      return null
+    }
+
+    if (hashedUser) {
+      return { userId: hashedUser.id, email: hashedUser.email }
+    }
+
+    // Legacy fallback while older plaintext tokens are phased out.
+    const { data: legacyUser } = await admin
       .from("users")
       .select("id, email")
       .eq("cli_token", token)
-      .single()
+      .maybeSingle()
 
-    if (user) {
-      return { userId: user.id, email: user.email }
+    if (legacyUser) {
+      return { userId: legacyUser.id, email: legacyUser.email }
     }
     return null
   }

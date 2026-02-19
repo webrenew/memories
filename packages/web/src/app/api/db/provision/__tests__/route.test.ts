@@ -8,7 +8,9 @@ const {
   mockAdminFrom,
   mockCreateDatabase,
   mockCreateDatabaseToken,
+  mockDeleteDatabase,
   mockInitSchema,
+  mockGetTursoOrgSlug,
 } = vi.hoisted(() => ({
   mockAuthenticateRequest: vi.fn(),
   mockCheckRateLimit: vi.fn(),
@@ -17,7 +19,9 @@ const {
   mockAdminFrom: vi.fn(),
   mockCreateDatabase: vi.fn(),
   mockCreateDatabaseToken: vi.fn(),
+  mockDeleteDatabase: vi.fn(),
   mockInitSchema: vi.fn(),
+  mockGetTursoOrgSlug: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({
@@ -43,7 +47,12 @@ vi.mock("@/lib/supabase/admin", () => ({
 vi.mock("@/lib/turso", () => ({
   createDatabase: mockCreateDatabase,
   createDatabaseToken: mockCreateDatabaseToken,
+  deleteDatabase: mockDeleteDatabase,
   initSchema: mockInitSchema,
+}))
+
+vi.mock("@/lib/env", () => ({
+  getTursoOrgSlug: mockGetTursoOrgSlug,
 }))
 
 import { POST } from "../route"
@@ -53,6 +62,8 @@ describe("/api/db/provision", () => {
     vi.clearAllMocks()
     mockCheckPreAuthApiRateLimit.mockResolvedValue(null)
     mockCheckRateLimit.mockResolvedValue(null)
+    mockDeleteDatabase.mockResolvedValue(undefined)
+    mockGetTursoOrgSlug.mockReturnValue("webrenew")
   })
 
   afterEach(() => {
@@ -137,5 +148,46 @@ describe("/api/db/provision", () => {
       turso_db_name: "db-demo",
     })
     expect(mockOrgEq).toHaveBeenCalledWith("id", "org-1")
+  })
+
+  it("cleans up Turso DB when credential persistence fails", async () => {
+    vi.useFakeTimers()
+
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "admin@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "organization",
+      userId: "user-1",
+      orgId: "org-1",
+      orgRole: "admin",
+      plan: "pro",
+      hasDatabase: false,
+      canProvision: true,
+      canManageBilling: false,
+      turso_db_url: null,
+      turso_db_token: null,
+      turso_db_name: null,
+    })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "organizations") {
+        return {
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: { message: "save failed" } }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    mockCreateDatabase.mockResolvedValue({ name: "db-demo", hostname: "demo.turso.io" })
+    mockCreateDatabaseToken.mockResolvedValue("token-123")
+    mockInitSchema.mockResolvedValue(undefined)
+
+    const responsePromise = POST(new Request("https://example.com/api/db/provision", { method: "POST" }))
+    await vi.runAllTimersAsync()
+    const response = await responsePromise
+
+    expect(response.status).toBe(500)
+    expect(mockDeleteDatabase).toHaveBeenCalledWith("webrenew", "db-demo")
   })
 })

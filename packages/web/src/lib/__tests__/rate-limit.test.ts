@@ -93,21 +93,40 @@ describe("checkRateLimit", () => {
 })
 
 describe("getClientIp", () => {
-  it("should extract IP from x-forwarded-for", () => {
+  const originalTrustProxyHeaders = process.env.TRUST_PROXY_HEADERS
+
+  beforeEach(() => {
+    if (originalTrustProxyHeaders === undefined) {
+      delete process.env.TRUST_PROXY_HEADERS
+    } else {
+      process.env.TRUST_PROXY_HEADERS = originalTrustProxyHeaders
+    }
+  })
+
+  it("should prefer trusted platform headers", () => {
     const request = new Request("https://example.com", {
-      headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
+      headers: { "cf-connecting-ip": "1.2.3.4" },
     })
     expect(getClientIp(request)).toBe("1.2.3.4")
   })
 
-  it("should trim whitespace from x-forwarded-for", () => {
+  it("should return unknown for spoofable proxy headers when trust flag is disabled", () => {
+    const request = new Request("https://example.com", {
+      headers: { "x-forwarded-for": " 1.2.3.4 , 5.6.7.8" },
+    })
+    expect(getClientIp(request)).toBe("unknown")
+  })
+
+  it("should extract IP from x-forwarded-for when trust flag is enabled", () => {
+    process.env.TRUST_PROXY_HEADERS = "true"
     const request = new Request("https://example.com", {
       headers: { "x-forwarded-for": " 1.2.3.4 , 5.6.7.8" },
     })
     expect(getClientIp(request)).toBe("1.2.3.4")
   })
 
-  it("should fall back to x-real-ip", () => {
+  it("should fall back to x-real-ip when trust flag is enabled", () => {
+    process.env.TRUST_PROXY_HEADERS = "1"
     const request = new Request("https://example.com", {
       headers: { "x-real-ip": "10.0.0.1" },
     })
@@ -119,10 +138,11 @@ describe("getClientIp", () => {
     expect(getClientIp(request)).toBe("unknown")
   })
 
-  it("should ignore empty x-forwarded-for values and fall back to x-real-ip", () => {
+  it("should ignore invalid x-forwarded-for values and fall back to x-real-ip", () => {
+    process.env.TRUST_PROXY_HEADERS = "true"
     const request = new Request("https://example.com", {
       headers: {
-        "x-forwarded-for": " ,  ",
+        "x-forwarded-for": "not-an-ip,   ",
         "x-real-ip": "10.0.0.1",
       },
     })
@@ -136,13 +156,14 @@ describe("getClientIp", () => {
     expect(getClientIp(request)).toBe("unknown")
   })
 
-  it("should prefer x-forwarded-for over x-real-ip", () => {
+  it("should ignore malformed client IP header values", () => {
+    process.env.TRUST_PROXY_HEADERS = "true"
     const request = new Request("https://example.com", {
       headers: {
-        "x-forwarded-for": "1.2.3.4",
-        "x-real-ip": "10.0.0.1",
+        "x-forwarded-for": "bad-input",
+        "x-real-ip": "also-bad",
       },
     })
-    expect(getClientIp(request)).toBe("1.2.3.4")
+    expect(getClientIp(request)).toBe("unknown")
   })
 })

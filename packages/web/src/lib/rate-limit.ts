@@ -1,7 +1,8 @@
 import { Ratelimit } from "@upstash/ratelimit"
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
-import { getUpstashRedisConfig } from "@/lib/env"
+import { isIP } from "node:net"
+import { getUpstashRedisConfig, parseBooleanFlag } from "@/lib/env"
 
 interface RateLimitResult {
   success: boolean
@@ -16,14 +17,46 @@ interface RateLimiter {
 
 class InMemorySlidingWindowLimiter implements RateLimiter {
   private readonly buckets = new Map<string, { count: number; reset: number }>()
+  private readonly maxBuckets: number
+  private lastCleanupAt = 0
 
   constructor(
     private readonly max: number,
-    private readonly windowMs: number
-  ) {}
+    private readonly windowMs: number,
+    maxBuckets = 10_000
+  ) {
+    this.maxBuckets = Math.max(1_000, maxBuckets)
+  }
+
+  private cleanup(now: number): void {
+    if (this.buckets.size < this.maxBuckets && now - this.lastCleanupAt < this.windowMs) {
+      return
+    }
+
+    this.lastCleanupAt = now
+
+    for (const [identifier, bucket] of this.buckets) {
+      if (bucket.reset <= now) {
+        this.buckets.delete(identifier)
+      }
+    }
+
+    if (this.buckets.size <= this.maxBuckets) {
+      return
+    }
+
+    const overflow = this.buckets.size - this.maxBuckets
+    const sortedByExpiry = [...this.buckets.entries()].sort((a, b) => a[1].reset - b[1].reset)
+    for (let i = 0; i < overflow; i += 1) {
+      const entry = sortedByExpiry[i]
+      if (!entry) break
+      this.buckets.delete(entry[0])
+    }
+  }
 
   async limit(identifier: string): Promise<RateLimitResult> {
     const now = Date.now()
+    this.cleanup(now)
     const bucket = this.buckets.get(identifier)
 
     if (!bucket || bucket.reset <= now) {
@@ -135,22 +168,42 @@ export async function checkPreAuthApiRateLimit(request: Request): Promise<NextRe
  * Extract client IP from request headers for public endpoint rate limiting.
  */
 export function getClientIp(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for")
-  if (forwardedFor) {
-    const primaryForwardedIp = forwardedFor
-      .split(",")
-      .map((segment) => segment.trim())
-      .find((segment) => segment.length > 0)
+  const platformHeaders = [
+    "x-vercel-ip",
+    "cf-connecting-ip",
+    "fly-client-ip",
+    "fastly-client-ip",
+    "x-client-ip",
+  ]
 
-    if (primaryForwardedIp) {
-      return primaryForwardedIp
-    }
+  for (const header of platformHeaders) {
+    const value = normalizeClientIpCandidate(request.headers.get(header))
+    if (value) return value
   }
 
-  const realIp = request.headers.get("x-real-ip")?.trim()
-  if (realIp && realIp.length > 0) {
-    return realIp
+  const trustProxyHeaders = parseBooleanFlag(process.env.TRUST_PROXY_HEADERS, false)
+  if (trustProxyHeaders) {
+    const forwardedFor = request.headers.get("x-forwarded-for")
+    if (forwardedFor) {
+      const primaryForwardedIp = forwardedFor
+        .split(",")
+        .map((segment) => normalizeClientIpCandidate(segment))
+        .find((segment): segment is string => Boolean(segment))
+      if (primaryForwardedIp) {
+        return primaryForwardedIp
+      }
+    }
+
+    const realIp = normalizeClientIpCandidate(request.headers.get("x-real-ip"))
+    if (realIp) return realIp
   }
 
   return "unknown"
+}
+
+function normalizeClientIpCandidate(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  return isIP(trimmed) ? trimmed : null
 }

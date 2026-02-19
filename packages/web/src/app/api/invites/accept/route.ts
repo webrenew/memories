@@ -97,29 +97,6 @@ export async function POST(request: Request): Promise<Response> {
     stripe_subscription_id: string | null
   }
 
-  // Add seat to org's subscription (or create one)
-  const subscriptionId = org.stripe_subscription_id
-  try {
-    const result = await addTeamSeat({
-      orgId: org.id,
-      stripeCustomerId: org.stripe_customer_id,
-      stripeSubscriptionId: subscriptionId,
-      billing: billing as "monthly" | "annual",
-    })
-
-    // If new subscription created, save it to org
-    if (result.action === "created") {
-      await (adminSupabase ?? supabase)
-        .from("organizations")
-        .update({ stripe_subscription_id: result.subscriptionId })
-        .eq("id", org.id)
-    }
-  } catch (e) {
-    console.error("Failed to add team seat:", e)
-    // Don't block invite acceptance if billing fails - can reconcile later
-    // In production you might want to handle this differently
-  }
-
   // Mark invite as accepted FIRST to prevent race conditions
   const writeClient = adminSupabase ?? supabase
   const { error: acceptError } = await writeClient
@@ -182,6 +159,27 @@ export async function POST(request: Request): Promise<Response> {
   if (orgError) {
     console.error("Failed to set current org:", orgError)
     // Non-critical, continue
+  }
+
+  // Add seat to org subscription after membership is committed.
+  // This avoids charging seats for failed invite acceptance flows.
+  try {
+    const result = await addTeamSeat({
+      orgId: org.id,
+      stripeCustomerId: org.stripe_customer_id,
+      stripeSubscriptionId: org.stripe_subscription_id,
+      billing: billing as "monthly" | "annual",
+    })
+
+    if (result.action === "created") {
+      await writeClient
+        .from("organizations")
+        .update({ stripe_subscription_id: result.subscriptionId })
+        .eq("id", org.id)
+    }
+  } catch (e) {
+    console.error("Failed to add team seat after invite acceptance:", e)
+    // Non-blocking: billing can reconcile from org membership.
   }
 
   return NextResponse.json({ 

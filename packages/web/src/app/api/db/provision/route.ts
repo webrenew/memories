@@ -1,12 +1,11 @@
 import { authenticateRequest } from "@/lib/auth"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { createDatabase, createDatabaseToken, initSchema } from "@/lib/turso"
+import { createDatabase, createDatabaseToken, deleteDatabase, initSchema } from "@/lib/turso"
 import { NextResponse } from "next/server"
 import { setTimeout as delay } from "node:timers/promises"
 import { checkPreAuthApiRateLimit, checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import { resolveWorkspaceContext } from "@/lib/workspace"
-
-const TURSO_ORG = "webrenew"
+import { getTursoOrgSlug } from "@/lib/env"
 
 export async function POST(request: Request): Promise<Response> {
   const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
@@ -73,10 +72,14 @@ export async function POST(request: Request): Promise<Response> {
     )
   }
 
+  const tursoOrg = getTursoOrgSlug()
+  let createdDbName: string | null = null
+
   try {
     // Create a new Turso database
-    const db = await createDatabase(TURSO_ORG)
-    const token = await createDatabaseToken(TURSO_ORG, db.name)
+    const db = await createDatabase(tursoOrg)
+    createdDbName = db.name
+    const token = await createDatabaseToken(tursoOrg, db.name)
     const url = `libsql://${db.hostname}`
 
     // Wait for Turso to finish provisioning
@@ -101,6 +104,13 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     if (error) {
+      if (createdDbName) {
+        try {
+          await deleteDatabase(tursoOrg, createdDbName)
+        } catch (cleanupError) {
+          console.error("Failed to cleanup orphaned Turso DB after credential save failure:", cleanupError)
+        }
+      }
       return NextResponse.json(
         { error: "Failed to save database credentials" },
         { status: 500 }
@@ -110,6 +120,13 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ url, provisioned: true })
   } catch (err) {
     console.error("Provisioning error:", err)
+    if (createdDbName) {
+      try {
+        await deleteDatabase(tursoOrg, createdDbName)
+      } catch (cleanupError) {
+        console.error("Failed to cleanup orphaned Turso DB after provisioning error:", cleanupError)
+      }
+    }
     return NextResponse.json(
       { error: "Failed to provision database" },
       { status: 500 }

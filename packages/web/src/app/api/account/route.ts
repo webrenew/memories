@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
-import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { getStripe } from "@/lib/stripe"
 import { NextResponse } from "next/server"
 import { checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
-import { getTursoOrgSlug, getTursoApiToken, getSupabaseUrl, getSupabaseServiceRoleKey } from "@/lib/env"
+import { getTursoOrgSlug, getTursoApiToken } from "@/lib/env"
 
 export async function DELETE(): Promise<Response> {
   const supabase = await createClient()
@@ -17,8 +17,10 @@ export async function DELETE(): Promise<Response> {
   if (rateLimited) return rateLimited
 
   try {
+    const admin = createAdminClient()
+
     // Get user profile
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await admin
       .from("users")
       .select("stripe_customer_id, turso_db_name")
       .eq("id", user.id)
@@ -29,70 +31,85 @@ export async function DELETE(): Promise<Response> {
       return NextResponse.json({ error: "Failed to delete account" }, { status: 500 })
     }
 
-    // Cancel Stripe subscription if exists
+    const cleanupFailures: string[] = []
+
+    // Cancel Stripe subscriptions if present.
     if (profile?.stripe_customer_id) {
       try {
         const subscriptions = await getStripe().subscriptions.list({
           customer: profile.stripe_customer_id,
-          status: "active",
+          status: "all",
         })
-        
+        const cancellableStatuses = new Set(["active", "trialing", "past_due", "unpaid"])
+
         for (const sub of subscriptions.data) {
+          if (!cancellableStatuses.has(sub.status)) continue
           await getStripe().subscriptions.cancel(sub.id)
         }
       } catch (e) {
         console.error("Failed to cancel Stripe subscription:", e)
+        cleanupFailures.push("stripe")
       }
     }
 
-    // Delete Turso database if exists
+    // Delete Turso database if exists.
     if (profile?.turso_db_name) {
       try {
         const tursoOrgSlug = getTursoOrgSlug()
         const tursoApiToken = getTursoApiToken()
-        
+
         if (tursoOrgSlug && tursoApiToken) {
-          await fetch(
+          const response = await fetch(
             `https://api.turso.tech/v1/organizations/${tursoOrgSlug}/databases/${profile.turso_db_name}`,
             {
               method: "DELETE",
               headers: { Authorization: `Bearer ${tursoApiToken}` },
             }
           )
+
+          if (!response.ok && response.status !== 404) {
+            const text = await response.text().catch(() => "")
+            throw new Error(`Turso delete failed (${response.status}) ${text}`)
+          }
         }
       } catch (e) {
         console.error("Failed to delete Turso database:", e)
+        cleanupFailures.push("turso")
       }
     }
 
-    // Delete user from users table
-    const { error: deleteError } = await supabase
-      .from("users")
-      .delete()
-      .eq("id", user.id)
-
-    if (deleteError) {
-      console.error("Failed to delete user record:", deleteError)
-      return NextResponse.json({ error: "Failed to delete account" }, { status: 500 })
+    if (cleanupFailures.length > 0) {
+      return NextResponse.json(
+        { error: "Failed to clean up account resources. Please retry account deletion." },
+        { status: 502 }
+      )
     }
 
-    // Delete auth user (requires admin client)
-    const adminClient = createAdminClient(
-      getSupabaseUrl(),
-      getSupabaseServiceRoleKey()
-    )
-    
-    const { error: authError } = await adminClient.auth.admin.deleteUser(user.id)
-    
+    // Delete auth user first so we don't leave an active auth principal without an app profile.
+    const { error: authError } = await admin.auth.admin.deleteUser(user.id)
+
     if (authError) {
       console.error("Failed to delete auth user:", authError)
       return NextResponse.json({ error: "Failed to delete account" }, { status: 500 })
     }
 
+    // Best-effort profile cleanup after auth deletion.
+    const { error: deleteError } = await admin
+      .from("users")
+      .delete()
+      .eq("id", user.id)
+
+    if (deleteError) {
+      console.error("Failed to delete user profile after auth deletion:", deleteError)
+    }
+
     // Sign out the user
     await supabase.auth.signOut()
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      profileCleanupPending: Boolean(deleteError),
+    })
   } catch (error) {
     console.error("Account deletion error:", error)
     return NextResponse.json({ error: "Failed to delete account" }, { status: 500 })

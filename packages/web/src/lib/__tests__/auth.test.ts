@@ -27,13 +27,17 @@ describe("authenticateRequest", () => {
 
   describe("CLI Bearer token auth", () => {
     it("should authenticate valid CLI token", async () => {
+      const mockMaybeSingle = vi
+        .fn()
+        .mockResolvedValueOnce({
+          data: { id: "user-123", email: "test@example.com" },
+          error: null,
+        })
       const mockAdmin = {
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { id: "user-123", email: "test@example.com" },
-              }),
+              maybeSingle: mockMaybeSingle,
             }),
           }),
         }),
@@ -45,14 +49,19 @@ describe("authenticateRequest", () => {
 
       expect(result).toEqual({ userId: "user-123", email: "test@example.com" })
       expect(mockAdmin.from).toHaveBeenCalledWith("users")
+      expect(mockMaybeSingle).toHaveBeenCalledTimes(1)
     })
 
     it("should return null for invalid CLI token", async () => {
+      const mockMaybeSingle = vi
+        .fn()
+        .mockResolvedValueOnce({ data: null, error: null })
+        .mockResolvedValueOnce({ data: null, error: null })
       const mockAdmin = {
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: null }),
+              maybeSingle: mockMaybeSingle,
             }),
           }),
         }),
@@ -63,6 +72,37 @@ describe("authenticateRequest", () => {
       const result = await authenticateRequest(request)
 
       expect(result).toBeNull()
+      expect(mockMaybeSingle).toHaveBeenCalledTimes(2)
+    })
+
+    it("should fall back to legacy plaintext token when hash column is unavailable", async () => {
+      const mockMaybeSingle = vi
+        .fn()
+        .mockResolvedValueOnce({
+          data: null,
+          error: { message: "column users.cli_token_hash does not exist" },
+        })
+        .mockResolvedValueOnce({
+          data: { id: "legacy-user", email: "legacy@example.com" },
+          error: null,
+        })
+
+      const mockAdmin = {
+        from: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: mockMaybeSingle,
+            }),
+          }),
+        }),
+      }
+      mockCreateAdminClient.mockReturnValue(mockAdmin as never)
+
+      const request = makeRequest({ authorization: "Bearer cli_legacy_token" })
+      const result = await authenticateRequest(request)
+
+      expect(result).toEqual({ userId: "legacy-user", email: "legacy@example.com" })
+      expect(mockMaybeSingle).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -118,13 +158,17 @@ describe("authenticateRequest", () => {
 
   describe("auth method priority", () => {
     it("should prefer CLI token over session when both present", async () => {
+      const mockMaybeSingle = vi
+        .fn()
+        .mockResolvedValueOnce({
+          data: { id: "cli-user", email: "cli@example.com" },
+          error: null,
+        })
       const mockAdmin = {
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { id: "cli-user", email: "cli@example.com" },
-              }),
+              maybeSingle: mockMaybeSingle,
             }),
           }),
         }),
