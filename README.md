@@ -42,6 +42,8 @@ npm install -g @memories.sh/cli
 
 Requires Node.js >= 20. Also available via `pnpm add -g @memories.sh/cli`.
 
+Global installs automatically bootstrap `SKILLS.md` guidance in detected tool config homes (for example `~/.claude`, `~/.cursor`, `~/.codex`) so agents know when and how to call `memories`.
+
 ## Quick Start
 
 ```bash
@@ -73,6 +75,7 @@ memories generate
 - **Semantic search** — AI-powered embeddings find related memories, not just keyword matches
 - **MCP server** — fallback MCP server for agents that need real-time access beyond static configs
 - **Auto-setup** — `memories setup` (`init` alias) detects installed tools, configures MCP, and imports existing project skills automatically
+- **Global SKILLS.md bootstrap** — installs cross-tool memory usage guidance into detected global agent config directories
 - **Cloud sync** — optional sync via Turso embedded replicas (local speed, cloud backup)
 - **GitHub capture queue** — ingest PRs/issues/commits via webhook and approve before writing memories
 - **Import/Export** — ingest existing rule files, export to YAML for sharing

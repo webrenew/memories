@@ -11,6 +11,7 @@ import {
   setupMcp,
   toolSupportsGeneration,
   toolSupportsMcp,
+  installGlobalSkillsGuides,
 } from "../lib/setup.js";
 import { initConfig } from "../lib/config.js";
 import { runDoctorChecks } from "./doctor.js";
@@ -321,6 +322,34 @@ export const initCommand = new Command("init")
               }
             }
           }
+        }
+      }
+
+      const globalSkillsResult = await installGlobalSkillsGuides();
+      const installedGlobalSkills = [...globalSkillsResult.created, ...globalSkillsResult.updated];
+
+      if (installedGlobalSkills.length > 0) {
+        ui.success(
+          `Installed global SKILLS.md guidance (${installedGlobalSkills.length} ${installedGlobalSkills.length === 1 ? "file" : "files"}).`,
+        );
+        for (const path of installedGlobalSkills.slice(0, 5)) {
+          ui.dim(`  → ${path}`);
+        }
+        if (installedGlobalSkills.length > 5) {
+          ui.dim(`  ...and ${installedGlobalSkills.length - 5} more`);
+        }
+      }
+
+      if (globalSkillsResult.skipped.length > 0) {
+        ui.dim(
+          `Preserved ${globalSkillsResult.skipped.length} existing SKILLS.md ${globalSkillsResult.skipped.length === 1 ? "file" : "files"} (user-managed).`,
+        );
+      }
+
+      if (globalSkillsResult.errors.length > 0) {
+        ui.warn(`Global SKILLS.md install completed with ${globalSkillsResult.errors.length} error(s).`);
+        for (const err of globalSkillsResult.errors.slice(0, 5)) {
+          ui.dim(err);
         }
       }
 

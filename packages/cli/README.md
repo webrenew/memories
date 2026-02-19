@@ -13,6 +13,8 @@ npm install -g @memories.sh/cli
 
 Requires Node.js >= 20.
 
+Global installs automatically bootstrap `SKILLS.md` guidance in detected tool config homes (for example `~/.claude`, `~/.cursor`, `~/.codex`) so agents know when and how to call `memories`.
+
 ## Quick Start
 
 ```bash
@@ -45,6 +47,7 @@ memories serve
 - **MCP server** — fallback for agents that need real-time access beyond static configs
 - **Local-first** — SQLite database, fully offline capable
 - **Cloud sync** — optional Turso-powered cross-machine sync
+- **Global SKILLS.md bootstrap** — installs cross-tool memory usage guidance into detected global agent config directories
 
 ## Memory Types
 

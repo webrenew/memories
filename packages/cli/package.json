@@ -1,6 +1,6 @@
 {
   "name": "@memories.sh/cli",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "description": "A local-first memory layer for AI coding agents — persistent context for Claude, Cursor, and more",
   "type": "module",
   "license": "Apache-2.0",
@@ -29,7 +29,8 @@
     "node": ">=20"
   },
   "files": [
-    "dist"
+    "dist",
+    "postinstall.mjs"
   ],
   "bin": {
     "memories": "./dist/index.js"
@@ -42,7 +43,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "postinstall": "node ./postinstall.mjs"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.2.0",
