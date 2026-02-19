@@ -2,6 +2,7 @@ import { z } from "zod"
 
 export const memoryTypeSchema = z.enum(["rule", "decision", "fact", "note", "skill"])
 export const memoryLayerSchema = z.enum(["rule", "working", "long_term"])
+export const embeddingModelSchema = z.string().trim().min(1).max(160)
 
 export const scopeSchema = z
   .object({

@@ -158,3 +158,29 @@ export const managementTenantDisableSchema = z.object({
   status: z.string(),
   updatedAt: z.string(),
 })
+
+export const managementEmbeddingModelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  description: z.string().nullable(),
+  contextWindow: z.number().nullable(),
+  pricing: z.object({
+    input: z.string().nullable(),
+  }),
+  inputCostUsdPerToken: z.number().nullable(),
+  tags: z.array(z.string()).default([]),
+})
+
+export const managementEmbeddingConfigSchema = z.object({
+  selectedModelId: z.string(),
+  source: z.union([z.literal("request"), z.literal("project"), z.literal("workspace"), z.literal("system_default")]),
+  workspaceDefaultModelId: z.string().nullable(),
+  projectOverrideModelId: z.string().nullable(),
+  allowlistModelIds: z.array(z.string()),
+})
+
+export const managementEmbeddingModelsSchema = z.object({
+  models: z.array(managementEmbeddingModelSchema),
+  config: managementEmbeddingConfigSchema,
+})

@@ -268,6 +268,26 @@ export function getGithubWebhookSecret(): string | undefined {
   return process.env.GITHUB_WEBHOOK_SECRET
 }
 
+export function hasAiGatewayApiKey(): boolean {
+  return Boolean(envValue("AI_GATEWAY_API_KEY"))
+}
+
+export function getAiGatewayApiKey(): string {
+  const value = envValue("AI_GATEWAY_API_KEY")
+  if (!value) {
+    throw new Error("Missing AI_GATEWAY_API_KEY")
+  }
+  return value
+}
+
+export function getAiGatewayBaseUrl(): string {
+  return envValue("AI_GATEWAY_BASE_URL") ?? "https://ai-gateway.vercel.sh"
+}
+
+export function getSdkDefaultEmbeddingModelId(): string {
+  return envValue("SDK_DEFAULT_EMBEDDING_MODEL_ID") ?? "openai/text-embedding-3-small"
+}
+
 export function shouldAutoProvisionTenants(): boolean {
   const flag = process.env.SDK_AUTO_PROVISION_TENANTS
   if (!flag) return true

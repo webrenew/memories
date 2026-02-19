@@ -43,7 +43,7 @@ describe("MemoriesClient", () => {
       fetch: fetchMock as unknown as typeof fetch,
     })
 
-    const result = await client.memories.add({ content: "test" })
+    const result = await client.memories.add({ content: "test", embeddingModel: "openai/text-embedding-3-small" })
     expect(result.ok).toBe(true)
     expect(result.message).toBe("Stored note")
 
@@ -52,8 +52,10 @@ describe("MemoriesClient", () => {
     expect(url).toBe("https://example.com/api/sdk/v1/memories/add")
     expect(init.method).toBe("POST")
     const parsedBody = JSON.parse((init.body as string) ?? "{}") as {
+      embeddingModel?: string
       scope?: { tenantId?: string; userId?: string }
     }
+    expect(parsedBody.embeddingModel).toBe("openai/text-embedding-3-small")
     expect(parsedBody.scope?.tenantId).toBe("tenant-123")
     expect(parsedBody.scope?.userId).toBe("user-abc")
   })
@@ -92,6 +94,40 @@ describe("MemoriesClient", () => {
       params?: { arguments?: Record<string, unknown> }
     }
     expect(requestBody.params?.arguments?.tenant_id).toBe("tenant-123")
+  })
+
+  it("forwards embeddingModel on memories.edit for sdk_http transport", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            id: "mem_1",
+            updated: true,
+            message: "Updated memory mem_1",
+          },
+          error: null,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    )
+
+    const client = new MemoriesClient({
+      apiKey: "mcp_test",
+      baseUrl: "https://example.com",
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await client.memories.edit("mem_1", {
+      content: "updated",
+      embeddingModel: "openai/text-embedding-3-large",
+    })
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe("https://example.com/api/sdk/v1/memories/edit")
+    const parsedBody = JSON.parse((init.body as string) ?? "{}") as { embeddingModel?: string; id?: string }
+    expect(parsedBody.id).toBe("mem_1")
+    expect(parsedBody.embeddingModel).toBe("openai/text-embedding-3-large")
   })
 
   it("parses structuredContent into typed context arrays", async () => {
@@ -641,6 +677,41 @@ describe("MemoriesClient", () => {
         )
       }
 
+      if (
+        url ===
+          "https://example.com/api/sdk/v1/embeddings/models?tenantId=tenant-b&projectId=github.com%2Facme%2Fplatform&embeddingModel=openai%2Ftext-embedding-3-small" &&
+        method === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              models: [
+                {
+                  id: "openai/text-embedding-3-small",
+                  name: "text-embedding-3-small",
+                  provider: "openai",
+                  description: null,
+                  contextWindow: 8192,
+                  pricing: { input: "0.00000002" },
+                  inputCostUsdPerToken: 0.00000002,
+                  tags: ["fast"],
+                },
+              ],
+              config: {
+                selectedModelId: "openai/text-embedding-3-small",
+                source: "request",
+                workspaceDefaultModelId: "openai/text-embedding-3-small",
+                projectOverrideModelId: null,
+                allowlistModelIds: ["openai/text-embedding-3-small"],
+              },
+            },
+            error: null,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      }
+
       return new Response("not found", { status: 404 })
     })
 
@@ -656,6 +727,11 @@ describe("MemoriesClient", () => {
     const tenantList = await client.management.tenants.list()
     const tenantUpsert = await client.management.tenants.upsert({ tenantId: "tenant-b", mode: "provision" })
     const tenantDisabled = await client.management.tenants.disable("tenant-b")
+    const embeddingModels = await client.management.embeddings.list({
+      tenantId: "tenant-b",
+      projectId: "github.com/acme/platform",
+      embeddingModel: "openai/text-embedding-3-small",
+    })
 
     expect(keyStatus.hasKey).toBe(true)
     expect(createdKey.apiKey).toBe("mcp_new_key")
@@ -663,7 +739,9 @@ describe("MemoriesClient", () => {
     expect(tenantList.count).toBe(1)
     expect(tenantUpsert.tenantDatabase.tenantId).toBe("tenant-b")
     expect(tenantDisabled.status).toBe("disabled")
-    expect(fetchMock).toHaveBeenCalledTimes(6)
+    expect(embeddingModels.models[0]?.id).toBe("openai/text-embedding-3-small")
+    expect(embeddingModels.config.source).toBe("request")
+    expect(fetchMock).toHaveBeenCalledTimes(7)
   })
 
   it("validates management inputs before making a request", async () => {
