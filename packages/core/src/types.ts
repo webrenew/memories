@@ -130,6 +130,7 @@ export interface MemoryAddInput {
   paths?: string[]
   category?: string
   metadata?: Record<string, unknown>
+  embeddingModel?: string
   projectId?: string
 }
 
@@ -141,6 +142,7 @@ export interface MemoryEditInput {
   paths?: string[]
   category?: string
   metadata?: Record<string, unknown> | null
+  embeddingModel?: string
 }
 
 export interface MemorySearchOptions {
@@ -256,6 +258,38 @@ export interface ManagementTenantDisableResult {
   tenantId: string
   status: string
   updatedAt: string
+}
+
+export interface ManagementEmbeddingModel {
+  id: string
+  name: string
+  provider: string
+  description: string | null
+  contextWindow: number | null
+  pricing: {
+    input: string | null
+  }
+  inputCostUsdPerToken: number | null
+  tags: string[]
+}
+
+export interface ManagementEmbeddingConfig {
+  selectedModelId: string
+  source: "request" | "project" | "workspace" | "system_default"
+  workspaceDefaultModelId: string | null
+  projectOverrideModelId: string | null
+  allowlistModelIds: string[]
+}
+
+export interface ManagementEmbeddingModelListOptions {
+  tenantId?: string
+  projectId?: string
+  embeddingModel?: string
+}
+
+export interface ManagementEmbeddingModelListResult {
+  models: ManagementEmbeddingModel[]
+  config: ManagementEmbeddingConfig
 }
 
 export interface BuildSystemPromptInput {

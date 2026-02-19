@@ -12,6 +12,7 @@ const {
   mockForgetMemoryPayload,
   mockBulkForgetMemoriesPayload,
   mockVacuumMemoriesPayload,
+  mockResolveSdkEmbeddingModelSelection,
   mockExecute,
 } = vi.hoisted(() => ({
   mockUserSelect: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockForgetMemoryPayload: vi.fn(),
   mockBulkForgetMemoriesPayload: vi.fn(),
   mockVacuumMemoriesPayload: vi.fn(),
+  mockResolveSdkEmbeddingModelSelection: vi.fn(),
   mockExecute: vi.fn(),
 }))
 
@@ -77,6 +79,10 @@ vi.mock("@/lib/memory-service/queries", () => ({
   listMemoriesPayload: mockListMemoriesPayload,
 }))
 
+vi.mock("@/lib/sdk-embeddings/models", () => ({
+  resolveSdkEmbeddingModelSelection: mockResolveSdkEmbeddingModelSelection,
+}))
+
 vi.mock("@libsql/client", () => ({
   createClient: vi.fn(() => ({
     execute: mockExecute,
@@ -91,6 +97,7 @@ import { POST as forgetPOST } from "../forget/route"
 import { POST as bulkForgetPOST } from "../bulk-forget/route"
 import { POST as vacuumPOST } from "../vacuum/route"
 import { GET as healthGET } from "../../health/route"
+import { ToolExecutionError, apiError } from "@/lib/memory-service/tools"
 
 const VALID_API_KEY = `mem_${"a".repeat(64)}`
 
@@ -204,6 +211,26 @@ describe("/api/sdk/v1/memories/*", () => {
         message: "Vacuumed 5 soft-deleted memories",
       },
     })
+
+    mockResolveSdkEmbeddingModelSelection.mockResolvedValue({
+      selectedModelId: "openai/text-embedding-3-small",
+      source: "system_default",
+      workspaceDefaultModelId: null,
+      projectOverrideModelId: null,
+      allowlistModelIds: ["openai/text-embedding-3-small"],
+      availableModels: [
+        {
+          id: "openai/text-embedding-3-small",
+          name: "text-embedding-3-small",
+          provider: "openai",
+          description: null,
+          contextWindow: 8192,
+          pricing: { input: "0.00000002" },
+          inputCostUsdPerToken: 0.00000002,
+          tags: [],
+        },
+      ],
+    })
   })
 
   it("add returns 201 envelope", async () => {
@@ -240,6 +267,84 @@ describe("/api/sdk/v1/memories/*", () => {
         fallbackToUserWithoutOrgCredentials: true,
       })
     )
+  })
+
+  it("add accepts embeddingModel override and forwards resolved model", async () => {
+    mockResolveSdkEmbeddingModelSelection.mockResolvedValue({
+      selectedModelId: "openai/text-embedding-3-large",
+      source: "request",
+      workspaceDefaultModelId: "openai/text-embedding-3-small",
+      projectOverrideModelId: null,
+      allowlistModelIds: ["openai/text-embedding-3-small", "openai/text-embedding-3-large"],
+      availableModels: [],
+    })
+
+    const response = await addPOST(
+      makePost(
+        "/api/sdk/v1/memories/add",
+        {
+          content: "hello",
+          embeddingModel: "openai/text-embedding-3-large",
+          scope: {
+            projectId: "github.com/acme/platform",
+            userId: "end-user-1",
+          },
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(201)
+    const body = await response.json()
+    expect(body.ok).toBe(true)
+    expect(body.data.embeddingModel).toBe("openai/text-embedding-3-large")
+    expect(body.data.embeddingModelSource).toBe("request")
+
+    expect(mockResolveSdkEmbeddingModelSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestedModelId: "openai/text-embedding-3-large",
+        tenantId: null,
+        projectId: "github.com/acme/platform",
+      })
+    )
+    expect(mockAddMemoryPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.objectContaining({
+          embeddingModel: "openai/text-embedding-3-large",
+        }),
+      })
+    )
+  })
+
+  it("add returns validation envelope when embedding model selection fails", async () => {
+    mockResolveSdkEmbeddingModelSelection.mockRejectedValue(
+      new ToolExecutionError(
+        apiError({
+          type: "validation_error",
+          code: "UNSUPPORTED_EMBEDDING_MODEL",
+          message: "Unsupported embedding model",
+          status: 400,
+          retryable: false,
+        }),
+        { rpcCode: -32602 }
+      )
+    )
+
+    const response = await addPOST(
+      makePost(
+        "/api/sdk/v1/memories/add",
+        {
+          content: "hello",
+          embeddingModel: "not-a-real-model",
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.ok).toBe(false)
+    expect(body.error.code).toBe("UNSUPPORTED_EMBEDDING_MODEL")
   })
 
   it("search returns results envelope", async () => {
@@ -297,6 +402,44 @@ describe("/api/sdk/v1/memories/*", () => {
     const body = await response.json()
     expect(body.ok).toBe(false)
     expect(body.error.code).toBe("INVALID_REQUEST")
+  })
+
+  it("edit accepts embeddingModel as an update field", async () => {
+    mockResolveSdkEmbeddingModelSelection.mockResolvedValue({
+      selectedModelId: "openai/text-embedding-3-large",
+      source: "request",
+      workspaceDefaultModelId: "openai/text-embedding-3-small",
+      projectOverrideModelId: null,
+      allowlistModelIds: ["openai/text-embedding-3-small", "openai/text-embedding-3-large"],
+      availableModels: [],
+    })
+
+    const response = await editPOST(
+      makePost(
+        "/api/sdk/v1/memories/edit",
+        {
+          id: "mem_1",
+          embeddingModel: "openai/text-embedding-3-large",
+          scope: {
+            projectId: "github.com/acme/platform",
+          },
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.ok).toBe(true)
+    expect(body.data.embeddingModel).toBe("openai/text-embedding-3-large")
+    expect(body.data.embeddingModelSource).toBe("request")
+    expect(mockEditMemoryPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: expect.objectContaining({
+          embeddingModel: "openai/text-embedding-3-large",
+        }),
+      })
+    )
   })
 
   it("forget returns deletion envelope", async () => {
@@ -656,6 +799,8 @@ describe("/api/sdk/v1/memories envelope contracts", () => {
     expect(normalizeEnvelope(body)).toMatchInlineSnapshot(`
       {
         "data": {
+          "embeddingModel": null,
+          "embeddingModelSource": null,
           "id": "mem_1",
           "memory": {
             "content": "hello",

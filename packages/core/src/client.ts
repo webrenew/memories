@@ -10,6 +10,8 @@ import type {
   ContextResult,
   ManagementKeyCreateInput,
   ManagementKeyCreateResult,
+  ManagementEmbeddingModelListOptions,
+  ManagementEmbeddingModelListResult,
   ManagementKeyRevokeResult,
   ManagementKeyStatus,
   ManagementTenantDisableResult,
@@ -36,6 +38,7 @@ import {
   bulkForgetResultSchema,
   contextStructuredSchema,
   managementKeyCreateSchema,
+  managementEmbeddingModelsSchema,
   managementKeyRevokeSchema,
   managementKeyStatusSchema,
   managementTenantDisableSchema,
@@ -201,6 +204,7 @@ export class MemoriesClient {
             paths: input.paths,
             category: input.category,
             metadata: input.metadata,
+            embeddingModel: input.embeddingModel,
             scope: sdkScope,
           })
         : await this.callTool("add_memory", {
@@ -211,6 +215,7 @@ export class MemoriesClient {
             paths: input.paths,
             category: input.category,
             metadata: input.metadata,
+            embedding_model: input.embeddingModel,
             project_id: input.projectId,
           })
 
@@ -290,6 +295,7 @@ export class MemoriesClient {
             paths: updates.paths,
             category: updates.category,
             metadata: updates.metadata,
+            embeddingModel: updates.embeddingModel,
             scope: sdkScope,
           })
         : await this.callTool("edit_memory", {
@@ -301,6 +307,7 @@ export class MemoriesClient {
             paths: updates.paths,
             category: updates.category,
             metadata: updates.metadata,
+            embedding_model: updates.embeddingModel,
           })
       const message = (messageFromEnvelope(result.envelope) ?? result.raw) || `Updated memory ${id}`
       return {
@@ -548,6 +555,22 @@ export class MemoriesClient {
         })
 
         return parseStructuredData(managementTenantDisableSchema, endpoint, result.structured)
+      },
+    },
+
+    embeddings: {
+      list: async (options: ManagementEmbeddingModelListOptions = {}): Promise<ManagementEmbeddingModelListResult> => {
+        const endpoint = "/api/sdk/v1/embeddings/models"
+        const result = await this.callSdkRequest(endpoint, {
+          method: "GET",
+          query: {
+            tenantId: options.tenantId,
+            projectId: options.projectId,
+            embeddingModel: options.embeddingModel,
+          },
+        })
+
+        return parseStructuredData(managementEmbeddingModelsSchema, endpoint, result.structured)
       },
     },
   }
