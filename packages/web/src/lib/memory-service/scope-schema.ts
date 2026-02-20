@@ -9,6 +9,7 @@ const MEMORY_SCHEMA_STATE_TABLE = "memory_schema_state"
 const MEMORY_USER_ID_SCHEMA_STATE_KEY = "memory_user_id_v1"
 const MEMORY_EMBEDDINGS_SCHEMA_STATE_KEY = "memory_embeddings_v1"
 const MEMORY_EMBEDDING_JOBS_SCHEMA_STATE_KEY = "memory_embedding_jobs_v1"
+const MEMORY_EMBEDDING_BACKFILL_SCHEMA_STATE_KEY = "memory_embedding_backfill_v1"
 
 // ─── Graph Schema ─────────────────────────────────────────────────────────────
 
@@ -216,6 +217,60 @@ async function ensureEmbeddingJobSchema(turso: TursoClient): Promise<void> {
   )
 }
 
+async function ensureEmbeddingBackfillSchema(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embedding_backfill_state (
+      scope_key TEXT PRIMARY KEY,
+      model TEXT NOT NULL,
+      project_id TEXT,
+      user_id TEXT,
+      status TEXT NOT NULL DEFAULT 'idle',
+      checkpoint_created_at TEXT,
+      checkpoint_memory_id TEXT,
+      scanned_count INTEGER NOT NULL DEFAULT 0 CHECK (scanned_count >= 0),
+      enqueued_count INTEGER NOT NULL DEFAULT 0 CHECK (enqueued_count >= 0),
+      estimated_total INTEGER NOT NULL DEFAULT 0 CHECK (estimated_total >= 0),
+      estimated_remaining INTEGER NOT NULL DEFAULT 0 CHECK (estimated_remaining >= 0),
+      estimated_completion_seconds INTEGER,
+      batch_limit INTEGER NOT NULL DEFAULT 100 CHECK (batch_limit > 0),
+      throttle_ms INTEGER NOT NULL DEFAULT 25 CHECK (throttle_ms >= 0),
+      started_at TEXT,
+      last_run_at TEXT,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_error TEXT
+    )`
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embedding_backfill_state_status_updated ON memory_embedding_backfill_state(status, updated_at)"
+  )
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embedding_backfill_metrics (
+      id TEXT PRIMARY KEY,
+      scope_key TEXT NOT NULL,
+      model TEXT NOT NULL,
+      batch_scanned INTEGER NOT NULL DEFAULT 0 CHECK (batch_scanned >= 0),
+      batch_enqueued INTEGER NOT NULL DEFAULT 0 CHECK (batch_enqueued >= 0),
+      total_scanned INTEGER NOT NULL DEFAULT 0 CHECK (total_scanned >= 0),
+      total_enqueued INTEGER NOT NULL DEFAULT 0 CHECK (total_enqueued >= 0),
+      estimated_total INTEGER NOT NULL DEFAULT 0 CHECK (estimated_total >= 0),
+      estimated_remaining INTEGER NOT NULL DEFAULT 0 CHECK (estimated_remaining >= 0),
+      estimated_completion_seconds INTEGER,
+      duration_ms INTEGER NOT NULL DEFAULT 0 CHECK (duration_ms >= 0),
+      status TEXT NOT NULL,
+      error TEXT,
+      ran_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embedding_backfill_metrics_scope_ran_at ON memory_embedding_backfill_metrics(scope_key, ran_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embedding_backfill_metrics_status_ran_at ON memory_embedding_backfill_metrics(status, ran_at)"
+  )
+}
+
 // ─── Schema State Helpers ─────────────────────────────────────────────────────
 
 async function ensureSchemaStateTable(turso: TursoClient): Promise<void> {
@@ -329,6 +384,10 @@ export async function ensureMemoryUserIdSchema(
   await ensureEmbeddingJobSchema(turso)
   if (!(await isMemorySchemaMarked(turso, MEMORY_EMBEDDING_JOBS_SCHEMA_STATE_KEY))) {
     await markMemorySchemaApplied(turso, MEMORY_EMBEDDING_JOBS_SCHEMA_STATE_KEY)
+  }
+  await ensureEmbeddingBackfillSchema(turso)
+  if (!(await isMemorySchemaMarked(turso, MEMORY_EMBEDDING_BACKFILL_SCHEMA_STATE_KEY))) {
+    await markMemorySchemaApplied(turso, MEMORY_EMBEDDING_BACKFILL_SCHEMA_STATE_KEY)
   }
 
   memorySchemaEnsuredClients.add(turso)

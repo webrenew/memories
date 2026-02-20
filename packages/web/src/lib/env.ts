@@ -10,6 +10,11 @@ export function parsePositiveInt(value: string | undefined, fallback: number): n
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
+export function parseNonNegativeInt(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
 export function parseBooleanFlag(value: string | undefined, fallback = false): boolean {
   if (!value) return fallback
   const normalized = value.trim().toLowerCase()
@@ -326,6 +331,14 @@ export function getSdkEmbeddingJobWorkerBatchSize(): number {
 
 export function getSdkEmbeddingJobProcessingTimeoutMs(): number {
   return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_PROCESSING_TIMEOUT_MS, 5 * 60 * 1_000)
+}
+
+export function getSdkEmbeddingBackfillBatchSize(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_BACKFILL_BATCH_SIZE, 100)
+}
+
+export function getSdkEmbeddingBackfillThrottleMs(): number {
+  return parseNonNegativeInt(process.env.SDK_EMBEDDING_BACKFILL_THROTTLE_MS, 25)
 }
 
 export function shouldAutoProvisionTenants(): boolean {

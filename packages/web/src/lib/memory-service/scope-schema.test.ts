@@ -67,6 +67,12 @@ describe("ensureMemoryUserIdSchema", () => {
     })
     expect(String(embeddingJobsMarker.rows[0]?.value ?? "")).toBe("1")
 
+    const embeddingBackfillMarker = await db.execute({
+      sql: "SELECT value FROM memory_schema_state WHERE key = ?",
+      args: ["memory_embedding_backfill_v1"],
+    })
+    expect(String(embeddingBackfillMarker.rows[0]?.value ?? "")).toBe("1")
+
     const embeddingColumns = await db.execute("PRAGMA table_info(memory_embeddings)")
     const embeddingColumnNames = new Set(embeddingColumns.rows.map((row) => String(row.name)))
     expect(embeddingColumnNames.has("memory_id")).toBe(true)
@@ -126,6 +132,47 @@ describe("ensureMemoryUserIdSchema", () => {
     expect(embeddingMetricIndexNames.has("idx_memory_embedding_job_metrics_job_created_at")).toBe(true)
     expect(embeddingMetricIndexNames.has("idx_memory_embedding_job_metrics_outcome_created_at")).toBe(true)
     expect(embeddingMetricIndexNames.has("idx_memory_embedding_job_metrics_created_at")).toBe(true)
+
+    const embeddingBackfillStateColumns = await db.execute("PRAGMA table_info(memory_embedding_backfill_state)")
+    const embeddingBackfillStateColumnNames = new Set(embeddingBackfillStateColumns.rows.map((row) => String(row.name)))
+    expect(embeddingBackfillStateColumnNames.has("scope_key")).toBe(true)
+    expect(embeddingBackfillStateColumnNames.has("model")).toBe(true)
+    expect(embeddingBackfillStateColumnNames.has("status")).toBe(true)
+    expect(embeddingBackfillStateColumnNames.has("checkpoint_created_at")).toBe(true)
+    expect(embeddingBackfillStateColumnNames.has("checkpoint_memory_id")).toBe(true)
+    expect(embeddingBackfillStateColumnNames.has("scanned_count")).toBe(true)
+    expect(embeddingBackfillStateColumnNames.has("enqueued_count")).toBe(true)
+    expect(embeddingBackfillStateColumnNames.has("estimated_total")).toBe(true)
+    expect(embeddingBackfillStateColumnNames.has("estimated_remaining")).toBe(true)
+    expect(embeddingBackfillStateColumnNames.has("estimated_completion_seconds")).toBe(true)
+
+    const embeddingBackfillStateIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ?",
+      args: ["memory_embedding_backfill_state"],
+    })
+    const embeddingBackfillStateIndexNames = new Set(embeddingBackfillStateIndexes.rows.map((row) => String(row.name)))
+    expect(embeddingBackfillStateIndexNames.has("idx_memory_embedding_backfill_state_status_updated")).toBe(true)
+
+    const embeddingBackfillMetricColumns = await db.execute("PRAGMA table_info(memory_embedding_backfill_metrics)")
+    const embeddingBackfillMetricColumnNames = new Set(embeddingBackfillMetricColumns.rows.map((row) => String(row.name)))
+    expect(embeddingBackfillMetricColumnNames.has("id")).toBe(true)
+    expect(embeddingBackfillMetricColumnNames.has("scope_key")).toBe(true)
+    expect(embeddingBackfillMetricColumnNames.has("model")).toBe(true)
+    expect(embeddingBackfillMetricColumnNames.has("batch_scanned")).toBe(true)
+    expect(embeddingBackfillMetricColumnNames.has("batch_enqueued")).toBe(true)
+    expect(embeddingBackfillMetricColumnNames.has("total_scanned")).toBe(true)
+    expect(embeddingBackfillMetricColumnNames.has("total_enqueued")).toBe(true)
+    expect(embeddingBackfillMetricColumnNames.has("estimated_total")).toBe(true)
+    expect(embeddingBackfillMetricColumnNames.has("estimated_remaining")).toBe(true)
+    expect(embeddingBackfillMetricColumnNames.has("status")).toBe(true)
+
+    const embeddingBackfillMetricIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ?",
+      args: ["memory_embedding_backfill_metrics"],
+    })
+    const embeddingBackfillMetricIndexNames = new Set(embeddingBackfillMetricIndexes.rows.map((row) => String(row.name)))
+    expect(embeddingBackfillMetricIndexNames.has("idx_memory_embedding_backfill_metrics_scope_ran_at")).toBe(true)
+    expect(embeddingBackfillMetricIndexNames.has("idx_memory_embedding_backfill_metrics_status_ran_at")).toBe(true)
   })
 
   it("upgrades embedding schema for tenants already marked on the user-id migration", async () => {
@@ -174,6 +221,12 @@ describe("ensureMemoryUserIdSchema", () => {
     })
     expect(String(embeddingJobsMarker.rows[0]?.value ?? "")).toBe("1")
 
+    const embeddingBackfillMarker = await db.execute({
+      sql: "SELECT value FROM memory_schema_state WHERE key = ?",
+      args: ["memory_embedding_backfill_v1"],
+    })
+    expect(String(embeddingBackfillMarker.rows[0]?.value ?? "")).toBe("1")
+
     const embeddingsTable = await db.execute({
       sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
       args: ["memory_embeddings"],
@@ -185,5 +238,17 @@ describe("ensureMemoryUserIdSchema", () => {
       args: ["memory_embedding_jobs"],
     })
     expect(embeddingJobsTable.rows).toHaveLength(1)
+
+    const embeddingBackfillStateTable = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+      args: ["memory_embedding_backfill_state"],
+    })
+    expect(embeddingBackfillStateTable.rows).toHaveLength(1)
+
+    const embeddingBackfillMetricTable = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+      args: ["memory_embedding_backfill_metrics"],
+    })
+    expect(embeddingBackfillMetricTable.rows).toHaveLength(1)
   })
 })
