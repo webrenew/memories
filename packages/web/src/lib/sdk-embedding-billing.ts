@@ -13,6 +13,8 @@ import { createAdminClient } from "@/lib/supabase/admin"
 type AdminClient = ReturnType<typeof createAdminClient>
 
 const EMBEDDING_METER_MICROS_PER_USD = 1_000_000
+const REDACTED_EMBEDDING_METADATA_VALUE = "[redacted]"
+const METADATA_MAX_DEPTH = 4
 
 export interface RecordSdkEmbeddingMeterEventInput {
   ownerUserId: string
@@ -171,6 +173,51 @@ function sanitizeIdentifier(value: string, fallback: string): string {
 
 function toMeterMicros(usd: number): number {
   return Math.max(0, Math.round(usd * EMBEDDING_METER_MICROS_PER_USD))
+}
+
+function isNumericVector(value: unknown): value is number[] {
+  return Array.isArray(value) && value.length >= 8 && value.every((item) => typeof item === "number" && Number.isFinite(item))
+}
+
+function sanitizeEmbeddingMetadataValue(value: unknown, depth: number): unknown {
+  if (depth > METADATA_MAX_DEPTH) {
+    return REDACTED_EMBEDDING_METADATA_VALUE
+  }
+
+  if (isNumericVector(value)) {
+    return REDACTED_EMBEDDING_METADATA_VALUE
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeEmbeddingMetadataValue(item, depth + 1))
+  }
+
+  if (value && typeof value === "object") {
+    const sanitizedEntries = Object.entries(value as Record<string, unknown>).map(([key, nested]) => {
+      const keyLower = key.toLowerCase()
+      if (keyLower.includes("embedding") || keyLower.includes("vector")) {
+        return [key, REDACTED_EMBEDDING_METADATA_VALUE] as const
+      }
+      return [key, sanitizeEmbeddingMetadataValue(nested, depth + 1)] as const
+    })
+    return Object.fromEntries(sanitizedEntries)
+  }
+
+  return value
+}
+
+function sanitizeEmbeddingMetadata(metadata: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!metadata) return {}
+
+  const sanitizedEntries = Object.entries(metadata).map(([key, value]) => {
+    const keyLower = key.toLowerCase()
+    if (keyLower.includes("embedding") || keyLower.includes("vector")) {
+      return [key, REDACTED_EMBEDDING_METADATA_VALUE] as const
+    }
+    return [key, sanitizeEmbeddingMetadataValue(value, 1)] as const
+  })
+
+  return Object.fromEntries(sanitizedEntries)
 }
 
 export function deriveEmbeddingProviderFromModelId(modelId: string): string {
@@ -333,7 +380,7 @@ export async function recordSdkEmbeddingMeterEvent(input: RecordSdkEmbeddingMete
       market_cost_usd: marketCostUsd,
       customer_cost_usd: customerCostUsd,
       estimated_cost: estimatedCost,
-      metadata: input.metadata ?? {},
+      metadata: sanitizeEmbeddingMetadata(input.metadata),
     })
     .select("id")
     .single()

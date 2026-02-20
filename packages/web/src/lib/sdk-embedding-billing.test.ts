@@ -129,6 +129,13 @@ describe("sdk-embedding-billing", () => {
       inputTokens: 500,
       modelInputCostUsdPerToken: 0.00000002,
       estimatedCost: true,
+      metadata: {
+        endpoint: "/api/sdk/v1/memories/add",
+        embeddingVector: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+        nested: {
+          queryEmbedding: [1, 2, 3, 4, 5, 6, 7, 8],
+        },
+      },
     })
 
     expect(insert).toHaveBeenCalledTimes(1)
@@ -137,6 +144,13 @@ describe("sdk-embedding-billing", () => {
         owner_scope_key: "user:user-1",
         model_id: "openai/text-embedding-3-small",
         input_tokens: 500,
+        metadata: {
+          endpoint: "/api/sdk/v1/memories/add",
+          embeddingVector: "[redacted]",
+          nested: {
+            queryEmbedding: "[redacted]",
+          },
+        },
       })
     )
 

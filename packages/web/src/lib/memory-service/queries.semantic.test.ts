@@ -184,6 +184,60 @@ async function seedRetrievalFixture(db: DbClient): Promise<void> {
   })
 }
 
+interface SeedScopedMemoryInput {
+  id: string
+  content: string
+  layer: "working" | "long_term"
+  scope: "global" | "project"
+  projectId?: string | null
+  userId?: string | null
+  embedding: number[]
+  createdAt: string
+  updatedAt: string
+}
+
+async function insertScopedMemoryWithEmbedding(db: DbClient, input: SeedScopedMemoryInput): Promise<void> {
+  const model = "openai/text-embedding-3-small"
+  await db.execute({
+    sql: `INSERT INTO memories (
+            id, content, type, memory_layer, expires_at, scope, project_id, user_id,
+            tags, paths, category, metadata, deleted_at, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      input.id,
+      input.content,
+      "note",
+      input.layer,
+      null,
+      input.scope,
+      input.projectId ?? null,
+      input.userId ?? null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      input.createdAt,
+      input.updatedAt,
+    ],
+  })
+
+  await db.execute({
+    sql: `INSERT INTO memory_embeddings (
+            memory_id, embedding, model, model_version, dimension, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      input.id,
+      encodeEmbedding(input.embedding),
+      model,
+      model,
+      input.embedding.length,
+      input.createdAt,
+      input.updatedAt,
+    ],
+  })
+}
+
 afterEach(() => {
   for (const db of testDatabases.splice(0, testDatabases.length)) {
     db.close()
@@ -300,5 +354,134 @@ describe("semantic + hybrid retrieval", () => {
     expect(payload.data.trace.requestedStrategy).toBe("hybrid")
     expect(payload.data.trace.appliedStrategy).toBe("hybrid")
     expect(payload.data.trace.fallbackTriggered).toBe(false)
+  })
+
+  it("enforces project/user isolation on lexical and semantic retrieval paths", async () => {
+    process.env.AI_GATEWAY_API_KEY = "test_key"
+    process.env.AI_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh"
+    process.env.SDK_DEFAULT_EMBEDDING_MODEL_ID = "openai/text-embedding-3-small"
+
+    const db = await setupDb("memories-semantic-scope-isolation")
+    const createdAt = "2026-02-20T01:00:00.000Z"
+
+    await insertScopedMemoryWithEmbedding(db, {
+      id: "allowed-global",
+      content: "scope probe alpha global",
+      layer: "long_term",
+      scope: "global",
+      projectId: null,
+      userId: null,
+      embedding: [1, 0],
+      createdAt,
+      updatedAt: "2026-02-20T01:00:01.000Z",
+    })
+    await insertScopedMemoryWithEmbedding(db, {
+      id: "allowed-project",
+      content: "scope probe alpha project",
+      layer: "long_term",
+      scope: "project",
+      projectId: "project-a",
+      userId: null,
+      embedding: [1, 0],
+      createdAt,
+      updatedAt: "2026-02-20T01:00:02.000Z",
+    })
+    await insertScopedMemoryWithEmbedding(db, {
+      id: "allowed-user",
+      content: "scope probe alpha user",
+      layer: "working",
+      scope: "global",
+      projectId: null,
+      userId: "user-42",
+      embedding: [1, 0],
+      createdAt,
+      updatedAt: "2026-02-20T01:00:03.000Z",
+    })
+    await insertScopedMemoryWithEmbedding(db, {
+      id: "blocked-project",
+      content: "scope probe alpha blocked project",
+      layer: "long_term",
+      scope: "project",
+      projectId: "project-b",
+      userId: null,
+      embedding: [1, 0],
+      createdAt,
+      updatedAt: "2026-02-20T01:00:04.000Z",
+    })
+    await insertScopedMemoryWithEmbedding(db, {
+      id: "blocked-user",
+      content: "scope probe alpha blocked user",
+      layer: "long_term",
+      scope: "global",
+      projectId: null,
+      userId: "user-99",
+      embedding: [1, 0],
+      createdAt,
+      updatedAt: "2026-02-20T01:00:05.000Z",
+    })
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            data: [{ embedding: [1, 0] }],
+            model: "openai/text-embedding-3-small",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    )
+
+    const { getContextPayload, searchMemoriesPayload } = await loadQueriesModule()
+    const lexicalSearch = await searchMemoriesPayload({
+      turso: db,
+      args: {
+        query: "scope probe alpha",
+        strategy: "lexical",
+        limit: 10,
+      },
+      projectId: "project-a",
+      userId: "user-42",
+      nowIso: "2026-02-20T01:10:00.000Z",
+    })
+
+    const semanticSearch = await searchMemoriesPayload({
+      turso: db,
+      args: {
+        query: "scope probe alpha",
+        strategy: "semantic",
+        limit: 10,
+      },
+      projectId: "project-a",
+      userId: "user-42",
+      nowIso: "2026-02-20T01:10:00.000Z",
+    })
+
+    const lexicalIds = lexicalSearch.data.memories.map((memory) => memory.id)
+    const semanticIds = semanticSearch.data.memories.map((memory) => memory.id)
+
+    expect(lexicalIds).toEqual(expect.arrayContaining(["allowed-global", "allowed-project", "allowed-user"]))
+    expect(semanticIds).toEqual(expect.arrayContaining(["allowed-global", "allowed-project", "allowed-user"]))
+    expect(lexicalIds).not.toEqual(expect.arrayContaining(["blocked-project", "blocked-user"]))
+    expect(semanticIds).not.toEqual(expect.arrayContaining(["blocked-project", "blocked-user"]))
+
+    const contextPayload = await getContextPayload({
+      turso: db,
+      projectId: "project-a",
+      userId: "user-42",
+      nowIso: "2026-02-20T01:20:00.000Z",
+      query: "scope probe alpha",
+      limit: 10,
+      semanticStrategy: "semantic",
+      retrievalStrategy: "baseline",
+      graphDepth: 0,
+      graphLimit: 0,
+    })
+
+    const contextIds = contextPayload.data.memories.map((memory) => memory.id)
+    expect(contextIds).toEqual(expect.arrayContaining(["allowed-global", "allowed-project", "allowed-user"]))
+    expect(contextIds).not.toEqual(expect.arrayContaining(["blocked-project", "blocked-user"]))
+    expect(contextPayload.data.trace.semanticStrategyApplied).toBe("semantic")
   })
 })
