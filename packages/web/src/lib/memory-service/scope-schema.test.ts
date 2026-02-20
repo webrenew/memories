@@ -61,6 +61,12 @@ describe("ensureMemoryUserIdSchema", () => {
     })
     expect(String(embeddingsMarker.rows[0]?.value ?? "")).toBe("1")
 
+    const embeddingJobsMarker = await db.execute({
+      sql: "SELECT value FROM memory_schema_state WHERE key = ?",
+      args: ["memory_embedding_jobs_v1"],
+    })
+    expect(String(embeddingJobsMarker.rows[0]?.value ?? "")).toBe("1")
+
     const embeddingColumns = await db.execute("PRAGMA table_info(memory_embeddings)")
     const embeddingColumnNames = new Set(embeddingColumns.rows.map((row) => String(row.name)))
     expect(embeddingColumnNames.has("memory_id")).toBe(true)
@@ -78,6 +84,48 @@ describe("ensureMemoryUserIdSchema", () => {
     expect(embeddingIndexNames.has("idx_memory_embeddings_model_version")).toBe(true)
     expect(embeddingIndexNames.has("idx_memory_embeddings_created_at")).toBe(true)
     expect(embeddingIndexNames.has("idx_memory_embeddings_updated_at")).toBe(true)
+
+    const embeddingJobColumns = await db.execute("PRAGMA table_info(memory_embedding_jobs)")
+    const embeddingJobColumnNames = new Set(embeddingJobColumns.rows.map((row) => String(row.name)))
+    expect(embeddingJobColumnNames.has("id")).toBe(true)
+    expect(embeddingJobColumnNames.has("memory_id")).toBe(true)
+    expect(embeddingJobColumnNames.has("operation")).toBe(true)
+    expect(embeddingJobColumnNames.has("model")).toBe(true)
+    expect(embeddingJobColumnNames.has("content")).toBe(true)
+    expect(embeddingJobColumnNames.has("status")).toBe(true)
+    expect(embeddingJobColumnNames.has("attempt_count")).toBe(true)
+    expect(embeddingJobColumnNames.has("max_attempts")).toBe(true)
+    expect(embeddingJobColumnNames.has("next_attempt_at")).toBe(true)
+
+    const embeddingJobIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ?",
+      args: ["memory_embedding_jobs"],
+    })
+    const embeddingJobIndexNames = new Set(embeddingJobIndexes.rows.map((row) => String(row.name)))
+    expect(embeddingJobIndexNames.has("idx_memory_embedding_jobs_status_next_attempt")).toBe(true)
+    expect(embeddingJobIndexNames.has("idx_memory_embedding_jobs_memory_status")).toBe(true)
+    expect(embeddingJobIndexNames.has("idx_memory_embedding_jobs_claimed_at")).toBe(true)
+    expect(embeddingJobIndexNames.has("idx_memory_embedding_jobs_dead_letter_at")).toBe(true)
+
+    const embeddingMetricColumns = await db.execute("PRAGMA table_info(memory_embedding_job_metrics)")
+    const embeddingMetricColumnNames = new Set(embeddingMetricColumns.rows.map((row) => String(row.name)))
+    expect(embeddingMetricColumnNames.has("id")).toBe(true)
+    expect(embeddingMetricColumnNames.has("job_id")).toBe(true)
+    expect(embeddingMetricColumnNames.has("memory_id")).toBe(true)
+    expect(embeddingMetricColumnNames.has("operation")).toBe(true)
+    expect(embeddingMetricColumnNames.has("model")).toBe(true)
+    expect(embeddingMetricColumnNames.has("attempt")).toBe(true)
+    expect(embeddingMetricColumnNames.has("outcome")).toBe(true)
+    expect(embeddingMetricColumnNames.has("duration_ms")).toBe(true)
+
+    const embeddingMetricIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ?",
+      args: ["memory_embedding_job_metrics"],
+    })
+    const embeddingMetricIndexNames = new Set(embeddingMetricIndexes.rows.map((row) => String(row.name)))
+    expect(embeddingMetricIndexNames.has("idx_memory_embedding_job_metrics_job_created_at")).toBe(true)
+    expect(embeddingMetricIndexNames.has("idx_memory_embedding_job_metrics_outcome_created_at")).toBe(true)
+    expect(embeddingMetricIndexNames.has("idx_memory_embedding_job_metrics_created_at")).toBe(true)
   })
 
   it("upgrades embedding schema for tenants already marked on the user-id migration", async () => {
@@ -120,10 +168,22 @@ describe("ensureMemoryUserIdSchema", () => {
     })
     expect(String(embeddingsMarker.rows[0]?.value ?? "")).toBe("1")
 
+    const embeddingJobsMarker = await db.execute({
+      sql: "SELECT value FROM memory_schema_state WHERE key = ?",
+      args: ["memory_embedding_jobs_v1"],
+    })
+    expect(String(embeddingJobsMarker.rows[0]?.value ?? "")).toBe("1")
+
     const embeddingsTable = await db.execute({
       sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
       args: ["memory_embeddings"],
     })
     expect(embeddingsTable.rows).toHaveLength(1)
+
+    const embeddingJobsTable = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+      args: ["memory_embedding_jobs"],
+    })
+    expect(embeddingJobsTable.rows).toHaveLength(1)
   })
 })

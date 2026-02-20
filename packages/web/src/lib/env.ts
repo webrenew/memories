@@ -308,6 +308,26 @@ export function getSdkDefaultEmbeddingModelId(): string {
   return envValue("SDK_DEFAULT_EMBEDDING_MODEL_ID") ?? "openai/text-embedding-3-small"
 }
 
+export function getSdkEmbeddingJobMaxAttempts(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_MAX_ATTEMPTS, 5)
+}
+
+export function getSdkEmbeddingJobRetryBaseMs(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_RETRY_BASE_MS, 1_000)
+}
+
+export function getSdkEmbeddingJobRetryMaxMs(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_RETRY_MAX_MS, 60_000)
+}
+
+export function getSdkEmbeddingJobWorkerBatchSize(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_WORKER_BATCH_SIZE, 2)
+}
+
+export function getSdkEmbeddingJobProcessingTimeoutMs(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_PROCESSING_TIMEOUT_MS, 5 * 60 * 1_000)
+}
+
 export function shouldAutoProvisionTenants(): boolean {
   const flag = process.env.SDK_AUTO_PROVISION_TENANTS
   if (!flag) return true

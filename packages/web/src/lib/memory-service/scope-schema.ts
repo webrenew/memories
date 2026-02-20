@@ -8,6 +8,7 @@ const memorySchemaEnsuredKeys = new Set<string>()
 const MEMORY_SCHEMA_STATE_TABLE = "memory_schema_state"
 const MEMORY_USER_ID_SCHEMA_STATE_KEY = "memory_user_id_v1"
 const MEMORY_EMBEDDINGS_SCHEMA_STATE_KEY = "memory_embeddings_v1"
+const MEMORY_EMBEDDING_JOBS_SCHEMA_STATE_KEY = "memory_embedding_jobs_v1"
 
 // ─── Graph Schema ─────────────────────────────────────────────────────────────
 
@@ -150,6 +151,71 @@ async function ensureEmbeddingSchema(turso: TursoClient): Promise<void> {
   await turso.execute("CREATE INDEX IF NOT EXISTS idx_memory_embeddings_updated_at ON memory_embeddings(updated_at)")
 }
 
+async function ensureEmbeddingJobSchema(turso: TursoClient): Promise<void> {
+  // Rollback path: DROP TABLE memory_embedding_jobs;
+  // DROP TABLE memory_embedding_job_metrics;
+  // then clear marker: DELETE FROM memory_schema_state WHERE key = 'memory_embedding_jobs_v1';
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embedding_jobs (
+      id TEXT PRIMARY KEY,
+      memory_id TEXT NOT NULL,
+      operation TEXT NOT NULL,
+      model TEXT NOT NULL,
+      content TEXT NOT NULL,
+      model_version TEXT,
+      status TEXT NOT NULL DEFAULT 'queued',
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (max_attempts > 0),
+      next_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+      claimed_by TEXT,
+      claimed_at TEXT,
+      last_error TEXT,
+      dead_letter_reason TEXT,
+      dead_letter_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(memory_id, model)
+    )`
+  )
+
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embedding_jobs_status_next_attempt ON memory_embedding_jobs(status, next_attempt_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embedding_jobs_memory_status ON memory_embedding_jobs(memory_id, status)"
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memory_embedding_jobs_claimed_at ON memory_embedding_jobs(claimed_at)")
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embedding_jobs_dead_letter_at ON memory_embedding_jobs(dead_letter_at)"
+  )
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embedding_job_metrics (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL,
+      memory_id TEXT NOT NULL,
+      operation TEXT NOT NULL,
+      model TEXT NOT NULL,
+      attempt INTEGER NOT NULL CHECK (attempt > 0),
+      outcome TEXT NOT NULL,
+      duration_ms INTEGER NOT NULL CHECK (duration_ms >= 0),
+      error_code TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embedding_job_metrics_job_created_at ON memory_embedding_job_metrics(job_id, created_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embedding_job_metrics_outcome_created_at ON memory_embedding_job_metrics(outcome, created_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embedding_job_metrics_created_at ON memory_embedding_job_metrics(created_at)"
+  )
+}
+
 // ─── Schema State Helpers ─────────────────────────────────────────────────────
 
 async function ensureSchemaStateTable(turso: TursoClient): Promise<void> {
@@ -259,6 +325,10 @@ export async function ensureMemoryUserIdSchema(
   await ensureEmbeddingSchema(turso)
   if (!(await isMemorySchemaMarked(turso, MEMORY_EMBEDDINGS_SCHEMA_STATE_KEY))) {
     await markMemorySchemaApplied(turso, MEMORY_EMBEDDINGS_SCHEMA_STATE_KEY)
+  }
+  await ensureEmbeddingJobSchema(turso)
+  if (!(await isMemorySchemaMarked(turso, MEMORY_EMBEDDING_JOBS_SCHEMA_STATE_KEY))) {
+    await markMemorySchemaApplied(turso, MEMORY_EMBEDDING_JOBS_SCHEMA_STATE_KEY)
   }
 
   memorySchemaEnsuredClients.add(turso)
