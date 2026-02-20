@@ -623,6 +623,7 @@ export async function getContextPayload(params: {
     trace: ContextTrace
   }
 }> {
+  const retrievalStartedAt = Date.now()
   const {
     turso,
     projectId,
@@ -917,6 +918,7 @@ export async function getContextPayload(params: {
       totalCandidates: relevantMemories.length,
       fallbackTriggered,
       fallbackReason: fallbackTriggered ? fallbackReason : null,
+      durationMs: Date.now() - retrievalStartedAt,
     })
   } catch (err) {
     console.error("Failed to record graph rollout metric:", err)

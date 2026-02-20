@@ -444,9 +444,24 @@ async function ensureGraphSchema(db: ReturnType<typeof createClient>): Promise<v
       graph_expanded_count INTEGER NOT NULL DEFAULT 0,
       total_candidates INTEGER NOT NULL DEFAULT 0,
       fallback_triggered INTEGER NOT NULL DEFAULT 0,
-      fallback_reason TEXT
+      fallback_reason TEXT,
+      duration_ms INTEGER NOT NULL DEFAULT 0
     )`
   )
+
+  const rolloutMetricColumns = await db.execute("PRAGMA table_info(graph_rollout_metrics)")
+  const rolloutColumnRows = Array.isArray(rolloutMetricColumns.rows) ? rolloutMetricColumns.rows : []
+  const hasDurationColumn = rolloutColumnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "duration_ms")
+  if (!hasDurationColumn) {
+    try {
+      await db.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0")
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : ""
+      if (!message.includes("duplicate column name")) {
+        throw error
+      }
+    }
+  }
 
   await db.execute(
     `CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_created_at
