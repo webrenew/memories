@@ -7,7 +7,6 @@ const {
   mockTenantOverridesGet,
   mockTenantOverridesPost,
   mockTenantOverridesDelete,
-  mockRecordLegacyRouteUsageEvent,
 } = vi.hoisted(() => ({
   mockKeyGet: vi.fn(),
   mockKeyPost: vi.fn(),
@@ -15,7 +14,6 @@ const {
   mockTenantOverridesGet: vi.fn(),
   mockTenantOverridesPost: vi.fn(),
   mockTenantOverridesDelete: vi.fn(),
-  mockRecordLegacyRouteUsageEvent: vi.fn(),
 }))
 
 vi.mock("@/app/api/mcp/key/route", () => ({
@@ -30,16 +28,12 @@ vi.mock("@/app/api/sdk/v1/management/tenant-overrides/route", () => ({
   DELETE: mockTenantOverridesDelete,
 }))
 
-vi.mock("@/lib/legacy-route-telemetry", () => ({
-  recordLegacyRouteUsageEvent: mockRecordLegacyRouteUsageEvent,
-}))
-
 import { DELETE as keysDelete, GET as keysGet, POST as keysPost } from "../keys/route"
 import {
   DELETE as tenantsDelete,
   GET as tenantsGet,
   POST as tenantsPost,
-} from "../tenants/route"
+} from "../tenant-overrides/route"
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -137,7 +131,7 @@ describe("/api/sdk/v1/management/keys", () => {
   })
 })
 
-describe("/api/sdk/v1/management/tenants", () => {
+describe("/api/sdk/v1/management/tenant-overrides", () => {
   it("wraps successful tenants GET response in sdk envelope", async () => {
     mockTenantOverridesGet.mockResolvedValue(
       sdkSuccessResponse({
@@ -146,18 +140,18 @@ describe("/api/sdk/v1/management/tenants", () => {
       })
     )
 
-    const response = await tenantsGet(new Request("https://example.com", { method: "GET" }))
+    const response = await tenantsGet(new Request("https://example.com", { method: "GET" }) as never)
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(body.ok).toBe(true)
     expect(body.data.count).toBe(1)
-    expect(body.meta.endpoint).toBe("/api/sdk/v1/management/tenants")
+    expect(body.meta.endpoint).toBe("/api/sdk/v1/management/tenant-overrides")
   })
 
   it("wraps failed tenant POST response in typed sdk error envelope", async () => {
     mockTenantOverridesPost.mockResolvedValue(sdkErrorResponse(400, "tenantId is required", "INVALID_REQUEST"))
 
-    const response = await tenantsPost(new Request("https://example.com", { method: "POST", body: "{}" }))
+    const response = await tenantsPost(new Request("https://example.com", { method: "POST", body: "{}" }) as never)
     expect(response.status).toBe(400)
     const body = await response.json()
     expect(body.ok).toBe(false)
@@ -168,7 +162,7 @@ describe("/api/sdk/v1/management/tenants", () => {
   it("forwards delete response", async () => {
     mockTenantOverridesDelete.mockResolvedValue(sdkSuccessResponse({ ok: true }, 200))
 
-    const response = await tenantsDelete(new Request("https://example.com?tenantId=t1", { method: "DELETE" }))
+    const response = await tenantsDelete(new Request("https://example.com?tenantId=t1", { method: "DELETE" }) as never)
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(body.ok).toBe(true)
@@ -206,7 +200,7 @@ describe("/api/sdk/v1/management/tenants", () => {
   it("matches management tenants validation error envelope contract snapshot", async () => {
     mockTenantOverridesPost.mockResolvedValue(sdkErrorResponse(400, "tenantId is required", "INVALID_REQUEST"))
 
-    const response = await tenantsPost(new Request("https://example.com", { method: "POST", body: "{}" }))
+    const response = await tenantsPost(new Request("https://example.com", { method: "POST", body: "{}" }) as never)
     const body = (await response.json()) as Record<string, unknown>
 
     expect(normalizeEnvelope(body)).toMatchInlineSnapshot(`
@@ -220,7 +214,7 @@ describe("/api/sdk/v1/management/tenants", () => {
           "type": "validation_error",
         },
         "meta": {
-          "endpoint": "/api/sdk/v1/management/tenants",
+          "endpoint": "/api/sdk/v1/management/tenant-overrides",
           "requestId": "<request-id>",
           "timestamp": "<timestamp>",
           "version": "2026-02-11",

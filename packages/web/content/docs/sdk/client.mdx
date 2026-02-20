@@ -303,7 +303,7 @@ const disabledProject = await client.management.tenants.disable("acme-prod")
 void [keyStatus, rotatedKey, revoked, sdkProjects, upsertedProject, disabledProject]
 ```
 
-Legacy management routes (`/api/sdk/v1/management/tenants`, `/api/mcp/tenants`, `/api/mcp/key`) remain available for backward compatibility.
+Legacy key management route (`/api/mcp/key`) remains available for backward compatibility.
 
 For single-user apps, `tenantId` can be your app environment or workspace id:
 

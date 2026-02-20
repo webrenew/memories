@@ -171,7 +171,7 @@ curl "https://memories.sh/api/docs/raw?path=sdk/endpoint-contract"
 | `/api/sdk/v1/graph/trace` | GET | Graph trace view |
 | `/api/sdk/v1/graph/rollout` | GET/POST/PATCH | Graph rollout controls |
 | `/api/sdk/v1/management/keys` | GET/POST/DELETE | API key management |
-| `/api/sdk/v1/management/tenants` | GET/POST/DELETE | Tenant mapping management |
+| `/api/sdk/v1/management/tenant-overrides` | GET/POST/DELETE | Tenant mapping management |
 
 ### Legacy MCP transport endpoint
 

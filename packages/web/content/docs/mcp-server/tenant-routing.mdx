@@ -11,13 +11,13 @@ Use this page when you are routing MCP client traffic.
 </Callout>
 
 <Callout>
-If you are integrating through the SDK HTTP surface, use `/api/sdk/v1/management/tenant-overrides`. The routes below remain available as legacy aliases.
+If you are integrating through the SDK HTTP surface, use `/api/sdk/v1/management/tenant-overrides`.
 </Callout>
 
 ## How Routing Works
 
 1. Use your API key as usual (`Authorization: Bearer mem_...`).
-2. Configure per-tenant database mappings with `/api/sdk/v1/management/tenant-overrides` (or legacy `/api/sdk/v1/management/tenants` / `/api/mcp/tenants`).
+2. Configure per-tenant database mappings with `/api/sdk/v1/management/tenant-overrides`.
 3. Include `tenant_id` in tool arguments (`get_context`, `add_memory`, etc.).
 4. The server resolves `(owner_scope_key, tenant_id)` to the mapped Turso database.
    `owner_scope_key` is derived from the authenticated key's billing owner (for example `org:<id>` or `user:<id>`), so routing survives API key rotation.
@@ -38,16 +38,12 @@ Scope mapping:
 
 `GET /api/sdk/v1/management/tenant-overrides`
 
-Legacy alias: `/api/mcp/tenants`
-
 Returns all AI SDK Project mappings for your active API key.
 Returns all AI SDK Project mappings for your owner scope.
 
 ### Create or Update Tenant
 
 `POST /api/sdk/v1/management/tenant-overrides`
-
-Legacy alias: `/api/mcp/tenants`
 
 Create or update an AI SDK Project mapping. Two modes are available:
 
@@ -87,8 +83,6 @@ Example (`attach`):
 ### Delete Tenant
 
 `DELETE /api/sdk/v1/management/tenant-overrides?tenantId=...`
-
-Legacy alias: `/api/mcp/tenants`
 
 Soft-disables an AI SDK Project mapping (`status: "disabled"`).
 

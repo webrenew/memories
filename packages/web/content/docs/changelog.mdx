@@ -5,6 +5,9 @@ description: Product and documentation updates.
 
 ## February 20, 2026
 
+- Removed legacy tenant management routes `/api/mcp/tenants` and `/api/sdk/v1/management/tenants`.
+- Removed legacy tenant compatibility wrapper code and telemetry write-paths now that traffic is zero.
+- Updated tenant-routing and SDK endpoint contract docs to reference only `/api/sdk/v1/management/tenant-overrides`.
 - Added hosted SDK embeddings docs at `/docs/sdk/embeddings` with write-path model selection, retrieval strategy controls, and migration guidance.
 - Added embeddings endpoint contract documentation for:
   - `GET /api/sdk/v1/embeddings/models`

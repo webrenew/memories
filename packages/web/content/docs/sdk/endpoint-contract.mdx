@@ -44,12 +44,10 @@ https://memories.sh
 | Management | `/api/sdk/v1/management/embeddings/usage` | `GET` | Bearer API key (`mem_...`) or session |
 | Management | `/api/sdk/v1/management/embeddings/backfill` | `GET`, `POST` | Bearer API key (`mem_...`) or session |
 | Management | `/api/sdk/v1/management/embeddings/observability` | `GET` | Bearer API key (`mem_...`) or session |
-| Management | `/api/sdk/v1/management/tenants` | `GET`, `POST`, `DELETE` | Legacy compatibility wrapper |
 
 Legacy aliases are still available:
 
 - `/api/mcp/key`
-- `/api/mcp/tenants`
 
 ## Authentication
 
@@ -65,7 +63,6 @@ Content-Type: application/json
 ### Management endpoints
 
 Use `/api/sdk/v1/management/tenant-overrides` for headless server-to-server tenant routing management.
-`/api/sdk/v1/management/tenants` remains available as a legacy compatibility wrapper.
 
 ## Canonical Response Envelope
 
@@ -143,7 +140,6 @@ Failure:
 | `CANARY_ROLLOUT_BLOCKED` | `409` | Quality gate blocked canary rollout |
 | `INTERNAL_ERROR` | `500` | Fallback internal error code |
 | `LEGACY_MCP_KEY_ERROR` | passthrough | Management keys wrapper error |
-| `LEGACY_MCP_TENANTS_ERROR` | passthrough | Management tenants wrapper error |
 
 ## Scope Model
 
@@ -604,7 +600,6 @@ Response `data`:
 ## Management Endpoint Contracts
 
 `/api/sdk/v1/management/tenant-overrides` is the primary tenant override API.
-`/api/sdk/v1/management/tenants` and `/api/mcp/tenants` remain legacy-compatible aliases.
 
 ### `GET|POST|DELETE /api/sdk/v1/management/keys`
 

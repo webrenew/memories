@@ -1,35 +1,23 @@
 ---
-title: Legacy Tenant Route Sunset
-description: Deprecation timeline and migration plan for legacy tenant management routes.
+title: Legacy Tenant Route Sunset (Completed)
+description: Legacy tenant route deprecation completed and routes removed.
 ---
 
-The following legacy tenant management routes are deprecated:
+As of **February 20, 2026 (UTC)**, the legacy tenant management routes have been removed:
 
 - `/api/mcp/tenants`
 - `/api/sdk/v1/management/tenants`
 
-Migrate to:
+Use this canonical endpoint instead:
 
 - `/api/sdk/v1/management/tenant-overrides`
 
-## Timeline
+## Removal Summary
 
-| Phase | Date (UTC) | Action |
+| Milestone | Date (UTC) | Outcome |
 | --- | --- | --- |
-| Announce | February 16, 2026 | Deprecation policy published. Legacy routes moved to compatibility wrappers. |
-| Warn | April 1, 2026 | Legacy warnings and telemetry alerts enforced on all calls. |
-| Enforce | June 1, 2026 | New integrations are blocked from onboarding to legacy tenant routes. |
-| Sunset | June 30, 2026 | Responses continue to include `Deprecation` and `Sunset` headers through this date. |
-| Remove (earliest) | July 15, 2026 | Legacy handlers removed only after legacy usage reaches zero for 14 consecutive days. |
-
-## Header Signals
-
-Legacy route responses include:
-
-- `Deprecation: true`
-- `Sunset: Tue, 30 Jun 2026 00:00:00 GMT`
-- `Link: </api/sdk/v1/management/tenant-overrides>; rel="successor-version"`
-- `Warning: 299 - "Deprecated API: migrate ..."`
+| Announce | February 16, 2026 | Legacy routes marked deprecated and wrapped to canonical behavior. |
+| Remove | February 20, 2026 | Legacy wrappers removed after confirming zero legacy traffic. |
 
 ## Migration Mapping
 
@@ -42,18 +30,9 @@ Legacy route responses include:
 | `POST /api/sdk/v1/management/tenants` | `POST /api/sdk/v1/management/tenant-overrides` |
 | `DELETE /api/sdk/v1/management/tenants?tenantId=...` | `DELETE /api/sdk/v1/management/tenant-overrides?tenantId=...` |
 
-## Example Migration
+## Example
 
-### Before (legacy)
-
-```bash
-curl -X POST https://memories.sh/api/mcp/tenants \
-  -H "Authorization: Bearer mem_..." \
-  -H "Content-Type: application/json" \
-  -d '{"tenantId":"acme-prod","mode":"attach","tursoDbUrl":"libsql://acme.turso.io","tursoDbToken":"token"}'
-```
-
-### After (canonical)
+### Request
 
 ```bash
 curl -X POST https://memories.sh/api/sdk/v1/management/tenant-overrides \
@@ -61,21 +40,3 @@ curl -X POST https://memories.sh/api/sdk/v1/management/tenant-overrides \
   -H "Content-Type: application/json" \
   -d '{"tenantId":"acme-prod","mode":"attach","tursoDbUrl":"libsql://acme.turso.io","tursoDbToken":"token"}'
 ```
-
-## Usage Tracking Query
-
-Server-side compatibility wrappers emit telemetry into `legacy_route_usage_events` so removal can be gated safely.
-
-```sql
-select
-  date_trunc('day', created_at) as day,
-  route,
-  count(*) as requests,
-  sum(case when was_success then 1 else 0 end) as success_requests
-from public.legacy_route_usage_events
-where route in ('/api/mcp/tenants', '/api/sdk/v1/management/tenants')
-group by 1, 2
-order by 1 desc, 2 asc;
-```
-
-Proceed with removal only after both routes report `0` daily requests for at least 14 consecutive days.

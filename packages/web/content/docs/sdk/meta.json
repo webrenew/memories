@@ -3,7 +3,6 @@
   "pages": [
     "index",
     "projects",
-    "legacy-tenant-route-sunset",
     "saas-auth-routing",
     "middleware",
     "tools",
