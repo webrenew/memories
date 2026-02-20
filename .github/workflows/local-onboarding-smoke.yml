@@ -1,0 +1,46 @@
+name: Local Onboarding Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/cli/**"
+      - ".github/scripts/local-onboarding-smoke.sh"
+      - ".github/workflows/local-onboarding-smoke.yml"
+      - "pnpm-lock.yaml"
+      - "package.json"
+  pull_request:
+    branches: [main]
+    paths:
+      - "packages/cli/**"
+      - ".github/scripts/local-onboarding-smoke.sh"
+      - ".github/workflows/local-onboarding-smoke.yml"
+      - "pnpm-lock.yaml"
+      - "package.json"
+  workflow_dispatch:
+
+concurrency:
+  group: local-onboarding-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-onboarding-smoke:
+    name: Local Onboarding Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run minimal-local clean machine smoke
+        run: bash .github/scripts/local-onboarding-smoke.sh
