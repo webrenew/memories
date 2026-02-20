@@ -203,11 +203,18 @@ function summarizeWorkspace(entry, trendWindow) {
     .map(([code, count]) => ({ code, count }))
     .sort((left, right) => right.count - left.count || left.code.localeCompare(right.code));
 
+  const hasPreviousSnapshot = previous !== null;
   const currentBlockers = ensureStringArray(current?.rollout?.blockerCodes);
-  const previousBlockers = ensureStringArray(previous?.rollout?.blockerCodes);
-  const introducedBlockers = currentBlockers.filter((code) => !previousBlockers.includes(code));
-  const resolvedBlockers = previousBlockers.filter((code) => !currentBlockers.includes(code));
-  const readinessRegressed = Boolean(previous?.rollout?.readyForDefaultOn && !current?.rollout?.readyForDefaultOn);
+  const previousBlockers = hasPreviousSnapshot ? ensureStringArray(previous?.rollout?.blockerCodes) : [];
+  const introducedBlockers = hasPreviousSnapshot
+    ? currentBlockers.filter((code) => !previousBlockers.includes(code))
+    : [];
+  const resolvedBlockers = hasPreviousSnapshot
+    ? previousBlockers.filter((code) => !currentBlockers.includes(code))
+    : [];
+  const readinessRegressed = hasPreviousSnapshot
+    ? Boolean(previous?.rollout?.readyForDefaultOn && !current?.rollout?.readyForDefaultOn)
+    : false;
 
   return {
     workspace: current.workspace,
@@ -225,7 +232,7 @@ function summarizeWorkspace(entry, trendWindow) {
       readinessRegressed,
       introducedBlockers,
       resolvedBlockers,
-      active: readinessRegressed || introducedBlockers.length > 0,
+      active: hasPreviousSnapshot && (readinessRegressed || introducedBlockers.length > 0),
     },
   };
 }
