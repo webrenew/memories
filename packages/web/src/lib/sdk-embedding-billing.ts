@@ -22,6 +22,8 @@ const OPENAI_EMBEDDING_MODEL_ENCODINGS: Record<string, string> = {
   "text-embedding-3-large": "cl100k_base",
   "text-embedding-ada-002": "cl100k_base",
 }
+const tokenizerEncodingCache = new Map<string, ReturnType<typeof getEncoding>>()
+const tokenizerModelEncodingCache = new Map<string, ReturnType<typeof encodingForModel>>()
 
 type TokenCountMethod = "provider_tokenizer" | "char_fallback"
 
@@ -273,7 +275,25 @@ function estimateEmbeddingInputTokensByCharacters(content: string): number {
 }
 
 function getCachedEncoding(encodingName: string) {
-  return getEncoding(encodingName as Parameters<typeof getEncoding>[0])
+  const cachedEncoding = tokenizerEncodingCache.get(encodingName)
+  if (cachedEncoding) {
+    return cachedEncoding
+  }
+
+  const createdEncoding = getEncoding(encodingName as Parameters<typeof getEncoding>[0])
+  tokenizerEncodingCache.set(encodingName, createdEncoding)
+  return createdEncoding
+}
+
+function getCachedEncodingForModel(modelName: string) {
+  const cachedEncoding = tokenizerModelEncodingCache.get(modelName)
+  if (cachedEncoding) {
+    return cachedEncoding
+  }
+
+  const createdEncoding = encodingForModel(modelName as Parameters<typeof encodingForModel>[0])
+  tokenizerModelEncodingCache.set(modelName, createdEncoding)
+  return createdEncoding
 }
 
 function countOpenAiTokens(content: string, modelId: string): number | null {
@@ -283,7 +303,7 @@ function countOpenAiTokens(content: string, modelId: string): number | null {
   }
 
   try {
-    const encoder = encodingForModel(modelName as Parameters<typeof encodingForModel>[0])
+    const encoder = getCachedEncodingForModel(modelName)
     const tokenCount = encoder.encode(content).length
     if (Number.isFinite(tokenCount) && tokenCount >= 0) {
       return tokenCount
@@ -472,14 +492,13 @@ export async function recordSdkEmbeddingMeterEvent(input: RecordSdkEmbeddingMete
       ? Math.max(0, input.gatewayCostUsd)
       : null
 
-  let estimatedCost = input.estimatedCost ?? gatewayCostUsd === null
+  const estimatedCost = input.estimatedCost ?? gatewayCostUsd === null
 
   if (gatewayCostUsd === null) {
     gatewayCostUsd = estimateGatewayCostUsd({
       inputTokens,
       modelInputCostUsdPerToken: input.modelInputCostUsdPerToken,
     })
-    estimatedCost = true
   }
 
   const marketCostUsd =
