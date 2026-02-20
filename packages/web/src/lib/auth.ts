@@ -7,19 +7,6 @@ interface AuthResult {
   email: string
 }
 
-function isMissingColumnError(error: unknown, column: string): boolean {
-  const message =
-    typeof error === "object" && error !== null && "message" in error
-      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
-      : ""
-
-  return (
-    message.includes("column") &&
-    message.includes(column.toLowerCase()) &&
-    message.includes("does not exist")
-  )
-}
-
 /**
  * Authenticate a request via Supabase session cookies OR CLI Bearer token.
  * Returns the user ID and email, or null if unauthenticated.
@@ -40,7 +27,7 @@ export async function authenticateRequest(
       .eq("cli_token_hash", tokenHash)
       .maybeSingle()
 
-    if (hashedError && !isMissingColumnError(hashedError, "cli_token_hash")) {
+    if (hashedError) {
       console.error("CLI token hash lookup failed:", hashedError)
       return null
     }
@@ -49,16 +36,6 @@ export async function authenticateRequest(
       return { userId: hashedUser.id, email: hashedUser.email }
     }
 
-    // Legacy fallback while older plaintext tokens are phased out.
-    const { data: legacyUser } = await admin
-      .from("users")
-      .select("id, email")
-      .eq("cli_token", token)
-      .maybeSingle()
-
-    if (legacyUser) {
-      return { userId: legacyUser.id, email: legacyUser.email }
-    }
     return null
   }
 

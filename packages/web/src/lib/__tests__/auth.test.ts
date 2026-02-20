@@ -56,7 +56,6 @@ describe("authenticateRequest", () => {
       const mockMaybeSingle = vi
         .fn()
         .mockResolvedValueOnce({ data: null, error: null })
-        .mockResolvedValueOnce({ data: null, error: null })
       const mockAdmin = {
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
@@ -72,21 +71,16 @@ describe("authenticateRequest", () => {
       const result = await authenticateRequest(request)
 
       expect(result).toBeNull()
-      expect(mockMaybeSingle).toHaveBeenCalledTimes(2)
+      expect(mockMaybeSingle).toHaveBeenCalledTimes(1)
     })
 
-    it("should fall back to legacy plaintext token when hash column is unavailable", async () => {
+    it("should return null when hashed token lookup errors", async () => {
       const mockMaybeSingle = vi
         .fn()
         .mockResolvedValueOnce({
           data: null,
           error: { message: "column users.cli_token_hash does not exist" },
         })
-        .mockResolvedValueOnce({
-          data: { id: "legacy-user", email: "legacy@example.com" },
-          error: null,
-        })
-
       const mockAdmin = {
         from: vi.fn().mockReturnValue({
           select: vi.fn().mockReturnValue({
@@ -101,8 +95,8 @@ describe("authenticateRequest", () => {
       const request = makeRequest({ authorization: "Bearer cli_legacy_token" })
       const result = await authenticateRequest(request)
 
-      expect(result).toEqual({ userId: "legacy-user", email: "legacy@example.com" })
-      expect(mockMaybeSingle).toHaveBeenCalledTimes(2)
+      expect(result).toBeNull()
+      expect(mockMaybeSingle).toHaveBeenCalledTimes(1)
     })
   })
 
