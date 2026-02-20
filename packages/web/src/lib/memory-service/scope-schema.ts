@@ -3,10 +3,11 @@ import { workingMemoryExpiresAt } from "./scope-parsers"
 
 // ─── Schema State ─────────────────────────────────────────────────────────────
 
-const userIdSchemaEnsuredClients = new WeakSet<TursoClient>()
-const userIdSchemaEnsuredKeys = new Set<string>()
+const memorySchemaEnsuredClients = new WeakSet<TursoClient>()
+const memorySchemaEnsuredKeys = new Set<string>()
 const MEMORY_SCHEMA_STATE_TABLE = "memory_schema_state"
-const MEMORY_SCHEMA_STATE_KEY = "memory_user_id_v1"
+const MEMORY_USER_ID_SCHEMA_STATE_KEY = "memory_user_id_v1"
+const MEMORY_EMBEDDINGS_SCHEMA_STATE_KEY = "memory_embeddings_v1"
 
 // ─── Graph Schema ─────────────────────────────────────────────────────────────
 
@@ -122,6 +123,33 @@ async function ensureSkillFileSchema(turso: TursoClient): Promise<void> {
   )
 }
 
+// ─── Embedding Schema ──────────────────────────────────────────────────────────
+
+async function ensureEmbeddingSchema(turso: TursoClient): Promise<void> {
+  // Rollback path: DROP TABLE memory_embeddings;
+  // then clear marker: DELETE FROM memory_schema_state WHERE key = 'memory_embeddings_v1';
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embeddings (
+      memory_id TEXT PRIMARY KEY,
+      embedding BLOB NOT NULL,
+      model TEXT NOT NULL,
+      model_version TEXT NOT NULL DEFAULT 'v1',
+      dimension INTEGER NOT NULL CHECK (dimension > 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embeddings_model_dimension ON memory_embeddings(model, dimension)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_embeddings_model_version ON memory_embeddings(model, model_version)"
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memory_embeddings_created_at ON memory_embeddings(created_at)")
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memory_embeddings_updated_at ON memory_embeddings(updated_at)")
+}
+
 // ─── Schema State Helpers ─────────────────────────────────────────────────────
 
 async function ensureSchemaStateTable(turso: TursoClient): Promise<void> {
@@ -134,23 +162,23 @@ async function ensureSchemaStateTable(turso: TursoClient): Promise<void> {
   )
 }
 
-async function isMemorySchemaMarked(turso: TursoClient): Promise<boolean> {
+async function isMemorySchemaMarked(turso: TursoClient, key: string): Promise<boolean> {
   const result = await turso.execute({
     sql: `SELECT value
           FROM ${MEMORY_SCHEMA_STATE_TABLE}
           WHERE key = ?
           LIMIT 1`,
-    args: [MEMORY_SCHEMA_STATE_KEY],
+    args: [key],
   })
   const rows = Array.isArray(result.rows) ? result.rows : []
   return String(rows[0]?.value ?? "") === "1"
 }
 
-async function markMemorySchemaApplied(turso: TursoClient): Promise<void> {
+async function markMemorySchemaApplied(turso: TursoClient, key: string): Promise<void> {
   await turso.execute({
     sql: `INSERT OR REPLACE INTO ${MEMORY_SCHEMA_STATE_TABLE} (key, value, updated_at)
           VALUES (?, '1', datetime('now'))`,
-    args: [MEMORY_SCHEMA_STATE_KEY],
+    args: [key],
   })
 }
 
@@ -182,58 +210,59 @@ export async function ensureMemoryUserIdSchema(
       ? options.cacheKey.trim()
       : null
 
-  if (userIdSchemaEnsuredClients.has(turso)) {
+  if (memorySchemaEnsuredClients.has(turso)) {
     return
   }
-  if (normalizedCacheKey && userIdSchemaEnsuredKeys.has(normalizedCacheKey)) {
-    userIdSchemaEnsuredClients.add(turso)
+  if (normalizedCacheKey && memorySchemaEnsuredKeys.has(normalizedCacheKey)) {
+    memorySchemaEnsuredClients.add(turso)
     return
   }
 
   await ensureSchemaStateTable(turso)
-  if (await isMemorySchemaMarked(turso)) {
-    await ensureSkillFileSchema(turso)
-    userIdSchemaEnsuredClients.add(turso)
-    if (normalizedCacheKey) {
-      userIdSchemaEnsuredKeys.add(normalizedCacheKey)
+  if (!(await isMemorySchemaMarked(turso, MEMORY_USER_ID_SCHEMA_STATE_KEY))) {
+    const columns = await memoryColumns(turso)
+
+    if (!columns.has("user_id")) {
+      await turso.execute("ALTER TABLE memories ADD COLUMN user_id TEXT")
     }
-    return
+
+    if (!columns.has("memory_layer")) {
+      await turso.execute("ALTER TABLE memories ADD COLUMN memory_layer TEXT NOT NULL DEFAULT 'long_term'")
+    }
+
+    if (!columns.has("expires_at")) {
+      await turso.execute("ALTER TABLE memories ADD COLUMN expires_at TEXT")
+    }
+
+    await turso.execute(
+      "UPDATE memories SET memory_layer = 'rule' WHERE (memory_layer IS NULL OR memory_layer = 'long_term') AND type = 'rule'"
+    )
+    await turso.execute("UPDATE memories SET memory_layer = 'long_term' WHERE memory_layer IS NULL")
+    const defaultExpiresAt = workingMemoryExpiresAt(new Date().toISOString())
+    await turso.execute({
+      sql: "UPDATE memories SET expires_at = ? WHERE memory_layer = 'working' AND expires_at IS NULL",
+      args: [defaultExpiresAt],
+    })
+
+    await turso.execute(
+      "CREATE INDEX IF NOT EXISTS idx_memories_user_scope_project ON memories(user_id, scope, project_id)"
+    )
+    await turso.execute(
+      "CREATE INDEX IF NOT EXISTS idx_memories_layer_scope_project ON memories(memory_layer, scope, project_id)"
+    )
+    await turso.execute("CREATE INDEX IF NOT EXISTS idx_memories_layer_expires ON memories(memory_layer, expires_at)")
+    await markMemorySchemaApplied(turso, MEMORY_USER_ID_SCHEMA_STATE_KEY)
   }
 
-  const columns = await memoryColumns(turso)
-
-  if (!columns.has("user_id")) {
-    await turso.execute("ALTER TABLE memories ADD COLUMN user_id TEXT")
-  }
-
-  if (!columns.has("memory_layer")) {
-    await turso.execute("ALTER TABLE memories ADD COLUMN memory_layer TEXT NOT NULL DEFAULT 'long_term'")
-  }
-
-  if (!columns.has("expires_at")) {
-    await turso.execute("ALTER TABLE memories ADD COLUMN expires_at TEXT")
-  }
-
-  await turso.execute(
-    "UPDATE memories SET memory_layer = 'rule' WHERE (memory_layer IS NULL OR memory_layer = 'long_term') AND type = 'rule'"
-  )
-  await turso.execute("UPDATE memories SET memory_layer = 'long_term' WHERE memory_layer IS NULL")
-  const defaultExpiresAt = workingMemoryExpiresAt(new Date().toISOString())
-  await turso.execute({
-    sql: "UPDATE memories SET expires_at = ? WHERE memory_layer = 'working' AND expires_at IS NULL",
-    args: [defaultExpiresAt],
-  })
-
-  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memories_user_scope_project ON memories(user_id, scope, project_id)")
-  await turso.execute(
-    "CREATE INDEX IF NOT EXISTS idx_memories_layer_scope_project ON memories(memory_layer, scope, project_id)"
-  )
-  await turso.execute("CREATE INDEX IF NOT EXISTS idx_memories_layer_expires ON memories(memory_layer, expires_at)")
   await ensureGraphSchema(turso)
   await ensureSkillFileSchema(turso)
-  await markMemorySchemaApplied(turso)
-  userIdSchemaEnsuredClients.add(turso)
+  await ensureEmbeddingSchema(turso)
+  if (!(await isMemorySchemaMarked(turso, MEMORY_EMBEDDINGS_SCHEMA_STATE_KEY))) {
+    await markMemorySchemaApplied(turso, MEMORY_EMBEDDINGS_SCHEMA_STATE_KEY)
+  }
+
+  memorySchemaEnsuredClients.add(turso)
   if (normalizedCacheKey) {
-    userIdSchemaEnsuredKeys.add(normalizedCacheKey)
+    memorySchemaEnsuredKeys.add(normalizedCacheKey)
   }
 }

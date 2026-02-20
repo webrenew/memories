@@ -200,6 +200,28 @@ export async function initSchema(url: string, token: string): Promise<void> {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_memories_layer_expires ON memories(memory_layer, expires_at)`)
 
   await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embeddings (
+      memory_id TEXT PRIMARY KEY,
+      embedding BLOB NOT NULL,
+      model TEXT NOT NULL,
+      model_version TEXT NOT NULL DEFAULT 'v1',
+      dimension INTEGER NOT NULL CHECK (dimension > 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embeddings_model_dimension
+     ON memory_embeddings(model, dimension)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embeddings_model_version
+     ON memory_embeddings(model, model_version)`
+  )
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_embeddings_created_at ON memory_embeddings(created_at)`)
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_embeddings_updated_at ON memory_embeddings(updated_at)`)
+
+  await db.execute(
     `CREATE TABLE IF NOT EXISTS skill_files (
       id TEXT PRIMARY KEY,
       path TEXT NOT NULL,
