@@ -15,6 +15,7 @@ Run deterministic diagnostic checks across local DB, MCP wiring, project detecti
 |--------|-------------|
 | `--fix` | Attempt to fix issues found |
 | `--json` | Output machine-readable report (stable schema) |
+| `--local-only` | Skip cloud health checks and validate local mode only |
 | `--strict` | Exit with code `1` when warnings or failures exist |
 
 ## Checks Performed
@@ -58,6 +59,12 @@ Machine-readable report for CI/automation:
 
 ```bash
 memories doctor --json --strict
+```
+
+Local-only validation (no login/workspace requirement):
+
+```bash
+memories doctor --local-only
 ```
 
 `--json` now returns:

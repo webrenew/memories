@@ -51,6 +51,7 @@ export const initCommand = new Command("init")
   .option("--skip-auth", "Skip guided login for cloud sync")
   .option("--skip-workspace", "Skip guided workspace selection/provisioning")
   .option("--workspace <target>", "Set active workspace (org slug/id/name, or 'personal')")
+  .option("--minimal-local", "Use a local-only setup preset with no cloud/workspace dependency")
   .option("--skip-verify", "Skip post-setup verification checks")
   .option("-y, --yes", "Auto-confirm all prompts")
   .action(async (opts: {
@@ -65,6 +66,7 @@ export const initCommand = new Command("init")
     skipAuth?: boolean;
     skipWorkspace?: boolean;
     workspace?: string;
+    minimalLocal?: boolean;
     skipVerify?: boolean;
     yes?: boolean;
   }) => {
@@ -73,10 +75,15 @@ export const initCommand = new Command("init")
 
       console.log(chalk.dim("  One place for your rules. Works with every tool.\n"));
 
+      const minimalLocalMode = Boolean(opts.minimalLocal);
       let setupMode = parseSetupMode(opts.mode);
+      if (minimalLocalMode) {
+        setupMode = "local";
+      }
       const setupScope = parseSetupScope(opts.scope);
       if (
         setupMode === "auto" &&
+        !minimalLocalMode &&
         !opts.yes &&
         !opts.skipAuth &&
         !opts.skipWorkspace &&
@@ -112,6 +119,9 @@ export const initCommand = new Command("init")
           ? "Setup mode: cloud + workspace guidance"
           : "Setup mode: local only",
       );
+      if (minimalLocalMode) {
+        ui.dim("Minimal local preset: local DB + MCP/rules + local verification, no login/workspace requirements.");
+      }
 
       if (firstInstall) {
         ui.info("First-time setup detected.");
@@ -523,7 +533,9 @@ export const initCommand = new Command("init")
       if (!opts.skipVerify) {
         currentStep += 1;
         ui.step(currentStep, totalSteps, "Running integration verification...");
-        const report = await runDoctorChecks();
+        const report = await runDoctorChecks({
+          localOnly: setupMode === "local",
+        });
         const problematicChecks = report.checks.filter((check) => check.status !== "pass");
 
         if (report.summary.failed > 0) {
@@ -563,6 +575,11 @@ export const initCommand = new Command("init")
       console.log("");
       console.log(chalk.dim("  Run full health checks any time:"));
       console.log(`     ${chalk.cyan("memories doctor --fix")}`);
+      console.log(`     ${chalk.cyan("memories doctor --local-only")} ${chalk.dim("(skip cloud checks)")}`);
+      console.log("");
+      console.log(chalk.dim("  Verify local memory round-trip:"));
+      console.log(`     ${chalk.cyan("memories add")} ${chalk.dim('"doctor local smoke test"')}`);
+      console.log(`     ${chalk.cyan("memories search")} ${chalk.dim('"doctor local smoke test"')}`);
       console.log("");
       console.log(chalk.dim("  Check/switch workspace:"));
       console.log(`     ${chalk.cyan("memories org current")} ${chalk.dim("or")} ${chalk.cyan("memories org use personal")}`);

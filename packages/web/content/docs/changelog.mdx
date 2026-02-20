@@ -25,6 +25,9 @@ description: Product and documentation updates.
 - Clarified retrieval `trace` diagnostics and fallback semantics to support phased semantic/hybrid rollout.
 - Set graph retrieval feature flag default to enabled (`GRAPH_RETRIEVAL_ENABLED=true` fallback) and added rollout decision payloads with SLO/gap metrics (`rolloutPlan`) on `GET|POST|PATCH /api/sdk/v1/graph/rollout`.
 - Added graph default-on rollout policy docs with explicit go/no-go thresholds, baseline gap reporting, and `GRAPH_ROLLOUT_AUTOPILOT_ENABLED` behavior.
+- Added `memories setup --minimal-local` preset for local-only onboarding with no cloud/workspace dependency.
+- Added `memories doctor --local-only` to skip cloud checks and provide cleaner local-mode diagnostics.
+- Documented a 10-minute local happy path (`setup -> doctor --local-only -> add -> search`) across CLI and Getting Started docs.
 
 ## February 16, 2026
 

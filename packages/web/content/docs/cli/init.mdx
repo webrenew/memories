@@ -36,6 +36,7 @@ Initialize the memories database and automatically set up MCP integration for de
 | `--skip-mcp` | Skip automatic MCP configuration |
 | `--skip-generate` | Skip generating instruction files |
 | `--skip-skill-ingest` | Skip importing existing project skills into memories |
+| `--minimal-local` | Apply local-only setup preset (no cloud/workspace dependency checks) |
 | `-y, --yes` | Auto-confirm all prompts |
 
 ### Setup mode
@@ -43,6 +44,7 @@ Initialize the memories database and automatically set up MCP integration for de
 - `auto` (default): prompts for local vs cloud guidance in interactive sessions
 - `local`: skips login/workspace provisioning prompts
 - `cloud`: runs guided login + workspace checks/provisioning
+- `--minimal-local`: forces local mode and local-only verification defaults
 
 ### Memory scope
 
@@ -127,6 +129,20 @@ Auto-confirms all prompts — useful for scripts or CI.
 ```bash
 # Only create database, don't configure tools or skill import
 memories setup --skip-mcp --skip-generate --skip-skill-ingest
+```
+
+### 10-minute minimal local happy path
+
+```bash
+# Local-only setup with no cloud/workspace dependency
+memories setup --minimal-local -y
+
+# Verify local checks (cloud intentionally skipped)
+memories doctor --local-only
+
+# Confirm first memory round-trip
+memories add --rule "Local setup smoke test"
+memories search "Local setup smoke test"
 ```
 
 ### Initialize with starter rules

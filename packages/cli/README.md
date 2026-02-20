@@ -21,6 +21,9 @@ Global installs automatically bootstrap `SKILLS.md` guidance in detected tool co
 # Initialize in your project (auto-detects tools, configures MCP, imports existing project skills)
 memories setup
 
+# Minimal local mode (no cloud/workspace dependency)
+memories setup --minimal-local -y
+
 # Pick scope explicitly when needed
 memories setup --scope project   # or --scope global
 
@@ -34,6 +37,9 @@ memories generate
 
 # Start the MCP server
 memories serve
+
+# Local-only diagnostics
+memories doctor --local-only
 ```
 
 ## Features

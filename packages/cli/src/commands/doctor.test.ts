@@ -98,4 +98,12 @@ describe("doctor checks", () => {
     const unique = new Set(report.nextSteps);
     expect(unique.size).toBe(report.nextSteps.length);
   });
+
+  it("should mark cloud integration healthy in explicit local-only mode", async () => {
+    const report = await runDoctorChecks({ localOnly: true });
+    const cloudCheck = report.checks.find((check) => check.id === "cloud_integration");
+    expect(cloudCheck).toBeDefined();
+    expect(cloudCheck?.status).toBe("pass");
+    expect(cloudCheck?.message).toContain("Skipped cloud checks");
+  });
 });

@@ -54,6 +54,7 @@ interface DoctorReport {
 
 interface RunDoctorChecksOptions {
   fix?: boolean;
+  localOnly?: boolean;
 }
 
 const REQUIRED_FTS_TRIGGERS = ["memories_ai", "memories_ad", "memories_au"] as const;
@@ -177,7 +178,7 @@ export async function checkWritePath(db: Client): Promise<{ ok: boolean; message
   }
 }
 
-function buildChecks(): Check[] {
+function buildChecks(options: RunDoctorChecksOptions = {}): Check[] {
   return [
     {
       id: "config_file",
@@ -378,12 +379,25 @@ function buildChecks(): Check[] {
       category: "cloud",
       name: "Cloud integration",
       run: async () => {
+        if (options.localOnly) {
+          return {
+            status: "pass",
+            message: "Skipped cloud checks (local-only mode)",
+            details: {
+              localOnly: true,
+            },
+          };
+        }
+
         const auth = await readAuth();
         if (!auth) {
           return {
             status: "warn",
             message: "Not logged in (local-only mode)",
-            remediation: ["Run: memories login"],
+            remediation: [
+              "Run: memories login",
+              "Or rerun explicitly in local mode: memories doctor --local-only",
+            ],
           };
         }
 
@@ -542,7 +556,7 @@ function buildChecks(): Check[] {
 }
 
 export async function runDoctorChecks(options: RunDoctorChecksOptions = {}): Promise<DoctorReport> {
-  const checks = buildChecks();
+  const checks = buildChecks(options);
   const results: DoctorCheckResult[] = [];
   const fixes: DoctorReport["fixes"] = {
     applied: false,
@@ -650,14 +664,18 @@ export const doctorCommand = new Command("doctor")
   .description("Check memories health and diagnose issues")
   .option("--fix", "Attempt to fix issues found")
   .option("--json", "Output machine-readable JSON report")
+  .option("--local-only", "Skip cloud health checks and treat local mode as healthy")
   .option("--strict", "Exit with code 1 when warnings or failures are present")
-  .action(async (opts: { fix?: boolean; json?: boolean; strict?: boolean }) => {
+  .action(async (opts: { fix?: boolean; json?: boolean; strict?: boolean; localOnly?: boolean }) => {
     try {
       if (!opts.json) {
         console.log(chalk.bold("memories doctor\n"));
       }
 
-      const report = await runDoctorChecks({ fix: opts.fix });
+      const report = await runDoctorChecks({
+        fix: opts.fix,
+        localOnly: opts.localOnly,
+      });
 
       if (opts.json) {
         console.log(JSON.stringify(report, null, 2));

@@ -74,11 +74,23 @@ memories setup --skip-generate
 # Auto-confirm all prompts
 memories setup -y
 
+# Minimal local mode (no cloud/workspace dependency)
+memories setup --minimal-local -y
+
 # Initialize with starter rules
 memories setup --rule "Use TypeScript strict mode" --rule "Prefer pnpm"
 
 # Initialize global memories (apply to all projects)
 memories setup --global
+```
+
+### 10-minute local happy path
+
+```bash
+memories setup --minimal-local -y
+memories doctor --local-only
+memories add --rule "Local setup smoke test"
+memories search "Local setup smoke test"
 ```
 
 ## Add Your First Memory
