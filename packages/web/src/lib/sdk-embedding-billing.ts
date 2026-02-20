@@ -64,7 +64,10 @@ export interface ListSdkEmbeddingUsageInput {
   usageMonth?: string
   tenantId?: string
   projectId?: string
+  userId?: string
+  modelId?: string
   limit?: number
+  summaryOnly?: boolean
 }
 
 export interface ListSdkEmbeddingUsageResult {
@@ -437,53 +440,6 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
     ownerUserId: input.ownerUserId,
   })
 
-  let query = admin
-    .from("sdk_embedding_meter_events")
-    .select(
-      "usage_month, tenant_id, project_id, model_id, provider, input_tokens, gateway_cost_usd, market_cost_usd, customer_cost_usd, estimated_cost, created_at"
-    )
-    .eq("owner_scope_key", ownerScope.ownerScopeKey)
-    .eq("usage_month", usageMonth)
-    .order("created_at", { ascending: false })
-
-  if (input.tenantId) {
-    query = query.eq("tenant_id", input.tenantId)
-  }
-
-  if (input.projectId) {
-    query = query.eq("project_id", input.projectId)
-  }
-
-  if (typeof input.limit === "number" && Number.isFinite(input.limit) && input.limit > 0) {
-    query = query.limit(Math.min(10_000, Math.max(1, Math.floor(input.limit))))
-  }
-
-  const { data, error } = await query
-
-  if (error) {
-    if (
-      isMissingRelationError(error, "sdk_embedding_meter_events") ||
-      isMissingColumnError(error, "owner_scope_key")
-    ) {
-      return {
-        usageMonth,
-        summary: {
-          usageMonth,
-          requestCount: 0,
-          estimatedRequestCount: 0,
-          inputTokens: 0,
-          gatewayCostUsd: 0,
-          marketCostUsd: 0,
-          customerCostUsd: 0,
-        },
-        breakdown: [],
-      }
-    }
-
-    throw error
-  }
-
-  const rows = (data ?? []) as EmbeddingMeteringRow[]
   const aggregateMap = new Map<string, SdkEmbeddingUsageAggregate>()
 
   let summaryRequestCount = 0
@@ -493,55 +449,120 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
   let summaryMarketCostUsd = 0
   let summaryCustomerCostUsd = 0
 
-  for (const row of rows) {
-    const key = [
-      row.tenant_id ?? "",
-      row.project_id ?? "",
-      row.model_id,
-      row.provider,
-    ].join("|")
+  const pageSize = 1_000
+  let offset = 0
 
-    const requestCount = 1
-    const estimatedRequestCount = row.estimated_cost ? 1 : 0
-    const inputTokens = Math.max(0, Number(row.input_tokens ?? 0))
-    const gatewayCostUsd = Math.max(0, toNumber(row.gateway_cost_usd))
-    const marketCostUsd = Math.max(0, toNumber(row.market_cost_usd))
-    const customerCostUsd = Math.max(0, toNumber(row.customer_cost_usd))
+  while (true) {
+    let pageQuery = admin
+      .from("sdk_embedding_meter_events")
+      .select(
+        "usage_month, tenant_id, project_id, user_id, model_id, provider, input_tokens, gateway_cost_usd, market_cost_usd, customer_cost_usd, estimated_cost, created_at"
+      )
+      .eq("owner_scope_key", ownerScope.ownerScopeKey)
+      .eq("usage_month", usageMonth)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + pageSize - 1)
 
-    summaryRequestCount += requestCount
-    summaryEstimatedRequestCount += estimatedRequestCount
-    summaryInputTokens += inputTokens
-    summaryGatewayCostUsd += gatewayCostUsd
-    summaryMarketCostUsd += marketCostUsd
-    summaryCustomerCostUsd += customerCostUsd
-
-    const existing = aggregateMap.get(key)
-    if (existing) {
-      existing.requestCount += requestCount
-      existing.estimatedRequestCount += estimatedRequestCount
-      existing.inputTokens += inputTokens
-      existing.gatewayCostUsd = roundUsd(existing.gatewayCostUsd + gatewayCostUsd)
-      existing.marketCostUsd = roundUsd(existing.marketCostUsd + marketCostUsd)
-      existing.customerCostUsd = roundUsd(existing.customerCostUsd + customerCostUsd)
-      continue
+    if (input.tenantId) {
+      pageQuery = pageQuery.eq("tenant_id", input.tenantId)
+    }
+    if (input.projectId) {
+      pageQuery = pageQuery.eq("project_id", input.projectId)
+    }
+    if (input.userId) {
+      pageQuery = pageQuery.eq("user_id", input.userId)
+    }
+    if (input.modelId) {
+      pageQuery = pageQuery.eq("model_id", input.modelId)
     }
 
-    aggregateMap.set(key, {
-      usageMonth,
-      tenantId: row.tenant_id,
-      projectId: row.project_id,
-      modelId: row.model_id,
-      provider: row.provider,
-      requestCount,
-      estimatedRequestCount,
-      inputTokens,
-      gatewayCostUsd: roundUsd(gatewayCostUsd),
-      marketCostUsd: roundUsd(marketCostUsd),
-      customerCostUsd: roundUsd(customerCostUsd),
-    })
+    const { data, error } = await pageQuery
+
+    if (error) {
+      if (
+        isMissingRelationError(error, "sdk_embedding_meter_events") ||
+        isMissingColumnError(error, "owner_scope_key")
+      ) {
+        return {
+          usageMonth,
+          summary: {
+            usageMonth,
+            requestCount: 0,
+            estimatedRequestCount: 0,
+            inputTokens: 0,
+            gatewayCostUsd: 0,
+            marketCostUsd: 0,
+            customerCostUsd: 0,
+          },
+          breakdown: [],
+        }
+      }
+
+      throw error
+    }
+
+    const rows = (data ?? []) as EmbeddingMeteringRow[]
+    if (rows.length === 0) break
+
+    for (const row of rows) {
+      const key = [
+        row.tenant_id ?? "",
+        row.project_id ?? "",
+        row.model_id,
+        row.provider,
+      ].join("|")
+
+      const requestCount = 1
+      const estimatedRequestCount = row.estimated_cost ? 1 : 0
+      const inputTokens = Math.max(0, Number(row.input_tokens ?? 0))
+      const gatewayCostUsd = Math.max(0, toNumber(row.gateway_cost_usd))
+      const marketCostUsd = Math.max(0, toNumber(row.market_cost_usd))
+      const customerCostUsd = Math.max(0, toNumber(row.customer_cost_usd))
+
+      summaryRequestCount += requestCount
+      summaryEstimatedRequestCount += estimatedRequestCount
+      summaryInputTokens += inputTokens
+      summaryGatewayCostUsd += gatewayCostUsd
+      summaryMarketCostUsd += marketCostUsd
+      summaryCustomerCostUsd += customerCostUsd
+
+      if (input.summaryOnly) {
+        continue
+      }
+
+      const existing = aggregateMap.get(key)
+      if (existing) {
+        existing.requestCount += requestCount
+        existing.estimatedRequestCount += estimatedRequestCount
+        existing.inputTokens += inputTokens
+        existing.gatewayCostUsd = roundUsd(existing.gatewayCostUsd + gatewayCostUsd)
+        existing.marketCostUsd = roundUsd(existing.marketCostUsd + marketCostUsd)
+        existing.customerCostUsd = roundUsd(existing.customerCostUsd + customerCostUsd)
+        continue
+      }
+
+      aggregateMap.set(key, {
+        usageMonth,
+        tenantId: row.tenant_id,
+        projectId: row.project_id,
+        modelId: row.model_id,
+        provider: row.provider,
+        requestCount,
+        estimatedRequestCount,
+        inputTokens,
+        gatewayCostUsd: roundUsd(gatewayCostUsd),
+        marketCostUsd: roundUsd(marketCostUsd),
+        customerCostUsd: roundUsd(customerCostUsd),
+      })
+    }
+
+    if (rows.length < pageSize) {
+      break
+    }
+    offset += pageSize
   }
 
-  const breakdown = Array.from(aggregateMap.values()).sort((a, b) => {
+  let breakdown = Array.from(aggregateMap.values()).sort((a, b) => {
     if (b.customerCostUsd !== a.customerCostUsd) {
       return b.customerCostUsd - a.customerCostUsd
     }
@@ -550,6 +571,10 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
     }
     return b.requestCount - a.requestCount
   })
+
+  if (typeof input.limit === "number" && Number.isFinite(input.limit) && input.limit > 0) {
+    breakdown = breakdown.slice(0, Math.min(10_000, Math.max(1, Math.floor(input.limit))))
+  }
 
   return {
     usageMonth,

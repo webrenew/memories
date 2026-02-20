@@ -39,6 +39,7 @@ interface StrategyTraceSummary {
   semanticCandidates: number
   fallbackTriggered: boolean
   fallbackReason: string | null
+  semanticModelId: string | null
 }
 
 interface RankedMemoriesResult {
@@ -479,10 +480,12 @@ async function rankMemoriesByStrategy(params: {
         semanticCandidates: 0,
         fallbackTriggered: false,
         fallbackReason: null,
+        semanticModelId: null,
       },
     }
   }
 
+  const defaultSemanticModelId = getSdkDefaultEmbeddingModelId()
   const queryEmbedding = await fetchQueryEmbedding(params.query)
   if (!queryEmbedding) {
     return {
@@ -494,6 +497,7 @@ async function rankMemoriesByStrategy(params: {
         semanticCandidates: 0,
         fallbackTriggered: true,
         fallbackReason: "query_embedding_unavailable",
+        semanticModelId: defaultSemanticModelId,
       },
     }
   }
@@ -518,6 +522,7 @@ async function rankMemoriesByStrategy(params: {
         semanticCandidates: 0,
         fallbackTriggered: true,
         fallbackReason: "vectors_unavailable",
+        semanticModelId: queryEmbedding.modelId,
       },
     }
   }
@@ -532,6 +537,7 @@ async function rankMemoriesByStrategy(params: {
         semanticCandidates: semanticCandidates.length,
         fallbackTriggered: false,
         fallbackReason: null,
+        semanticModelId: queryEmbedding.modelId,
       },
     }
   }
@@ -547,6 +553,7 @@ async function rankMemoriesByStrategy(params: {
         semanticCandidates: semanticCandidates.length,
         fallbackTriggered: true,
         fallbackReason: "hybrid_fusion_empty",
+        semanticModelId: queryEmbedding.modelId,
       },
     }
   }
@@ -560,6 +567,7 @@ async function rankMemoriesByStrategy(params: {
       semanticCandidates: semanticCandidates.length,
       fallbackTriggered: false,
       fallbackReason: null,
+      semanticModelId: queryEmbedding.modelId,
     },
   }
 }
@@ -677,6 +685,7 @@ export async function getContextPayload(params: {
     semanticCandidates: 0,
     fallbackTriggered: requestedSemanticStrategy !== "lexical",
     fallbackReason: requestedSemanticStrategy === "lexical" ? null : "query_missing",
+    semanticModelId: requestedSemanticStrategy === "lexical" ? null : getSdkDefaultEmbeddingModelId(),
   }
 
   if (query) {
@@ -732,6 +741,7 @@ export async function getContextPayload(params: {
       semanticCandidates: workingRanked.trace.semanticCandidates + longTermRanked.trace.semanticCandidates,
       fallbackTriggered,
       fallbackReason,
+      semanticModelId: workingRanked.trace.semanticModelId ?? longTermRanked.trace.semanticModelId,
     }
   } else {
     workingMemories = await listRecentMemoriesByLayer(turso, projectId, userId, "working", nowIso, workingLimit)
@@ -919,6 +929,9 @@ export async function getContextPayload(params: {
       fallbackTriggered,
       fallbackReason: fallbackTriggered ? fallbackReason : null,
       durationMs: Date.now() - retrievalStartedAt,
+      projectId,
+      userId,
+      semanticModelId: strategyTrace.semanticModelId,
     })
   } catch (err) {
     console.error("Failed to record graph rollout metric:", err)

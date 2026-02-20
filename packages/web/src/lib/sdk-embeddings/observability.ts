@@ -270,18 +270,29 @@ function buildJobMetricScopeClause(scope: EmbeddingScope, windowStartIso: string
 }
 
 function buildBackfillScopeClause(scope: EmbeddingScope, windowStartIso: string): {
+  fromClause: string
   whereClause: string
   args: string[]
 } {
-  const clauses: string[] = ["ran_at >= ?"]
+  const clauses: string[] = ["bm.ran_at >= ?"]
   const args: string[] = [windowStartIso]
+  const fromClause = "memory_embedding_backfill_metrics bm LEFT JOIN memory_embedding_backfill_state bs ON bs.scope_key = bm.scope_key"
 
   if (scope.modelId) {
-    clauses.push("model = ?")
+    clauses.push("bm.model = ?")
     args.push(scope.modelId)
+  }
+  if (scope.projectId) {
+    clauses.push("bs.project_id = ?")
+    args.push(scope.projectId)
+  }
+  if (scope.userId) {
+    clauses.push("bs.user_id = ?")
+    args.push(scope.userId)
   }
 
   return {
+    fromClause,
     whereClause: `WHERE ${clauses.join(" AND ")}`,
     args,
   }
@@ -309,6 +320,32 @@ function buildBackfillStateScopeClause(scope: EmbeddingScope): {
 
   return {
     whereClause: clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "",
+    args,
+  }
+}
+
+function buildRetrievalScopeClause(scope: EmbeddingScope, windowStartIso: string): {
+  whereClause: string
+  args: string[]
+} {
+  const clauses: string[] = ["created_at >= ?"]
+  const args: string[] = [windowStartIso]
+
+  if (scope.projectId) {
+    clauses.push("project_id = ?")
+    args.push(scope.projectId)
+  }
+  if (scope.userId) {
+    clauses.push("user_id = ?")
+    args.push(scope.userId)
+  }
+  if (scope.modelId) {
+    clauses.push("semantic_model = ?")
+    args.push(scope.modelId)
+  }
+
+  return {
+    whereClause: `WHERE ${clauses.join(" AND ")}`,
     args,
   }
 }
@@ -433,12 +470,12 @@ async function loadBackfillHealth(
   const summaryResult = await turso.execute({
     sql: `SELECT
             COUNT(*) AS runs,
-            SUM(batch_scanned) AS scanned_count,
-            SUM(batch_enqueued) AS enqueued_count,
-            SUM(CASE WHEN error IS NOT NULL AND TRIM(error) <> '' THEN 1 ELSE 0 END) AS error_runs,
-            AVG(CASE WHEN duration_ms IS NOT NULL THEN duration_ms END) AS avg_duration_ms,
-            MAX(ran_at) AS last_run_at
-          FROM memory_embedding_backfill_metrics
+            SUM(bm.batch_scanned) AS scanned_count,
+            SUM(bm.batch_enqueued) AS enqueued_count,
+            SUM(CASE WHEN bm.error IS NOT NULL AND TRIM(bm.error) <> '' THEN 1 ELSE 0 END) AS error_runs,
+            AVG(CASE WHEN bm.duration_ms IS NOT NULL THEN bm.duration_ms END) AS avg_duration_ms,
+            MAX(bm.ran_at) AS last_run_at
+          FROM ${metricsScope.fromClause}
           ${metricsScope.whereClause}`,
     args: metricsScope.args,
   })
@@ -474,29 +511,34 @@ async function loadBackfillHealth(
   }
 }
 
-async function loadRetrievalHealth(turso: TursoClient, windowStartIso: string): Promise<EmbeddingRetrievalHealth> {
+async function loadRetrievalHealth(
+  turso: TursoClient,
+  scope: EmbeddingScope,
+  windowStartIso: string
+): Promise<EmbeddingRetrievalHealth> {
   let summaryResult: Awaited<ReturnType<TursoClient["execute"]>>
   let durationRows: unknown[] = []
+  const scoped = buildRetrievalScopeClause(scope, windowStartIso)
 
   try {
     summaryResult = await turso.execute({
       sql: `SELECT
               COUNT(*) AS total_requests,
               SUM(CASE WHEN requested_strategy = 'hybrid_graph' THEN 1 ELSE 0 END) AS hybrid_requested,
-              SUM(CASE WHEN fallback_triggered = 1 THEN 1 ELSE 0 END) AS fallback_count,
+              SUM(CASE WHEN requested_strategy = 'hybrid_graph' AND fallback_triggered = 1 THEN 1 ELSE 0 END) AS fallback_count,
               AVG(CASE WHEN duration_ms > 0 THEN duration_ms END) AS avg_duration_ms
             FROM graph_rollout_metrics
-            WHERE created_at >= ?`,
-      args: [windowStartIso],
+            ${scoped.whereClause}`,
+      args: scoped.args,
     })
 
     const durationsResult = await turso.execute({
       sql: `SELECT duration_ms
             FROM graph_rollout_metrics
-            WHERE created_at >= ?
+            ${scoped.whereClause}
               AND duration_ms > 0
             ORDER BY duration_ms ASC`,
-      args: [windowStartIso],
+      args: scoped.args,
     })
     durationRows = Array.isArray(durationsResult.rows) ? durationsResult.rows : []
   } catch (error) {
@@ -508,10 +550,10 @@ async function loadRetrievalHealth(turso: TursoClient, windowStartIso: string): 
       sql: `SELECT
               COUNT(*) AS total_requests,
               SUM(CASE WHEN requested_strategy = 'hybrid_graph' THEN 1 ELSE 0 END) AS hybrid_requested,
-              SUM(CASE WHEN fallback_triggered = 1 THEN 1 ELSE 0 END) AS fallback_count
+              SUM(CASE WHEN requested_strategy = 'hybrid_graph' AND fallback_triggered = 1 THEN 1 ELSE 0 END) AS fallback_count
             FROM graph_rollout_metrics
-            WHERE created_at >= ?`,
-      args: [windowStartIso],
+            ${scoped.whereClause}`,
+      args: scoped.args,
     })
 
     durationRows = []
@@ -520,11 +562,12 @@ async function loadRetrievalHealth(turso: TursoClient, windowStartIso: string): 
   const fallbackResult = await turso.execute({
     sql: `SELECT created_at, fallback_reason
           FROM graph_rollout_metrics
-          WHERE created_at >= ?
+          ${scoped.whereClause}
+            AND requested_strategy = 'hybrid_graph'
             AND fallback_triggered = 1
           ORDER BY created_at DESC
           LIMIT 1`,
-    args: [windowStartIso],
+    args: scoped.args,
   })
 
   const row = (summaryResult.rows[0] ?? {}) as Record<string, unknown>
@@ -532,14 +575,15 @@ async function loadRetrievalHealth(turso: TursoClient, windowStartIso: string): 
     .map((durationRow) => toNumber((durationRow as Record<string, unknown>).duration_ms))
     .filter((value) => value > 0)
   const totalRequests = toCount(row.total_requests)
+  const hybridRequested = toCount(row.hybrid_requested)
   const fallbackCount = toCount(row.fallback_count)
   const fallbackRow = (fallbackResult.rows[0] ?? {}) as Record<string, unknown>
 
   return {
     totalRequests,
-    hybridRequested: toCount(row.hybrid_requested),
+    hybridRequested,
     fallbackCount,
-    fallbackRate: totalRequests > 0 ? roundMetric(fallbackCount / totalRequests) : 0,
+    fallbackRate: hybridRequested > 0 ? roundMetric(fallbackCount / hybridRequested) : 0,
     avgLatencyMs: roundMetric(toNumber(row.avg_duration_ms), 2),
     p50LatencyMs: roundMetric(percentile(durations, 0.5), 2),
     p95LatencyMs: roundMetric(percentile(durations, 0.95), 2),
@@ -558,7 +602,9 @@ async function loadCostHealth(
     usageMonth: input.usageMonth,
     tenantId: trimNullable(input.tenantId ?? null) ?? undefined,
     projectId: trimNullable(input.projectId ?? null) ?? undefined,
-    limit: 100,
+    userId: trimNullable(input.userId ?? null) ?? undefined,
+    modelId: trimNullable(input.modelId ?? null) ?? undefined,
+    summaryOnly: true,
   })
 
   const requestCount = Math.max(0, usage.summary.requestCount)
@@ -655,7 +701,7 @@ function evaluateAlarms(snapshot: {
     }
   }
 
-  if (snapshot.retrieval.totalRequests >= EMBEDDING_OBSERVABILITY_SLOS.retrievalFallbackRate.minSamples) {
+  if (snapshot.retrieval.hybridRequested >= EMBEDDING_OBSERVABILITY_SLOS.retrievalFallbackRate.minSamples) {
     if (snapshot.retrieval.fallbackRate >= EMBEDDING_OBSERVABILITY_SLOS.retrievalFallbackRate.critical) {
       pushAlarm(
         "EMBEDDING_RETRIEVAL_FALLBACK_RATE_CRITICAL",
@@ -747,7 +793,7 @@ export async function getEmbeddingObservabilitySnapshot(
     loadQueueHealth(input.turso, scope, nowIso),
     loadWorkerHealth(input.turso, scope, windowStartIso),
     loadBackfillHealth(input.turso, scope, windowStartIso),
-    loadRetrievalHealth(input.turso, windowStartIso),
+    loadRetrievalHealth(input.turso, scope, windowStartIso),
     loadCostHealth(input, usageLoader),
   ])
 

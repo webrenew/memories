@@ -173,6 +173,22 @@ describe("ensureMemoryUserIdSchema", () => {
     const embeddingBackfillMetricIndexNames = new Set(embeddingBackfillMetricIndexes.rows.map((row) => String(row.name)))
     expect(embeddingBackfillMetricIndexNames.has("idx_memory_embedding_backfill_metrics_scope_ran_at")).toBe(true)
     expect(embeddingBackfillMetricIndexNames.has("idx_memory_embedding_backfill_metrics_status_ran_at")).toBe(true)
+
+    const rolloutMetricColumns = await db.execute("PRAGMA table_info(graph_rollout_metrics)")
+    const rolloutMetricColumnNames = new Set(rolloutMetricColumns.rows.map((row) => String(row.name)))
+    expect(rolloutMetricColumnNames.has("project_id")).toBe(true)
+    expect(rolloutMetricColumnNames.has("user_id")).toBe(true)
+    expect(rolloutMetricColumnNames.has("semantic_model")).toBe(true)
+    expect(rolloutMetricColumnNames.has("duration_ms")).toBe(true)
+
+    const rolloutMetricIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = ?",
+      args: ["graph_rollout_metrics"],
+    })
+    const rolloutMetricIndexNames = new Set(rolloutMetricIndexes.rows.map((row) => String(row.name)))
+    expect(rolloutMetricIndexNames.has("idx_graph_rollout_metrics_project_created_at")).toBe(true)
+    expect(rolloutMetricIndexNames.has("idx_graph_rollout_metrics_user_created_at")).toBe(true)
+    expect(rolloutMetricIndexNames.has("idx_graph_rollout_metrics_model_created_at")).toBe(true)
   })
 
   it("upgrades embedding schema for tenants already marked on the user-id migration", async () => {

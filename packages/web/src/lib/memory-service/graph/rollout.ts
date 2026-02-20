@@ -20,6 +20,9 @@ interface GraphRolloutMetricInput {
   totalCandidates: number
   fallbackTriggered: boolean
   fallbackReason: string | null
+  projectId?: string | null
+  userId?: string | null
+  semanticModelId?: string | null
   durationMs?: number
 }
 
@@ -106,10 +109,48 @@ function isDuplicateColumnError(error: unknown): boolean {
   return message.includes("duplicate column name")
 }
 
+function trimNullable(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 async function ensureGraphRolloutMetricColumns(turso: TursoClient): Promise<void> {
   const columns = await turso.execute("PRAGMA table_info(graph_rollout_metrics)")
   const columnRows = Array.isArray(columns.rows) ? columns.rows : []
+  const hasProjectIdColumn = columnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "project_id")
+  const hasUserIdColumn = columnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "user_id")
+  const hasSemanticModelColumn = columnRows.some(
+    (row) => String((row as { name?: unknown }).name ?? "") === "semantic_model"
+  )
   const hasDurationColumn = columnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "duration_ms")
+  if (!hasProjectIdColumn) {
+    try {
+      await turso.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN project_id TEXT")
+    } catch (error) {
+      if (!isDuplicateColumnError(error)) {
+        throw error
+      }
+    }
+  }
+  if (!hasUserIdColumn) {
+    try {
+      await turso.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN user_id TEXT")
+    } catch (error) {
+      if (!isDuplicateColumnError(error)) {
+        throw error
+      }
+    }
+  }
+  if (!hasSemanticModelColumn) {
+    try {
+      await turso.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN semantic_model TEXT")
+    } catch (error) {
+      if (!isDuplicateColumnError(error)) {
+        throw error
+      }
+    }
+  }
   if (!hasDurationColumn) {
     try {
       await turso.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0")
@@ -177,6 +218,9 @@ async function ensureGraphRolloutTables(turso: TursoClient): Promise<void> {
       total_candidates INTEGER NOT NULL DEFAULT 0,
       fallback_triggered INTEGER NOT NULL DEFAULT 0,
       fallback_reason TEXT,
+      project_id TEXT,
+      user_id TEXT,
+      semantic_model TEXT,
       duration_ms INTEGER NOT NULL DEFAULT 0
     )`
   )
@@ -187,6 +231,15 @@ async function ensureGraphRolloutTables(turso: TursoClient): Promise<void> {
   await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_mode ON graph_rollout_metrics(mode)")
   await turso.execute(
     "CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_fallback ON graph_rollout_metrics(fallback_triggered, created_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_project_created_at ON graph_rollout_metrics(project_id, created_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_user_created_at ON graph_rollout_metrics(user_id, created_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_model_created_at ON graph_rollout_metrics(semantic_model, created_at)"
   )
 
   ensuredRolloutTables.add(turso)
@@ -556,8 +609,11 @@ export async function recordGraphRolloutMetric(
             total_candidates,
             fallback_triggered,
             fallback_reason,
+            project_id,
+            user_id,
+            semantic_model,
             duration_ms
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       crypto.randomUUID(),
       metric.nowIso,
@@ -571,6 +627,9 @@ export async function recordGraphRolloutMetric(
       Math.max(0, Math.floor(metric.totalCandidates)),
       metric.fallbackTriggered ? 1 : 0,
       metric.fallbackReason,
+      trimNullable(metric.projectId),
+      trimNullable(metric.userId),
+      trimNullable(metric.semanticModelId),
       Math.max(0, Math.round(metric.durationMs ?? 0)),
     ],
   })

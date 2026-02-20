@@ -225,6 +225,9 @@ describe("getEmbeddingObservabilitySnapshot", () => {
         fallbackTriggered,
         fallbackReason: fallbackTriggered ? "graph_expansion_error" : null,
         durationMs: 400 + index * 90,
+        projectId: "project-a",
+        userId: "user-a",
+        semanticModelId: "openai/text-embedding-3-small",
       })
     }
 
@@ -277,6 +280,9 @@ describe("getEmbeddingObservabilitySnapshot", () => {
         ownerUserId: "owner-1",
         tenantId: "tenant-a",
         projectId: "project-a",
+        userId: "user-a",
+        modelId: "openai/text-embedding-3-small",
+        summaryOnly: true,
       })
     )
   })
@@ -312,5 +318,112 @@ describe("getEmbeddingObservabilitySnapshot", () => {
     expect(snapshot.queue.queuedCount).toBe(0)
     expect(snapshot.worker.attempts).toBe(0)
     expect(snapshot.retrieval.totalRequests).toBe(0)
+  })
+
+  it("scopes retrieval metrics by project/user/model and computes fallback rate from hybrid requests", async () => {
+    const db = await setupDb("memories-embedding-observability-retrieval-scope")
+
+    await recordGraphRolloutMetric(db, {
+      nowIso: "2026-02-20T11:00:00.000Z",
+      mode: "canary",
+      requestedStrategy: "hybrid_graph",
+      appliedStrategy: "baseline",
+      shadowExecuted: false,
+      baselineCandidates: 3,
+      graphCandidates: 1,
+      graphExpandedCount: 0,
+      totalCandidates: 3,
+      fallbackTriggered: true,
+      fallbackReason: "graph_expansion_error",
+      durationMs: 900,
+      projectId: "project-a",
+      userId: "user-a",
+      semanticModelId: "openai/text-embedding-3-small",
+    })
+    await recordGraphRolloutMetric(db, {
+      nowIso: "2026-02-20T11:01:00.000Z",
+      mode: "canary",
+      requestedStrategy: "hybrid_graph",
+      appliedStrategy: "hybrid_graph",
+      shadowExecuted: false,
+      baselineCandidates: 3,
+      graphCandidates: 2,
+      graphExpandedCount: 1,
+      totalCandidates: 4,
+      fallbackTriggered: false,
+      fallbackReason: null,
+      durationMs: 850,
+      projectId: "project-a",
+      userId: "user-a",
+      semanticModelId: "openai/text-embedding-3-small",
+    })
+    for (let index = 0; index < 8; index += 1) {
+      await recordGraphRolloutMetric(db, {
+        nowIso: `2026-02-20T11:${(index + 2).toString().padStart(2, "0")}:00.000Z`,
+        mode: "canary",
+        requestedStrategy: "baseline",
+        appliedStrategy: "baseline",
+        shadowExecuted: false,
+        baselineCandidates: 2,
+        graphCandidates: 0,
+        graphExpandedCount: 0,
+        totalCandidates: 2,
+        fallbackTriggered: false,
+        fallbackReason: null,
+        durationMs: 100,
+        projectId: "project-a",
+        userId: "user-a",
+        semanticModelId: "openai/text-embedding-3-small",
+      })
+    }
+    await recordGraphRolloutMetric(db, {
+      nowIso: "2026-02-20T11:20:00.000Z",
+      mode: "canary",
+      requestedStrategy: "hybrid_graph",
+      appliedStrategy: "baseline",
+      shadowExecuted: false,
+      baselineCandidates: 3,
+      graphCandidates: 1,
+      graphExpandedCount: 0,
+      totalCandidates: 3,
+      fallbackTriggered: true,
+      fallbackReason: "graph_expansion_error",
+      durationMs: 1_200,
+      projectId: "project-b",
+      userId: "user-b",
+      semanticModelId: "openai/text-embedding-3-small",
+    })
+
+    const snapshot = await getEmbeddingObservabilitySnapshot(
+      {
+        turso: db,
+        ownerUserId: "owner-retrieval",
+        projectId: "project-a",
+        userId: "user-a",
+        modelId: "openai/text-embedding-3-small",
+        nowIso: "2026-02-20T12:00:00.000Z",
+        windowHours: 24,
+      },
+      {
+        usageLoader: async () => ({
+          usageMonth: "2026-02-01",
+          summary: {
+            usageMonth: "2026-02-01",
+            requestCount: 0,
+            estimatedRequestCount: 0,
+            inputTokens: 0,
+            gatewayCostUsd: 0,
+            marketCostUsd: 0,
+            customerCostUsd: 0,
+          },
+          breakdown: [],
+        }),
+      }
+    )
+
+    expect(snapshot.retrieval.totalRequests).toBe(10)
+    expect(snapshot.retrieval.hybridRequested).toBe(2)
+    expect(snapshot.retrieval.fallbackCount).toBe(1)
+    expect(snapshot.retrieval.fallbackRate).toBe(0.5)
   })
 })

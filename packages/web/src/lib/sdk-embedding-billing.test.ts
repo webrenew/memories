@@ -160,47 +160,51 @@ describe("sdk-embedding-billing", () => {
   })
 
   it("aggregates usage by tenant/project/model", async () => {
-    const eqUsageMonth = vi.fn().mockReturnValue({
-      order: vi.fn().mockResolvedValue({
-        data: [
-          {
-            usage_month: "2026-02-01",
-            tenant_id: "tenant-a",
-            project_id: "project-a",
-            model_id: "openai/text-embedding-3-small",
-            provider: "openai",
-            input_tokens: 100,
-            gateway_cost_usd: "0.00000200",
-            market_cost_usd: "0.00000200",
-            customer_cost_usd: "0.00000230",
-            estimated_cost: true,
-            created_at: "2026-02-19T00:00:00.000Z",
-          },
-          {
-            usage_month: "2026-02-01",
-            tenant_id: "tenant-a",
-            project_id: "project-a",
-            model_id: "openai/text-embedding-3-small",
-            provider: "openai",
-            input_tokens: 300,
-            gateway_cost_usd: "0.00000600",
-            market_cost_usd: "0.00000600",
-            customer_cost_usd: "0.00000690",
-            estimated_cost: false,
-            created_at: "2026-02-19T00:00:01.000Z",
-          },
-        ],
+    const firstPage = [
+      {
+        usage_month: "2026-02-01",
+        tenant_id: "tenant-a",
+        project_id: "project-a",
+        model_id: "openai/text-embedding-3-small",
+        provider: "openai",
+        input_tokens: 100,
+        gateway_cost_usd: "0.00000200",
+        market_cost_usd: "0.00000200",
+        customer_cost_usd: "0.00000230",
+        estimated_cost: true,
+        created_at: "2026-02-19T00:00:00.000Z",
+      },
+      {
+        usage_month: "2026-02-01",
+        tenant_id: "tenant-a",
+        project_id: "project-a",
+        model_id: "openai/text-embedding-3-small",
+        provider: "openai",
+        input_tokens: 300,
+        gateway_cost_usd: "0.00000600",
+        market_cost_usd: "0.00000600",
+        customer_cost_usd: "0.00000690",
+        estimated_cost: false,
+        created_at: "2026-02-19T00:00:01.000Z",
+      },
+    ]
+    const pages: Array<Array<Record<string, unknown>>> = [firstPage, []]
+
+    const queryBuilder = {
+      eq: vi.fn(),
+      order: vi.fn(),
+      range: vi.fn(),
+    }
+    queryBuilder.eq.mockReturnValue(queryBuilder)
+    queryBuilder.order.mockReturnValue(queryBuilder)
+    queryBuilder.range.mockImplementation(() =>
+      Promise.resolve({
+        data: pages.shift() ?? [],
         error: null,
-      }),
-    })
+      })
+    )
 
-    const eqOwnerScope = vi.fn().mockReturnValue({
-      eq: eqUsageMonth,
-    })
-
-    const select = vi.fn().mockReturnValue({
-      eq: eqOwnerScope,
-    })
+    const select = vi.fn().mockReturnValue(queryBuilder)
 
     mockFrom.mockImplementation((table: string) => {
       if (table === "sdk_embedding_meter_events") {
@@ -214,6 +218,7 @@ describe("sdk-embedding-billing", () => {
     const usage = await listSdkEmbeddingUsage({
       ownerUserId: "user-1",
       usageMonth: "2026-02-01",
+      limit: 1,
     })
 
     expect(usage.summary.requestCount).toBe(2)

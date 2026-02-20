@@ -445,13 +445,51 @@ async function ensureGraphSchema(db: ReturnType<typeof createClient>): Promise<v
       total_candidates INTEGER NOT NULL DEFAULT 0,
       fallback_triggered INTEGER NOT NULL DEFAULT 0,
       fallback_reason TEXT,
+      project_id TEXT,
+      user_id TEXT,
+      semantic_model TEXT,
       duration_ms INTEGER NOT NULL DEFAULT 0
     )`
   )
 
   const rolloutMetricColumns = await db.execute("PRAGMA table_info(graph_rollout_metrics)")
   const rolloutColumnRows = Array.isArray(rolloutMetricColumns.rows) ? rolloutMetricColumns.rows : []
+  const hasProjectIdColumn = rolloutColumnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "project_id")
+  const hasUserIdColumn = rolloutColumnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "user_id")
+  const hasSemanticModelColumn = rolloutColumnRows.some(
+    (row) => String((row as { name?: unknown }).name ?? "") === "semantic_model"
+  )
   const hasDurationColumn = rolloutColumnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "duration_ms")
+  if (!hasProjectIdColumn) {
+    try {
+      await db.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN project_id TEXT")
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : ""
+      if (!message.includes("duplicate column name")) {
+        throw error
+      }
+    }
+  }
+  if (!hasUserIdColumn) {
+    try {
+      await db.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN user_id TEXT")
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : ""
+      if (!message.includes("duplicate column name")) {
+        throw error
+      }
+    }
+  }
+  if (!hasSemanticModelColumn) {
+    try {
+      await db.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN semantic_model TEXT")
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : ""
+      if (!message.includes("duplicate column name")) {
+        throw error
+      }
+    }
+  }
   if (!hasDurationColumn) {
     try {
       await db.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0")
@@ -471,5 +509,17 @@ async function ensureGraphSchema(db: ReturnType<typeof createClient>): Promise<v
   await db.execute(
     `CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_fallback
      ON graph_rollout_metrics(fallback_triggered, created_at)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_project_created_at
+     ON graph_rollout_metrics(project_id, created_at)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_user_created_at
+     ON graph_rollout_metrics(user_id, created_at)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_model_created_at
+     ON graph_rollout_metrics(semantic_model, created_at)`
   )
 }
