@@ -209,7 +209,7 @@ Defaults:
 - `includeRules`: `true`
 - `includeSkillFiles`: `true`
 - `mode`: `all`
-- `strategy`: `lexical`
+- `strategy`: policy default (`lexical` until rollout policy promotes to `hybrid`)
 - `graphDepth`: `1`
 - `graphLimit`: `8`
 
@@ -226,7 +226,7 @@ Response `data`:
 - `skillFiles[]`
 - `workingMemories[]`
 - `longTermMemories[]`
-- `trace` (strategy, rollout mode, fallback details, candidate counts)
+- `trace` (strategy, rollout mode, fallback details, candidate counts, retrieval policy diagnostics)
 
 ### `POST /api/sdk/v1/memories/add`
 
@@ -533,7 +533,7 @@ Trace retrieval behavior and graph expansion decisions.
 
 Request is similar to `context/get`, but defaults differ:
 
-- `strategy` default: `hybrid_graph`
+- `strategy` default: policy default (`baseline` for lexical policy, `hybrid_graph` for hybrid policy)
 - `limit` default: `10`
 
 Response `data` includes:
@@ -541,6 +541,12 @@ Response `data` includes:
 - `mode`, `includeRules`, `query`
 - `strategy`: `{ requested, applied }`
 - `trace`: rollout/fallback/candidate metrics
+  - includes retrieval policy diagnostics:
+    - `retrievalPolicyDefaultStrategy`
+    - `retrievalPolicyAppliedStrategy`
+    - `retrievalPolicySelection`
+    - `retrievalPolicyReadyForDefaultOn`
+    - `retrievalPolicyBlockerCodes`
 - `tiers`: rule/working/long-term ID lists
 - `recall[]`: rank + source (`baseline` or `graph_expansion`) + graph explainability
 - `rules[]`, `memories[]`
@@ -590,6 +596,13 @@ Successful response `data` includes:
   - `baseline` (gap-to-goal metrics)
   - `slo` thresholds and sample requirements
   - `autopilot` (`enabled`, `applied`)
+- `retrievalPolicy`
+  - `defaultStrategy`
+  - `readyWindowStreak`
+  - `lastDecision`
+  - `lastEvaluatedAt`
+  - `updatedAt`
+  - `updatedBy`
 - `scope`
 
 ## Health Contract

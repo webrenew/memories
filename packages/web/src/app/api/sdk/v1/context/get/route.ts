@@ -1,4 +1,5 @@
 import { getContextPayload } from "@/lib/memory-service/queries"
+import { evaluateGraphRetrievalPolicy } from "@/lib/memory-service/graph/rollout"
 import { listSkillFilesPayload } from "@/lib/memory-service/skill-files"
 import { apiError, ensureMemoryUserIdSchema, parseTenantId, parseUserId, ToolExecutionError } from "@/lib/memory-service/tools"
 import {
@@ -97,12 +98,21 @@ export async function POST(request: NextRequest): Promise<Response> {
     const mode = parsedRequest.mode ?? "all"
     const includeRules = parsedRequest.includeRules ?? true
     const includeSkillFiles = parsedRequest.includeSkillFiles ?? true
-    const requestedStrategy = normalizeRetrievalStrategy(parsedRequest.strategy)
+    const nowIso = new Date().toISOString()
+    const policySnapshot = await evaluateGraphRetrievalPolicy(turso, {
+      nowIso,
+      updatedBy: authResult.userId,
+    })
+    const requestedStrategy = parsedRequest.strategy
+      ? normalizeRetrievalStrategy(parsedRequest.strategy)
+      : policySnapshot.policy.defaultStrategy === "hybrid"
+        ? "hybrid"
+        : "lexical"
     const payload = await getContextPayload({
       turso,
       projectId,
       userId,
-      nowIso: new Date().toISOString(),
+      nowIso,
       query: parsedRequest.query ?? "",
       limit: parsedRequest.limit ?? 5,
       semanticStrategy: requestedStrategy,
@@ -130,7 +140,14 @@ export async function POST(request: NextRequest): Promise<Response> {
       skillFiles: skillFilesPayload.data.skillFiles,
       workingMemories: payload.data.workingMemories,
       longTermMemories: payload.data.longTermMemories,
-      trace: payload.data.trace,
+      trace: {
+        ...payload.data.trace,
+        retrievalPolicyDefaultStrategy: policySnapshot.policy.defaultStrategy,
+        retrievalPolicyAppliedStrategy: payload.data.trace.strategy === "hybrid_graph" ? "hybrid" : "lexical",
+        retrievalPolicySelection: parsedRequest.strategy ? "request" : "policy_default",
+        retrievalPolicyReadyForDefaultOn: policySnapshot.plan.readyForDefaultOn,
+        retrievalPolicyBlockerCodes: policySnapshot.plan.blockerCodes,
+      },
     })
   } catch (error) {
     const detail =

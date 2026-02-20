@@ -279,6 +279,10 @@ export const GRAPH_MAPPING_ENABLED = parseBooleanFlag(process.env.GRAPH_MAPPING_
 export const GRAPH_RETRIEVAL_ENABLED = parseBooleanFlag(process.env.GRAPH_RETRIEVAL_ENABLED, true)
 export const GRAPH_LLM_EXTRACTION_ENABLED = parseBooleanFlag(process.env.GRAPH_LLM_EXTRACTION_ENABLED, false)
 export const GRAPH_ROLLOUT_AUTOPILOT_ENABLED = parseBooleanFlag(process.env.GRAPH_ROLLOUT_AUTOPILOT_ENABLED, false)
+export const GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED = parseBooleanFlag(
+  process.env.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED,
+  true
+)
 
 // ── Other ────────────────────────────────────────────────────────────
 

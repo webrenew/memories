@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 
-const { mockUserSelect, mockTenantSelect, mockResolveActiveMemoryContext, mockGetContextPayload, mockExecute } = vi.hoisted(
-  () => ({
-    mockUserSelect: vi.fn(),
-    mockTenantSelect: vi.fn(),
-    mockResolveActiveMemoryContext: vi.fn(),
-    mockGetContextPayload: vi.fn(),
-    mockExecute: vi.fn(),
-  })
-)
+const {
+  mockUserSelect,
+  mockTenantSelect,
+  mockResolveActiveMemoryContext,
+  mockGetContextPayload,
+  mockEvaluateGraphRetrievalPolicy,
+  mockExecute,
+} = vi.hoisted(() => ({
+  mockUserSelect: vi.fn(),
+  mockTenantSelect: vi.fn(),
+  mockResolveActiveMemoryContext: vi.fn(),
+  mockGetContextPayload: vi.fn(),
+  mockEvaluateGraphRetrievalPolicy: vi.fn(),
+  mockExecute: vi.fn(),
+}))
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
@@ -50,6 +56,10 @@ vi.mock("@/lib/rate-limit", () => ({
 
 vi.mock("@/lib/memory-service/queries", () => ({
   getContextPayload: mockGetContextPayload,
+}))
+
+vi.mock("@/lib/memory-service/graph/rollout", () => ({
+  evaluateGraphRetrievalPolicy: mockEvaluateGraphRetrievalPolicy,
 }))
 
 vi.mock("@libsql/client", () => ({
@@ -133,6 +143,15 @@ describe("/api/sdk/v1/context/get", () => {
     })
 
     mockExecute.mockResolvedValue({ rows: [] })
+    mockEvaluateGraphRetrievalPolicy.mockResolvedValue({
+      plan: {
+        readyForDefaultOn: false,
+        blockerCodes: ["MIN_CANARY_SAMPLES_NOT_MET"],
+      },
+      policy: {
+        defaultStrategy: "lexical",
+      },
+    })
   })
 
   it("returns 401 when API key is missing", async () => {
@@ -200,6 +219,7 @@ describe("/api/sdk/v1/context/get", () => {
         graphLimit: 12,
       })
     )
+    expect(mockEvaluateGraphRetrievalPolicy).toHaveBeenCalledTimes(1)
     expect(mockResolveActiveMemoryContext).toHaveBeenCalledWith(
       expect.anything(),
       "user-1",
@@ -230,6 +250,39 @@ describe("/api/sdk/v1/context/get", () => {
         query: "auth",
         userId: "end-user-1",
         retrievalStrategy: "baseline",
+      })
+    )
+  })
+
+  it("uses policy default strategy when request strategy is omitted", async () => {
+    mockEvaluateGraphRetrievalPolicy.mockResolvedValueOnce({
+      plan: {
+        readyForDefaultOn: true,
+        blockerCodes: [],
+      },
+      policy: {
+        defaultStrategy: "hybrid",
+      },
+    })
+
+    const response = await POST(
+      makePostRequest(
+        {
+          query: "policy default",
+          scope: {
+            userId: "end-user-1",
+          },
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetContextPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "policy default",
+        userId: "end-user-1",
+        retrievalStrategy: "hybrid_graph",
       })
     )
   })
@@ -352,6 +405,13 @@ describe("/api/sdk/v1/context/get", () => {
             "graphDepth": 0,
             "graphExpandedCount": 0,
             "graphLimit": 0,
+            "retrievalPolicyAppliedStrategy": "lexical",
+            "retrievalPolicyBlockerCodes": [
+              "MIN_CANARY_SAMPLES_NOT_MET",
+            ],
+            "retrievalPolicyDefaultStrategy": "lexical",
+            "retrievalPolicyReadyForDefaultOn": false,
+            "retrievalPolicySelection": "policy_default",
             "strategy": "baseline",
             "totalCandidates": 2,
           },

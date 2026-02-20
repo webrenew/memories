@@ -5,7 +5,9 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   buildGraphRolloutPlan,
+  evaluateGraphRetrievalPolicy,
   evaluateGraphRolloutPlan,
+  recordGraphRolloutMetric,
   setGraphRolloutConfig,
   type GraphRolloutQualitySummary,
 } from "./rollout"
@@ -122,5 +124,76 @@ describe("graph rollout plan", () => {
     expect(result.rollout.mode).toBe("shadow")
     expect(result.plan.autopilot.enabled).toBe(true)
     expect(result.plan.autopilot.applied).toBe(true)
+  })
+
+  it("promotes default strategy after sustained readiness and rolls back on regression", async () => {
+    const db = await setupDb("memories-graph-default-strategy-autopilot")
+
+    await setGraphRolloutConfig(db, {
+      mode: "canary",
+      nowIso: "2026-02-12T23:00:00.000Z",
+      updatedBy: "user-1",
+    })
+
+    for (let index = 0; index < 24; index += 1) {
+      await recordGraphRolloutMetric(db, {
+        nowIso: `2026-02-13T00:${index.toString().padStart(2, "0")}:00.000Z`,
+        mode: "canary",
+        requestedStrategy: "hybrid_graph",
+        appliedStrategy: "hybrid_graph",
+        shadowExecuted: false,
+        baselineCandidates: 2,
+        graphCandidates: 3,
+        graphExpandedCount: 1,
+        totalCandidates: 3,
+        fallbackTriggered: false,
+        fallbackReason: null,
+      })
+    }
+
+    const first = await evaluateGraphRetrievalPolicy(db, {
+      nowIso: "2026-02-13T01:00:00.000Z",
+      updatedBy: "user-1",
+      allowAutopilot: true,
+      promoteAfterReadyWindows: 2,
+    })
+    expect(first.policy.defaultStrategy).toBe("lexical")
+    expect(first.policy.readyWindowStreak).toBe(1)
+    expect(first.autopilot.applied).toBe(false)
+
+    const second = await evaluateGraphRetrievalPolicy(db, {
+      nowIso: "2026-02-13T01:30:00.000Z",
+      updatedBy: "user-1",
+      allowAutopilot: true,
+      promoteAfterReadyWindows: 2,
+    })
+    expect(second.policy.defaultStrategy).toBe("hybrid")
+    expect(second.autopilot.applied).toBe(true)
+
+    for (let index = 0; index < 20; index += 1) {
+      await recordGraphRolloutMetric(db, {
+        nowIso: `2026-02-13T01:${index.toString().padStart(2, "0")}:30.000Z`,
+        mode: "canary",
+        requestedStrategy: "hybrid_graph",
+        appliedStrategy: "baseline",
+        shadowExecuted: true,
+        baselineCandidates: 3,
+        graphCandidates: 2,
+        graphExpandedCount: 0,
+        totalCandidates: 3,
+        fallbackTriggered: true,
+        fallbackReason: "quality_gate_blocked",
+      })
+    }
+
+    const third = await evaluateGraphRetrievalPolicy(db, {
+      nowIso: "2026-02-13T02:00:00.000Z",
+      updatedBy: "user-1",
+      allowAutopilot: true,
+      promoteAfterReadyWindows: 2,
+    })
+    expect(third.policy.defaultStrategy).toBe("lexical")
+    expect(third.policy.readyWindowStreak).toBe(0)
+    expect(third.autopilot.applied).toBe(true)
   })
 })

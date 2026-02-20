@@ -5,6 +5,7 @@ const originalFlags = {
   GRAPH_RETRIEVAL_ENABLED: process.env.GRAPH_RETRIEVAL_ENABLED,
   GRAPH_LLM_EXTRACTION_ENABLED: process.env.GRAPH_LLM_EXTRACTION_ENABLED,
   GRAPH_ROLLOUT_AUTOPILOT_ENABLED: process.env.GRAPH_ROLLOUT_AUTOPILOT_ENABLED,
+  GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED: process.env.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED,
 }
 
 function restoreGraphFlags(): void {
@@ -33,12 +34,14 @@ describe("graph feature flags", () => {
     delete process.env.GRAPH_RETRIEVAL_ENABLED
     delete process.env.GRAPH_LLM_EXTRACTION_ENABLED
     delete process.env.GRAPH_ROLLOUT_AUTOPILOT_ENABLED
+    delete process.env.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED
 
     const mod = await loadTypesModule()
     expect(mod.GRAPH_MAPPING_ENABLED).toBe(false)
     expect(mod.GRAPH_RETRIEVAL_ENABLED).toBe(true)
     expect(mod.GRAPH_LLM_EXTRACTION_ENABLED).toBe(false)
     expect(mod.GRAPH_ROLLOUT_AUTOPILOT_ENABLED).toBe(false)
+    expect(mod.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED).toBe(true)
   })
 
   it("parses enabled values for graph flags", async () => {
@@ -46,12 +49,14 @@ describe("graph feature flags", () => {
     process.env.GRAPH_RETRIEVAL_ENABLED = "1"
     process.env.GRAPH_LLM_EXTRACTION_ENABLED = "yes"
     process.env.GRAPH_ROLLOUT_AUTOPILOT_ENABLED = "on"
+    process.env.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED = "on"
 
     const mod = await loadTypesModule()
     expect(mod.GRAPH_MAPPING_ENABLED).toBe(true)
     expect(mod.GRAPH_RETRIEVAL_ENABLED).toBe(true)
     expect(mod.GRAPH_LLM_EXTRACTION_ENABLED).toBe(true)
     expect(mod.GRAPH_ROLLOUT_AUTOPILOT_ENABLED).toBe(true)
+    expect(mod.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED).toBe(true)
   })
 
   it("falls back to false for invalid flag values", async () => {
@@ -59,11 +64,13 @@ describe("graph feature flags", () => {
     process.env.GRAPH_RETRIEVAL_ENABLED = "enabled"
     process.env.GRAPH_LLM_EXTRACTION_ENABLED = "nah"
     process.env.GRAPH_ROLLOUT_AUTOPILOT_ENABLED = "enabled"
+    process.env.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED = "enabled"
 
     const mod = await loadTypesModule()
     expect(mod.GRAPH_MAPPING_ENABLED).toBe(false)
     expect(mod.GRAPH_RETRIEVAL_ENABLED).toBe(true)
     expect(mod.GRAPH_LLM_EXTRACTION_ENABLED).toBe(false)
     expect(mod.GRAPH_ROLLOUT_AUTOPILOT_ENABLED).toBe(false)
+    expect(mod.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED).toBe(true)
   })
 })

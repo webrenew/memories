@@ -7,7 +7,7 @@ const {
   mockResolveActiveMemoryContext,
   mockGetGraphStatusPayload,
   mockGetContextPayload,
-  mockEvaluateGraphRolloutPlan,
+  mockEvaluateGraphRetrievalPolicy,
   mockGetGraphRolloutConfig,
   mockSetGraphRolloutConfig,
   mockGetGraphRolloutMetricsSummary,
@@ -19,7 +19,7 @@ const {
   mockResolveActiveMemoryContext: vi.fn(),
   mockGetGraphStatusPayload: vi.fn(),
   mockGetContextPayload: vi.fn(),
-  mockEvaluateGraphRolloutPlan: vi.fn(),
+  mockEvaluateGraphRetrievalPolicy: vi.fn(),
   mockGetGraphRolloutConfig: vi.fn(),
   mockSetGraphRolloutConfig: vi.fn(),
   mockGetGraphRolloutMetricsSummary: vi.fn(),
@@ -77,7 +77,7 @@ vi.mock("@/lib/memory-service/queries", () => ({
 }))
 
 vi.mock("@/lib/memory-service/graph/rollout", () => ({
-  evaluateGraphRolloutPlan: mockEvaluateGraphRolloutPlan,
+  evaluateGraphRetrievalPolicy: mockEvaluateGraphRetrievalPolicy,
   getGraphRolloutConfig: mockGetGraphRolloutConfig,
   setGraphRolloutConfig: mockSetGraphRolloutConfig,
   getGraphRolloutMetricsSummary: mockGetGraphRolloutMetricsSummary,
@@ -294,7 +294,7 @@ describe("/api/sdk/v1/graph/*", () => {
       },
     })
 
-    mockEvaluateGraphRolloutPlan.mockResolvedValue({
+    mockEvaluateGraphRetrievalPolicy.mockResolvedValue({
       rollout: {
         mode: "shadow",
         updatedAt: "2026-02-12T00:00:00.000Z",
@@ -377,6 +377,19 @@ describe("/api/sdk/v1/graph/*", () => {
           enabled: false,
           applied: false,
         },
+      },
+      policy: {
+        defaultStrategy: "lexical",
+        readyWindowStreak: 0,
+        lastDecision: "hold_lexical_default",
+        lastEvaluatedAt: "2026-02-12T01:00:00.000Z",
+        updatedAt: "2026-02-12T01:00:00.000Z",
+        updatedBy: "user-1",
+      },
+      autopilot: {
+        enabled: true,
+        applied: false,
+        promoteAfterReadyWindows: 2,
       },
     })
 
@@ -526,6 +539,7 @@ describe("/api/sdk/v1/graph/*", () => {
     const body = await response.json()
     expect(body.ok).toBe(true)
     expect(body.data.trace.strategy).toBe("hybrid_graph")
+    expect(body.data.trace.retrievalPolicySelection).toBe("request")
     expect(body.data.strategy).toEqual({
       requested: "hybrid_graph",
       applied: "hybrid_graph",
@@ -549,6 +563,40 @@ describe("/api/sdk/v1/graph/*", () => {
         retrievalStrategy: "hybrid_graph",
         graphDepth: 2,
         graphLimit: 12,
+      })
+    )
+  })
+
+  it("graph/trace uses policy default strategy when request strategy is omitted", async () => {
+    mockEvaluateGraphRetrievalPolicy.mockResolvedValueOnce({
+      plan: {
+        readyForDefaultOn: true,
+        blockerCodes: [],
+      },
+      policy: {
+        defaultStrategy: "hybrid",
+      },
+    })
+
+    const response = await tracePOST(
+      makeRequest(
+        "/api/sdk/v1/graph/trace",
+        "POST",
+        {
+          query: "rollout",
+          scope: {
+            userId: "end-user-1",
+          },
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetContextPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "rollout",
+        retrievalStrategy: "hybrid_graph",
       })
     )
   })
@@ -581,9 +629,10 @@ describe("/api/sdk/v1/graph/*", () => {
     expect(body.data.shadowMetrics.totalRequests).toBe(48)
     expect(body.data.qualityGate.status).toBe("pass")
     expect(body.data.rolloutPlan.defaultBehaviorDecision).toBe("hold_lexical_default")
+    expect(body.data.retrievalPolicy.defaultStrategy).toBe("lexical")
     expect(body.data.scope.tenantId).toBeNull()
-    expect(mockEvaluateGraphRolloutPlan).toHaveBeenCalledTimes(1)
-    expect(mockEvaluateGraphRolloutPlan).toHaveBeenCalledWith(
+    expect(mockEvaluateGraphRetrievalPolicy).toHaveBeenCalledTimes(1)
+    expect(mockEvaluateGraphRetrievalPolicy).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         windowHours: 24,
@@ -593,7 +642,7 @@ describe("/api/sdk/v1/graph/*", () => {
   })
 
   it("graph/rollout POST updates workspace rollout mode", async () => {
-    mockEvaluateGraphRolloutPlan.mockResolvedValueOnce({
+    mockEvaluateGraphRetrievalPolicy.mockResolvedValueOnce({
       rollout: {
         mode: "canary",
         updatedAt: "2026-02-12T01:00:00.000Z",
@@ -677,6 +726,19 @@ describe("/api/sdk/v1/graph/*", () => {
           applied: false,
         },
       },
+      policy: {
+        defaultStrategy: "lexical",
+        readyWindowStreak: 0,
+        lastDecision: "hold_lexical_default",
+        lastEvaluatedAt: "2026-02-12T01:00:00.000Z",
+        updatedAt: "2026-02-12T01:00:00.000Z",
+        updatedBy: "user-1",
+      },
+      autopilot: {
+        enabled: true,
+        applied: false,
+        promoteAfterReadyWindows: 2,
+      },
     })
 
     const response = await rolloutPOST(
@@ -698,7 +760,8 @@ describe("/api/sdk/v1/graph/*", () => {
     expect(body.ok).toBe(true)
     expect(body.data.rollout.mode).toBe("canary")
     expect(body.data.qualityGate.status).toBe("pass")
-    expect(mockEvaluateGraphRolloutPlan).toHaveBeenCalledWith(
+    expect(body.data.retrievalPolicy.defaultStrategy).toBe("lexical")
+    expect(mockEvaluateGraphRetrievalPolicy).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         windowHours: 24,

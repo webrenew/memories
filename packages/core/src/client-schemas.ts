@@ -80,6 +80,11 @@ export const contextStructuredSchema = z.object({
         z.literal("baseline"),
         z.literal("hybrid_graph"),
       ]),
+      retrievalPolicyDefaultStrategy: z.union([z.literal("lexical"), z.literal("hybrid")]).optional(),
+      retrievalPolicyAppliedStrategy: z.union([z.literal("lexical"), z.literal("hybrid")]).optional(),
+      retrievalPolicySelection: z.union([z.literal("request"), z.literal("policy_default")]).optional(),
+      retrievalPolicyReadyForDefaultOn: z.boolean().optional(),
+      retrievalPolicyBlockerCodes: z.array(z.string()).optional(),
       semanticStrategyRequested: z
         .union([z.literal("lexical"), z.literal("semantic"), z.literal("hybrid")])
         .optional(),

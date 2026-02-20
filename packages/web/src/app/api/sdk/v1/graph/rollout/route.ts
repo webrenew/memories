@@ -1,5 +1,5 @@
 import {
-  evaluateGraphRolloutPlan,
+  evaluateGraphRetrievalPolicy,
   evaluateGraphRolloutQuality,
   setGraphRolloutConfig,
   type GraphRolloutMode,
@@ -117,7 +117,7 @@ async function buildRolloutResponse(params: {
     })
   }
 
-  const rolloutSnapshot = await evaluateGraphRolloutPlan(turso, {
+  const rolloutSnapshot = await evaluateGraphRetrievalPolicy(turso, {
     nowIso,
     windowHours: 24,
     updatedBy: updatedBy ?? null,
@@ -129,6 +129,7 @@ async function buildRolloutResponse(params: {
     shadowMetrics: rolloutSnapshot.shadowMetrics,
     qualityGate: rolloutSnapshot.qualityGate,
     rolloutPlan: rolloutSnapshot.plan,
+    retrievalPolicy: rolloutSnapshot.policy,
     scope,
   })
 }

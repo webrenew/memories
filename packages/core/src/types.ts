@@ -61,6 +61,11 @@ export interface ContextResult {
   trace?: {
     requestedStrategy?: ContextStrategy
     strategy: ContextStrategy
+    retrievalPolicyDefaultStrategy?: "lexical" | "hybrid"
+    retrievalPolicyAppliedStrategy?: "lexical" | "hybrid"
+    retrievalPolicySelection?: "request" | "policy_default"
+    retrievalPolicyReadyForDefaultOn?: boolean
+    retrievalPolicyBlockerCodes?: string[]
     semanticStrategyRequested?: RetrievalStrategy
     semanticStrategyApplied?: RetrievalStrategy
     lexicalCandidates?: number

@@ -1,4 +1,9 @@
-import { GRAPH_RETRIEVAL_ENABLED, GRAPH_ROLLOUT_AUTOPILOT_ENABLED, type TursoClient } from "../types"
+import {
+  GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED,
+  GRAPH_RETRIEVAL_ENABLED,
+  GRAPH_ROLLOUT_AUTOPILOT_ENABLED,
+  type TursoClient,
+} from "../types"
 
 export type GraphRolloutMode = "off" | "shadow" | "canary"
 
@@ -113,6 +118,10 @@ export const GRAPH_ROLLOUT_SLO_THRESHOLDS = {
   minExpansionCoverageForDefaultOn: GRAPH_ROLLOUT_QUALITY_THRESHOLDS.minExpansionCoverageRate,
 } as const
 
+export const GRAPH_RETRIEVAL_POLICY_THRESHOLDS = {
+  promoteAfterReadyWindows: 2,
+} as const
+
 export interface GraphRolloutBaselineMetric {
   metric:
     | "shadow_executions"
@@ -152,6 +161,30 @@ export interface GraphRolloutPlan {
   autopilot: {
     enabled: boolean
     applied: boolean
+  }
+}
+
+export type GraphRetrievalDefaultStrategy = "lexical" | "hybrid"
+
+export interface GraphRetrievalPolicy {
+  defaultStrategy: GraphRetrievalDefaultStrategy
+  readyWindowStreak: number
+  lastDecision: GraphRolloutPlan["defaultBehaviorDecision"] | null
+  lastEvaluatedAt: string | null
+  updatedAt: string
+  updatedBy: string | null
+}
+
+export interface GraphRetrievalPolicySnapshot {
+  rollout: GraphRolloutConfig
+  shadowMetrics: GraphRolloutMetricsSummary
+  qualityGate: GraphRolloutQualitySummary
+  plan: GraphRolloutPlan
+  policy: GraphRetrievalPolicy
+  autopilot: {
+    enabled: boolean
+    applied: boolean
+    promoteAfterReadyWindows: number
   }
 }
 
@@ -220,6 +253,26 @@ function normalizeRolloutMode(mode: string | null | undefined): GraphRolloutMode
     return mode
   }
   return GRAPH_RETRIEVAL_ENABLED ? "canary" : "off"
+}
+
+function normalizeDefaultStrategy(value: string | null | undefined): GraphRetrievalDefaultStrategy {
+  if (value === "hybrid") return "hybrid"
+  return "lexical"
+}
+
+function normalizeReadyWindowStreak(value: unknown): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) return 0
+  return Math.floor(parsed)
+}
+
+function normalizeLastDecision(
+  value: string | null | undefined
+): GraphRolloutPlan["defaultBehaviorDecision"] | null {
+  if (value === "enable_hybrid_default" || value === "hold_lexical_default") {
+    return value
+  }
+  return null
 }
 
 function normalizeWindowHours(hours: number): number {
@@ -427,6 +480,18 @@ async function ensureGraphRolloutTables(turso: TursoClient): Promise<void> {
     `CREATE TABLE IF NOT EXISTS graph_rollout_config (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       mode TEXT NOT NULL DEFAULT 'off',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_by TEXT
+    )`
+  )
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS graph_retrieval_policy (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      default_strategy TEXT NOT NULL DEFAULT 'lexical',
+      ready_window_streak INTEGER NOT NULL DEFAULT 0,
+      last_decision TEXT,
+      last_evaluated_at TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_by TEXT
     )`
@@ -817,6 +882,120 @@ export async function setGraphRolloutConfig(
   }
 }
 
+export async function getGraphRetrievalPolicy(
+  turso: TursoClient,
+  nowIso: string
+): Promise<GraphRetrievalPolicy> {
+  await ensureGraphRolloutTables(turso)
+
+  const result = await turso.execute(
+    `SELECT
+      default_strategy,
+      ready_window_streak,
+      last_decision,
+      last_evaluated_at,
+      updated_at,
+      updated_by
+    FROM graph_retrieval_policy
+    WHERE id = 1
+    LIMIT 1`
+  )
+  const row = result.rows[0] as unknown as
+    | {
+        default_strategy: string | null
+        ready_window_streak: number | null
+        last_decision: string | null
+        last_evaluated_at: string | null
+        updated_at: string | null
+        updated_by: string | null
+      }
+    | undefined
+
+  if (row) {
+    return {
+      defaultStrategy: normalizeDefaultStrategy(row.default_strategy),
+      readyWindowStreak: normalizeReadyWindowStreak(row.ready_window_streak),
+      lastDecision: normalizeLastDecision(row.last_decision),
+      lastEvaluatedAt: row.last_evaluated_at ?? null,
+      updatedAt: row.updated_at ?? nowIso,
+      updatedBy: row.updated_by ?? null,
+    }
+  }
+
+  await turso.execute({
+    sql: `INSERT INTO graph_retrieval_policy (
+            id,
+            default_strategy,
+            ready_window_streak,
+            last_decision,
+            last_evaluated_at,
+            updated_at,
+            updated_by
+          ) VALUES (1, ?, 0, NULL, NULL, ?, NULL)`,
+    args: ["lexical", nowIso],
+  })
+
+  return {
+    defaultStrategy: "lexical",
+    readyWindowStreak: 0,
+    lastDecision: null,
+    lastEvaluatedAt: null,
+    updatedAt: nowIso,
+    updatedBy: null,
+  }
+}
+
+export async function setGraphRetrievalPolicy(
+  turso: TursoClient,
+  params: {
+    defaultStrategy: GraphRetrievalDefaultStrategy
+    readyWindowStreak: number
+    lastDecision: GraphRolloutPlan["defaultBehaviorDecision"] | null
+    lastEvaluatedAt: string | null
+    nowIso: string
+    updatedBy: string | null
+  }
+): Promise<GraphRetrievalPolicy> {
+  await ensureGraphRolloutTables(turso)
+  const readyWindowStreak = normalizeReadyWindowStreak(params.readyWindowStreak)
+
+  await turso.execute({
+    sql: `INSERT INTO graph_retrieval_policy (
+            id,
+            default_strategy,
+            ready_window_streak,
+            last_decision,
+            last_evaluated_at,
+            updated_at,
+            updated_by
+          ) VALUES (1, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            default_strategy = excluded.default_strategy,
+            ready_window_streak = excluded.ready_window_streak,
+            last_decision = excluded.last_decision,
+            last_evaluated_at = excluded.last_evaluated_at,
+            updated_at = excluded.updated_at,
+            updated_by = excluded.updated_by`,
+    args: [
+      params.defaultStrategy,
+      readyWindowStreak,
+      params.lastDecision,
+      params.lastEvaluatedAt,
+      params.nowIso,
+      params.updatedBy,
+    ],
+  })
+
+  return {
+    defaultStrategy: params.defaultStrategy,
+    readyWindowStreak,
+    lastDecision: params.lastDecision,
+    lastEvaluatedAt: params.lastEvaluatedAt,
+    updatedAt: params.nowIso,
+    updatedBy: params.updatedBy,
+  }
+}
+
 export async function recordGraphRolloutMetric(
   turso: TursoClient,
   metric: GraphRolloutMetricInput
@@ -1000,5 +1179,69 @@ export async function evaluateGraphRolloutPlan(
     shadowMetrics,
     qualityGate,
     plan,
+  }
+}
+
+export async function evaluateGraphRetrievalPolicy(
+  turso: TursoClient,
+  params: {
+    nowIso: string
+    windowHours?: number
+    updatedBy?: string | null
+    allowAutopilot?: boolean
+    promoteAfterReadyWindows?: number
+  }
+): Promise<GraphRetrievalPolicySnapshot> {
+  const nowIso = params.nowIso
+  const allowAutopilot = params.allowAutopilot ?? GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED
+  const promoteAfterReadyWindows = Math.max(
+    1,
+    Math.floor(params.promoteAfterReadyWindows ?? GRAPH_RETRIEVAL_POLICY_THRESHOLDS.promoteAfterReadyWindows)
+  )
+
+  const rolloutSnapshot = await evaluateGraphRolloutPlan(turso, {
+    nowIso,
+    windowHours: params.windowHours,
+    updatedBy: params.updatedBy,
+  })
+  const currentPolicy = await getGraphRetrievalPolicy(turso, nowIso)
+
+  const nextReadyWindowStreak = rolloutSnapshot.plan.readyForDefaultOn
+    ? currentPolicy.readyWindowStreak + 1
+    : 0
+  const shouldPromote =
+    currentPolicy.defaultStrategy !== "hybrid" &&
+    rolloutSnapshot.plan.readyForDefaultOn &&
+    nextReadyWindowStreak >= promoteAfterReadyWindows
+  const shouldRollback = currentPolicy.defaultStrategy === "hybrid" && !rolloutSnapshot.plan.readyForDefaultOn
+  const desiredStrategy = shouldPromote ? "hybrid" : shouldRollback ? "lexical" : currentPolicy.defaultStrategy
+  const shouldPersist =
+    currentPolicy.readyWindowStreak !== nextReadyWindowStreak ||
+    currentPolicy.lastDecision !== rolloutSnapshot.plan.defaultBehaviorDecision ||
+    currentPolicy.lastEvaluatedAt !== nowIso ||
+    (allowAutopilot && desiredStrategy !== currentPolicy.defaultStrategy)
+
+  const nextPolicy = shouldPersist
+    ? await setGraphRetrievalPolicy(turso, {
+        defaultStrategy: allowAutopilot ? desiredStrategy : currentPolicy.defaultStrategy,
+        readyWindowStreak: nextReadyWindowStreak,
+        lastDecision: rolloutSnapshot.plan.defaultBehaviorDecision,
+        lastEvaluatedAt: nowIso,
+        nowIso,
+        updatedBy:
+          allowAutopilot && desiredStrategy !== currentPolicy.defaultStrategy
+            ? params.updatedBy ?? null
+            : currentPolicy.updatedBy,
+      })
+    : currentPolicy
+
+  return {
+    ...rolloutSnapshot,
+    policy: nextPolicy,
+    autopilot: {
+      enabled: allowAutopilot,
+      applied: allowAutopilot && desiredStrategy !== currentPolicy.defaultStrategy,
+      promoteAfterReadyWindows,
+    },
   }
 }

@@ -55,6 +55,24 @@ Autopilot flag:
 - `GRAPH_ROLLOUT_AUTOPILOT_ENABLED=false` by default
 - when enabled, `GET /api/sdk/v1/graph/rollout` may auto-advance mode based on the plan
 
+## Default Strategy Autopilot
+
+Default retrieval strategy is managed by a separate policy record (`graph_retrieval_policy`) and evaluated on each request:
+
+- `GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED=true` by default
+- promotion threshold: `2` consecutive windows where `rolloutPlan.readyForDefaultOn === true`
+- promotion behavior: `lexical -> hybrid`
+- rollback behavior: if current default is `hybrid` and gate regresses (`readyForDefaultOn === false`), revert to `lexical`
+
+`POST /api/sdk/v1/context/get` and `POST /api/sdk/v1/graph/trace` now use this policy default when `strategy` is omitted.
+Both endpoints return trace metadata so clients can audit how strategy was selected:
+
+- `retrievalPolicyDefaultStrategy`
+- `retrievalPolicyAppliedStrategy`
+- `retrievalPolicySelection`
+- `retrievalPolicyReadyForDefaultOn`
+- `retrievalPolicyBlockerCodes`
+
 ## Default Behavior Decision
 
 Current decision in zero-sample state: `hold_lexical_default`.

@@ -1,4 +1,5 @@
 import { getContextPayload } from "@/lib/memory-service/queries"
+import { evaluateGraphRetrievalPolicy } from "@/lib/memory-service/graph/rollout"
 import { apiError, ensureMemoryUserIdSchema, parseTenantId, parseUserId, ToolExecutionError } from "@/lib/memory-service/tools"
 import {
   authenticateApiKey,
@@ -90,12 +91,19 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     const mode = parsedRequest.mode ?? "all"
     const includeRules = parsedRequest.includeRules ?? true
-    const requestedStrategy = parsedRequest.strategy ?? "hybrid_graph"
+    const nowIso = new Date().toISOString()
+    const policySnapshot = await evaluateGraphRetrievalPolicy(turso, {
+      nowIso,
+      updatedBy: authResult.userId,
+    })
+    const requestedStrategy =
+      parsedRequest.strategy ??
+      (policySnapshot.policy.defaultStrategy === "hybrid" ? "hybrid_graph" : "baseline")
     const payload = await getContextPayload({
       turso,
       projectId,
       userId,
-      nowIso: new Date().toISOString(),
+      nowIso,
       query: parsedRequest.query ?? "",
       limit: parsedRequest.limit ?? 10,
       retrievalStrategy: requestedStrategy,
@@ -138,7 +146,14 @@ export async function POST(request: NextRequest): Promise<Response> {
         requested: requestedStrategy,
         applied: payload.data.trace.strategy,
       },
-      trace: payload.data.trace,
+      trace: {
+        ...payload.data.trace,
+        retrievalPolicyDefaultStrategy: policySnapshot.policy.defaultStrategy,
+        retrievalPolicyAppliedStrategy: payload.data.trace.strategy === "hybrid_graph" ? "hybrid" : "lexical",
+        retrievalPolicySelection: parsedRequest.strategy ? "request" : "policy_default",
+        retrievalPolicyReadyForDefaultOn: policySnapshot.plan.readyForDefaultOn,
+        retrievalPolicyBlockerCodes: policySnapshot.plan.blockerCodes,
+      },
       tiers: {
         ruleIds: rules.map((rule) => rule.id).filter((id): id is string => Boolean(id)),
         workingIds: payload.data.workingMemories.map((memory) => memory.id).filter((id): id is string => Boolean(id)),

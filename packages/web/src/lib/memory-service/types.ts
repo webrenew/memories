@@ -10,6 +10,7 @@ export {
   GRAPH_RETRIEVAL_ENABLED,
   GRAPH_LLM_EXTRACTION_ENABLED,
   GRAPH_ROLLOUT_AUTOPILOT_ENABLED,
+  GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED,
 } from "@/lib/env"
 
 export const DEFAULT_RESPONSE_SCHEMA_VERSION = "2026-02-10"
@@ -90,6 +91,11 @@ export interface GraphExplainability {
 export interface ContextTrace {
   requestedStrategy: ContextRetrievalStrategy
   strategy: ContextRetrievalStrategy
+  retrievalPolicyDefaultStrategy?: "lexical" | "hybrid"
+  retrievalPolicyAppliedStrategy?: "lexical" | "hybrid"
+  retrievalPolicySelection?: "request" | "policy_default"
+  retrievalPolicyReadyForDefaultOn?: boolean
+  retrievalPolicyBlockerCodes?: string[]
   semanticStrategyRequested?: "lexical" | "semantic" | "hybrid"
   semanticStrategyApplied?: "lexical" | "semantic" | "hybrid"
   lexicalCandidates?: number
