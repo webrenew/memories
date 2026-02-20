@@ -1,5 +1,12 @@
 import { addMemoryPayload } from "@/lib/memory-service/mutations"
 import { apiError, ensureMemoryUserIdSchema, parseTenantId, parseUserId, ToolExecutionError } from "@/lib/memory-service/tools"
+import { hasAiGatewayApiKey } from "@/lib/env"
+import {
+  deriveEmbeddingProviderFromModelId,
+  estimateEmbeddingInputTokens,
+  recordSdkEmbeddingMeterEvent,
+} from "@/lib/sdk-embedding-billing"
+import { resolveSdkEmbeddingModelSelection } from "@/lib/sdk-embeddings/models"
 import {
   authenticateApiKey,
   errorResponse,
@@ -8,7 +15,7 @@ import {
   resolveTursoForScope,
   successResponse,
 } from "@/lib/sdk-api/runtime"
-import { memoryLayerSchema, memoryTypeSchema, scopeSchema } from "@/lib/sdk-api/schemas"
+import { embeddingModelSchema, memoryLayerSchema, memoryTypeSchema, scopeSchema } from "@/lib/sdk-api/schemas"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -22,6 +29,7 @@ const requestSchema = z.object({
   paths: z.array(z.string().trim().min(1).max(300)).max(100).optional(),
   category: z.string().trim().min(1).max(120).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+  embeddingModel: embeddingModelSchema.optional(),
   scope: scopeSchema,
 })
 
@@ -60,6 +68,17 @@ export async function POST(request: NextRequest): Promise<Response> {
     const userId = parseUserId({ user_id: parsedRequest.scope?.userId })
     const projectId = parsedRequest.scope?.projectId
 
+    const shouldResolveEmbeddingModel = hasAiGatewayApiKey() || Boolean(parsedRequest.embeddingModel)
+    const embeddingSelection = shouldResolveEmbeddingModel
+      ? await resolveSdkEmbeddingModelSelection({
+          ownerUserId: authResult.userId,
+          apiKeyHash: authResult.apiKeyHash,
+          tenantId,
+          projectId,
+          requestedModelId: parsedRequest.embeddingModel,
+        })
+      : null
+
     const turso = await resolveTursoForScope({
       ownerUserId: authResult.userId,
       apiKeyHash: authResult.apiKeyHash,
@@ -85,13 +104,51 @@ export async function POST(request: NextRequest): Promise<Response> {
         paths: parsedRequest.paths,
         category: parsedRequest.category,
         metadata: parsedRequest.metadata,
+        embeddingModel: embeddingSelection?.selectedModelId,
       },
       projectId,
       userId,
       nowIso: new Date().toISOString(),
     })
 
-    return successResponse(ENDPOINT, requestId, payload.data, 201)
+    if (embeddingSelection && parsedRequest.content.trim().length > 0) {
+      const selectedModel =
+        embeddingSelection.availableModels.find((model) => model.id === embeddingSelection.selectedModelId) ?? null
+
+      try {
+        await recordSdkEmbeddingMeterEvent({
+          ownerUserId: authResult.userId,
+          apiKeyHash: authResult.apiKeyHash,
+          tenantId,
+          projectId: projectId ?? null,
+          userId,
+          requestId,
+          modelId: embeddingSelection.selectedModelId,
+          provider: selectedModel?.provider ?? deriveEmbeddingProviderFromModelId(embeddingSelection.selectedModelId),
+          inputTokens: estimateEmbeddingInputTokens(parsedRequest.content),
+          modelInputCostUsdPerToken: selectedModel?.inputCostUsdPerToken ?? null,
+          estimatedCost: true,
+          metadata: {
+            endpoint: ENDPOINT,
+            source: embeddingSelection.source,
+            operation: "add",
+          },
+        })
+      } catch (meteringError) {
+        console.error("SDK embedding metering: add request metering failed", meteringError)
+      }
+    }
+
+    return successResponse(
+      ENDPOINT,
+      requestId,
+      {
+        ...payload.data,
+        embeddingModel: embeddingSelection?.selectedModelId ?? null,
+        embeddingModelSource: embeddingSelection?.source ?? null,
+      },
+      201
+    )
   } catch (error) {
     const detail =
       error instanceof ToolExecutionError

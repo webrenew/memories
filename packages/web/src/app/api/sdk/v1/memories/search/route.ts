@@ -8,7 +8,13 @@ import {
   resolveTursoForScope,
   successResponse,
 } from "@/lib/sdk-api/runtime"
-import { memoryLayerSchema, memoryTypeSchema, scopeSchema } from "@/lib/sdk-api/schemas"
+import {
+  memoryLayerSchema,
+  memoryTypeSchema,
+  normalizeRetrievalStrategy,
+  retrievalStrategySchema,
+  scopeSchema,
+} from "@/lib/sdk-api/schemas"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -18,6 +24,7 @@ const requestSchema = z.object({
   query: z.string().trim().min(1).max(500),
   type: memoryTypeSchema.optional(),
   layer: memoryLayerSchema.optional(),
+  strategy: retrievalStrategySchema.optional(),
   limit: z.number().int().positive().max(50).optional(),
   scope: scopeSchema,
 })
@@ -71,6 +78,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     await ensureMemoryUserIdSchema(turso)
+    const requestedStrategy = normalizeRetrievalStrategy(parsedRequest.strategy)
 
     const payload = await searchMemoriesPayload({
       turso,
@@ -78,6 +86,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         query: parsedRequest.query,
         type: parsedRequest.type,
         layer: parsedRequest.layer,
+        strategy: requestedStrategy,
         limit: parsedRequest.limit,
       },
       projectId,

@@ -10,6 +10,10 @@ import type {
   ContextResult,
   ManagementKeyCreateInput,
   ManagementKeyCreateResult,
+  ManagementEmbeddingModelListOptions,
+  ManagementEmbeddingModelListResult,
+  ManagementEmbeddingUsageOptions,
+  ManagementEmbeddingUsageResult,
   ManagementKeyRevokeResult,
   ManagementKeyStatus,
   ManagementTenantDisableResult,
@@ -36,6 +40,8 @@ import {
   bulkForgetResultSchema,
   contextStructuredSchema,
   managementKeyCreateSchema,
+  managementEmbeddingModelsSchema,
+  managementEmbeddingUsageSchema,
   managementKeyRevokeSchema,
   managementKeyStatusSchema,
   managementTenantDisableSchema,
@@ -59,7 +65,9 @@ import {
   pickMemoriesForMode,
   readDefaultApiKey,
   stripTrailingSlash,
+  toMcpContextStrategy,
   toClientError,
+  toSdkContextStrategy,
   toMemoryRecord,
   toSkillFileRecord,
   toTypedHttpError,
@@ -133,6 +141,7 @@ export class MemoriesClient {
       options: ContextGetOptions = {}
     ): Promise<ContextResult> => {
       const input = normalizeContextInput(inputOrQuery, options)
+      const strategy = toSdkContextStrategy(input.strategy)
       const rawScope = this.withDefaultScopeSdk({
         projectId: input.projectId,
         userId: input.userId,
@@ -147,7 +156,7 @@ export class MemoriesClient {
             includeRules: input.includeRules,
             includeSkillFiles: input.includeSkillFiles,
             mode: input.mode,
-            strategy: input.strategy,
+            strategy,
             graphDepth: input.graphDepth,
             graphLimit: input.graphLimit,
             scope: sdkScope,
@@ -158,7 +167,7 @@ export class MemoriesClient {
             project_id: input.projectId,
             user_id: input.userId,
             tenant_id: input.tenantId,
-            retrieval_strategy: input.strategy,
+            retrieval_strategy: toMcpContextStrategy(input.strategy),
             graph_depth: input.graphDepth,
             graph_limit: input.graphLimit,
           })
@@ -201,6 +210,7 @@ export class MemoriesClient {
             paths: input.paths,
             category: input.category,
             metadata: input.metadata,
+            embeddingModel: input.embeddingModel,
             scope: sdkScope,
           })
         : await this.callTool("add_memory", {
@@ -211,6 +221,7 @@ export class MemoriesClient {
             paths: input.paths,
             category: input.category,
             metadata: input.metadata,
+            embedding_model: input.embeddingModel,
             project_id: input.projectId,
           })
 
@@ -224,6 +235,7 @@ export class MemoriesClient {
     },
 
     search: async (query: string, options: MemorySearchOptions = {}): Promise<MemoryRecord[]> => {
+      const strategy = options.strategy ? toSdkContextStrategy(options.strategy) : undefined
       const rawScope = this.withDefaultScopeSdk({ projectId: options.projectId })
       const sdkScope = rawScope && Object.keys(rawScope).length > 0 ? rawScope : undefined
       const result = this.transport === "sdk_http"
@@ -231,6 +243,7 @@ export class MemoriesClient {
             query,
             type: options.type,
             layer: options.layer,
+            strategy,
             limit: options.limit,
             scope: sdkScope,
           })
@@ -239,6 +252,7 @@ export class MemoriesClient {
             type: options.type,
             layer: options.layer,
             limit: options.limit,
+            ...(strategy ? { retrieval_strategy: toMcpContextStrategy(strategy) } : {}),
             project_id: options.projectId,
           })
 
@@ -290,6 +304,7 @@ export class MemoriesClient {
             paths: updates.paths,
             category: updates.category,
             metadata: updates.metadata,
+            embeddingModel: updates.embeddingModel,
             scope: sdkScope,
           })
         : await this.callTool("edit_memory", {
@@ -301,6 +316,7 @@ export class MemoriesClient {
             paths: updates.paths,
             category: updates.category,
             metadata: updates.metadata,
+            embedding_model: updates.embeddingModel,
           })
       const message = (messageFromEnvelope(result.envelope) ?? result.raw) || `Updated memory ${id}`
       return {
@@ -548,6 +564,37 @@ export class MemoriesClient {
         })
 
         return parseStructuredData(managementTenantDisableSchema, endpoint, result.structured)
+      },
+    },
+
+    embeddings: {
+      list: async (options: ManagementEmbeddingModelListOptions = {}): Promise<ManagementEmbeddingModelListResult> => {
+        const endpoint = "/api/sdk/v1/embeddings/models"
+        const result = await this.callSdkRequest(endpoint, {
+          method: "GET",
+          query: {
+            tenantId: options.tenantId,
+            projectId: options.projectId,
+            embeddingModel: options.embeddingModel,
+          },
+        })
+
+        return parseStructuredData(managementEmbeddingModelsSchema, endpoint, result.structured)
+      },
+
+      usage: async (options: ManagementEmbeddingUsageOptions = {}): Promise<ManagementEmbeddingUsageResult> => {
+        const endpoint = "/api/sdk/v1/management/embeddings/usage"
+        const result = await this.callSdkRequest(endpoint, {
+          method: "GET",
+          query: {
+            usageMonth: options.usageMonth,
+            tenantId: options.tenantId,
+            projectId: options.projectId,
+            limit: options.limit,
+          },
+        })
+
+        return parseStructuredData(managementEmbeddingUsageSchema, endpoint, result.structured)
       },
     },
   }

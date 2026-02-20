@@ -64,8 +64,32 @@ export const contextStructuredSchema = z.object({
   longTermMemories: z.array(structuredMemorySchema).optional().default([]),
   trace: z
     .object({
-      requestedStrategy: z.union([z.literal("baseline"), z.literal("hybrid_graph")]).optional(),
-      strategy: z.union([z.literal("baseline"), z.literal("hybrid_graph")]),
+      requestedStrategy: z
+        .union([
+          z.literal("lexical"),
+          z.literal("semantic"),
+          z.literal("hybrid"),
+          z.literal("baseline"),
+          z.literal("hybrid_graph"),
+        ])
+        .optional(),
+      strategy: z.union([
+        z.literal("lexical"),
+        z.literal("semantic"),
+        z.literal("hybrid"),
+        z.literal("baseline"),
+        z.literal("hybrid_graph"),
+      ]),
+      semanticStrategyRequested: z
+        .union([z.literal("lexical"), z.literal("semantic"), z.literal("hybrid")])
+        .optional(),
+      semanticStrategyApplied: z
+        .union([z.literal("lexical"), z.literal("semantic"), z.literal("hybrid")])
+        .optional(),
+      lexicalCandidates: z.number().int().nonnegative().optional(),
+      semanticCandidates: z.number().int().nonnegative().optional(),
+      semanticFallbackTriggered: z.boolean().optional(),
+      semanticFallbackReason: z.string().nullable().optional(),
       graphDepth: z.union([z.literal(0), z.literal(1), z.literal(2)]),
       graphLimit: z.number().int().nonnegative(),
       rolloutMode: z.union([z.literal("off"), z.literal("shadow"), z.literal("canary")]).optional(),
@@ -157,4 +181,53 @@ export const managementTenantDisableSchema = z.object({
   tenantId: z.string(),
   status: z.string(),
   updatedAt: z.string(),
+})
+
+export const managementEmbeddingModelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  description: z.string().nullable(),
+  contextWindow: z.number().nullable(),
+  pricing: z.object({
+    input: z.string().nullable(),
+  }),
+  inputCostUsdPerToken: z.number().nullable(),
+  tags: z.array(z.string()).default([]),
+})
+
+export const managementEmbeddingConfigSchema = z.object({
+  selectedModelId: z.string(),
+  source: z.union([z.literal("request"), z.literal("project"), z.literal("workspace"), z.literal("system_default")]),
+  workspaceDefaultModelId: z.string().nullable(),
+  projectOverrideModelId: z.string().nullable(),
+  allowlistModelIds: z.array(z.string()),
+})
+
+export const managementEmbeddingModelsSchema = z.object({
+  models: z.array(managementEmbeddingModelSchema),
+  config: managementEmbeddingConfigSchema,
+})
+
+export const managementEmbeddingUsageSummarySchema = z.object({
+  usageMonth: z.string(),
+  requestCount: z.number().int().nonnegative(),
+  estimatedRequestCount: z.number().int().nonnegative(),
+  inputTokens: z.number().int().nonnegative(),
+  gatewayCostUsd: z.number().nonnegative(),
+  marketCostUsd: z.number().nonnegative(),
+  customerCostUsd: z.number().nonnegative(),
+})
+
+export const managementEmbeddingUsageBreakdownSchema = managementEmbeddingUsageSummarySchema.extend({
+  tenantId: z.string().nullable(),
+  projectId: z.string().nullable(),
+  modelId: z.string(),
+  provider: z.string(),
+})
+
+export const managementEmbeddingUsageSchema = z.object({
+  usageMonth: z.string(),
+  summary: managementEmbeddingUsageSummarySchema,
+  breakdown: z.array(managementEmbeddingUsageBreakdownSchema),
 })

@@ -89,6 +89,12 @@ export interface GraphExplainability {
 export interface ContextTrace {
   requestedStrategy: ContextRetrievalStrategy
   strategy: ContextRetrievalStrategy
+  semanticStrategyRequested?: "lexical" | "semantic" | "hybrid"
+  semanticStrategyApplied?: "lexical" | "semantic" | "hybrid"
+  lexicalCandidates?: number
+  semanticCandidates?: number
+  semanticFallbackTriggered?: boolean
+  semanticFallbackReason?: string | null
   graphDepth: 0 | 1 | 2
   graphLimit: number
   rolloutMode: "off" | "shadow" | "canary"

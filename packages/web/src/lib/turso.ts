@@ -200,6 +200,150 @@ export async function initSchema(url: string, token: string): Promise<void> {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_memories_layer_expires ON memories(memory_layer, expires_at)`)
 
   await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embeddings (
+      memory_id TEXT PRIMARY KEY,
+      embedding BLOB NOT NULL,
+      model TEXT NOT NULL,
+      model_version TEXT NOT NULL DEFAULT 'v1',
+      dimension INTEGER NOT NULL CHECK (dimension > 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embeddings_model_dimension
+     ON memory_embeddings(model, dimension)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embeddings_model_version
+     ON memory_embeddings(model, model_version)`
+  )
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_embeddings_created_at ON memory_embeddings(created_at)`)
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_embeddings_updated_at ON memory_embeddings(updated_at)`)
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embedding_jobs (
+      id TEXT PRIMARY KEY,
+      memory_id TEXT NOT NULL,
+      operation TEXT NOT NULL,
+      model TEXT NOT NULL,
+      content TEXT NOT NULL,
+      model_version TEXT,
+      status TEXT NOT NULL DEFAULT 'queued',
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (max_attempts > 0),
+      next_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+      claimed_by TEXT,
+      claimed_at TEXT,
+      last_error TEXT,
+      dead_letter_reason TEXT,
+      dead_letter_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(memory_id, model)
+    )`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_jobs_status_next_attempt
+     ON memory_embedding_jobs(status, next_attempt_at)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_jobs_memory_status
+     ON memory_embedding_jobs(memory_id, status)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_jobs_claimed_at
+     ON memory_embedding_jobs(claimed_at)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_jobs_dead_letter_at
+     ON memory_embedding_jobs(dead_letter_at)`
+  )
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embedding_job_metrics (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL,
+      memory_id TEXT NOT NULL,
+      operation TEXT NOT NULL,
+      model TEXT NOT NULL,
+      attempt INTEGER NOT NULL CHECK (attempt > 0),
+      outcome TEXT NOT NULL,
+      duration_ms INTEGER NOT NULL CHECK (duration_ms >= 0),
+      error_code TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_job_metrics_job_created_at
+     ON memory_embedding_job_metrics(job_id, created_at)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_job_metrics_outcome_created_at
+     ON memory_embedding_job_metrics(outcome, created_at)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_job_metrics_created_at
+     ON memory_embedding_job_metrics(created_at)`
+  )
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embedding_backfill_state (
+      scope_key TEXT PRIMARY KEY,
+      model TEXT NOT NULL,
+      project_id TEXT,
+      user_id TEXT,
+      status TEXT NOT NULL DEFAULT 'idle',
+      checkpoint_created_at TEXT,
+      checkpoint_memory_id TEXT,
+      scanned_count INTEGER NOT NULL DEFAULT 0 CHECK (scanned_count >= 0),
+      enqueued_count INTEGER NOT NULL DEFAULT 0 CHECK (enqueued_count >= 0),
+      estimated_total INTEGER NOT NULL DEFAULT 0 CHECK (estimated_total >= 0),
+      estimated_remaining INTEGER NOT NULL DEFAULT 0 CHECK (estimated_remaining >= 0),
+      estimated_completion_seconds INTEGER,
+      batch_limit INTEGER NOT NULL DEFAULT 100 CHECK (batch_limit > 0),
+      throttle_ms INTEGER NOT NULL DEFAULT 25 CHECK (throttle_ms >= 0),
+      started_at TEXT,
+      last_run_at TEXT,
+      completed_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_error TEXT
+    )`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_backfill_state_status_updated
+     ON memory_embedding_backfill_state(status, updated_at)`
+  )
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_embedding_backfill_metrics (
+      id TEXT PRIMARY KEY,
+      scope_key TEXT NOT NULL,
+      model TEXT NOT NULL,
+      batch_scanned INTEGER NOT NULL DEFAULT 0 CHECK (batch_scanned >= 0),
+      batch_enqueued INTEGER NOT NULL DEFAULT 0 CHECK (batch_enqueued >= 0),
+      total_scanned INTEGER NOT NULL DEFAULT 0 CHECK (total_scanned >= 0),
+      total_enqueued INTEGER NOT NULL DEFAULT 0 CHECK (total_enqueued >= 0),
+      estimated_total INTEGER NOT NULL DEFAULT 0 CHECK (estimated_total >= 0),
+      estimated_remaining INTEGER NOT NULL DEFAULT 0 CHECK (estimated_remaining >= 0),
+      estimated_completion_seconds INTEGER,
+      duration_ms INTEGER NOT NULL DEFAULT 0 CHECK (duration_ms >= 0),
+      status TEXT NOT NULL,
+      error TEXT,
+      ran_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_backfill_metrics_scope_ran_at
+     ON memory_embedding_backfill_metrics(scope_key, ran_at)`
+  )
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_embedding_backfill_metrics_status_ran_at
+     ON memory_embedding_backfill_metrics(status, ran_at)`
+  )
+
+  await db.execute(
     `CREATE TABLE IF NOT EXISTS skill_files (
       id TEXT PRIMARY KEY,
       path TEXT NOT NULL,
@@ -300,9 +444,24 @@ async function ensureGraphSchema(db: ReturnType<typeof createClient>): Promise<v
       graph_expanded_count INTEGER NOT NULL DEFAULT 0,
       total_candidates INTEGER NOT NULL DEFAULT 0,
       fallback_triggered INTEGER NOT NULL DEFAULT 0,
-      fallback_reason TEXT
+      fallback_reason TEXT,
+      duration_ms INTEGER NOT NULL DEFAULT 0
     )`
   )
+
+  const rolloutMetricColumns = await db.execute("PRAGMA table_info(graph_rollout_metrics)")
+  const rolloutColumnRows = Array.isArray(rolloutMetricColumns.rows) ? rolloutMetricColumns.rows : []
+  const hasDurationColumn = rolloutColumnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "duration_ms")
+  if (!hasDurationColumn) {
+    try {
+      await db.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0")
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : ""
+      if (!message.includes("duplicate column name")) {
+        throw error
+      }
+    }
+  }
 
   await db.execute(
     `CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_created_at

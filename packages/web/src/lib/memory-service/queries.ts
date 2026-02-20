@@ -1,3 +1,4 @@
+import { getAiGatewayApiKey, getAiGatewayBaseUrl, getSdkDefaultEmbeddingModelId } from "@/lib/env"
 import {
   apiError,
   type ContextRetrievalStrategy,
@@ -29,6 +30,27 @@ import {
   type GraphRolloutQualitySummary,
 } from "./graph/rollout"
 
+type SemanticRetrievalStrategy = "lexical" | "semantic" | "hybrid"
+
+interface StrategyTraceSummary {
+  requested: SemanticRetrievalStrategy
+  applied: SemanticRetrievalStrategy
+  lexicalCandidates: number
+  semanticCandidates: number
+  fallbackTriggered: boolean
+  fallbackReason: string | null
+}
+
+interface RankedMemoriesResult {
+  rows: MemoryRow[]
+  trace: StrategyTraceSummary
+}
+
+interface SemanticCandidate {
+  row: MemoryRow
+  score: number
+}
+
 function dedupeMemories(rows: MemoryRow[]): MemoryRow[] {
   const seen = new Set<string>()
   const deduped: MemoryRow[] = []
@@ -48,8 +70,15 @@ function resolveMemoryLayer(row: MemoryRow): MemoryLayer {
   return row.type === "rule" ? "rule" : "long_term"
 }
 
-function normalizeRetrievalStrategy(value: ContextRetrievalStrategy | undefined): ContextRetrievalStrategy {
+function normalizeGraphRetrievalStrategy(value: ContextRetrievalStrategy | undefined): ContextRetrievalStrategy {
   return value === "hybrid_graph" ? "hybrid_graph" : "baseline"
+}
+
+function normalizeSemanticRetrievalStrategy(value: unknown): SemanticRetrievalStrategy {
+  if (value === "semantic") return "semantic"
+  if (value === "hybrid" || value === "hybrid_graph") return "hybrid"
+  if (value === "lexical" || value === "baseline") return "lexical"
+  return "lexical"
 }
 
 function normalizeGraphDepth(value: number | undefined): 0 | 1 | 2 {
@@ -68,6 +97,50 @@ function graphReasonRank(reason: GraphExplainability | undefined): number {
   if (!reason) return 0
   const sharedNodeBoost = reason.edgeType === "shared_node" ? 0.25 : 0
   return sharedNodeBoost + 1 / Math.max(1, reason.hopCount)
+}
+
+function decodeEmbeddingBlob(value: unknown): Float32Array | null {
+  let bytes: Uint8Array | null = null
+  if (value instanceof Uint8Array) {
+    bytes = value
+  } else if (value instanceof ArrayBuffer) {
+    bytes = new Uint8Array(value)
+  } else if (ArrayBuffer.isView(value)) {
+    bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+  } else if (Array.isArray(value)) {
+    bytes = new Uint8Array(value.map((item) => Number(item) & 0xff))
+  }
+
+  if (!bytes || bytes.byteLength === 0 || bytes.byteLength % 4 !== 0) {
+    return null
+  }
+
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+  return new Float32Array(buffer)
+}
+
+function cosineSimilarity(queryEmbedding: number[], candidateEmbedding: Float32Array): number {
+  if (queryEmbedding.length !== candidateEmbedding.length || queryEmbedding.length === 0) {
+    return -1
+  }
+
+  let dot = 0
+  let queryNorm = 0
+  let candidateNorm = 0
+
+  for (let index = 0; index < queryEmbedding.length; index += 1) {
+    const queryValue = queryEmbedding[index]
+    const candidateValue = candidateEmbedding[index]
+    dot += queryValue * candidateValue
+    queryNorm += queryValue * queryValue
+    candidateNorm += candidateValue * candidateValue
+  }
+
+  if (queryNorm <= 0 || candidateNorm <= 0) {
+    return -1
+  }
+
+  return dot / Math.sqrt(queryNorm * candidateNorm)
 }
 
 async function listScopedMemoriesByIds(
@@ -191,6 +264,306 @@ async function searchWithFts(
   return result.rows as unknown as MemoryRow[]
 }
 
+async function fetchQueryEmbedding(query: string): Promise<{ vector: number[]; modelId: string } | null> {
+  if (!query.trim()) {
+    return null
+  }
+
+  let apiKey: string
+  try {
+    apiKey = getAiGatewayApiKey()
+  } catch {
+    return null
+  }
+
+  const modelId = getSdkDefaultEmbeddingModelId()
+  const baseUrl = getAiGatewayBaseUrl().replace(/\/$/, "")
+
+  try {
+    const response = await fetch(`${baseUrl}/v1/embeddings`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: modelId,
+        input: query,
+      }),
+      cache: "no-store",
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const payload = (await response.json().catch(() => null)) as
+      | { data?: Array<{ embedding?: unknown }> }
+      | null
+    const embedding = Array.isArray(payload?.data) ? payload.data[0]?.embedding : null
+    if (!Array.isArray(embedding)) {
+      return null
+    }
+
+    const vector = embedding.map((value) => Number(value))
+    if (vector.length === 0 || vector.some((value) => !Number.isFinite(value))) {
+      return null
+    }
+
+    return { vector, modelId }
+  } catch {
+    return null
+  }
+}
+
+async function searchWithSemantic(
+  turso: TursoClient,
+  params: {
+    queryEmbedding: number[]
+    modelId: string
+    projectId: string | undefined
+    userId: string | null
+    nowIso: string
+    limit: number
+    options?: { excludeType?: string; includeType?: string; includeLayer?: MemoryLayer }
+  }
+): Promise<SemanticCandidate[]> {
+  const { excludeType, includeType, includeLayer } = params.options ?? {}
+  const userFilter = buildUserScopeFilter(params.userId, "m.")
+  const layerFilter = buildLayerFilterClause(includeLayer ?? null, "m.")
+  const activeFilter = buildNotExpiredFilter(params.nowIso, "m.")
+
+  let typeFilter = ""
+  const args: (string | number)[] = [params.modelId]
+  if (excludeType && VALID_TYPES.has(excludeType)) {
+    typeFilter = "AND m.type != ?"
+    args.push(excludeType)
+  } else if (includeType && VALID_TYPES.has(includeType)) {
+    typeFilter = "AND m.type = ?"
+    args.push(includeType)
+  }
+
+  const projectFilter = params.projectId
+    ? "AND (m.scope = 'global' OR (m.scope = 'project' AND m.project_id = ?))"
+    : "AND m.scope = 'global'"
+  if (params.projectId) args.push(params.projectId)
+  args.push(...userFilter.args)
+  args.push(...activeFilter.args)
+  args.push(params.limit)
+
+  const result = await turso.execute({
+    sql: `SELECT ${MEMORY_COLUMNS_ALIASED}, e.embedding
+          FROM memory_embeddings e
+          JOIN memories m ON m.id = e.memory_id
+          WHERE e.model = ?
+            AND m.deleted_at IS NULL
+            ${typeFilter}
+            ${projectFilter}
+            AND ${userFilter.clause}
+            AND ${layerFilter.clause}
+            AND ${activeFilter.clause}
+          ORDER BY m.updated_at DESC
+          LIMIT ?`,
+    args,
+  })
+
+  const rows = Array.isArray(result.rows) ? result.rows : []
+  const scored: SemanticCandidate[] = []
+
+  for (const row of rows) {
+    const record = row as Record<string, unknown>
+    const decoded = decodeEmbeddingBlob(record.embedding)
+    if (!decoded) {
+      continue
+    }
+    const score = cosineSimilarity(params.queryEmbedding, decoded)
+    if (!Number.isFinite(score) || score < 0) {
+      continue
+    }
+    scored.push({
+      row: row as unknown as MemoryRow,
+      score,
+    })
+  }
+
+  scored.sort((a, b) => {
+    const scoreDelta = b.score - a.score
+    if (scoreDelta !== 0) return scoreDelta
+    return String(b.row.updated_at ?? "").localeCompare(String(a.row.updated_at ?? ""))
+  })
+
+  return scored
+}
+
+function fuseHybridRankings(lexicalRows: MemoryRow[], semanticCandidates: SemanticCandidate[], limit: number): MemoryRow[] {
+  const lexicalRank = new Map<string, number>()
+  lexicalRows.forEach((row, index) => {
+    if (row.id) lexicalRank.set(row.id, index)
+  })
+
+  const semanticRank = new Map<string, number>()
+  const semanticScore = new Map<string, number>()
+  semanticCandidates.forEach((candidate, index) => {
+    if (!candidate.row.id) return
+    semanticRank.set(candidate.row.id, index)
+    semanticScore.set(candidate.row.id, candidate.score)
+  })
+
+  const rowsById = new Map<string, MemoryRow>()
+  for (const row of lexicalRows) {
+    if (row.id) rowsById.set(row.id, row)
+  }
+  for (const candidate of semanticCandidates) {
+    if (candidate.row.id) rowsById.set(candidate.row.id, candidate.row)
+  }
+
+  // Hybrid retrieval should preserve strong lexical matches while still letting highly
+  // similar semantic neighbors rise above keyword-only hits when appropriate.
+  const lexicalWeight = 0.3
+  const semanticWeight = 0.65
+  const semanticRankWeight = 0.05
+  const scored = [...rowsById.values()].map((row) => {
+    const id = row.id
+    const lexicalSignal = id && lexicalRank.has(id) ? lexicalWeight / (lexicalRank.get(id)! + 1) : 0
+    const semanticScoreSignal = id ? semanticScore.get(id) ?? 0 : 0
+    const semanticRankSignal = id && semanticRank.has(id) ? semanticRankWeight / (semanticRank.get(id)! + 1) : 0
+    return {
+      row,
+      score: lexicalSignal + semanticWeight * semanticScoreSignal + semanticRankSignal,
+      semanticScore: semanticScoreSignal,
+      lexicalSignal,
+    }
+  })
+
+  scored.sort((a, b) => {
+    const scoreDelta = b.score - a.score
+    if (scoreDelta !== 0) return scoreDelta
+    const semanticDelta = b.semanticScore - a.semanticScore
+    if (semanticDelta !== 0) return semanticDelta
+    const lexicalDelta = b.lexicalSignal - a.lexicalSignal
+    if (lexicalDelta !== 0) return lexicalDelta
+    return String(b.row.updated_at ?? "").localeCompare(String(a.row.updated_at ?? ""))
+  })
+
+  return scored.slice(0, limit).map((entry) => entry.row)
+}
+
+async function rankMemoriesByStrategy(params: {
+  turso: TursoClient
+  query: string
+  strategy: SemanticRetrievalStrategy
+  projectId: string | undefined
+  userId: string | null
+  nowIso: string
+  limit: number
+  options?: { excludeType?: string; includeType?: string; includeLayer?: MemoryLayer }
+}): Promise<RankedMemoriesResult> {
+  const lexicalLimit = params.strategy === "lexical" ? params.limit : Math.max(params.limit * 6, params.limit)
+  const lexicalRows = await searchWithFts(
+    params.turso,
+    params.query,
+    params.projectId,
+    params.userId,
+    params.nowIso,
+    lexicalLimit,
+    params.options
+  )
+
+  if (params.strategy === "lexical") {
+    return {
+      rows: lexicalRows.slice(0, params.limit),
+      trace: {
+        requested: params.strategy,
+        applied: "lexical",
+        lexicalCandidates: lexicalRows.length,
+        semanticCandidates: 0,
+        fallbackTriggered: false,
+        fallbackReason: null,
+      },
+    }
+  }
+
+  const queryEmbedding = await fetchQueryEmbedding(params.query)
+  if (!queryEmbedding) {
+    return {
+      rows: lexicalRows.slice(0, params.limit),
+      trace: {
+        requested: params.strategy,
+        applied: "lexical",
+        lexicalCandidates: lexicalRows.length,
+        semanticCandidates: 0,
+        fallbackTriggered: true,
+        fallbackReason: "query_embedding_unavailable",
+      },
+    }
+  }
+
+  const semanticCandidates = await searchWithSemantic(params.turso, {
+    queryEmbedding: queryEmbedding.vector,
+    modelId: queryEmbedding.modelId,
+    projectId: params.projectId,
+    userId: params.userId,
+    nowIso: params.nowIso,
+    limit: Math.max(params.limit * 12, params.limit),
+    options: params.options,
+  })
+
+  if (semanticCandidates.length === 0) {
+    return {
+      rows: lexicalRows.slice(0, params.limit),
+      trace: {
+        requested: params.strategy,
+        applied: "lexical",
+        lexicalCandidates: lexicalRows.length,
+        semanticCandidates: 0,
+        fallbackTriggered: true,
+        fallbackReason: "vectors_unavailable",
+      },
+    }
+  }
+
+  if (params.strategy === "semantic") {
+    return {
+      rows: semanticCandidates.slice(0, params.limit).map((candidate) => candidate.row),
+      trace: {
+        requested: params.strategy,
+        applied: "semantic",
+        lexicalCandidates: lexicalRows.length,
+        semanticCandidates: semanticCandidates.length,
+        fallbackTriggered: false,
+        fallbackReason: null,
+      },
+    }
+  }
+
+  const hybridRows = fuseHybridRankings(lexicalRows, semanticCandidates, params.limit)
+  if (hybridRows.length === 0) {
+    return {
+      rows: lexicalRows.slice(0, params.limit),
+      trace: {
+        requested: params.strategy,
+        applied: "lexical",
+        lexicalCandidates: lexicalRows.length,
+        semanticCandidates: semanticCandidates.length,
+        fallbackTriggered: true,
+        fallbackReason: "hybrid_fusion_empty",
+      },
+    }
+  }
+
+  return {
+    rows: hybridRows,
+    trace: {
+      requested: params.strategy,
+      applied: "hybrid",
+      lexicalCandidates: lexicalRows.length,
+      semanticCandidates: semanticCandidates.length,
+      fallbackTriggered: false,
+      fallbackReason: null,
+    },
+  }
+}
+
 async function listRecentMemoriesByLayer(
   turso: TursoClient,
   projectId: string | undefined,
@@ -236,6 +609,7 @@ export async function getContextPayload(params: {
   nowIso: string
   query: string
   limit: number
+  semanticStrategy?: SemanticRetrievalStrategy
   retrievalStrategy?: ContextRetrievalStrategy
   graphDepth?: 0 | 1 | 2
   graphLimit?: number
@@ -249,6 +623,7 @@ export async function getContextPayload(params: {
     trace: ContextTrace
   }
 }> {
+  const retrievalStartedAt = Date.now()
   const {
     turso,
     projectId,
@@ -256,6 +631,7 @@ export async function getContextPayload(params: {
     nowIso,
     query,
     limit,
+    semanticStrategy,
     retrievalStrategy,
     graphDepth,
     graphLimit,
@@ -293,16 +669,70 @@ export async function getContextPayload(params: {
 
   let workingMemories: MemoryRow[] = []
   let longTermMemories: MemoryRow[] = []
+  const requestedSemanticStrategy = normalizeSemanticRetrievalStrategy(semanticStrategy)
+  let strategyTrace: StrategyTraceSummary = {
+    requested: requestedSemanticStrategy,
+    applied: "lexical",
+    lexicalCandidates: 0,
+    semanticCandidates: 0,
+    fallbackTriggered: requestedSemanticStrategy !== "lexical",
+    fallbackReason: requestedSemanticStrategy === "lexical" ? null : "query_missing",
+  }
 
   if (query) {
-    workingMemories = await searchWithFts(turso, query, projectId, userId, nowIso, workingLimit, {
-      includeLayer: "working",
+    const workingRanked = await rankMemoriesByStrategy({
+      turso,
+      query,
+      strategy: requestedSemanticStrategy,
+      projectId,
+      userId,
+      nowIso,
+      limit: workingLimit,
+      options: {
+        includeLayer: "working",
+      },
     })
+    workingMemories = workingRanked.rows
     const remaining = Math.max(1, limit - workingMemories.length)
-    longTermMemories = await searchWithFts(turso, query, projectId, userId, nowIso, remaining, {
-      includeLayer: "long_term",
-      excludeType: "rule",
+    const longTermRanked = await rankMemoriesByStrategy({
+      turso,
+      query,
+      strategy: requestedSemanticStrategy,
+      projectId,
+      userId,
+      nowIso,
+      limit: remaining,
+      options: {
+        includeLayer: "long_term",
+        excludeType: "rule",
+      },
     })
+    longTermMemories = longTermRanked.rows
+
+    const appliedStrategies = [workingRanked.trace.applied, longTermRanked.trace.applied]
+    const appliedSemanticStrategy =
+      requestedSemanticStrategy === "lexical"
+        ? "lexical"
+        : appliedStrategies.some((strategy) => strategy === requestedSemanticStrategy)
+          ? requestedSemanticStrategy
+          : "lexical"
+    const fallbackTriggered =
+      appliedSemanticStrategy !== requestedSemanticStrategy ||
+      (workingRanked.trace.fallbackTriggered && longTermRanked.trace.fallbackTriggered)
+    const fallbackReason = fallbackTriggered
+      ? workingRanked.trace.fallbackReason ??
+        longTermRanked.trace.fallbackReason ??
+        (appliedSemanticStrategy === requestedSemanticStrategy ? "partial_vector_coverage" : "query_embedding_unavailable")
+      : null
+
+    strategyTrace = {
+      requested: requestedSemanticStrategy,
+      applied: appliedSemanticStrategy,
+      lexicalCandidates: workingRanked.trace.lexicalCandidates + longTermRanked.trace.lexicalCandidates,
+      semanticCandidates: workingRanked.trace.semanticCandidates + longTermRanked.trace.semanticCandidates,
+      fallbackTriggered,
+      fallbackReason,
+    }
   } else {
     workingMemories = await listRecentMemoriesByLayer(turso, projectId, userId, "working", nowIso, workingLimit)
     const remaining = Math.max(1, limit - workingMemories.length)
@@ -313,7 +743,7 @@ export async function getContextPayload(params: {
 
   let relevantMemories = dedupeMemories([...workingMemories, ...longTermMemories])
   const baselineCandidates = relevantMemories.length
-  const resolvedStrategy = normalizeRetrievalStrategy(retrievalStrategy)
+  const resolvedStrategy = normalizeGraphRetrievalStrategy(retrievalStrategy)
   const resolvedGraphDepth = normalizeGraphDepth(graphDepth)
   const resolvedGraphLimit = normalizeGraphLimit(graphLimit)
 
@@ -454,6 +884,12 @@ export async function getContextPayload(params: {
   const trace: ContextTrace = {
     requestedStrategy: resolvedStrategy,
     strategy: appliedHybrid ? "hybrid_graph" : "baseline",
+    semanticStrategyRequested: strategyTrace.requested,
+    semanticStrategyApplied: strategyTrace.applied,
+    lexicalCandidates: strategyTrace.lexicalCandidates,
+    semanticCandidates: strategyTrace.semanticCandidates,
+    semanticFallbackTriggered: strategyTrace.fallbackTriggered,
+    semanticFallbackReason: strategyTrace.fallbackTriggered ? strategyTrace.fallbackReason : null,
     graphDepth: runGraphTraversal ? resolvedGraphDepth : 0,
     graphLimit: runGraphTraversal ? resolvedGraphLimit : 0,
     rolloutMode: rolloutConfig.mode,
@@ -482,6 +918,7 @@ export async function getContextPayload(params: {
       totalCandidates: relevantMemories.length,
       fallbackTriggered,
       fallbackReason: fallbackTriggered ? fallbackReason : null,
+      durationMs: Date.now() - retrievalStartedAt,
     })
   } catch (err) {
     console.error("Failed to record graph rollout metric:", err)
@@ -572,7 +1009,21 @@ export async function searchMemoriesPayload(params: {
   projectId?: string
   userId: string | null
   nowIso: string
-}): Promise<{ text: string; data: { memories: ReturnType<typeof toStructuredMemory>[]; count: number } }> {
+}): Promise<{
+  text: string
+  data: {
+    memories: ReturnType<typeof toStructuredMemory>[]
+    count: number
+    trace: {
+      requestedStrategy: SemanticRetrievalStrategy
+      appliedStrategy: SemanticRetrievalStrategy
+      lexicalCandidates: number
+      semanticCandidates: number
+      fallbackTriggered: boolean
+      fallbackReason: string | null
+    }
+  }
+}> {
   const { turso, args, projectId, userId, nowIso } = params
 
   const limit = (args.limit as number) || 10
@@ -593,14 +1044,39 @@ export async function searchMemoriesPayload(params: {
 
   const includeType = args.type && VALID_TYPES.has(args.type as string) ? (args.type as string) : undefined
   const layer = parseMemoryLayer(args) ?? undefined
+  const requestedStrategy = normalizeSemanticRetrievalStrategy(args.strategy ?? args.retrieval_strategy)
 
-  const results = await searchWithFts(turso, query, projectId, userId, nowIso, limit, {
-    includeType,
-    includeLayer: layer,
+  const ranked = await rankMemoriesByStrategy({
+    turso,
+    query,
+    strategy: requestedStrategy,
+    projectId,
+    userId,
+    nowIso,
+    limit,
+    options: {
+      includeType,
+      includeLayer: layer,
+    },
   })
+  const results = ranked.rows
 
   if (results.length === 0) {
-    return { text: "No memories found.", data: { memories: [], count: 0 } }
+    return {
+      text: "No memories found.",
+      data: {
+        memories: [],
+        count: 0,
+        trace: {
+          requestedStrategy: ranked.trace.requested,
+          appliedStrategy: ranked.trace.applied,
+          lexicalCandidates: ranked.trace.lexicalCandidates,
+          semanticCandidates: ranked.trace.semanticCandidates,
+          fallbackTriggered: ranked.trace.fallbackTriggered,
+          fallbackReason: ranked.trace.fallbackReason,
+        },
+      },
+    }
   }
 
   const text = `Found ${results.length} memories:\n\n${results.map((row) => formatMemory(row)).join("\n")}`
@@ -609,6 +1085,14 @@ export async function searchMemoriesPayload(params: {
     data: {
       memories: results.map(toStructuredMemory),
       count: results.length,
+      trace: {
+        requestedStrategy: ranked.trace.requested,
+        appliedStrategy: ranked.trace.applied,
+        lexicalCandidates: ranked.trace.lexicalCandidates,
+        semanticCandidates: ranked.trace.semanticCandidates,
+        fallbackTriggered: ranked.trace.fallbackTriggered,
+        fallbackReason: ranked.trace.fallbackReason,
+      },
     },
   }
 }

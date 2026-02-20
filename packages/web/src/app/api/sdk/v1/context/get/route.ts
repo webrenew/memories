@@ -9,14 +9,18 @@ import {
   resolveTursoForScope,
   successResponse,
 } from "@/lib/sdk-api/runtime"
-import { scopeSchema } from "@/lib/sdk-api/schemas"
+import {
+  normalizeRetrievalStrategy,
+  retrievalStrategySchema,
+  scopeSchema,
+  toLegacyContextRetrievalStrategy,
+} from "@/lib/sdk-api/schemas"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 const ENDPOINT = "/api/sdk/v1/context/get"
 
 const contextModeSchema = z.enum(["all", "working", "long_term", "rules_only"])
-const contextStrategySchema = z.enum(["baseline", "hybrid_graph"])
 
 const requestSchema = z.object({
   query: z.string().trim().max(500).optional(),
@@ -24,7 +28,7 @@ const requestSchema = z.object({
   includeRules: z.boolean().optional(),
   includeSkillFiles: z.boolean().optional(),
   mode: contextModeSchema.optional(),
-  strategy: contextStrategySchema.optional(),
+  strategy: retrievalStrategySchema.optional(),
   graphDepth: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
   graphLimit: z.number().int().positive().max(50).optional(),
   scope: scopeSchema,
@@ -93,6 +97,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     const mode = parsedRequest.mode ?? "all"
     const includeRules = parsedRequest.includeRules ?? true
     const includeSkillFiles = parsedRequest.includeSkillFiles ?? true
+    const requestedStrategy = normalizeRetrievalStrategy(parsedRequest.strategy)
     const payload = await getContextPayload({
       turso,
       projectId,
@@ -100,7 +105,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       nowIso: new Date().toISOString(),
       query: parsedRequest.query ?? "",
       limit: parsedRequest.limit ?? 5,
-      retrievalStrategy: parsedRequest.strategy ?? "baseline",
+      semanticStrategy: requestedStrategy,
+      retrievalStrategy: toLegacyContextRetrievalStrategy(requestedStrategy),
       graphDepth: parsedRequest.graphDepth ?? 1,
       graphLimit: parsedRequest.graphLimit ?? 8,
     })

@@ -1,5 +1,12 @@
 import { editMemoryPayload } from "@/lib/memory-service/mutations"
 import { apiError, ensureMemoryUserIdSchema, parseTenantId, parseUserId, ToolExecutionError } from "@/lib/memory-service/tools"
+import { hasAiGatewayApiKey } from "@/lib/env"
+import {
+  deriveEmbeddingProviderFromModelId,
+  estimateEmbeddingInputTokens,
+  recordSdkEmbeddingMeterEvent,
+} from "@/lib/sdk-embedding-billing"
+import { resolveSdkEmbeddingModelSelection } from "@/lib/sdk-embeddings/models"
 import {
   authenticateApiKey,
   errorResponse,
@@ -8,7 +15,7 @@ import {
   resolveTursoForScope,
   successResponse,
 } from "@/lib/sdk-api/runtime"
-import { memoryLayerSchema, memoryTypeSchema, scopeSchema } from "@/lib/sdk-api/schemas"
+import { embeddingModelSchema, memoryLayerSchema, memoryTypeSchema, scopeSchema } from "@/lib/sdk-api/schemas"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -24,6 +31,7 @@ const requestSchema = z
     paths: z.array(z.string().trim().min(1).max(300)).max(100).optional(),
     category: z.string().trim().min(1).max(120).optional(),
     metadata: z.union([z.record(z.string(), z.unknown()), z.null()]).optional(),
+    embeddingModel: embeddingModelSchema.optional(),
     scope: scopeSchema,
   })
   .superRefine((value, ctx) => {
@@ -34,7 +42,8 @@ const requestSchema = z
       value.tags !== undefined ||
       value.paths !== undefined ||
       value.category !== undefined ||
-      value.metadata !== undefined
+      value.metadata !== undefined ||
+      value.embeddingModel !== undefined
 
     if (!hasUpdate) {
       ctx.addIssue({
@@ -79,6 +88,17 @@ export async function POST(request: NextRequest): Promise<Response> {
     const userId = parseUserId({ user_id: parsedRequest.scope?.userId })
     const projectId = parsedRequest.scope?.projectId
 
+    const shouldResolveEmbeddingModel = hasAiGatewayApiKey() || Boolean(parsedRequest.embeddingModel)
+    const embeddingSelection = shouldResolveEmbeddingModel
+      ? await resolveSdkEmbeddingModelSelection({
+          ownerUserId: authResult.userId,
+          apiKeyHash: authResult.apiKeyHash,
+          tenantId,
+          projectId,
+          requestedModelId: parsedRequest.embeddingModel,
+        })
+      : null
+
     const turso = await resolveTursoForScope({
       ownerUserId: authResult.userId,
       apiKeyHash: authResult.apiKeyHash,
@@ -105,12 +125,46 @@ export async function POST(request: NextRequest): Promise<Response> {
         paths: parsedRequest.paths,
         category: parsedRequest.category,
         metadata: parsedRequest.metadata,
+        embeddingModel: embeddingSelection?.selectedModelId,
       },
       userId,
       nowIso: new Date().toISOString(),
     })
 
-    return successResponse(ENDPOINT, requestId, payload.data)
+    if (embeddingSelection && typeof parsedRequest.content === "string" && parsedRequest.content.trim().length > 0) {
+      const selectedModel =
+        embeddingSelection.availableModels.find((model) => model.id === embeddingSelection.selectedModelId) ?? null
+
+      try {
+        await recordSdkEmbeddingMeterEvent({
+          ownerUserId: authResult.userId,
+          apiKeyHash: authResult.apiKeyHash,
+          tenantId,
+          projectId: projectId ?? null,
+          userId,
+          requestId,
+          modelId: embeddingSelection.selectedModelId,
+          provider: selectedModel?.provider ?? deriveEmbeddingProviderFromModelId(embeddingSelection.selectedModelId),
+          inputTokens: estimateEmbeddingInputTokens(parsedRequest.content),
+          modelInputCostUsdPerToken: selectedModel?.inputCostUsdPerToken ?? null,
+          estimatedCost: true,
+          metadata: {
+            endpoint: ENDPOINT,
+            source: embeddingSelection.source,
+            operation: "edit",
+            memoryId: parsedRequest.id,
+          },
+        })
+      } catch (meteringError) {
+        console.error("SDK embedding metering: edit request metering failed", meteringError)
+      }
+    }
+
+    return successResponse(ENDPOINT, requestId, {
+      ...payload.data,
+      embeddingModel: embeddingSelection?.selectedModelId ?? null,
+      embeddingModelSource: embeddingSelection?.source ?? null,
+    })
   } catch (error) {
     const detail =
       error instanceof ToolExecutionError

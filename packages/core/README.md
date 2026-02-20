@@ -61,9 +61,9 @@ Recommended pattern for SaaS apps:
 
 `MemoriesClient` exposes:
 
-- `context.get(input?: { query?: string; userId?: string; tenantId?: string; projectId?: string; mode?: "all" | "working" | "long_term" | "rules_only"; limit?: number; includeRules?: boolean })`
+- `context.get(input?: { query?: string; userId?: string; tenantId?: string; projectId?: string; mode?: "all" | "working" | "long_term" | "rules_only"; strategy?: "lexical" | "semantic" | "hybrid"; limit?: number; includeRules?: boolean })`
 - `memories.add(input)`
-- `memories.search(query, options?)`
+- `memories.search(query, options?: { type?: MemoryType; layer?: MemoryLayer; strategy?: "lexical" | "semantic" | "hybrid"; limit?: number; projectId?: string })`
 - `memories.list(options?)`
 - `memories.edit(id, updates)`
 - `memories.forget(id)`
@@ -114,6 +114,11 @@ Legacy signature is still supported:
 ```ts
 await client.context.get("auth patterns", { projectId: "dashboard", limit: 10 })
 ```
+
+Retrieval strategy controls:
+
+- `context.get({ strategy })` supports `"lexical" | "semantic" | "hybrid"` (legacy aliases `"baseline"` and `"hybrid_graph"` are also accepted)
+- `memories.search(query, { strategy })` supports `"lexical" | "semantic" | "hybrid"` (legacy aliases also accepted)
 
 Types are exported for all inputs and outputs (`MemoryRecord`, `ContextResult`, `MutationResult`, etc.).
 

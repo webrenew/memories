@@ -34,12 +34,14 @@ export function searchMemories(options: MemoriesBaseOptions = {}): MemoriesTools
     query: string
     type?: MemoryType
     layer?: MemorySearchOptions["layer"]
+    strategy?: MemorySearchOptions["strategy"]
     limit?: number
     projectId?: string
   }) =>
     client.memories.search(input.query, {
       type: input.type,
       layer: input.layer,
+      strategy: input.strategy,
       limit: input.limit,
       projectId: input.projectId ?? options.projectId,
     })

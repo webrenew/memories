@@ -1,0 +1,126 @@
+---
+title: Embeddings
+description: Hosted SDK embeddings behavior, retrieval strategies, and migration guidance.
+---
+
+This guide covers hosted SDK embeddings end-to-end: write-path model selection, retrieval strategy controls, fallback semantics, and migration from legacy strategy names.
+
+## Write Path (`add` / `edit`)
+
+Embeddings are generated asynchronously after successful memory writes when embeddings are configured for the workspace.
+
+`POST /api/sdk/v1/memories/add` and `POST /api/sdk/v1/memories/edit` accept:
+
+- `embeddingModel` (optional): explicit model override for this request
+
+If `embeddingModel` is omitted, model resolution uses workspace/project defaults and allowlists from the embeddings model catalog.
+
+### Example: add with explicit model
+
+```json
+{
+  "content": "Use canary for retrieval changes",
+  "type": "rule",
+  "embeddingModel": "openai/text-embedding-3-small",
+  "scope": {
+    "tenantId": "acme-prod",
+    "projectId": "github.com/acme/platform",
+    "userId": "user_123"
+  }
+}
+```
+
+### Example: edit and regenerate embedding
+
+```json
+{
+  "id": "mem_abc123",
+  "content": "Use shadow before canary for graph rollout",
+  "embeddingModel": "openai/text-embedding-3-small",
+  "scope": {
+    "tenantId": "acme-prod",
+    "projectId": "github.com/acme/platform",
+    "userId": "user_123"
+  }
+}
+```
+
+## Retrieval Strategies (`context/get` and `memories/search`)
+
+Preferred strategy values:
+
+- `lexical` (default)
+- `semantic`
+- `hybrid`
+
+Legacy aliases are still accepted:
+
+- `baseline` → `lexical`
+- `hybrid_graph` → `hybrid`
+
+### `context/get` behavior
+
+`POST /api/sdk/v1/context/get` uses:
+
+- `strategy` default: `lexical`
+- `graphDepth` default: `1`
+- `graphLimit` default: `8`
+
+The response includes `trace` with:
+
+- requested/applied strategy
+- semantic fallback signals
+- graph rollout/fallback diagnostics
+
+### `memories/search` behavior
+
+`POST /api/sdk/v1/memories/search` uses:
+
+- `strategy` default: `lexical`
+- `limit` default: endpoint default if omitted
+
+The response includes `trace` with:
+
+- `requestedStrategy`
+- `appliedStrategy`
+- `lexicalCandidates`
+- `semanticCandidates`
+- `fallbackTriggered`
+- `fallbackReason`
+
+## Fallback Semantics
+
+When semantic retrieval cannot run safely, read paths fall back to lexical behavior with explicit trace reason codes.
+
+Common fallback reasons:
+
+- `query_embedding_unavailable`
+- `vectors_unavailable`
+- `partial_vector_coverage`
+- `hybrid_fusion_empty`
+- rollout/guardrail reasons in graph trace
+
+This preserves availability while exposing diagnostics for rollout decisions.
+
+## Migration Notes
+
+For existing integrations:
+
+1. Keep existing calls unchanged: legacy aliases are still supported.
+2. Migrate request payloads to `lexical` / `semantic` / `hybrid` for clarity.
+3. Read `trace` fields to monitor applied strategy and fallback behavior.
+4. Roll out `semantic`/`hybrid` per tenant/project and monitor:
+   - fallback rate
+   - retrieval latency
+   - queue/backfill health
+
+## Operational Endpoints
+
+Use these management endpoints during rollout:
+
+- `GET /api/sdk/v1/embeddings/models`
+- `GET /api/sdk/v1/management/embeddings/usage`
+- `GET|POST /api/sdk/v1/management/embeddings/backfill`
+- `GET /api/sdk/v1/management/embeddings/observability`
+
+For operational response steps, see [Embedding Operations Runbook](/docs/sdk/embedding-operations-runbook).

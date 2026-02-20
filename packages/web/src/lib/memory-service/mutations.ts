@@ -11,6 +11,7 @@ import {
 } from "./types"
 import { buildNotExpiredFilter, parseMemoryLayer, workingMemoryExpiresAt } from "./scope"
 import { bulkRemoveMemoryGraphMappings, removeMemoryGraphMapping, syncMemoryGraphMapping } from "./graph/upsert"
+import { enqueueEmbeddingJob, triggerEmbeddingQueueProcessing } from "@/lib/sdk-embeddings/jobs"
 
 function getRowsAffected(result: unknown): number | null {
   if (!result || typeof result !== "object") {
@@ -155,6 +156,23 @@ export async function addMemoryPayload(params: {
     }
   }
 
+  const embeddingModel = typeof args.embeddingModel === "string" ? args.embeddingModel.trim() : ""
+  if (embeddingModel) {
+    try {
+      await enqueueEmbeddingJob({
+        turso,
+        memoryId,
+        content,
+        modelId: embeddingModel,
+        operation: "add",
+        nowIso,
+      })
+      triggerEmbeddingQueueProcessing(turso)
+    } catch (err) {
+      console.error("Embedding queue enqueue failed on add_memory:", err)
+    }
+  }
+
   const scopeLabel = projectId ? `project:${projectId.split("/").pop()}` : "global"
   const message = `Stored ${type} (${scopeLabel}): ${content.length > 80 ? `${content.slice(0, 80).trim()}...` : content}`
 
@@ -211,6 +229,7 @@ export async function editMemoryPayload(params: {
   const updates: string[] = ["updated_at = ?"]
   const updateArgs: (string | null)[] = [nowIso]
   const requestedLayer = parseMemoryLayer(args)
+  let updatedContent: string | null = null
 
   if (args.content !== undefined) {
     const nextContent = typeof args.content === "string" ? args.content.trim() : ""
@@ -229,6 +248,7 @@ export async function editMemoryPayload(params: {
     }
     updates.push("content = ?")
     updateArgs.push(nextContent)
+    updatedContent = nextContent
   }
   if (args.type !== undefined && VALID_TYPES.has(args.type as string)) {
     updates.push("type = ?")
@@ -335,6 +355,23 @@ export async function editMemoryPayload(params: {
       }
     } catch (err) {
       console.error("Graph mapping sync failed on edit_memory:", err)
+    }
+  }
+
+  const embeddingModel = typeof args.embeddingModel === "string" ? args.embeddingModel.trim() : ""
+  if (embeddingModel && updatedContent) {
+    try {
+      await enqueueEmbeddingJob({
+        turso,
+        memoryId: id,
+        content: updatedContent,
+        modelId: embeddingModel,
+        operation: "edit",
+        nowIso,
+      })
+      triggerEmbeddingQueueProcessing(turso)
+    } catch (err) {
+      console.error("Embedding queue enqueue failed on edit_memory:", err)
     }
   }
 

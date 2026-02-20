@@ -29,7 +29,7 @@ export { ensureMemoryUserIdSchema, parseTenantId, parseUserId, resolveTenantTurs
 
 function parseRetrievalStrategy(args: Record<string, unknown>): ContextRetrievalStrategy {
   const raw = args.retrieval_strategy
-  if (raw === "hybrid_graph") {
+  if (raw === "hybrid_graph" || raw === "hybrid") {
     return "hybrid_graph"
   }
   return "baseline"

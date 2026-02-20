@@ -167,7 +167,7 @@ describe("/api/sdk/v1/context/get", () => {
         {
           query: "auth",
           mode: "working",
-          strategy: "hybrid_graph",
+          strategy: "hybrid",
           graphDepth: 2,
           graphLimit: 12,
           includeRules: false,
@@ -206,6 +206,30 @@ describe("/api/sdk/v1/context/get", () => {
       expect.objectContaining({
         projectId: "github.com/acme/platform",
         fallbackToUserWithoutOrgCredentials: true,
+      })
+    )
+  })
+
+  it("maps semantic strategy requests to baseline retrieval", async () => {
+    const response = await POST(
+      makePostRequest(
+        {
+          query: "auth",
+          strategy: "semantic",
+          scope: {
+            userId: "end-user-1",
+          },
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGetContextPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "auth",
+        userId: "end-user-1",
+        retrievalStrategy: "baseline",
       })
     )
   })

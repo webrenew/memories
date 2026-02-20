@@ -3,6 +3,20 @@ title: Changelog
 description: Product and documentation updates.
 ---
 
+## February 20, 2026
+
+- Added hosted SDK embeddings docs at `/docs/sdk/embeddings` with write-path model selection, retrieval strategy controls, and migration guidance.
+- Added embeddings endpoint contract documentation for:
+  - `GET /api/sdk/v1/embeddings/models`
+  - `GET /api/sdk/v1/management/embeddings/usage`
+  - `GET|POST /api/sdk/v1/management/embeddings/backfill`
+  - `GET /api/sdk/v1/management/embeddings/observability`
+- Documented retrieval strategy defaults for `context/get` and `memories/search` as `lexical`, with compatibility aliases:
+  - `baseline` -> `lexical`
+  - `hybrid_graph` -> `hybrid`
+- Documented `embeddingModel` request support on `memories/add` and `memories/edit`, including response metadata (`embeddingModel`, `embeddingModelSource`).
+- Clarified retrieval `trace` diagnostics and fallback semantics to support phased semantic/hybrid rollout.
+
 ## February 16, 2026
 
 - Deprecated legacy tenant management routes: `/api/mcp/tenants` and `/api/sdk/v1/management/tenants`.

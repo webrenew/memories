@@ -41,9 +41,11 @@ export interface ContextBuckets {
   longTerm: z.infer<typeof structuredMemorySchema>[]
 }
 
+export type NormalizedRetrievalStrategy = "lexical" | "semantic" | "hybrid"
+
 export interface NormalizedContextInput extends ContextGetInput {
   mode: ContextMode
-  strategy: ContextStrategy
+  strategy: NormalizedRetrievalStrategy
   graphDepth: 0 | 1 | 2
   graphLimit: number
 }
@@ -54,7 +56,7 @@ export type ContextGetMethod = {
 }
 
 const contextModes = new Set<ContextMode>(["all", "working", "long_term", "rules_only"])
-const contextStrategies = new Set<ContextStrategy>(["baseline", "hybrid_graph"])
+const contextStrategies = new Set<ContextStrategy>(["lexical", "semantic", "hybrid", "baseline", "hybrid_graph"])
 
 export function errorTypeForStatus(status: number): MemoriesErrorData["type"] {
   if (status === 400) return "validation_error"
@@ -186,11 +188,24 @@ export function normalizeContextMode(mode: unknown): ContextMode {
   return "all"
 }
 
-export function normalizeContextStrategy(strategy: unknown): ContextStrategy {
+export function normalizeContextStrategy(strategy: unknown): NormalizedRetrievalStrategy {
   if (typeof strategy === "string" && contextStrategies.has(strategy as ContextStrategy)) {
-    return strategy as ContextStrategy
+    if (strategy === "baseline") return "lexical"
+    if (strategy === "hybrid_graph") return "hybrid"
+    if (strategy === "lexical" || strategy === "semantic" || strategy === "hybrid") {
+      return strategy
+    }
   }
-  return "baseline"
+  return "lexical"
+}
+
+export function toSdkContextStrategy(strategy: unknown): NormalizedRetrievalStrategy {
+  return normalizeContextStrategy(strategy)
+}
+
+export function toMcpContextStrategy(strategy: unknown): "baseline" | "hybrid_graph" {
+  const normalized = normalizeContextStrategy(strategy)
+  return normalized === "hybrid" ? "hybrid_graph" : "baseline"
 }
 
 export function normalizeGraphDepth(depth: unknown): 0 | 1 | 2 {

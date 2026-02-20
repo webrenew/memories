@@ -1,6 +1,8 @@
 export type MemoryType = "rule" | "decision" | "fact" | "note" | "skill"
 export type MemoryLayer = "rule" | "working" | "long_term"
-export type ContextStrategy = "baseline" | "hybrid_graph"
+export type RetrievalStrategy = "lexical" | "semantic" | "hybrid"
+export type LegacyContextStrategy = "baseline" | "hybrid_graph"
+export type ContextStrategy = RetrievalStrategy | LegacyContextStrategy
 
 export type MemoryScope = "global" | "project" | "unknown"
 
@@ -59,6 +61,12 @@ export interface ContextResult {
   trace?: {
     requestedStrategy?: ContextStrategy
     strategy: ContextStrategy
+    semanticStrategyRequested?: RetrievalStrategy
+    semanticStrategyApplied?: RetrievalStrategy
+    lexicalCandidates?: number
+    semanticCandidates?: number
+    semanticFallbackTriggered?: boolean
+    semanticFallbackReason?: string | null
     graphDepth: 0 | 1 | 2
     graphLimit: number
     rolloutMode?: "off" | "shadow" | "canary"
@@ -130,6 +138,7 @@ export interface MemoryAddInput {
   paths?: string[]
   category?: string
   metadata?: Record<string, unknown>
+  embeddingModel?: string
   projectId?: string
 }
 
@@ -141,11 +150,13 @@ export interface MemoryEditInput {
   paths?: string[]
   category?: string
   metadata?: Record<string, unknown> | null
+  embeddingModel?: string
 }
 
 export interface MemorySearchOptions {
   type?: MemoryType
   layer?: MemoryLayer
+  strategy?: ContextStrategy
   limit?: number
   projectId?: string
 }
@@ -256,6 +267,68 @@ export interface ManagementTenantDisableResult {
   tenantId: string
   status: string
   updatedAt: string
+}
+
+export interface ManagementEmbeddingModel {
+  id: string
+  name: string
+  provider: string
+  description: string | null
+  contextWindow: number | null
+  pricing: {
+    input: string | null
+  }
+  inputCostUsdPerToken: number | null
+  tags: string[]
+}
+
+export interface ManagementEmbeddingConfig {
+  selectedModelId: string
+  source: "request" | "project" | "workspace" | "system_default"
+  workspaceDefaultModelId: string | null
+  projectOverrideModelId: string | null
+  allowlistModelIds: string[]
+}
+
+export interface ManagementEmbeddingModelListOptions {
+  tenantId?: string
+  projectId?: string
+  embeddingModel?: string
+}
+
+export interface ManagementEmbeddingModelListResult {
+  models: ManagementEmbeddingModel[]
+  config: ManagementEmbeddingConfig
+}
+
+export interface ManagementEmbeddingUsageOptions {
+  usageMonth?: string
+  tenantId?: string
+  projectId?: string
+  limit?: number
+}
+
+export interface ManagementEmbeddingUsageSummary {
+  usageMonth: string
+  requestCount: number
+  estimatedRequestCount: number
+  inputTokens: number
+  gatewayCostUsd: number
+  marketCostUsd: number
+  customerCostUsd: number
+}
+
+export interface ManagementEmbeddingUsageBreakdown extends ManagementEmbeddingUsageSummary {
+  tenantId: string | null
+  projectId: string | null
+  modelId: string
+  provider: string
+}
+
+export interface ManagementEmbeddingUsageResult {
+  usageMonth: string
+  summary: ManagementEmbeddingUsageSummary
+  breakdown: ManagementEmbeddingUsageBreakdown[]
 }
 
 export interface BuildSystemPromptInput {

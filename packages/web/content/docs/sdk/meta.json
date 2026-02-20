@@ -8,8 +8,10 @@
     "middleware",
     "tools",
     "client",
+    "embeddings",
     "endpoint-contract",
     "graph-architecture",
-    "graph-operations-runbook"
+    "graph-operations-runbook",
+    "embedding-operations-runbook"
   ]
 }

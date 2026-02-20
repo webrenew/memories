@@ -43,7 +43,7 @@ describe("MemoriesClient", () => {
       fetch: fetchMock as unknown as typeof fetch,
     })
 
-    const result = await client.memories.add({ content: "test" })
+    const result = await client.memories.add({ content: "test", embeddingModel: "openai/text-embedding-3-small" })
     expect(result.ok).toBe(true)
     expect(result.message).toBe("Stored note")
 
@@ -52,8 +52,10 @@ describe("MemoriesClient", () => {
     expect(url).toBe("https://example.com/api/sdk/v1/memories/add")
     expect(init.method).toBe("POST")
     const parsedBody = JSON.parse((init.body as string) ?? "{}") as {
+      embeddingModel?: string
       scope?: { tenantId?: string; userId?: string }
     }
+    expect(parsedBody.embeddingModel).toBe("openai/text-embedding-3-small")
     expect(parsedBody.scope?.tenantId).toBe("tenant-123")
     expect(parsedBody.scope?.userId).toBe("user-abc")
   })
@@ -92,6 +94,40 @@ describe("MemoriesClient", () => {
       params?: { arguments?: Record<string, unknown> }
     }
     expect(requestBody.params?.arguments?.tenant_id).toBe("tenant-123")
+  })
+
+  it("forwards embeddingModel on memories.edit for sdk_http transport", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            id: "mem_1",
+            updated: true,
+            message: "Updated memory mem_1",
+          },
+          error: null,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    )
+
+    const client = new MemoriesClient({
+      apiKey: "mcp_test",
+      baseUrl: "https://example.com",
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await client.memories.edit("mem_1", {
+      content: "updated",
+      embeddingModel: "openai/text-embedding-3-large",
+    })
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe("https://example.com/api/sdk/v1/memories/edit")
+    const parsedBody = JSON.parse((init.body as string) ?? "{}") as { embeddingModel?: string; id?: string }
+    expect(parsedBody.id).toBe("mem_1")
+    expect(parsedBody.embeddingModel).toBe("openai/text-embedding-3-large")
   })
 
   it("parses structuredContent into typed context arrays", async () => {
@@ -284,7 +320,7 @@ describe("MemoriesClient", () => {
     }
   })
 
-  it("forwards hybrid graph options to MCP get_context args", async () => {
+  it("forwards hybrid strategy options to MCP get_context args", async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       new Response(
         JSON.stringify({
@@ -326,7 +362,7 @@ describe("MemoriesClient", () => {
 
     const result = await client.context.get({
       query: "auth",
-      strategy: "hybrid_graph",
+      strategy: "hybrid",
       graphDepth: 2,
       graphLimit: 12,
     })
@@ -342,7 +378,7 @@ describe("MemoriesClient", () => {
     expect(args.graph_limit).toBe(12)
   })
 
-  it("forwards hybrid graph options to SDK context endpoint body", async () => {
+  it("normalizes legacy hybrid_graph to hybrid on SDK context endpoint body", async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       new Response(
         JSON.stringify({
@@ -385,9 +421,84 @@ describe("MemoriesClient", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe("https://example.com/api/sdk/v1/context/get")
     const parsedBody = JSON.parse((init.body as string) ?? "{}") as Record<string, unknown>
-    expect(parsedBody.strategy).toBe("hybrid_graph")
+    expect(parsedBody.strategy).toBe("hybrid")
     expect(parsedBody.graphDepth).toBe(1)
     expect(parsedBody.graphLimit).toBe(8)
+  })
+
+  it("forwards search strategy to SDK memories.search endpoint body", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            memories: [],
+          },
+          error: null,
+          meta: { version: "2026-02-11" },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    )
+
+    const client = new MemoriesClient({
+      apiKey: "mcp_test",
+      baseUrl: "https://example.com",
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await client.memories.search("auth", {
+      strategy: "hybrid_graph",
+      limit: 5,
+    })
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe("https://example.com/api/sdk/v1/memories/search")
+    const parsedBody = JSON.parse((init.body as string) ?? "{}") as Record<string, unknown>
+    expect(parsedBody.strategy).toBe("hybrid")
+    expect(parsedBody.limit).toBe(5)
+  })
+
+  it("maps semantic search strategy to baseline retrieval for MCP search_memories args", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: "1",
+          result: {
+            content: [{ type: "text", text: "" }],
+            structuredContent: {
+              ok: true,
+              data: {
+                memories: [],
+              },
+              error: null,
+              meta: { version: "2026-02-10", tool: "search_memories" },
+            },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    )
+
+    const client = new MemoriesClient({
+      apiKey: "mcp_test",
+      baseUrl: "https://example.com/api/mcp",
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await client.memories.search("auth", {
+      strategy: "semantic",
+      limit: 5,
+    })
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
+    const requestBody = JSON.parse((requestInit?.body as string) ?? "{}") as {
+      params?: { arguments?: Record<string, unknown> }
+    }
+    const args = requestBody.params?.arguments ?? {}
+    expect(args.retrieval_strategy).toBe("baseline")
+    expect(args.limit).toBe(5)
   })
 
   it("parses structuredContent for memory list/search", async () => {
@@ -641,6 +752,82 @@ describe("MemoriesClient", () => {
         )
       }
 
+      if (
+        url ===
+          "https://example.com/api/sdk/v1/embeddings/models?tenantId=tenant-b&projectId=github.com%2Facme%2Fplatform&embeddingModel=openai%2Ftext-embedding-3-small" &&
+        method === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              models: [
+                {
+                  id: "openai/text-embedding-3-small",
+                  name: "text-embedding-3-small",
+                  provider: "openai",
+                  description: null,
+                  contextWindow: 8192,
+                  pricing: { input: "0.00000002" },
+                  inputCostUsdPerToken: 0.00000002,
+                  tags: ["fast"],
+                },
+              ],
+              config: {
+                selectedModelId: "openai/text-embedding-3-small",
+                source: "request",
+                workspaceDefaultModelId: "openai/text-embedding-3-small",
+                projectOverrideModelId: null,
+                allowlistModelIds: ["openai/text-embedding-3-small"],
+              },
+            },
+            error: null,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      }
+
+      if (
+        url ===
+          "https://example.com/api/sdk/v1/management/embeddings/usage?usageMonth=2026-02-01&tenantId=tenant-b&projectId=github.com%2Facme%2Fplatform&limit=25" &&
+        method === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              usageMonth: "2026-02-01",
+              summary: {
+                usageMonth: "2026-02-01",
+                requestCount: 10,
+                estimatedRequestCount: 2,
+                inputTokens: 1200,
+                gatewayCostUsd: 0.012,
+                marketCostUsd: 0.01,
+                customerCostUsd: 0.015,
+              },
+              breakdown: [
+                {
+                  usageMonth: "2026-02-01",
+                  requestCount: 10,
+                  estimatedRequestCount: 2,
+                  inputTokens: 1200,
+                  gatewayCostUsd: 0.012,
+                  marketCostUsd: 0.01,
+                  customerCostUsd: 0.015,
+                  tenantId: "tenant-b",
+                  projectId: "github.com/acme/platform",
+                  modelId: "openai/text-embedding-3-small",
+                  provider: "openai",
+                },
+              ],
+            },
+            error: null,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      }
+
       return new Response("not found", { status: 404 })
     })
 
@@ -656,6 +843,17 @@ describe("MemoriesClient", () => {
     const tenantList = await client.management.tenants.list()
     const tenantUpsert = await client.management.tenants.upsert({ tenantId: "tenant-b", mode: "provision" })
     const tenantDisabled = await client.management.tenants.disable("tenant-b")
+    const embeddingModels = await client.management.embeddings.list({
+      tenantId: "tenant-b",
+      projectId: "github.com/acme/platform",
+      embeddingModel: "openai/text-embedding-3-small",
+    })
+    const embeddingUsage = await client.management.embeddings.usage({
+      usageMonth: "2026-02-01",
+      tenantId: "tenant-b",
+      projectId: "github.com/acme/platform",
+      limit: 25,
+    })
 
     expect(keyStatus.hasKey).toBe(true)
     expect(createdKey.apiKey).toBe("mcp_new_key")
@@ -663,7 +861,11 @@ describe("MemoriesClient", () => {
     expect(tenantList.count).toBe(1)
     expect(tenantUpsert.tenantDatabase.tenantId).toBe("tenant-b")
     expect(tenantDisabled.status).toBe("disabled")
-    expect(fetchMock).toHaveBeenCalledTimes(6)
+    expect(embeddingModels.models[0]?.id).toBe("openai/text-embedding-3-small")
+    expect(embeddingModels.config.source).toBe("request")
+    expect(embeddingUsage.summary.requestCount).toBe(10)
+    expect(embeddingUsage.breakdown[0]?.modelId).toBe("openai/text-embedding-3-small")
+    expect(fetchMock).toHaveBeenCalledTimes(8)
   })
 
   it("validates management inputs before making a request", async () => {

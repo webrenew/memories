@@ -20,6 +20,7 @@ interface GraphRolloutMetricInput {
   totalCandidates: number
   fallbackTriggered: boolean
   fallbackReason: string | null
+  durationMs?: number
 }
 
 export interface GraphRolloutMetricsSummary {
@@ -100,6 +101,26 @@ const GRAPH_ROLLOUT_QUALITY_THRESHOLDS = {
 
 const ensuredRolloutTables = new WeakSet<TursoClient>()
 
+function isDuplicateColumnError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : ""
+  return message.includes("duplicate column name")
+}
+
+async function ensureGraphRolloutMetricColumns(turso: TursoClient): Promise<void> {
+  const columns = await turso.execute("PRAGMA table_info(graph_rollout_metrics)")
+  const columnRows = Array.isArray(columns.rows) ? columns.rows : []
+  const hasDurationColumn = columnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "duration_ms")
+  if (!hasDurationColumn) {
+    try {
+      await turso.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0")
+    } catch (error) {
+      if (!isDuplicateColumnError(error)) {
+        throw error
+      }
+    }
+  }
+}
+
 function normalizeRolloutMode(mode: string | null | undefined): GraphRolloutMode {
   if (mode === "off" || mode === "shadow" || mode === "canary") {
     return mode
@@ -155,9 +176,12 @@ async function ensureGraphRolloutTables(turso: TursoClient): Promise<void> {
       graph_expanded_count INTEGER NOT NULL DEFAULT 0,
       total_candidates INTEGER NOT NULL DEFAULT 0,
       fallback_triggered INTEGER NOT NULL DEFAULT 0,
-      fallback_reason TEXT
+      fallback_reason TEXT,
+      duration_ms INTEGER NOT NULL DEFAULT 0
     )`
   )
+
+  await ensureGraphRolloutMetricColumns(turso)
 
   await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_created_at ON graph_rollout_metrics(created_at)")
   await turso.execute("CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_mode ON graph_rollout_metrics(mode)")
@@ -531,8 +555,9 @@ export async function recordGraphRolloutMetric(
             graph_expanded_count,
             total_candidates,
             fallback_triggered,
-            fallback_reason
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            fallback_reason,
+            duration_ms
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       crypto.randomUUID(),
       metric.nowIso,
@@ -546,6 +571,7 @@ export async function recordGraphRolloutMetric(
       Math.max(0, Math.floor(metric.totalCandidates)),
       metric.fallbackTriggered ? 1 : 0,
       metric.fallbackReason,
+      Math.max(0, Math.round(metric.durationMs ?? 0)),
     ],
   })
 

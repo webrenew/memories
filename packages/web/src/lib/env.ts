@@ -10,12 +10,25 @@ export function parsePositiveInt(value: string | undefined, fallback: number): n
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
+export function parseNonNegativeInt(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? "", 10)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
 export function parseBooleanFlag(value: string | undefined, fallback = false): boolean {
   if (!value) return fallback
   const normalized = value.trim().toLowerCase()
   if (["1", "true", "yes", "on"].includes(normalized)) return true
   if (["0", "false", "no", "off"].includes(normalized)) return false
   return fallback
+}
+
+export function parseNonNegativeFloat(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseFloat(value ?? "")
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback
+  }
+  return parsed
 }
 
 // ── Supabase ─────────────────────────────────────────────────────────
@@ -128,6 +141,18 @@ export function getStripeCheckoutPriceId(
 
 export function getStripeGrowthMeterEventName(): string {
   return envValue("STRIPE_MEMORIES_GROWTH_METER_EVENT_NAME") ?? "memories_growth_projects"
+}
+
+export function getStripeGrowthEmbeddingMeterEventName(): string {
+  return envValue("STRIPE_MEMORIES_GROWTH_EMBEDDING_METER_EVENT_NAME") ?? "memories_growth_embedding_cost_micros"
+}
+
+export function getSdkEmbeddingMarkupPercent(): number {
+  return parseNonNegativeFloat(process.env.SDK_EMBEDDING_MARKUP_PERCENT, 0.15)
+}
+
+export function getSdkEmbeddingFixedFeeUsd(): number {
+  return parseNonNegativeFloat(process.env.SDK_EMBEDDING_FIXED_FEE_USD, 0)
 }
 
 export function getStripeMeterMaxProjectsPerMonth(): number | null {
@@ -266,6 +291,54 @@ export function getEnterpriseContactTo(): string {
 
 export function getGithubWebhookSecret(): string | undefined {
   return process.env.GITHUB_WEBHOOK_SECRET
+}
+
+export function hasAiGatewayApiKey(): boolean {
+  return Boolean(envValue("AI_GATEWAY_API_KEY"))
+}
+
+export function getAiGatewayApiKey(): string {
+  const value = envValue("AI_GATEWAY_API_KEY")
+  if (!value) {
+    throw new Error("Missing AI_GATEWAY_API_KEY")
+  }
+  return value
+}
+
+export function getAiGatewayBaseUrl(): string {
+  return envValue("AI_GATEWAY_BASE_URL") ?? "https://ai-gateway.vercel.sh"
+}
+
+export function getSdkDefaultEmbeddingModelId(): string {
+  return envValue("SDK_DEFAULT_EMBEDDING_MODEL_ID") ?? "openai/text-embedding-3-small"
+}
+
+export function getSdkEmbeddingJobMaxAttempts(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_MAX_ATTEMPTS, 5)
+}
+
+export function getSdkEmbeddingJobRetryBaseMs(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_RETRY_BASE_MS, 1_000)
+}
+
+export function getSdkEmbeddingJobRetryMaxMs(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_RETRY_MAX_MS, 60_000)
+}
+
+export function getSdkEmbeddingJobWorkerBatchSize(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_WORKER_BATCH_SIZE, 2)
+}
+
+export function getSdkEmbeddingJobProcessingTimeoutMs(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_JOB_PROCESSING_TIMEOUT_MS, 5 * 60 * 1_000)
+}
+
+export function getSdkEmbeddingBackfillBatchSize(): number {
+  return parsePositiveInt(process.env.SDK_EMBEDDING_BACKFILL_BATCH_SIZE, 100)
+}
+
+export function getSdkEmbeddingBackfillThrottleMs(): number {
+  return parseNonNegativeInt(process.env.SDK_EMBEDDING_BACKFILL_THROTTLE_MS, 25)
 }
 
 export function shouldAutoProvisionTenants(): boolean {

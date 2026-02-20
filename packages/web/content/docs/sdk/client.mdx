@@ -130,6 +130,8 @@ Workspace rollout and safety signals are available from SDK HTTP graph endpoints
 - `GET /api/sdk/v1/graph/rollout` for mode + shadow metrics + quality gate snapshot
 - `GET /api/sdk/v1/graph/status` for counts + alarms (`HIGH_FALLBACK_RATE`, `GRAPH_EXPANSION_ERRORS`, `CANARY_QUALITY_GATE_BLOCKED`)
 
+For embedding model selection, retrieval strategy defaults, and migration notes, see [SDK Embeddings Guide](/docs/sdk/embeddings).
+
 ### `client.memories.add(input)`
 
 Create a new memory.
