@@ -184,3 +184,26 @@ export const managementEmbeddingModelsSchema = z.object({
   models: z.array(managementEmbeddingModelSchema),
   config: managementEmbeddingConfigSchema,
 })
+
+export const managementEmbeddingUsageSummarySchema = z.object({
+  usageMonth: z.string(),
+  requestCount: z.number().int().nonnegative(),
+  estimatedRequestCount: z.number().int().nonnegative(),
+  inputTokens: z.number().int().nonnegative(),
+  gatewayCostUsd: z.number().nonnegative(),
+  marketCostUsd: z.number().nonnegative(),
+  customerCostUsd: z.number().nonnegative(),
+})
+
+export const managementEmbeddingUsageBreakdownSchema = managementEmbeddingUsageSummarySchema.extend({
+  tenantId: z.string().nullable(),
+  projectId: z.string().nullable(),
+  modelId: z.string(),
+  provider: z.string(),
+})
+
+export const managementEmbeddingUsageSchema = z.object({
+  usageMonth: z.string(),
+  summary: managementEmbeddingUsageSummarySchema,
+  breakdown: z.array(managementEmbeddingUsageBreakdownSchema),
+})

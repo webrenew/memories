@@ -712,6 +712,47 @@ describe("MemoriesClient", () => {
         )
       }
 
+      if (
+        url ===
+          "https://example.com/api/sdk/v1/management/embeddings/usage?usageMonth=2026-02-01&tenantId=tenant-b&projectId=github.com%2Facme%2Fplatform&limit=25" &&
+        method === "GET"
+      ) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: {
+              usageMonth: "2026-02-01",
+              summary: {
+                usageMonth: "2026-02-01",
+                requestCount: 10,
+                estimatedRequestCount: 2,
+                inputTokens: 1200,
+                gatewayCostUsd: 0.012,
+                marketCostUsd: 0.01,
+                customerCostUsd: 0.015,
+              },
+              breakdown: [
+                {
+                  usageMonth: "2026-02-01",
+                  requestCount: 10,
+                  estimatedRequestCount: 2,
+                  inputTokens: 1200,
+                  gatewayCostUsd: 0.012,
+                  marketCostUsd: 0.01,
+                  customerCostUsd: 0.015,
+                  tenantId: "tenant-b",
+                  projectId: "github.com/acme/platform",
+                  modelId: "openai/text-embedding-3-small",
+                  provider: "openai",
+                },
+              ],
+            },
+            error: null,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      }
+
       return new Response("not found", { status: 404 })
     })
 
@@ -732,6 +773,12 @@ describe("MemoriesClient", () => {
       projectId: "github.com/acme/platform",
       embeddingModel: "openai/text-embedding-3-small",
     })
+    const embeddingUsage = await client.management.embeddings.usage({
+      usageMonth: "2026-02-01",
+      tenantId: "tenant-b",
+      projectId: "github.com/acme/platform",
+      limit: 25,
+    })
 
     expect(keyStatus.hasKey).toBe(true)
     expect(createdKey.apiKey).toBe("mcp_new_key")
@@ -741,7 +788,9 @@ describe("MemoriesClient", () => {
     expect(tenantDisabled.status).toBe("disabled")
     expect(embeddingModels.models[0]?.id).toBe("openai/text-embedding-3-small")
     expect(embeddingModels.config.source).toBe("request")
-    expect(fetchMock).toHaveBeenCalledTimes(7)
+    expect(embeddingUsage.summary.requestCount).toBe(10)
+    expect(embeddingUsage.breakdown[0]?.modelId).toBe("openai/text-embedding-3-small")
+    expect(fetchMock).toHaveBeenCalledTimes(8)
   })
 
   it("validates management inputs before making a request", async () => {

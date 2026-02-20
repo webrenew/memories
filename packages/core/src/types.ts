@@ -292,6 +292,36 @@ export interface ManagementEmbeddingModelListResult {
   config: ManagementEmbeddingConfig
 }
 
+export interface ManagementEmbeddingUsageOptions {
+  usageMonth?: string
+  tenantId?: string
+  projectId?: string
+  limit?: number
+}
+
+export interface ManagementEmbeddingUsageSummary {
+  usageMonth: string
+  requestCount: number
+  estimatedRequestCount: number
+  inputTokens: number
+  gatewayCostUsd: number
+  marketCostUsd: number
+  customerCostUsd: number
+}
+
+export interface ManagementEmbeddingUsageBreakdown extends ManagementEmbeddingUsageSummary {
+  tenantId: string | null
+  projectId: string | null
+  modelId: string
+  provider: string
+}
+
+export interface ManagementEmbeddingUsageResult {
+  usageMonth: string
+  summary: ManagementEmbeddingUsageSummary
+  breakdown: ManagementEmbeddingUsageBreakdown[]
+}
+
 export interface BuildSystemPromptInput {
   rules?: MemoryRecord[]
   memories?: MemoryRecord[]

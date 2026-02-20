@@ -12,6 +12,8 @@ import type {
   ManagementKeyCreateResult,
   ManagementEmbeddingModelListOptions,
   ManagementEmbeddingModelListResult,
+  ManagementEmbeddingUsageOptions,
+  ManagementEmbeddingUsageResult,
   ManagementKeyRevokeResult,
   ManagementKeyStatus,
   ManagementTenantDisableResult,
@@ -39,6 +41,7 @@ import {
   contextStructuredSchema,
   managementKeyCreateSchema,
   managementEmbeddingModelsSchema,
+  managementEmbeddingUsageSchema,
   managementKeyRevokeSchema,
   managementKeyStatusSchema,
   managementTenantDisableSchema,
@@ -571,6 +574,21 @@ export class MemoriesClient {
         })
 
         return parseStructuredData(managementEmbeddingModelsSchema, endpoint, result.structured)
+      },
+
+      usage: async (options: ManagementEmbeddingUsageOptions = {}): Promise<ManagementEmbeddingUsageResult> => {
+        const endpoint = "/api/sdk/v1/management/embeddings/usage"
+        const result = await this.callSdkRequest(endpoint, {
+          method: "GET",
+          query: {
+            usageMonth: options.usageMonth,
+            tenantId: options.tenantId,
+            projectId: options.projectId,
+            limit: options.limit,
+          },
+        })
+
+        return parseStructuredData(managementEmbeddingUsageSchema, endpoint, result.structured)
       },
     },
   }

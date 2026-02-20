@@ -1,6 +1,11 @@
 import { addMemoryPayload } from "@/lib/memory-service/mutations"
 import { apiError, ensureMemoryUserIdSchema, parseTenantId, parseUserId, ToolExecutionError } from "@/lib/memory-service/tools"
 import { hasAiGatewayApiKey } from "@/lib/env"
+import {
+  deriveEmbeddingProviderFromModelId,
+  estimateEmbeddingInputTokens,
+  recordSdkEmbeddingMeterEvent,
+} from "@/lib/sdk-embedding-billing"
 import { resolveSdkEmbeddingModelSelection } from "@/lib/sdk-embeddings/models"
 import {
   authenticateApiKey,
@@ -105,6 +110,34 @@ export async function POST(request: NextRequest): Promise<Response> {
       userId,
       nowIso: new Date().toISOString(),
     })
+
+    if (embeddingSelection && parsedRequest.content.trim().length > 0) {
+      const selectedModel =
+        embeddingSelection.availableModels.find((model) => model.id === embeddingSelection.selectedModelId) ?? null
+
+      try {
+        await recordSdkEmbeddingMeterEvent({
+          ownerUserId: authResult.userId,
+          apiKeyHash: authResult.apiKeyHash,
+          tenantId,
+          projectId: projectId ?? null,
+          userId,
+          requestId,
+          modelId: embeddingSelection.selectedModelId,
+          provider: selectedModel?.provider ?? deriveEmbeddingProviderFromModelId(embeddingSelection.selectedModelId),
+          inputTokens: estimateEmbeddingInputTokens(parsedRequest.content),
+          modelInputCostUsdPerToken: selectedModel?.inputCostUsdPerToken ?? null,
+          estimatedCost: true,
+          metadata: {
+            endpoint: ENDPOINT,
+            source: embeddingSelection.source,
+            operation: "add",
+          },
+        })
+      } catch (meteringError) {
+        console.error("SDK embedding metering: add request metering failed", meteringError)
+      }
+    }
 
     return successResponse(
       ENDPOINT,

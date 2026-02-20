@@ -18,6 +18,14 @@ export function parseBooleanFlag(value: string | undefined, fallback = false): b
   return fallback
 }
 
+export function parseNonNegativeFloat(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseFloat(value ?? "")
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback
+  }
+  return parsed
+}
+
 // ── Supabase ─────────────────────────────────────────────────────────
 // NEXT_PUBLIC_ vars are inlined by the Next.js bundler at build time.
 
@@ -128,6 +136,18 @@ export function getStripeCheckoutPriceId(
 
 export function getStripeGrowthMeterEventName(): string {
   return envValue("STRIPE_MEMORIES_GROWTH_METER_EVENT_NAME") ?? "memories_growth_projects"
+}
+
+export function getStripeGrowthEmbeddingMeterEventName(): string {
+  return envValue("STRIPE_MEMORIES_GROWTH_EMBEDDING_METER_EVENT_NAME") ?? "memories_growth_embedding_cost_micros"
+}
+
+export function getSdkEmbeddingMarkupPercent(): number {
+  return parseNonNegativeFloat(process.env.SDK_EMBEDDING_MARKUP_PERCENT, 0.15)
+}
+
+export function getSdkEmbeddingFixedFeeUsd(): number {
+  return parseNonNegativeFloat(process.env.SDK_EMBEDDING_FIXED_FEE_USD, 0)
 }
 
 export function getStripeMeterMaxProjectsPerMonth(): number | null {

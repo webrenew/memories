@@ -12,6 +12,9 @@ const {
   mockForgetMemoryPayload,
   mockBulkForgetMemoriesPayload,
   mockVacuumMemoriesPayload,
+  mockRecordSdkEmbeddingMeterEvent,
+  mockEstimateEmbeddingInputTokens,
+  mockDeriveEmbeddingProviderFromModelId,
   mockResolveSdkEmbeddingModelSelection,
   mockExecute,
 } = vi.hoisted(() => ({
@@ -25,6 +28,9 @@ const {
   mockForgetMemoryPayload: vi.fn(),
   mockBulkForgetMemoriesPayload: vi.fn(),
   mockVacuumMemoriesPayload: vi.fn(),
+  mockRecordSdkEmbeddingMeterEvent: vi.fn(),
+  mockEstimateEmbeddingInputTokens: vi.fn(),
+  mockDeriveEmbeddingProviderFromModelId: vi.fn(),
   mockResolveSdkEmbeddingModelSelection: vi.fn(),
   mockExecute: vi.fn(),
 }))
@@ -81,6 +87,12 @@ vi.mock("@/lib/memory-service/queries", () => ({
 
 vi.mock("@/lib/sdk-embeddings/models", () => ({
   resolveSdkEmbeddingModelSelection: mockResolveSdkEmbeddingModelSelection,
+}))
+
+vi.mock("@/lib/sdk-embedding-billing", () => ({
+  recordSdkEmbeddingMeterEvent: mockRecordSdkEmbeddingMeterEvent,
+  estimateEmbeddingInputTokens: mockEstimateEmbeddingInputTokens,
+  deriveEmbeddingProviderFromModelId: mockDeriveEmbeddingProviderFromModelId,
 }))
 
 vi.mock("@libsql/client", () => ({
@@ -231,6 +243,10 @@ describe("/api/sdk/v1/memories/*", () => {
         },
       ],
     })
+
+    mockRecordSdkEmbeddingMeterEvent.mockResolvedValue(undefined)
+    mockEstimateEmbeddingInputTokens.mockReturnValue(5)
+    mockDeriveEmbeddingProviderFromModelId.mockReturnValue("openai")
   })
 
   it("add returns 201 envelope", async () => {
@@ -312,6 +328,11 @@ describe("/api/sdk/v1/memories/*", () => {
         args: expect.objectContaining({
           embeddingModel: "openai/text-embedding-3-large",
         }),
+      })
+    )
+    expect(mockRecordSdkEmbeddingMeterEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: "openai/text-embedding-3-large",
       })
     )
   })
@@ -440,6 +461,7 @@ describe("/api/sdk/v1/memories/*", () => {
         }),
       })
     )
+    expect(mockRecordSdkEmbeddingMeterEvent).not.toHaveBeenCalled()
   })
 
   it("forget returns deletion envelope", async () => {
