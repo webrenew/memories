@@ -1203,6 +1203,7 @@ export async function evaluateGraphRetrievalPolicy(
     nowIso,
     windowHours: params.windowHours,
     updatedBy: params.updatedBy,
+    allowAutopilot: params.allowAutopilot,
   })
   const currentPolicy = await getGraphRetrievalPolicy(turso, nowIso)
 
@@ -1218,7 +1219,6 @@ export async function evaluateGraphRetrievalPolicy(
   const shouldPersist =
     currentPolicy.readyWindowStreak !== nextReadyWindowStreak ||
     currentPolicy.lastDecision !== rolloutSnapshot.plan.defaultBehaviorDecision ||
-    currentPolicy.lastEvaluatedAt !== nowIso ||
     (allowAutopilot && desiredStrategy !== currentPolicy.defaultStrategy)
 
   const nextPolicy = shouldPersist
