@@ -83,7 +83,6 @@ export const initCommand = new Command("init")
       const setupScope = parseSetupScope(opts.scope);
       if (
         setupMode === "auto" &&
-        !minimalLocalMode &&
         !opts.yes &&
         !opts.skipAuth &&
         !opts.skipWorkspace &&
