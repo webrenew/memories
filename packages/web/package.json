@@ -61,6 +61,7 @@
     "fumadocs-ui": "^16.5.1",
     "gsap": "^3.14.2",
     "input-otp": "^1.4.2",
+    "js-tiktoken": "^1.0.21",
     "lucide-react": "^0.563.0",
     "nanoid": "^5.1.6",
     "next": "^16.1.6",

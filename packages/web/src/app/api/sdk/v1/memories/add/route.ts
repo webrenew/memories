@@ -2,8 +2,8 @@ import { addMemoryPayload } from "@/lib/memory-service/mutations"
 import { apiError, ensureMemoryUserIdSchema, parseTenantId, parseUserId, ToolExecutionError } from "@/lib/memory-service/tools"
 import { hasAiGatewayApiKey } from "@/lib/env"
 import {
+  countEmbeddingInputTokens,
   deriveEmbeddingProviderFromModelId,
-  estimateEmbeddingInputTokens,
   recordSdkEmbeddingMeterEvent,
 } from "@/lib/sdk-embedding-billing"
 import { resolveSdkEmbeddingModelSelection } from "@/lib/sdk-embeddings/models"
@@ -114,6 +114,12 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (embeddingSelection && parsedRequest.content.trim().length > 0) {
       const selectedModel =
         embeddingSelection.availableModels.find((model) => model.id === embeddingSelection.selectedModelId) ?? null
+      const provider = selectedModel?.provider ?? deriveEmbeddingProviderFromModelId(embeddingSelection.selectedModelId)
+      const tokenCount = countEmbeddingInputTokens({
+        content: parsedRequest.content,
+        modelId: embeddingSelection.selectedModelId,
+        provider,
+      })
 
       try {
         await recordSdkEmbeddingMeterEvent({
@@ -124,14 +130,20 @@ export async function POST(request: NextRequest): Promise<Response> {
           userId,
           requestId,
           modelId: embeddingSelection.selectedModelId,
-          provider: selectedModel?.provider ?? deriveEmbeddingProviderFromModelId(embeddingSelection.selectedModelId),
-          inputTokens: estimateEmbeddingInputTokens(parsedRequest.content),
+          provider,
+          inputTokens: tokenCount.inputTokens,
+          inputTokensCharEstimate: tokenCount.charEstimateTokens,
+          inputTokensDelta: tokenCount.inputTokensDelta,
+          tokenCountMethod: tokenCount.tokenCountMethod,
+          tokenCountFallbackReason: tokenCount.fallbackReason,
           modelInputCostUsdPerToken: selectedModel?.inputCostUsdPerToken ?? null,
-          estimatedCost: true,
+          estimatedCost: tokenCount.tokenCountMethod !== "provider_tokenizer",
           metadata: {
             endpoint: ENDPOINT,
             source: embeddingSelection.source,
             operation: "add",
+            tokenCountMethod: tokenCount.tokenCountMethod,
+            tokenCountFallbackReason: tokenCount.fallbackReason ?? undefined,
           },
         })
       } catch (meteringError) {

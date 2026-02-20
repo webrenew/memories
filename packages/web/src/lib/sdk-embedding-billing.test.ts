@@ -40,6 +40,7 @@ vi.mock("@/lib/env", () => ({
 }))
 
 import {
+  countEmbeddingInputTokens,
   computeCustomerEmbeddingCostUsd,
   estimateEmbeddingInputTokens,
   estimateGatewayCostUsd,
@@ -91,6 +92,22 @@ describe("sdk-embedding-billing", () => {
 
   it("estimates tokens and gateway cost", () => {
     expect(estimateEmbeddingInputTokens("hello world")).toBeGreaterThan(0)
+    const providerCount = countEmbeddingInputTokens({
+      content: "hello world",
+      modelId: "openai/text-embedding-3-small",
+      provider: "openai",
+    })
+    expect(providerCount.tokenCountMethod).toBe("provider_tokenizer")
+    expect(providerCount.inputTokens).toBeGreaterThan(0)
+
+    const fallbackCount = countEmbeddingInputTokens({
+      content: "hello world",
+      modelId: "cohere/embed-english-v3.0",
+      provider: "cohere",
+    })
+    expect(fallbackCount.tokenCountMethod).toBe("char_fallback")
+    expect(fallbackCount.fallbackReason).toBe("unsupported_provider_or_model")
+
     expect(
       estimateGatewayCostUsd({
         inputTokens: 500,
@@ -127,6 +144,10 @@ describe("sdk-embedding-billing", () => {
       modelId: "openai/text-embedding-3-small",
       provider: "openai",
       inputTokens: 500,
+      inputTokensCharEstimate: 520,
+      inputTokensDelta: -20,
+      tokenCountMethod: "provider_tokenizer",
+      tokenCountFallbackReason: null,
       modelInputCostUsdPerToken: 0.00000002,
       estimatedCost: true,
       metadata: {
@@ -168,6 +189,10 @@ describe("sdk-embedding-billing", () => {
         model_id: "openai/text-embedding-3-small",
         provider: "openai",
         input_tokens: 100,
+        input_tokens_char_estimate: 140,
+        input_tokens_delta: -40,
+        token_count_method: "provider_tokenizer",
+        token_count_fallback_reason: null,
         gateway_cost_usd: "0.00000200",
         market_cost_usd: "0.00000200",
         customer_cost_usd: "0.00000230",
@@ -181,6 +206,10 @@ describe("sdk-embedding-billing", () => {
         model_id: "openai/text-embedding-3-small",
         provider: "openai",
         input_tokens: 300,
+        input_tokens_char_estimate: 200,
+        input_tokens_delta: 100,
+        token_count_method: "char_fallback",
+        token_count_fallback_reason: "unsupported_provider_or_model",
         gateway_cost_usd: "0.00000600",
         market_cost_usd: "0.00000600",
         customer_cost_usd: "0.00000690",
@@ -223,6 +252,9 @@ describe("sdk-embedding-billing", () => {
 
     expect(usage.summary.requestCount).toBe(2)
     expect(usage.summary.estimatedRequestCount).toBe(1)
+    expect(usage.summary.tokenizerRequestCount).toBe(1)
+    expect(usage.summary.fallbackRequestCount).toBe(1)
+    expect(usage.summary.inputTokensDelta).toBe(140)
     expect(usage.summary.inputTokens).toBe(400)
     expect(usage.breakdown).toHaveLength(1)
     expect(usage.breakdown[0]).toEqual(
@@ -231,6 +263,9 @@ describe("sdk-embedding-billing", () => {
         projectId: "project-a",
         modelId: "openai/text-embedding-3-small",
         requestCount: 2,
+        tokenizerRequestCount: 1,
+        fallbackRequestCount: 1,
+        inputTokensDelta: 140,
       })
     )
   })

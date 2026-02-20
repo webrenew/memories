@@ -10,6 +10,8 @@ description: Product and documentation updates.
 - Updated tenant-routing and SDK endpoint contract docs to reference only `/api/sdk/v1/management/tenant-overrides`.
 - Enforced hashed-only CLI bearer token auth by removing plaintext `cli_token` runtime fallback in `authenticateRequest`.
 - Added migration `20260220053000_backfill_cli_token_hashes.sql` to backfill `cli_token_hash` from legacy `cli_token` and clear plaintext values.
+- Upgraded embedding billing token accounting to prefer provider/model tokenizer counts (OpenAI embeddings) before fallback heuristics.
+- Added embedding token discrepancy metrics (`token_count_method`, `input_tokens_char_estimate`, `input_tokens_delta`) via migration `20260220062000_add_embedding_token_accounting_columns.sql`.
 - Added hosted SDK embeddings docs at `/docs/sdk/embeddings` with write-path model selection, retrieval strategy controls, and migration guidance.
 - Added embeddings endpoint contract documentation for:
   - `GET /api/sdk/v1/embeddings/models`

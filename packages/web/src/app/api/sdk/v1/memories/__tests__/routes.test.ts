@@ -13,7 +13,7 @@ const {
   mockBulkForgetMemoriesPayload,
   mockVacuumMemoriesPayload,
   mockRecordSdkEmbeddingMeterEvent,
-  mockEstimateEmbeddingInputTokens,
+  mockCountEmbeddingInputTokens,
   mockDeriveEmbeddingProviderFromModelId,
   mockResolveSdkEmbeddingModelSelection,
   mockExecute,
@@ -29,7 +29,7 @@ const {
   mockBulkForgetMemoriesPayload: vi.fn(),
   mockVacuumMemoriesPayload: vi.fn(),
   mockRecordSdkEmbeddingMeterEvent: vi.fn(),
-  mockEstimateEmbeddingInputTokens: vi.fn(),
+  mockCountEmbeddingInputTokens: vi.fn(),
   mockDeriveEmbeddingProviderFromModelId: vi.fn(),
   mockResolveSdkEmbeddingModelSelection: vi.fn(),
   mockExecute: vi.fn(),
@@ -91,7 +91,7 @@ vi.mock("@/lib/sdk-embeddings/models", () => ({
 
 vi.mock("@/lib/sdk-embedding-billing", () => ({
   recordSdkEmbeddingMeterEvent: mockRecordSdkEmbeddingMeterEvent,
-  estimateEmbeddingInputTokens: mockEstimateEmbeddingInputTokens,
+  countEmbeddingInputTokens: mockCountEmbeddingInputTokens,
   deriveEmbeddingProviderFromModelId: mockDeriveEmbeddingProviderFromModelId,
 }))
 
@@ -245,7 +245,13 @@ describe("/api/sdk/v1/memories/*", () => {
     })
 
     mockRecordSdkEmbeddingMeterEvent.mockResolvedValue(undefined)
-    mockEstimateEmbeddingInputTokens.mockReturnValue(5)
+    mockCountEmbeddingInputTokens.mockReturnValue({
+      inputTokens: 5,
+      charEstimateTokens: 5,
+      tokenCountMethod: "provider_tokenizer",
+      fallbackReason: null,
+      inputTokensDelta: 0,
+    })
     mockDeriveEmbeddingProviderFromModelId.mockReturnValue("openai")
   })
 

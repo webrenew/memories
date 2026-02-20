@@ -3,6 +3,7 @@ import {
   getSdkEmbeddingMarkupPercent,
   getStripeGrowthEmbeddingMeterEventName,
 } from "@/lib/env"
+import { encodingForModel, getEncoding } from "js-tiktoken"
 import { getStripe } from "@/lib/stripe"
 import {
   buildSdkTenantOwnerScopeKey,
@@ -15,6 +16,22 @@ type AdminClient = ReturnType<typeof createAdminClient>
 const EMBEDDING_METER_MICROS_PER_USD = 1_000_000
 const REDACTED_EMBEDDING_METADATA_VALUE = "[redacted]"
 const METADATA_MAX_DEPTH = 4
+const OPENAI_TOKENIZER_FALLBACK_ENCODING = "cl100k_base"
+const OPENAI_EMBEDDING_MODEL_ENCODINGS: Record<string, string> = {
+  "text-embedding-3-small": "cl100k_base",
+  "text-embedding-3-large": "cl100k_base",
+  "text-embedding-ada-002": "cl100k_base",
+}
+
+type TokenCountMethod = "provider_tokenizer" | "char_fallback"
+
+export interface EmbeddingInputTokenCount {
+  inputTokens: number
+  charEstimateTokens: number
+  tokenCountMethod: TokenCountMethod
+  fallbackReason: string | null
+  inputTokensDelta: number
+}
 
 export interface RecordSdkEmbeddingMeterEventInput {
   ownerUserId: string
@@ -26,6 +43,10 @@ export interface RecordSdkEmbeddingMeterEventInput {
   modelId: string
   provider: string
   inputTokens: number
+  inputTokensCharEstimate?: number | null
+  inputTokensDelta?: number | null
+  tokenCountMethod?: TokenCountMethod
+  tokenCountFallbackReason?: string | null
   modelInputCostUsdPerToken?: number | null
   gatewayCostUsd?: number | null
   marketCostUsd?: number | null
@@ -43,6 +64,9 @@ export interface SdkEmbeddingUsageAggregate {
   provider: string
   requestCount: number
   estimatedRequestCount: number
+  tokenizerRequestCount: number
+  fallbackRequestCount: number
+  inputTokensDelta: number
   inputTokens: number
   gatewayCostUsd: number
   marketCostUsd: number
@@ -53,6 +77,9 @@ export interface SdkEmbeddingUsageSummary {
   usageMonth: string
   requestCount: number
   estimatedRequestCount: number
+  tokenizerRequestCount: number
+  fallbackRequestCount: number
+  inputTokensDelta: number
   inputTokens: number
   gatewayCostUsd: number
   marketCostUsd: number
@@ -84,6 +111,10 @@ interface EmbeddingMeteringRow {
   model_id: string
   provider: string
   input_tokens: number
+  input_tokens_char_estimate: number | null
+  input_tokens_delta: number | null
+  token_count_method: string | null
+  token_count_fallback_reason: string | null
   gateway_cost_usd: number | string | null
   market_cost_usd: number | string | null
   customer_cost_usd: number | string | null
@@ -228,12 +259,112 @@ export function deriveEmbeddingProviderFromModelId(modelId: string): string {
   return provider?.trim() || "unknown"
 }
 
-export function estimateEmbeddingInputTokens(content: string): number {
+function normalizeOpenAiModelName(modelId: string): string {
+  const trimmed = modelId.trim()
+  if (!trimmed) return ""
+  const [, name] = trimmed.split("/")
+  return (name ?? trimmed).trim().toLowerCase()
+}
+
+function estimateEmbeddingInputTokensByCharacters(content: string): number {
   const normalized = content.trim()
   if (!normalized) return 0
-
-  // Fast fallback for billing estimation until provider tokenizers are integrated.
   return Math.max(1, Math.ceil(normalized.length / 4))
+}
+
+function getCachedEncoding(encodingName: string) {
+  return getEncoding(encodingName as Parameters<typeof getEncoding>[0])
+}
+
+function countOpenAiTokens(content: string, modelId: string): number | null {
+  const modelName = normalizeOpenAiModelName(modelId)
+  if (!modelName) {
+    return null
+  }
+
+  try {
+    const encoder = encodingForModel(modelName as Parameters<typeof encodingForModel>[0])
+    const tokenCount = encoder.encode(content).length
+    if (Number.isFinite(tokenCount) && tokenCount >= 0) {
+      return tokenCount
+    }
+  } catch {
+    // Fall through to known embedding encodings.
+  }
+
+  const knownEncoding =
+    OPENAI_EMBEDDING_MODEL_ENCODINGS[modelName] ??
+    (modelName.includes("embedding") ? OPENAI_TOKENIZER_FALLBACK_ENCODING : null)
+  if (!knownEncoding) {
+    return null
+  }
+
+  try {
+    const encoder = getCachedEncoding(knownEncoding)
+    const tokenCount = encoder.encode(content).length
+    if (Number.isFinite(tokenCount) && tokenCount >= 0) {
+      return tokenCount
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+export function countEmbeddingInputTokens(input: {
+  content: string
+  modelId: string
+  provider?: string | null
+}): EmbeddingInputTokenCount {
+  const normalized = input.content.trim()
+  if (!normalized) {
+    return {
+      inputTokens: 0,
+      charEstimateTokens: 0,
+      tokenCountMethod: "char_fallback",
+      fallbackReason: "empty_content",
+      inputTokensDelta: 0,
+    }
+  }
+
+  const charEstimateTokens = estimateEmbeddingInputTokensByCharacters(normalized)
+  const provider =
+    (input.provider?.trim().toLowerCase() || deriveEmbeddingProviderFromModelId(input.modelId).toLowerCase())
+
+  if (provider === "openai") {
+    const providerTokenCount = countOpenAiTokens(normalized, input.modelId)
+    if (providerTokenCount !== null) {
+      const inputTokens = Math.max(1, providerTokenCount)
+      return {
+        inputTokens,
+        charEstimateTokens,
+        tokenCountMethod: "provider_tokenizer",
+        fallbackReason: null,
+        inputTokensDelta: inputTokens - charEstimateTokens,
+      }
+    }
+
+    return {
+      inputTokens: charEstimateTokens,
+      charEstimateTokens,
+      tokenCountMethod: "char_fallback",
+      fallbackReason: "openai_tokenizer_unavailable",
+      inputTokensDelta: 0,
+    }
+  }
+
+  return {
+    inputTokens: charEstimateTokens,
+    charEstimateTokens,
+    tokenCountMethod: "char_fallback",
+    fallbackReason: "unsupported_provider_or_model",
+    inputTokensDelta: 0,
+  }
+}
+
+export function estimateEmbeddingInputTokens(content: string): number {
+  return estimateEmbeddingInputTokensByCharacters(content)
 }
 
 export function estimateGatewayCostUsd(input: {
@@ -325,6 +456,16 @@ export async function recordSdkEmbeddingMeterEvent(input: RecordSdkEmbeddingMete
 
   const usageMonth = normalizeUsageMonth(input.usageMonth)
   const eventName = getStripeGrowthEmbeddingMeterEventName()
+  const tokenCountMethod = input.tokenCountMethod ?? "char_fallback"
+  const inputTokens = Math.max(0, Math.floor(input.inputTokens))
+  const inputTokensCharEstimate =
+    typeof input.inputTokensCharEstimate === "number" && Number.isFinite(input.inputTokensCharEstimate)
+      ? Math.max(0, Math.floor(input.inputTokensCharEstimate))
+      : inputTokens
+  const inputTokensDelta =
+    typeof input.inputTokensDelta === "number" && Number.isFinite(input.inputTokensDelta)
+      ? Math.trunc(input.inputTokensDelta)
+      : inputTokens - inputTokensCharEstimate
 
   let gatewayCostUsd =
     typeof input.gatewayCostUsd === "number" && Number.isFinite(input.gatewayCostUsd)
@@ -335,7 +476,7 @@ export async function recordSdkEmbeddingMeterEvent(input: RecordSdkEmbeddingMete
 
   if (gatewayCostUsd === null) {
     gatewayCostUsd = estimateGatewayCostUsd({
-      inputTokens: Math.max(0, Math.floor(input.inputTokens)),
+      inputTokens,
       modelInputCostUsdPerToken: input.modelInputCostUsdPerToken,
     })
     estimatedCost = true
@@ -378,7 +519,11 @@ export async function recordSdkEmbeddingMeterEvent(input: RecordSdkEmbeddingMete
       event_value: eventValueMicros,
       model_id: input.modelId,
       provider: input.provider,
-      input_tokens: Math.max(0, Math.floor(input.inputTokens)),
+      input_tokens: inputTokens,
+      input_tokens_char_estimate: inputTokensCharEstimate,
+      input_tokens_delta: inputTokensDelta,
+      token_count_method: tokenCountMethod,
+      token_count_fallback_reason: input.tokenCountFallbackReason ?? null,
       gateway_cost_usd: gatewayCostUsd,
       market_cost_usd: marketCostUsd,
       customer_cost_usd: customerCostUsd,
@@ -444,6 +589,9 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
 
   let summaryRequestCount = 0
   let summaryEstimatedRequestCount = 0
+  let summaryTokenizerRequestCount = 0
+  let summaryFallbackRequestCount = 0
+  let summaryInputTokensDelta = 0
   let summaryInputTokens = 0
   let summaryGatewayCostUsd = 0
   let summaryMarketCostUsd = 0
@@ -451,13 +599,18 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
 
   const pageSize = 1_000
   let offset = 0
+  let includeTokenAccountingColumns = true
 
   while (true) {
+    const baseSelect =
+      "usage_month, tenant_id, project_id, user_id, model_id, provider, input_tokens, gateway_cost_usd, market_cost_usd, customer_cost_usd, estimated_cost, created_at"
+    const selectClause = includeTokenAccountingColumns
+      ? `${baseSelect}, input_tokens_char_estimate, input_tokens_delta, token_count_method, token_count_fallback_reason`
+      : baseSelect
+
     let pageQuery = admin
       .from("sdk_embedding_meter_events")
-      .select(
-        "usage_month, tenant_id, project_id, user_id, model_id, provider, input_tokens, gateway_cost_usd, market_cost_usd, customer_cost_usd, estimated_cost, created_at"
-      )
+      .select(selectClause)
       .eq("owner_scope_key", ownerScope.ownerScopeKey)
       .eq("usage_month", usageMonth)
       .order("created_at", { ascending: false })
@@ -480,6 +633,16 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
 
     if (error) {
       if (
+        includeTokenAccountingColumns &&
+        (isMissingColumnError(error, "token_count_method") ||
+          isMissingColumnError(error, "input_tokens_char_estimate") ||
+          isMissingColumnError(error, "input_tokens_delta"))
+      ) {
+        includeTokenAccountingColumns = false
+        continue
+      }
+
+      if (
         isMissingRelationError(error, "sdk_embedding_meter_events") ||
         isMissingColumnError(error, "owner_scope_key")
       ) {
@@ -489,6 +652,9 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
             usageMonth,
             requestCount: 0,
             estimatedRequestCount: 0,
+            tokenizerRequestCount: 0,
+            fallbackRequestCount: 0,
+            inputTokensDelta: 0,
             inputTokens: 0,
             gatewayCostUsd: 0,
             marketCostUsd: 0,
@@ -501,7 +667,7 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
       throw error
     }
 
-    const rows = (data ?? []) as EmbeddingMeteringRow[]
+    const rows = (data ?? []) as unknown as EmbeddingMeteringRow[]
     if (rows.length === 0) break
 
     for (const row of rows) {
@@ -514,6 +680,10 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
 
       const requestCount = 1
       const estimatedRequestCount = row.estimated_cost ? 1 : 0
+      const tokenCountMethod = row.token_count_method === "provider_tokenizer" ? "provider_tokenizer" : "char_fallback"
+      const tokenizerRequestCount = tokenCountMethod === "provider_tokenizer" ? 1 : 0
+      const fallbackRequestCount = tokenCountMethod === "char_fallback" ? 1 : 0
+      const inputTokensDelta = Math.abs(Math.trunc(toNumber(row.input_tokens_delta)))
       const inputTokens = Math.max(0, Number(row.input_tokens ?? 0))
       const gatewayCostUsd = Math.max(0, toNumber(row.gateway_cost_usd))
       const marketCostUsd = Math.max(0, toNumber(row.market_cost_usd))
@@ -521,6 +691,9 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
 
       summaryRequestCount += requestCount
       summaryEstimatedRequestCount += estimatedRequestCount
+      summaryTokenizerRequestCount += tokenizerRequestCount
+      summaryFallbackRequestCount += fallbackRequestCount
+      summaryInputTokensDelta += inputTokensDelta
       summaryInputTokens += inputTokens
       summaryGatewayCostUsd += gatewayCostUsd
       summaryMarketCostUsd += marketCostUsd
@@ -534,6 +707,9 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
       if (existing) {
         existing.requestCount += requestCount
         existing.estimatedRequestCount += estimatedRequestCount
+        existing.tokenizerRequestCount += tokenizerRequestCount
+        existing.fallbackRequestCount += fallbackRequestCount
+        existing.inputTokensDelta += inputTokensDelta
         existing.inputTokens += inputTokens
         existing.gatewayCostUsd = roundUsd(existing.gatewayCostUsd + gatewayCostUsd)
         existing.marketCostUsd = roundUsd(existing.marketCostUsd + marketCostUsd)
@@ -549,6 +725,9 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
         provider: row.provider,
         requestCount,
         estimatedRequestCount,
+        tokenizerRequestCount,
+        fallbackRequestCount,
+        inputTokensDelta,
         inputTokens,
         gatewayCostUsd: roundUsd(gatewayCostUsd),
         marketCostUsd: roundUsd(marketCostUsd),
@@ -582,6 +761,9 @@ export async function listSdkEmbeddingUsage(input: ListSdkEmbeddingUsageInput): 
       usageMonth,
       requestCount: summaryRequestCount,
       estimatedRequestCount: summaryEstimatedRequestCount,
+      tokenizerRequestCount: summaryTokenizerRequestCount,
+      fallbackRequestCount: summaryFallbackRequestCount,
+      inputTokensDelta: summaryInputTokensDelta,
       inputTokens: summaryInputTokens,
       gatewayCostUsd: roundUsd(summaryGatewayCostUsd),
       marketCostUsd: roundUsd(summaryMarketCostUsd),
