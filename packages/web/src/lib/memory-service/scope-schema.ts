@@ -85,9 +85,24 @@ async function ensureGraphSchema(turso: TursoClient): Promise<void> {
       graph_expanded_count INTEGER NOT NULL DEFAULT 0,
       total_candidates INTEGER NOT NULL DEFAULT 0,
       fallback_triggered INTEGER NOT NULL DEFAULT 0,
-      fallback_reason TEXT
+      fallback_reason TEXT,
+      duration_ms INTEGER NOT NULL DEFAULT 0
     )`
   )
+
+  const rolloutMetricColumns = await turso.execute("PRAGMA table_info(graph_rollout_metrics)")
+  const rolloutColumnRows = Array.isArray(rolloutMetricColumns.rows) ? rolloutMetricColumns.rows : []
+  const hasDurationColumn = rolloutColumnRows.some((row) => String((row as { name?: unknown }).name ?? "") === "duration_ms")
+  if (!hasDurationColumn) {
+    try {
+      await turso.execute("ALTER TABLE graph_rollout_metrics ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0")
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : ""
+      if (!message.includes("duplicate column name")) {
+        throw error
+      }
+    }
+  }
 
   await turso.execute(
     "CREATE INDEX IF NOT EXISTS idx_graph_rollout_metrics_created_at ON graph_rollout_metrics(created_at)"

@@ -1,0 +1,94 @@
+---
+title: Embedding Operations Runbook
+description: Operate and triage hosted embedding generation and retrieval regressions.
+---
+
+This runbook covers queue health, worker failures, retrieval latency/fallback regressions, and rollback procedures for hosted embeddings.
+
+## Quick Health Checks
+
+Fetch the observability snapshot:
+
+```bash
+curl -s -H "Authorization: Bearer $MEMORIES_API_KEY" \
+  "https://memories.sh/api/sdk/v1/management/embeddings/observability?windowHours=24" | jq
+```
+
+Check backfill status for a scoped model:
+
+```bash
+curl -s -H "Authorization: Bearer $MEMORIES_API_KEY" \
+  "https://memories.sh/api/sdk/v1/management/embeddings/backfill?modelId=openai/text-embedding-3-small" | jq
+```
+
+Review monthly usage/cost summary:
+
+```bash
+curl -s -H "Authorization: Bearer $MEMORIES_API_KEY" \
+  "https://memories.sh/api/sdk/v1/management/embeddings/usage?usageMonth=2026-02-01" | jq
+```
+
+## Alert Thresholds
+
+Current SLO thresholds emitted in observability payload:
+
+- Queue lag warning `>= 120000ms` (2m), critical `>= 600000ms` (10m)
+- Dead-letter rate warning `>= 2%`, critical `>= 5%` (after at least 20 attempts)
+- Retrieval fallback rate warning `>= 5%`, critical `>= 15%` (after at least 20 requests)
+- Retrieval p95 latency warning `>= 1200ms`, critical `>= 2500ms` (after at least 10 samples)
+- Backfill error runs warning `>= 1`, critical `>= 5` in window
+
+## Triage Flow
+
+1. Check `health` and `alarms` in `/management/embeddings/observability`.
+2. If queue alarms fire, inspect `queueLagMs`, `staleProcessingCount`, and `deadLetterCount`.
+3. If worker alarms fire, inspect `worker.topErrorCodes` and dead-letter ratio.
+4. If retrieval alarms fire, inspect fallback reason trends and graph rollout mode.
+5. Confirm cost impact by comparing `cost.customerCostUsd` with usage trends.
+
+## Rollback + Feature Flags
+
+### 1) Retrieval rollback (high fallback/latency)
+
+Move graph rollout to `shadow` immediately:
+
+```bash
+curl -s -X PATCH \
+  -H "Authorization: Bearer $MEMORIES_API_KEY" \
+  -H "Content-Type: application/json" \
+  "https://memories.sh/api/sdk/v1/graph/rollout" \
+  -d '{"mode":"shadow"}' | jq
+```
+
+If incident persists, move to `off` and serve baseline retrieval only.
+
+### 2) Embedding model rollback (provider/model regressions)
+
+Pin the workspace/project to the last known good model via embedding config endpoint/UI.
+
+- Verify default model and allowlist from `/api/sdk/v1/embeddings/models`
+- Remove failing model from allowlist for affected tenant/project
+- Resume backfill only after queue lag and dead-letter rates normalize
+
+### 3) Worker pressure rollback (queue saturation)
+
+- Pause backfill for affected scope:
+
+```bash
+curl -s -X POST \
+  -H "Authorization: Bearer $MEMORIES_API_KEY" \
+  -H "Content-Type: application/json" \
+  "https://memories.sh/api/sdk/v1/management/embeddings/backfill" \
+  -d '{"action":"pause","modelId":"openai/text-embedding-3-small"}' | jq
+```
+
+- Let realtime write-path jobs drain
+- Resume with smaller `batchLimit` and higher `throttleMs`
+
+## Incident Checklist
+
+1. Capture observability payload and active alarms.
+2. Capture backfill state (`status`, `estimatedRemaining`, `lastError`).
+3. Record top worker error codes and fallback reason distribution.
+4. Apply rollback (rollout mode/model pin/backfill pause) based on dominant alarm.
+5. Confirm alarms clear for at least one full window before restoring canary settings.
