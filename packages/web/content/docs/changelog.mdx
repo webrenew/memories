@@ -8,6 +8,8 @@ description: Product and documentation updates.
 - Removed legacy tenant management routes `/api/mcp/tenants` and `/api/sdk/v1/management/tenants`.
 - Removed legacy tenant compatibility wrapper code and telemetry write-paths now that traffic is zero.
 - Updated tenant-routing and SDK endpoint contract docs to reference only `/api/sdk/v1/management/tenant-overrides`.
+- Enforced hashed-only CLI bearer token auth by removing plaintext `cli_token` runtime fallback in `authenticateRequest`.
+- Added migration `20260220053000_backfill_cli_token_hashes.sql` to backfill `cli_token_hash` from legacy `cli_token` and clear plaintext values.
 - Added hosted SDK embeddings docs at `/docs/sdk/embeddings` with write-path model selection, retrieval strategy controls, and migration guidance.
 - Added embeddings endpoint contract documentation for:
   - `GET /api/sdk/v1/embeddings/models`
