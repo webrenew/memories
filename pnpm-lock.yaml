@@ -7,7 +7,7 @@ settings:
 overrides:
   '@modelcontextprotocol/sdk>ajv': 8.18.0
   '@modelcontextprotocol/sdk>hono': 4.12.0
-  '@modelcontextprotocol/sdk>qs': 6.15.0
+  qs: 6.15.0
 
 importers:
 
