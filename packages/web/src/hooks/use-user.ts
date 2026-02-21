@@ -72,6 +72,8 @@ export function useUser(): { user: User | null; loading: boolean } {
         authSubscription.unsubscribe()
         authSubscription = null
         authInitialized = false
+        hasResolvedUser = false
+        cachedUser = null
       }
     }
   }, [])
