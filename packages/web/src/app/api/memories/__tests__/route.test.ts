@@ -53,7 +53,7 @@ describe("/api/memories", () => {
   describe("auth checks", () => {
     it("GET should return 401 when unauthenticated", async () => {
       mockGetUser.mockResolvedValue({ data: { user: null } })
-      const response = await GET()
+      const response = await GET(makeRequest("GET"))
       expect(response.status).toBe(401)
     })
 
@@ -84,7 +84,7 @@ describe("/api/memories", () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
       mockSelect.mockReturnValue({ data: null })
 
-      const response = await GET()
+      const response = await GET(makeRequest("GET"))
       expect(response.status).toBe(400)
     })
 
@@ -97,7 +97,7 @@ describe("/api/memories", () => {
         rows: [{ id: "m1", content: "test memory", type: "rule" }],
       })
 
-      const response = await GET()
+      const response = await GET(makeRequest("GET"))
       expect(response.status).toBe(200)
 
       const body = await response.json()

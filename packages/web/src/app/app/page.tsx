@@ -11,6 +11,8 @@ import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { ensureMemoryUserIdSchema } from "@/lib/memory-service/scope"
 import { buildMemoryInsights, type MemoryInsights } from "@/lib/memory-insights"
 
+const INITIAL_MEMORIES_LIMIT = 50
+
 function isMissingDeletedAtColumnError(error: unknown): boolean {
   const message = error instanceof Error ? error.message.toLowerCase() : ""
   return message.includes("no such column") && message.includes("deleted_at")
@@ -19,7 +21,11 @@ function isMissingDeletedAtColumnError(error: unknown): boolean {
 async function listMemories(turso: ReturnType<typeof createTurso>) {
   try {
     return await turso.execute(
-      "SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200"
+      `SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at
+       FROM memories
+       WHERE deleted_at IS NULL
+       ORDER BY created_at DESC, id DESC
+       LIMIT ${INITIAL_MEMORIES_LIMIT + 1}`
     )
   } catch (error) {
     if (!isMissingDeletedAtColumnError(error)) {
@@ -27,7 +33,10 @@ async function listMemories(turso: ReturnType<typeof createTurso>) {
     }
 
     return turso.execute(
-      "SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at FROM memories ORDER BY created_at DESC LIMIT 200"
+      `SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at
+       FROM memories
+       ORDER BY created_at DESC, id DESC
+       LIMIT ${INITIAL_MEMORIES_LIMIT + 1}`
     )
   }
 }
@@ -46,6 +55,7 @@ export default async function MemoriesPage(): Promise<React.JSX.Element | null> 
   }
 
   let memories: Memory[] = []
+  let hasMore = false
   let memoryInsights: MemoryInsights | null = null
   let connectError = false
 
@@ -62,7 +72,10 @@ export default async function MemoriesPage(): Promise<React.JSX.Element | null> 
 
     const memoriesResult = await listMemories(turso)
 
-    memories = memoriesResult.rows.map(row => ({
+    hasMore = memoriesResult.rows.length > INITIAL_MEMORIES_LIMIT
+    const visibleRows = memoriesResult.rows.slice(0, INITIAL_MEMORIES_LIMIT)
+
+    memories = visibleRows.map(row => ({
       id: row.id as string,
       content: row.content as string,
       tags: row.tags as string | null,
@@ -100,7 +113,11 @@ export default async function MemoriesPage(): Promise<React.JSX.Element | null> 
           </p>
         </div>
       ) : (
-        <MemoriesSection key={workspaceKey} initialMemories={memories} />
+        <MemoriesSection
+          key={workspaceKey}
+          initialMemories={memories}
+          initialHasMore={hasMore}
+        />
       )}
     </div>
   )

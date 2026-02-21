@@ -9,6 +9,7 @@ import type { ApplyMemoryInsightActionResult } from "@/lib/memory-insight-action
 
 type TypeFilter = "all" | "rule" | "decision" | "fact" | "note" | "skill"
 type ScopeFilter = "all" | "global" | string
+const LOAD_MORE_PAGE_SIZE = 50
 
 const TYPE_OPTIONS: { value: TypeFilter; label: string; color: string }[] = [
   { value: "all", label: "All Types", color: "" },
@@ -27,8 +28,32 @@ function getShortProjectName(scope: string): string {
   return scope.replace(/^github\.com\//, "").split("/").pop() || scope
 }
 
-export function MemoriesSection({ initialMemories }: { initialMemories: Memory[] }): React.JSX.Element {
+function normalizeMemory(memory: Partial<Memory> & { id: string; content: string; created_at: string }): Memory {
+  return {
+    id: memory.id,
+    content: memory.content,
+    tags: memory.tags ?? null,
+    type: (memory.type as Memory["type"]) ?? "note",
+    scope: (memory.scope as Memory["scope"]) ?? "global",
+    project_id: memory.project_id ?? null,
+    paths: memory.paths ?? null,
+    category: memory.category ?? null,
+    metadata: memory.metadata ?? null,
+    created_at: memory.created_at,
+    updated_at: memory.updated_at ?? memory.created_at,
+  }
+}
+
+export function MemoriesSection({
+  initialMemories,
+  initialHasMore,
+}: {
+  initialMemories: Memory[]
+  initialHasMore: boolean
+}): React.JSX.Element {
   const [memories, setMemories] = useState(initialMemories)
+  const [hasMore, setHasMore] = useState(initialHasMore)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all")
   const [searchQuery, setSearchQuery] = useState("")
@@ -74,6 +99,62 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
     setMemories((prev) =>
       prev.map((memory) => (memory.id === id ? { ...memory, content } : memory))
     )
+  }
+
+  const handleLoadMore = async () => {
+    if (!hasMore || isLoadingMore || memories.length === 0) {
+      return
+    }
+
+    const cursor = memories[memories.length - 1]
+    if (!cursor) return
+
+    setIsLoadingMore(true)
+    try {
+      const params = new URLSearchParams({
+        limit: String(LOAD_MORE_PAGE_SIZE),
+        beforeCreatedAt: cursor.created_at,
+        beforeId: cursor.id,
+      })
+      const response = await fetch(`/api/memories?${params.toString()}`, {
+        method: "GET",
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to load memories (HTTP ${response.status})`)
+      }
+
+      const payload = await response.json().catch(() => ({} as Record<string, unknown>))
+      const incoming = Array.isArray(payload.memories)
+        ? payload.memories
+            .filter((item: unknown): item is Partial<Memory> & { id: string; content: string; created_at: string } =>
+              typeof item === "object" &&
+              item !== null &&
+              "id" in item &&
+              "content" in item &&
+              "created_at" in item &&
+              typeof item.id === "string" &&
+              typeof item.content === "string" &&
+              typeof item.created_at === "string"
+            )
+            .map((item: Partial<Memory> & { id: string; content: string; created_at: string }) => normalizeMemory(item))
+        : []
+
+      setMemories((previous) => {
+        const knownIds = new Set(previous.map((memory) => memory.id))
+        const merged = [...previous]
+        for (const memory of incoming) {
+          if (knownIds.has(memory.id)) continue
+          knownIds.add(memory.id)
+          merged.push(memory)
+        }
+        return merged
+      })
+      setHasMore(Boolean(payload.hasMore) && incoming.length > 0)
+    } catch (error) {
+      console.error("Failed to load more memories:", error)
+    } finally {
+      setIsLoadingMore(false)
+    }
   }
 
   // Get unique types with counts
@@ -320,6 +401,19 @@ export function MemoriesSection({ initialMemories }: { initialMemories: Memory[]
             onUpdateMemory={handleUpdateMemory}
             onFilterByProject={(scope) => setScopeFilter(scope)}
           />
+        )}
+
+        {hasMore && (
+          <div className="flex justify-center pt-2">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="px-4 py-2 text-[11px] uppercase tracking-[0.15em] font-bold border border-border bg-muted/30 hover:bg-muted/50 text-foreground disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoadingMore ? "Loading..." : "Load Older Memories"}
+            </button>
+          </div>
         )}
       </div>
     </div>
