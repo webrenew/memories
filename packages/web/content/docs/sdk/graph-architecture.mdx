@@ -18,9 +18,11 @@ Examples:
 
 Graph storage is maintained in the workspace Turso database:
 
-- `graph_nodes`: canonical entities (`repo`, `topic`, `category`, `memory_type`, etc.)
+- `graph_nodes`: canonical entities (`memory`, `repo`, `topic`, `category`, `memory_type`, etc.)
 - `graph_edges`: typed, weighted directional relationships between nodes
 - `memory_node_links`: mapping between each memory and its extracted nodes
+
+Every memory is also represented as a first-class `memory` node (`node_key = memory_id`) and linked back with role `self`. This enables direct memory-to-memory edges in later graph phases without schema changes.
 
 Primary code paths:
 
@@ -31,8 +33,8 @@ Primary code paths:
 ## Write Path
 
 1. A memory write/update enters memory mutation handlers.
-2. Graph extraction produces node and edge candidates from memory content and metadata.
-3. `upsert.ts` ensures schema, upserts nodes, writes memory-node links, writes evidence-backed edges, and prunes stale links for edited/forgotten memories.
+2. Graph extraction produces node and edge candidates from memory content and metadata, including the memory's own `memory` node.
+3. `upsert.ts` ensures schema, upserts nodes, writes memory-node links (`self`, `type`, `tag`, etc.), writes evidence-backed edges, and prunes stale links for edited/forgotten memories.
 4. Cleanup removes orphan graph nodes with no links or edges.
 
 Behavior is best-effort: memory writes stay available even if graph indexing fails.

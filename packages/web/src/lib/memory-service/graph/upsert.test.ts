@@ -27,6 +27,7 @@ describe("syncMemoryGraphMapping", () => {
   it("is idempotent for repeated sync of the same memory", async () => {
     const input = {
       id: "mem-graph-1",
+      content: "Graph mapping should stay deterministic across repeated sync operations.",
       type: "decision",
       layer: "long_term" as const,
       expiresAt: null,
@@ -61,6 +62,7 @@ describe("syncMemoryGraphMapping", () => {
   it("replaces stale edges/links on edit and removes mappings on forget", async () => {
     await syncMemoryGraphMapping(db, {
       id: "mem-graph-2",
+      content: "Track billing and limits incidents.",
       type: "fact",
       layer: "working",
       expiresAt: new Date(Date.now() + 120_000).toISOString(),
@@ -82,6 +84,7 @@ describe("syncMemoryGraphMapping", () => {
 
     await syncMemoryGraphMapping(db, {
       id: "mem-graph-2",
+      content: "Track migration work after billing incidents.",
       type: "fact",
       layer: "long_term",
       expiresAt: null,
@@ -110,6 +113,13 @@ describe("syncMemoryGraphMapping", () => {
     expect(staleBillingLinkCount).toBe(0)
     expect(migrationsLinkCount).toBe(1)
 
+    const memoryNodeCountBeforeForget = await scalarCount(
+      db,
+      "SELECT COUNT(*) as count FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      ["mem-graph-2"]
+    )
+    expect(memoryNodeCountBeforeForget).toBe(1)
+
     await removeMemoryGraphMapping(db, "mem-graph-2")
 
     const remainingLinks = await scalarCount(
@@ -122,9 +132,15 @@ describe("syncMemoryGraphMapping", () => {
       "SELECT COUNT(*) as count FROM graph_edges WHERE evidence_memory_id = ?",
       ["mem-graph-2"]
     )
+    const memoryNodeCountAfterForget = await scalarCount(
+      db,
+      "SELECT COUNT(*) as count FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      ["mem-graph-2"]
+    )
 
     expect(remainingLinks).toBe(0)
     expect(remainingEdges).toBe(0)
+    expect(memoryNodeCountAfterForget).toBe(0)
   })
 
   it("updates edge expiry when a memory transitions from working to long_term", async () => {

@@ -143,6 +143,7 @@ export async function addMemoryPayload(params: {
     try {
       await syncMemoryGraphMapping(turso, {
         id: memoryId,
+        content,
         type,
         layer,
         expiresAt,
@@ -306,7 +307,7 @@ export async function editMemoryPayload(params: {
   if (GRAPH_MAPPING_ENABLED) {
     try {
       const memoryResult = await turso.execute({
-        sql: `SELECT id, type, memory_layer, expires_at, project_id, user_id, tags, category
+        sql: `SELECT id, content, type, memory_layer, expires_at, project_id, user_id, tags, category
               FROM memories
               WHERE id = ? AND deleted_at IS NULL
               LIMIT 1`,
@@ -316,6 +317,7 @@ export async function editMemoryPayload(params: {
       const row = memoryResult.rows[0] as unknown as
         | {
             id: string
+            content: string
             type: string
             memory_layer: string | null
             expires_at: string | null
@@ -342,6 +344,7 @@ export async function editMemoryPayload(params: {
 
         await syncMemoryGraphMapping(turso, {
           id: row.id,
+          content: row.content,
           type: row.type,
           layer,
           expiresAt: row.expires_at,
@@ -633,6 +636,22 @@ export async function vacuumMemoriesPayload(params: {
   }
 
   const whereSQL = whereClauses.join(" AND ")
+  let candidateIds: string[] = []
+
+  if (GRAPH_MAPPING_ENABLED) {
+    try {
+      const result = await turso.execute({
+        sql: `SELECT id FROM memories WHERE ${whereSQL}`,
+        args: whereArgs,
+      })
+
+      candidateIds = result.rows
+        .map((row) => row.id as string | null)
+        .filter((id): id is string => Boolean(id))
+    } catch (err) {
+      console.error("Graph mapping pre-vacuum lookup failed:", err)
+    }
+  }
 
   const [, changesResult] = await turso.batch([
     { sql: `DELETE FROM memories WHERE ${whereSQL}`, args: whereArgs },
@@ -640,6 +659,14 @@ export async function vacuumMemoriesPayload(params: {
   ])
 
   const purged = Number((changesResult.rows[0] as unknown as { cnt: number }).cnt) || 0
+
+  if (GRAPH_MAPPING_ENABLED && candidateIds.length > 0) {
+    try {
+      await bulkRemoveMemoryGraphMappings(turso, candidateIds)
+    } catch (err) {
+      console.error("Graph mapping cleanup failed on vacuum_memories:", err)
+    }
+  }
 
   const message = purged > 0
     ? `Vacuumed ${purged} soft-deleted memories`

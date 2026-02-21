@@ -8,6 +8,10 @@ description: Product and documentation updates.
 - Added cron reminder support in CLI via `memories reminders` (`add`, `list`, `run`, `enable`, `disable`, `delete`).
 - Added local CLI MCP reminder tools: `add_reminder`, `list_reminders`, `run_due_reminders`, `enable_reminder`, `disable_reminder`, `delete_reminder`.
 - Published reminder docs in CLI reference and MCP references, including local-only reminder tooling guidance.
+- Added first-class `memory` graph nodes (`node_type = memory`, `node_key = memory_id`) with `self` links so each memory is directly addressable in graph traversal.
+- Updated graph mapping cleanup to remove edges attached to deleted memory nodes, not only edges where the memory is listed as evidence.
+- Extended `vacuum_memories` cleanup to prune graph mappings for purged soft-deleted memories.
+- Updated memory graph architecture docs to document memory nodes and self-link behavior.
 
 ## February 20, 2026
 

@@ -3,6 +3,7 @@ import { extractDeterministicGraph, type GraphMemorySnapshot, type GraphNodeRef 
 
 interface GraphMemoryInput {
   id: string
+  content?: string | null
   type: string
   layer: MemoryLayer
   expiresAt: string | null
@@ -23,6 +24,7 @@ function edgeId(memoryId: string, edgeType: string, fromNodeId: string, toNodeId
 function toSnapshot(input: GraphMemoryInput): GraphMemorySnapshot {
   return {
     id: input.id,
+    content: input.content,
     type: input.type,
     layer: input.layer,
     expiresAt: input.expiresAt,
@@ -97,7 +99,46 @@ async function pruneOrphanGraphNodes(turso: TursoClient): Promise<void> {
   )
 }
 
+function placeholders(count: number): string {
+  return Array.from({ length: count }, () => "?").join(", ")
+}
+
+async function resolveMemoryNodeIds(turso: TursoClient, memoryIds: string[]): Promise<string[]> {
+  if (memoryIds.length === 0) return []
+
+  const ids = Array.from(new Set(memoryIds.filter(Boolean)))
+  if (ids.length === 0) return []
+
+  const result = await turso.execute({
+    sql: `SELECT id
+          FROM graph_nodes
+          WHERE node_type = 'memory'
+            AND node_key IN (${placeholders(ids.length)})`,
+    args: ids,
+  })
+
+  return result.rows
+    .map((row) => row.id as string | null)
+    .filter((id): id is string => Boolean(id))
+}
+
+async function removeEdgesForNodeIds(turso: TursoClient, nodeIds: string[]): Promise<void> {
+  if (nodeIds.length === 0) return
+
+  const ids = Array.from(new Set(nodeIds.filter(Boolean)))
+  if (ids.length === 0) return
+
+  await turso.execute({
+    sql: `DELETE FROM graph_edges
+          WHERE from_node_id IN (${placeholders(ids.length)})
+             OR to_node_id IN (${placeholders(ids.length)})`,
+    args: [...ids, ...ids],
+  })
+}
+
 export async function removeMemoryGraphMapping(turso: TursoClient, memoryId: string): Promise<void> {
+  const memoryNodeIds = await resolveMemoryNodeIds(turso, [memoryId])
+
   await turso.execute({
     sql: "DELETE FROM memory_node_links WHERE memory_id = ?",
     args: [memoryId],
@@ -106,6 +147,7 @@ export async function removeMemoryGraphMapping(turso: TursoClient, memoryId: str
     sql: "DELETE FROM graph_edges WHERE evidence_memory_id = ?",
     args: [memoryId],
   })
+  await removeEdgesForNodeIds(turso, memoryNodeIds)
   await pruneOrphanGraphNodes(turso)
 }
 
@@ -116,11 +158,13 @@ export async function bulkRemoveMemoryGraphMappings(turso: TursoClient, memoryId
 
   for (let i = 0; i < memoryIds.length; i += GRAPH_BATCH_SIZE) {
     const batch = memoryIds.slice(i, i + GRAPH_BATCH_SIZE)
-    const placeholders = batch.map(() => "?").join(", ")
+    const memoryNodeIds = await resolveMemoryNodeIds(turso, batch)
+    const marker = placeholders(batch.length)
     await turso.batch([
-      { sql: `DELETE FROM memory_node_links WHERE memory_id IN (${placeholders})`, args: batch },
-      { sql: `DELETE FROM graph_edges WHERE evidence_memory_id IN (${placeholders})`, args: batch },
+      { sql: `DELETE FROM memory_node_links WHERE memory_id IN (${marker})`, args: batch },
+      { sql: `DELETE FROM graph_edges WHERE evidence_memory_id IN (${marker})`, args: batch },
     ])
+    await removeEdgesForNodeIds(turso, memoryNodeIds)
   }
 
   await pruneOrphanGraphNodes(turso)
