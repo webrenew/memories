@@ -23,6 +23,7 @@ description: Product and documentation updates.
 - Optimized graph-only retry path after `GRAPH_RELATIONSHIP_SYNC_FAILED` to reuse stored embeddings and avoid redundant embeddings API calls.
 - Added live Graph Explorer status refresh (manual + background polling) so rollout health, alarms, and quality gate data stay current without page reloads.
 - Added keyboard-accessible graph canvas interactions in Graph Explorer (focusable node/edge controls with Enter/Space activation and ARIA labels).
+- Updated Graph Explorer node switching to cancel stale `/api/graph/explore` requests using `AbortController`, reducing redundant in-flight fetches during rapid navigation.
 - Updated memory graph architecture docs to document memory nodes and self-link behavior.
 - Expanded graph + MCP docs with edge weight tables, contradiction/semantic extraction pipeline guidance, conflict payload schemas/examples, and skills guidance for conflict-aware agent handling.
 

@@ -32,6 +32,7 @@ import {
   GRAPH_ZOOM_MIN,
   GRAPH_ZOOM_STEP,
   handleGraphActivationKey,
+  isAbortLikeError,
   qualityStatusClass,
   qualityStatusLabel,
   ROLLOUT_MODES,
@@ -124,6 +125,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
       setExplorerData(null)
       setSelectedEdgeId(null)
       setExplorerError(null)
+      setIsExplorerLoading(false)
       return
     }
 
@@ -140,7 +142,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
   useEffect(() => {
     if (!selectedNode) return
 
-    let cancelled = false
+    const controller = new AbortController()
     setIsExplorerLoading(true)
     setExplorerError(null)
 
@@ -151,12 +153,14 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
           nodeKey: selectedNode.nodeKey,
           limit: "20",
         })
-        const response = await fetch(`/api/graph/explore?${params.toString()}`)
+        const response = await fetch(`/api/graph/explore?${params.toString()}`, {
+          signal: controller.signal,
+        })
         const body = (await response.json().catch(() => ({}))) as GraphExplorerResponse & {
           error?: string
         }
         if (!response.ok) {
-          if (!cancelled) {
+          if (!controller.signal.aborted) {
             setExplorerError(
               extractErrorMessage(body, `Failed to load graph explorer data (HTTP ${response.status})`),
             )
@@ -166,7 +170,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
           return
         }
 
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setExplorerData(body)
           const preferredEdgeId = pendingEdgeIdFromUrlRef.current
           const preferredExists = Boolean(
@@ -180,21 +184,24 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
             pendingEdgeIdFromUrlRef.current = null
           }
         }
-      } catch {
-        if (!cancelled) {
+      } catch (error) {
+        if (isAbortLikeError(error)) {
+          return
+        }
+        if (!controller.signal.aborted) {
           setExplorerError("Network error while loading graph explorer data.")
           setExplorerData(null)
           setSelectedEdgeId(null)
         }
       } finally {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setIsExplorerLoading(false)
         }
       }
     })()
 
     return () => {
-      cancelled = true
+      controller.abort()
     }
   }, [selectedNode])
 
@@ -224,7 +231,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
       }
       setLocalStatus(result.status)
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (isAbortLikeError(error)) {
         return
       }
       setStatusRefreshError("Network error while refreshing graph status.")

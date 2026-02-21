@@ -4,6 +4,7 @@ import {
   graphEdgeAriaLabel,
   graphNodeAriaLabel,
   handleGraphActivationKey,
+  isAbortLikeError,
   isGraphActivationKey,
 } from "./memory-graph-helpers"
 
@@ -98,5 +99,14 @@ describe("memory-graph-helpers aria labels", () => {
     expect(label).toContain("to topic:graph")
     expect(label).toContain("Weight 0.84")
     expect(label).toContain("Confidence 0.91")
+  })
+})
+
+describe("memory-graph-helpers abort detection", () => {
+  it("detects AbortError by name", () => {
+    expect(isAbortLikeError({ name: "AbortError" })).toBe(true)
+    expect(isAbortLikeError(new Error("network"))).toBe(false)
+    expect(isAbortLikeError({ name: "TypeError" })).toBe(false)
+    expect(isAbortLikeError(null)).toBe(false)
   })
 })

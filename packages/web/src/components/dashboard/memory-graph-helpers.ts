@@ -133,6 +133,15 @@ export function handleGraphActivationKey(
   return true
 }
 
+export function isAbortLikeError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false
+  }
+
+  const name = "name" in error ? (error as { name?: unknown }).name : undefined
+  return typeof name === "string" && name === "AbortError"
+}
+
 export function graphNodeAriaLabel(node: GraphCanvasNode): string {
   return `Graph node ${node.label}. Type ${node.nodeType}. Degree ${node.degree}.`
 }
