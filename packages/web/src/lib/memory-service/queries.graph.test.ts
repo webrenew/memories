@@ -167,6 +167,58 @@ async function seedGraphRetrievalFixture(db: DbClient): Promise<void> {
   })
 }
 
+async function seedContradictionEdgeFixture(db: DbClient): Promise<void> {
+  await db.execute({
+    sql: `INSERT INTO graph_nodes (id, node_type, node_key, label, metadata, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      "graph-node:memory:l-base",
+      "memory",
+      "l-base",
+      "Stable architecture baseline",
+      null,
+      "2026-02-11T10:00:00.000Z",
+      "2026-02-11T10:00:00.000Z",
+      "graph-node:memory:l-graph",
+      "memory",
+      "l-graph",
+      "Billing reliability incident pattern",
+      null,
+      "2026-02-11T10:00:00.000Z",
+      "2026-02-11T10:00:00.000Z",
+    ],
+  })
+
+  await db.execute({
+    sql: `INSERT INTO graph_edges (
+            id, from_node_id, to_node_id, edge_type, weight, confidence,
+            evidence_memory_id, expires_at, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      "edge:l-base:l-graph:contradicts",
+      "graph-node:memory:l-base",
+      "graph-node:memory:l-graph",
+      "contradicts",
+      1,
+      0.92,
+      "l-base",
+      null,
+      "2026-02-11T10:00:00.000Z",
+      "2026-02-11T10:00:00.000Z",
+      "edge:l-graph:l-base:contradicts",
+      "graph-node:memory:l-graph",
+      "graph-node:memory:l-base",
+      "contradicts",
+      1,
+      0.92,
+      "l-graph",
+      null,
+      "2026-02-11T10:00:00.000Z",
+      "2026-02-11T10:00:00.000Z",
+    ],
+  })
+}
+
 afterEach(() => {
   for (const db of databases.splice(0, databases.length)) {
     db.close()
@@ -179,6 +231,7 @@ describe("getContextPayload graph retrieval integration", () => {
   it("adds graph-expanded memories with explainability when hybrid retrieval is enabled", async () => {
     const db = await setupDb("memories-queries-graph-on")
     await seedGraphRetrievalFixture(db)
+    await seedContradictionEdgeFixture(db)
     const { getContextPayload } = await loadQueriesModule(true)
 
     const payload = await getContextPayload({
@@ -213,14 +266,26 @@ describe("getContextPayload graph retrieval integration", () => {
     expect(payload.data.trace.qualityGateBlocked).toBe(false)
     expect(payload.data.trace.qualityGateReasonCodes).toEqual([])
     expect(payload.data.trace.graphExpandedCount).toBe(1)
+    expect(payload.data.trace.conflictCount).toBe(1)
     expect(payload.data.trace.fallbackTriggered).toBe(false)
     expect(payload.data.trace.fallbackReason).toBeNull()
     expect(payload.data.trace.totalCandidates).toBe(3)
+    expect(payload.data.conflicts).toEqual([
+      {
+        memoryAId: "l-base",
+        memoryBId: "l-graph",
+        edgeType: "contradicts",
+        confidence: 0.92,
+        explanation: "These memories are linked by a contradiction edge from relationship extraction.",
+        suggestion: "These memories may conflict. Consider asking the user to clarify which preference is current.",
+      },
+    ])
   })
 
   it("falls back to baseline retrieval when graph retrieval flag is disabled", async () => {
     const db = await setupDb("memories-queries-graph-off")
     await seedGraphRetrievalFixture(db)
+    await seedContradictionEdgeFixture(db)
     const { getContextPayload } = await loadQueriesModule(false)
 
     const payload = await getContextPayload({
@@ -243,9 +308,11 @@ describe("getContextPayload graph retrieval integration", () => {
     expect(payload.data.trace.qualityGateBlocked).toBe(false)
     expect(payload.data.trace.qualityGateReasonCodes).toEqual([])
     expect(payload.data.trace.graphExpandedCount).toBe(0)
+    expect(payload.data.trace.conflictCount).toBe(0)
     expect(payload.data.trace.fallbackTriggered).toBe(true)
     expect(payload.data.trace.fallbackReason).toBe("feature_flag_disabled")
     expect(payload.data.trace.totalCandidates).toBe(2)
+    expect(payload.data.conflicts).toEqual([])
   })
 
   it("runs graph traversal in shadow mode without applying expansion", async () => {

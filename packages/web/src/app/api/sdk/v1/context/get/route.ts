@@ -137,6 +137,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       query: parsedRequest.query ?? "",
       rules,
       memories,
+      conflicts: payload.data.conflicts,
       skillFiles: skillFilesPayload.data.skillFiles,
       workingMemories: payload.data.workingMemories,
       longTermMemories: payload.data.longTermMemories,

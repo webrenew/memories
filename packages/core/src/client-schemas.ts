@@ -39,10 +39,20 @@ export const structuredMemorySchema = z.object({
       linkedViaNode: z.string(),
       edgeType: z.string(),
       hopCount: z.number().int().nonnegative(),
+      confidence: z.number().nonnegative().optional(),
       seedMemoryId: z.string(),
     })
     .nullable()
     .optional(),
+})
+
+export const contextConflictSchema = z.object({
+  memoryAId: z.string(),
+  memoryBId: z.string(),
+  edgeType: z.literal("contradicts"),
+  confidence: z.number().nonnegative(),
+  explanation: z.string(),
+  suggestion: z.string(),
 })
 
 export const structuredSkillFileSchema = z.object({
@@ -59,6 +69,7 @@ export const structuredSkillFileSchema = z.object({
 export const contextStructuredSchema = z.object({
   rules: z.array(structuredMemorySchema).optional().default([]),
   memories: z.array(structuredMemorySchema).optional().default([]),
+  conflicts: z.array(contextConflictSchema).optional().default([]),
   skillFiles: z.array(structuredSkillFileSchema).optional().default([]),
   workingMemories: z.array(structuredMemorySchema).optional().default([]),
   longTermMemories: z.array(structuredMemorySchema).optional().default([]),
@@ -102,6 +113,7 @@ export const contextStructuredSchema = z.object({
       baselineCandidates: z.number().int().nonnegative(),
       graphCandidates: z.number().int().nonnegative(),
       graphExpandedCount: z.number().int().nonnegative(),
+      conflictCount: z.number().int().nonnegative().optional(),
       fallbackTriggered: z.boolean().optional(),
       fallbackReason: z.string().nullable().optional(),
       totalCandidates: z.number().int().nonnegative(),

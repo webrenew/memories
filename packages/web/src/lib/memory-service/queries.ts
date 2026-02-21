@@ -1,6 +1,7 @@
 import { getAiGatewayApiKey, getAiGatewayBaseUrl, getSdkDefaultEmbeddingModelId } from "@/lib/env"
 import {
   apiError,
+  type ContextConflict,
   type ContextRetrievalStrategy,
   type ContextTrace,
   formatMemory,
@@ -92,6 +93,71 @@ function normalizeGraphDepth(value: number | undefined): 0 | 1 | 2 {
 function normalizeGraphLimit(value: number | undefined): number {
   if (!Number.isFinite(value)) return 8
   return Math.max(1, Math.min(Math.floor(value ?? 8), 50))
+}
+
+const CONFLICT_EXPLANATION = "These memories are linked by a contradiction edge from relationship extraction."
+const CONFLICT_SUGGESTION = "These memories may conflict. Consider asking the user to clarify which preference is current."
+
+function placeholders(count: number): string {
+  return Array.from({ length: count }, () => "?").join(", ")
+}
+
+function conflictPairKey(memoryAId: string, memoryBId: string): string {
+  return memoryAId < memoryBId ? `${memoryAId}::${memoryBId}` : `${memoryBId}::${memoryAId}`
+}
+
+async function listContextConflicts(
+  turso: TursoClient,
+  memoryIds: string[],
+  nowIso: string
+): Promise<ContextConflict[]> {
+  const uniqueMemoryIds = Array.from(new Set(memoryIds.filter(Boolean)))
+  if (uniqueMemoryIds.length < 2) return []
+
+  const marker = placeholders(uniqueMemoryIds.length)
+  const result = await turso.execute({
+    sql: `SELECT from_n.node_key AS memory_a_id,
+                 to_n.node_key AS memory_b_id,
+                 e.confidence
+          FROM graph_edges e
+          JOIN graph_nodes from_n ON from_n.id = e.from_node_id
+          JOIN graph_nodes to_n ON to_n.id = e.to_node_id
+          WHERE e.edge_type = 'contradicts'
+            AND (e.expires_at IS NULL OR e.expires_at > ?)
+            AND from_n.node_type = 'memory'
+            AND to_n.node_type = 'memory'
+            AND from_n.node_key IN (${marker})
+            AND to_n.node_key IN (${marker})`,
+    args: [nowIso, ...uniqueMemoryIds, ...uniqueMemoryIds],
+  })
+
+  const conflictsByPair = new Map<string, ContextConflict>()
+  for (const row of result.rows as Array<Record<string, unknown>>) {
+    const memoryAId = String(row.memory_a_id ?? "").trim()
+    const memoryBId = String(row.memory_b_id ?? "").trim()
+    if (!memoryAId || !memoryBId || memoryAId === memoryBId) continue
+
+    const confidenceRaw = Number(row.confidence)
+    const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 1
+    const key = conflictPairKey(memoryAId, memoryBId)
+    const [leftId, rightId] = memoryAId < memoryBId ? [memoryAId, memoryBId] : [memoryBId, memoryAId]
+    const existing = conflictsByPair.get(key)
+
+    if (!existing || confidence > existing.confidence) {
+      conflictsByPair.set(key, {
+        memoryAId: leftId,
+        memoryBId: rightId,
+        edgeType: "contradicts",
+        confidence,
+        explanation: CONFLICT_EXPLANATION,
+        suggestion: CONFLICT_SUGGESTION,
+      })
+    }
+  }
+
+  return [...conflictsByPair.values()].sort((a, b) =>
+    b.confidence - a.confidence || a.memoryAId.localeCompare(b.memoryAId) || a.memoryBId.localeCompare(b.memoryBId)
+  )
 }
 
 function decodeEmbeddingBlob(value: unknown): Float32Array | null {
@@ -622,6 +688,7 @@ export async function getContextPayload(params: {
     workingMemories: Array<ReturnType<typeof toStructuredMemory> & { graph?: GraphExplainability }>
     longTermMemories: Array<ReturnType<typeof toStructuredMemory> & { graph?: GraphExplainability }>
     memories: Array<ReturnType<typeof toStructuredMemory> & { graph?: GraphExplainability }>
+    conflicts: ContextConflict[]
     trace: ContextTrace
   }
 }> {
@@ -885,6 +952,12 @@ export async function getContextPayload(params: {
     fallbackReason = "rollout_guardrail"
   }
 
+  const conflicts = await listContextConflicts(
+    turso,
+    relevantMemories.map((row) => row.id),
+    nowIso
+  )
+
   const trace: ContextTrace = {
     requestedStrategy: resolvedStrategy,
     strategy: appliedHybrid ? "hybrid_graph" : "baseline",
@@ -904,6 +977,7 @@ export async function getContextPayload(params: {
     baselineCandidates,
     graphCandidates,
     graphExpandedCount,
+    conflictCount: conflicts.length,
     fallbackTriggered,
     fallbackReason: fallbackTriggered ? fallbackReason : null,
     totalCandidates: relevantMemories.length,
@@ -949,6 +1023,14 @@ export async function getContextPayload(params: {
     }
     text += `## Relevant Memories\n${relevantMemories.map((row) => `- ${formatMemory(row)}`).join("\n")}`
   }
+  if (conflicts.length > 0) {
+    if (text.length > 0) {
+      text += "\n\n"
+    }
+    text += `## Conflicts\n${conflicts
+      .map((conflict) => `- ${conflict.memoryAId} <-> ${conflict.memoryBId} (confidence ${conflict.confidence.toFixed(2)})`)
+      .join("\n")}`
+  }
 
   return {
     text: text || "No rules or memories found.",
@@ -957,6 +1039,7 @@ export async function getContextPayload(params: {
       workingMemories: workingMemories.map(toContextMemory),
       longTermMemories: longTermMemories.map(toContextMemory),
       memories: relevantMemories.map(toContextMemory),
+      conflicts,
       trace,
     },
   }

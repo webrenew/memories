@@ -89,6 +89,15 @@ export interface GraphExplainability {
   seedMemoryId: string
 }
 
+export interface ContextConflict {
+  memoryAId: string
+  memoryBId: string
+  edgeType: "contradicts"
+  confidence: number
+  explanation: string
+  suggestion: string
+}
+
 export interface ContextTrace {
   requestedStrategy: ContextRetrievalStrategy
   strategy: ContextRetrievalStrategy
@@ -113,6 +122,7 @@ export interface ContextTrace {
   baselineCandidates: number
   graphCandidates: number
   graphExpandedCount: number
+  conflictCount?: number
   fallbackTriggered: boolean
   fallbackReason: string | null
   totalCandidates: number

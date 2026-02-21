@@ -49,14 +49,25 @@ export interface MemoryRecord {
     linkedViaNode: string
     edgeType: string
     hopCount: number
+    confidence?: number
     seedMemoryId: string
   } | null
   raw?: string
 }
 
+export interface ConflictPair {
+  memoryAId: string
+  memoryBId: string
+  edgeType: "contradicts"
+  confidence: number
+  explanation: string
+  suggestion: string
+}
+
 export interface ContextResult {
   rules: MemoryRecord[]
   memories: MemoryRecord[]
+  conflicts?: ConflictPair[]
   skillFiles?: SkillFileRecord[]
   trace?: {
     requestedStrategy?: ContextStrategy
@@ -79,6 +90,7 @@ export interface ContextResult {
     baselineCandidates: number
     graphCandidates: number
     graphExpandedCount: number
+    conflictCount?: number
     fallbackTriggered?: boolean
     fallbackReason?: string | null
     totalCandidates: number

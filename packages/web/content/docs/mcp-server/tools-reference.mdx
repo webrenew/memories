@@ -40,6 +40,8 @@ The primary tool for AI agents. Returns all active rules (with path and category
 
 Returns all rules first (including path scope and category when set), followed by relevant search results. Uses FTS5 with BM25 ranking for the search query, falling back to LIKE matching for databases without FTS support. When hybrid graph retrieval is enabled, semantically similar memories may be added via graph `similar_to` edges, and conflict/refinement links may be traversed via `contradicts` / `supersedes` edges when LLM extraction is enabled.
 
+If returned memories include contradiction links, the response also includes a `conflicts[]` array with pair IDs, confidence, explanation text, and a suggestion for clarification.
+
 ## add_memory
 
 Store a new memory with optional metadata, path scoping, and categorization.
