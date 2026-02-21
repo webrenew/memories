@@ -8,7 +8,8 @@ import {
   getSdkEmbeddingJobRetryMaxMs,
   getSdkEmbeddingJobWorkerBatchSize,
 } from "@/lib/env"
-import { syncSimilarityEdgesForMemory } from "@/lib/memory-service/graph/similarity"
+import { classifyMemoryRelationship } from "@/lib/memory-service/graph/llm-extract"
+import { syncRelationshipEdgesForMemory } from "@/lib/memory-service/graph/similarity"
 import {
   defaultLayerForType,
   type TursoClient,
@@ -435,7 +436,7 @@ async function processSingleJob(turso: TursoClient, job: EmbeddingJobRow, nowIso
 
   try {
     const memoryResult = await turso.execute({
-      sql: `SELECT id, type, memory_layer, expires_at, project_id, user_id, deleted_at
+      sql: `SELECT id, type, memory_layer, expires_at, project_id, user_id, created_at, deleted_at
             FROM memories
             WHERE id = ?
             LIMIT 1`,
@@ -491,8 +492,10 @@ async function processSingleJob(turso: TursoClient, job: EmbeddingJobRow, nowIso
       args: [job.memoryId, encoded, job.model, modelVersion, embeddingResponse.embedding.length, nowIso, nowIso],
     })
 
-    if (parseBooleanFlag(process.env.GRAPH_MAPPING_ENABLED, false) && memoryRow) {
+    const graphMappingEnabled = parseBooleanFlag(process.env.GRAPH_MAPPING_ENABLED, false)
+    if (graphMappingEnabled && memoryRow) {
       try {
+        const llmExtractionEnabled = parseBooleanFlag(process.env.GRAPH_LLM_EXTRACTION_ENABLED, false)
         const memoryType = typeof memoryRow.type === "string" ? memoryRow.type : "note"
         const memoryLayerRaw = typeof memoryRow.memory_layer === "string" ? memoryRow.memory_layer : null
         const memoryLayer =
@@ -500,7 +503,7 @@ async function processSingleJob(turso: TursoClient, job: EmbeddingJobRow, nowIso
             ? memoryLayerRaw
             : defaultLayerForType(memoryType)
 
-        await syncSimilarityEdgesForMemory({
+        await syncRelationshipEdgesForMemory({
           turso,
           memoryId: job.memoryId,
           embedding: embeddingResponse.embedding,
@@ -509,10 +512,13 @@ async function processSingleJob(turso: TursoClient, job: EmbeddingJobRow, nowIso
           userId: typeof memoryRow.user_id === "string" ? memoryRow.user_id : null,
           layer: memoryLayer,
           expiresAt: typeof memoryRow.expires_at === "string" ? memoryRow.expires_at : null,
+          memoryContent: job.content,
+          memoryCreatedAt: typeof memoryRow.created_at === "string" ? memoryRow.created_at : null,
+          classifier: llmExtractionEnabled ? classifyMemoryRelationship : null,
           nowIso,
         })
       } catch (error) {
-        console.error("Similarity edge sync failed:", error)
+        console.error("Relationship edge sync failed:", error)
       }
     }
 

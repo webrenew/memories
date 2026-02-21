@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { computeSimilarityEdges, syncSimilarityEdgesForMemory } from "./similarity"
+import { computeSimilarityEdges, syncRelationshipEdgesForMemory, syncSimilarityEdgesForMemory } from "./similarity"
 import { expandMemoryGraph } from "./retrieval"
 import { ensureGraphTables, removeMemoryGraphMapping, syncMemoryGraphMapping } from "./upsert"
 
@@ -290,5 +290,152 @@ describe("similarity graph edges", () => {
 
     const pairs = result.rows.map((row) => `${row.from_key}->${row.to_key}`)
     expect(pairs).toEqual(["mem-a->mem-c", "mem-c->mem-a"])
+  })
+
+  it("adds contradicts edges for ambiguous candidates when classifier signals conflict", async () => {
+    const db = await setupDb("memories-graph-similarity-contradicts")
+    const nowIso = "2026-02-22T00:15:00.000Z"
+    const modelId = "openai/text-embedding-3-small"
+
+    await insertMemory(db, { id: "mem-a", content: "I like coffee", nowIso })
+    await insertMemory(db, { id: "mem-b", content: "I dislike coffee", nowIso })
+    await upsertEmbedding(db, {
+      memoryId: "mem-b",
+      model: modelId,
+      embedding: [0.8, 0.6],
+      nowIso,
+    })
+
+    await syncRelationshipEdgesForMemory({
+      turso: db,
+      memoryId: "mem-a",
+      embedding: [1, 0],
+      modelId,
+      projectId: null,
+      userId: null,
+      layer: "long_term",
+      expiresAt: null,
+      nowIso,
+      threshold: 0.95,
+      ambiguousMinScore: 0.7,
+      ambiguousMaxScore: 0.9,
+      llmConfidenceThreshold: 0.7,
+      memoryContent: "I like coffee",
+      memoryCreatedAt: nowIso,
+      classifier: async () => ({
+        relationship: "contradicts",
+        confidence: 0.92,
+        explanation: "Opposite preference for same topic.",
+      }),
+    })
+
+    const result = await db.execute({
+      sql: `SELECT from_n.node_key AS from_key, to_n.node_key AS to_key, e.edge_type
+            FROM graph_edges e
+            JOIN graph_nodes from_n ON from_n.id = e.from_node_id
+            JOIN graph_nodes to_n ON to_n.id = e.to_node_id
+            WHERE e.edge_type = 'contradicts'
+            ORDER BY from_key, to_key`,
+    })
+
+    const pairs = result.rows.map((row) => `${row.from_key}->${row.to_key}`)
+    expect(pairs).toEqual(["mem-a->mem-b", "mem-b->mem-a"])
+  })
+
+  it("adds supersedes edge from newer memory when classifier returns refines", async () => {
+    const db = await setupDb("memories-graph-similarity-supersedes")
+    const modelId = "openai/text-embedding-3-small"
+    const olderIso = "2026-02-22T00:00:00.000Z"
+    const newerIso = "2026-02-22T00:20:00.000Z"
+
+    await insertMemory(db, { id: "mem-old", content: "I drink coffee", nowIso: olderIso })
+    await insertMemory(db, { id: "mem-new", content: "I only drink decaf", nowIso: newerIso })
+    await upsertEmbedding(db, {
+      memoryId: "mem-old",
+      model: modelId,
+      embedding: [0.8, 0.6],
+      nowIso: newerIso,
+    })
+
+    await syncRelationshipEdgesForMemory({
+      turso: db,
+      memoryId: "mem-new",
+      embedding: [1, 0],
+      modelId,
+      projectId: null,
+      userId: null,
+      layer: "long_term",
+      expiresAt: null,
+      nowIso: newerIso,
+      threshold: 0.95,
+      ambiguousMinScore: 0.7,
+      ambiguousMaxScore: 0.9,
+      llmConfidenceThreshold: 0.7,
+      memoryContent: "I only drink decaf",
+      memoryCreatedAt: newerIso,
+      classifier: async () => ({
+        relationship: "refines",
+        confidence: 0.88,
+        explanation: "The new memory narrows the original statement.",
+      }),
+    })
+
+    const result = await db.execute({
+      sql: `SELECT from_n.node_key AS from_key, to_n.node_key AS to_key
+            FROM graph_edges e
+            JOIN graph_nodes from_n ON from_n.id = e.from_node_id
+            JOIN graph_nodes to_n ON to_n.id = e.to_node_id
+            WHERE e.edge_type = 'supersedes'
+            ORDER BY from_key, to_key`,
+    })
+
+    const pairs = result.rows.map((row) => `${row.from_key}->${row.to_key}`)
+    expect(pairs).toEqual(["mem-new->mem-old"])
+  })
+
+  it("skips llm relationship edges below confidence threshold", async () => {
+    const db = await setupDb("memories-graph-similarity-confidence-threshold")
+    const nowIso = "2026-02-22T00:25:00.000Z"
+    const modelId = "openai/text-embedding-3-small"
+
+    await insertMemory(db, { id: "mem-a", content: "I like tea", nowIso })
+    await insertMemory(db, { id: "mem-b", content: "I dislike tea", nowIso })
+    await upsertEmbedding(db, {
+      memoryId: "mem-b",
+      model: modelId,
+      embedding: [0.8, 0.6],
+      nowIso,
+    })
+
+    await syncRelationshipEdgesForMemory({
+      turso: db,
+      memoryId: "mem-a",
+      embedding: [1, 0],
+      modelId,
+      projectId: null,
+      userId: null,
+      layer: "long_term",
+      expiresAt: null,
+      nowIso,
+      threshold: 0.95,
+      ambiguousMinScore: 0.7,
+      ambiguousMaxScore: 0.9,
+      llmConfidenceThreshold: 0.8,
+      memoryContent: "I like tea",
+      memoryCreatedAt: nowIso,
+      classifier: async () => ({
+        relationship: "contradicts",
+        confidence: 0.5,
+        explanation: "Low confidence conflict.",
+      }),
+    })
+
+    const result = await db.execute({
+      sql: `SELECT COUNT(*) AS count
+            FROM graph_edges
+            WHERE edge_type IN ('contradicts', 'supersedes')`,
+    })
+
+    expect(Number(result.rows[0]?.count ?? 0)).toBe(0)
   })
 })

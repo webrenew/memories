@@ -35,7 +35,7 @@ Primary code paths:
 1. A memory write/update enters memory mutation handlers.
 2. Graph extraction produces node and edge candidates from memory content and metadata, including the memory's own `memory` node.
 3. `upsert.ts` ensures schema, upserts nodes, writes memory-node links (`self`, `type`, `tag`, etc.), writes evidence-backed edges, and prunes stale links for edited/forgotten memories.
-4. When embeddings are available, similarity sync writes bidirectional `similar_to` edges between memory nodes for high-cosine neighbors.
+4. When embeddings are available, similarity sync writes bidirectional `similar_to` edges between memory nodes for high-cosine neighbors. If LLM extraction is enabled, ambiguous-neighbor pairs are additionally classified into `contradicts` or `supersedes`.
 5. Cleanup removes orphan graph nodes with no links or edges.
 
 Behavior is best-effort: memory writes stay available even if graph indexing fails.
@@ -83,6 +83,20 @@ Similarity edge extraction is controlled by environment variables:
 - `SIMILARITY_EDGE_THRESHOLD` (default `0.85`): cosine score cutoff for `similar_to` edge creation.
 - `SIMILARITY_EDGE_MAX_K` (default `20`): max candidate embeddings scanned per write.
 - `SIMILARITY_EDGE_MAX_PER_MEMORY` (default `5`): max neighbors retained per memory after ranking.
+
+## LLM Relationship Extraction Configuration
+
+When `GRAPH_LLM_EXTRACTION_ENABLED=true`, ambiguous similarity matches can be classified into additional relationship edges:
+
+- `contradicts`: bidirectional conflict relationship.
+- `supersedes`: directional "newer memory refines older memory" relationship.
+
+Environment controls:
+
+- `GRAPH_LLM_AMBIGUOUS_SIMILARITY_MIN` (default `0.70`)
+- `GRAPH_LLM_AMBIGUOUS_SIMILARITY_MAX` (default `0.90`)
+- `GRAPH_LLM_RELATIONSHIP_CONFIDENCE_THRESHOLD` (default `0.70`)
+- `GRAPH_LLM_RELATIONSHIP_MODEL_ID` (default `anthropic/claude-3-5-haiku-latest`)
 
 ## Scope And Workspace Routing
 

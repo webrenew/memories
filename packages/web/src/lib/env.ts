@@ -297,6 +297,25 @@ export function getSimilarityEdgeMaxPerMemory(): number {
   return parsePositiveInt(process.env.SIMILARITY_EDGE_MAX_PER_MEMORY, 5)
 }
 
+export function getGraphLlmAmbiguousSimilarityMin(): number {
+  const value = parseNonNegativeFloat(process.env.GRAPH_LLM_AMBIGUOUS_SIMILARITY_MIN, 0.7)
+  return Math.max(0, Math.min(1, value))
+}
+
+export function getGraphLlmAmbiguousSimilarityMax(): number {
+  const value = parseNonNegativeFloat(process.env.GRAPH_LLM_AMBIGUOUS_SIMILARITY_MAX, 0.9)
+  return Math.max(0, Math.min(1, value))
+}
+
+export function getGraphLlmRelationshipConfidenceThreshold(): number {
+  const value = parseNonNegativeFloat(process.env.GRAPH_LLM_RELATIONSHIP_CONFIDENCE_THRESHOLD, 0.7)
+  return Math.max(0, Math.min(1, value))
+}
+
+export function getGraphLlmRelationshipModelId(): string {
+  return envValue("GRAPH_LLM_RELATIONSHIP_MODEL_ID") ?? "anthropic/claude-3-5-haiku-latest"
+}
+
 // ── Other ────────────────────────────────────────────────────────────
 
 export function getAppUrl(): string {
