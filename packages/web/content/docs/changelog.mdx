@@ -15,6 +15,7 @@ description: Product and documentation updates.
 - Added similarity edge controls: `SIMILARITY_EDGE_THRESHOLD`, `SIMILARITY_EDGE_MAX_K`, `SIMILARITY_EDGE_MAX_PER_MEMORY`.
 - Added optional LLM relationship extraction for ambiguous similarity matches to create `contradicts` and `supersedes` memory edges.
 - Added graph LLM controls: `GRAPH_LLM_AMBIGUOUS_SIMILARITY_MIN`, `GRAPH_LLM_AMBIGUOUS_SIMILARITY_MAX`, `GRAPH_LLM_RELATIONSHIP_CONFIDENCE_THRESHOLD`, `GRAPH_LLM_RELATIONSHIP_MODEL_ID`.
+- Added relationship-aware graph ranking weights by edge type (`caused_by`, `contradicts`, `supersedes`, `similar_to`, etc.) with confidence + hop decay in retrieval scoring.
 - Updated memory graph architecture docs to document memory nodes and self-link behavior.
 
 ## February 20, 2026

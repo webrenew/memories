@@ -21,7 +21,7 @@ import {
   buildUserScopeFilter,
   parseMemoryLayer,
 } from "./scope"
-import { expandMemoryGraph } from "./graph/retrieval"
+import { expandMemoryGraph, graphReasonRank } from "./graph/retrieval"
 import {
   evaluateGraphRolloutQuality,
   getGraphRolloutConfig,
@@ -92,12 +92,6 @@ function normalizeGraphDepth(value: number | undefined): 0 | 1 | 2 {
 function normalizeGraphLimit(value: number | undefined): number {
   if (!Number.isFinite(value)) return 8
   return Math.max(1, Math.min(Math.floor(value ?? 8), 50))
-}
-
-function graphReasonRank(reason: GraphExplainability | undefined): number {
-  if (!reason) return 0
-  const sharedNodeBoost = reason.edgeType === "shared_node" ? 0.25 : 0
-  return sharedNodeBoost + 1 / Math.max(1, reason.hopCount)
 }
 
 function decodeEmbeddingBlob(value: unknown): Float32Array | null {

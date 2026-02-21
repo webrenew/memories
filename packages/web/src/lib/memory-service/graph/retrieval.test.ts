@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { expandMemoryGraph } from "./retrieval"
+import { expandMemoryGraph, graphReasonRank } from "./retrieval"
 import { ensureGraphTables } from "./upsert"
 
 type DbClient = ReturnType<typeof createClient>
@@ -97,6 +97,7 @@ describe("expandMemoryGraph", () => {
         whyIncluded: "graph_expansion",
         edgeType: "similar_to",
         hopCount: 1,
+        confidence: 1,
         seedMemoryId: "mem-a",
         linkedViaNode: "memory:mem-b",
       })
@@ -130,5 +131,57 @@ describe("expandMemoryGraph", () => {
 
     expect(expanded.memoryIds).toEqual([])
     expect(expanded.totalCandidates).toBe(0)
+  })
+
+  it("ranks causal edges above relational edges at equal hop count", () => {
+    const causal = graphReasonRank({
+      edgeType: "caused_by",
+      hopCount: 1,
+      confidence: 1,
+    })
+    const relational = graphReasonRank({
+      edgeType: "similar_to",
+      hopCount: 1,
+      confidence: 1,
+    })
+
+    expect(causal).toBeGreaterThan(relational)
+  })
+
+  it("applies confidence weighting and hop decay to ranking", () => {
+    const highConfidence = graphReasonRank({
+      edgeType: "contradicts",
+      hopCount: 1,
+      confidence: 1,
+    })
+    const lowConfidence = graphReasonRank({
+      edgeType: "contradicts",
+      hopCount: 1,
+      confidence: 0.5,
+    })
+    const decayed = graphReasonRank({
+      edgeType: "contradicts",
+      hopCount: 2,
+      confidence: 1,
+    })
+
+    expect(lowConfidence).toBeCloseTo(highConfidence * 0.5)
+    expect(decayed).toBeCloseTo(highConfidence / 2)
+  })
+
+  it("preserves shared_node boost behavior while ranking below direct relationship edges", () => {
+    const sharedNode = graphReasonRank({
+      edgeType: "shared_node",
+      hopCount: 1,
+      confidence: 1,
+    })
+    const similar = graphReasonRank({
+      edgeType: "similar_to",
+      hopCount: 1,
+      confidence: 1,
+    })
+
+    expect(sharedNode).toBeGreaterThan(0)
+    expect(sharedNode).toBeLessThan(similar)
   })
 })

@@ -51,6 +51,8 @@ Hybrid retrieval runs in layered recall logic:
 
 Graph expansion can include semantically related memories via `similar_to` edges, even without shared tags/categories.
 
+Graph candidate ranking is edge-type aware and confidence-weighted. For equal hop counts, higher-priority relationships (for example `caused_by`, `contradicts`, `supersedes`) outrank generic relational links.
+
 Fallback reasons include:
 
 - `feature_flag_disabled`

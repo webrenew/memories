@@ -8,6 +8,7 @@ interface NodeDetail {
 interface NodeReason {
   hopCount: number
   edgeType: string
+  confidence: number
   seedMemoryId: string
   score: number
 }
@@ -22,6 +23,7 @@ interface GraphExpansionReason {
   linkedViaNode: string
   edgeType: string
   hopCount: number
+  confidence: number
   seedMemoryId: string
 }
 
@@ -53,6 +55,38 @@ function buildNodeLabel(nodeDetail: NodeDetail | undefined, fallbackNodeId: stri
     return fallbackNodeId
   }
   return `${nodeDetail.nodeType}:${nodeDetail.nodeKey}`
+}
+
+export const EDGE_TYPE_WEIGHTS: Record<string, number> = {
+  caused_by: 1.5,
+  contradicts: 1.3,
+  supersedes: 1.2,
+  similar_to: 1.0,
+  depends_on: 0.9,
+  prefers_over: 0.8,
+  specializes: 0.7,
+  conditional_on: 0.6,
+  shared_node: 0.25,
+}
+
+const DEFAULT_EDGE_TYPE_WEIGHT = 0.5
+
+function normalizeConfidence(value: unknown): number {
+  const parsed = toFiniteNumber(value, 1)
+  return Math.max(0, Math.min(1, parsed))
+}
+
+function edgeTypeWeight(edgeType: string): number {
+  return EDGE_TYPE_WEIGHTS[edgeType] ?? DEFAULT_EDGE_TYPE_WEIGHT
+}
+
+export function graphReasonRank(
+  reason: Pick<GraphExpansionReason, "edgeType" | "hopCount" | "confidence"> | undefined
+): number {
+  if (!reason) return 0
+  const typeWeight = edgeTypeWeight(reason.edgeType)
+  const confidence = normalizeConfidence(reason.confidence)
+  return (typeWeight * confidence) / Math.max(1, reason.hopCount)
 }
 
 export async function expandMemoryGraph(params: ExpandMemoryGraphParams): Promise<GraphExpansionResult> {
@@ -96,6 +130,7 @@ export async function expandMemoryGraph(params: ExpandMemoryGraphParams): Promis
       nodeReasons.set(row.node_id, {
         hopCount: 0,
         edgeType: "seed",
+        confidence: 1,
         seedMemoryId: row.memory_id,
         score: 1,
       })
@@ -156,8 +191,8 @@ export async function expandMemoryGraph(params: ExpandMemoryGraphParams): Promis
         }
 
         const weight = toFiniteNumber(edge.weight, 1)
-        const confidence = toFiniteNumber(edge.confidence, 1)
-        const score = (weight * confidence) / Math.max(1, hopCount)
+        const confidence = normalizeConfidence(edge.confidence)
+        const score = (edgeTypeWeight(edge.edge_type || "related_to") * weight * confidence) / Math.max(1, hopCount)
         const existing = nodeReasons.get(pair.next)
         const isBetter =
           !existing ||
@@ -171,6 +206,7 @@ export async function expandMemoryGraph(params: ExpandMemoryGraphParams): Promis
         nodeReasons.set(pair.next, {
           hopCount,
           edgeType: edge.edge_type || "related_to",
+          confidence,
           seedMemoryId: baseReason.seedMemoryId,
           score,
         })
@@ -234,7 +270,8 @@ export async function expandMemoryGraph(params: ExpandMemoryGraphParams): Promis
     const sharedNodeReason = nodeReason.hopCount === 0
     const hopCount = sharedNodeReason ? 1 : nodeReason.hopCount
     const edgeType = sharedNodeReason ? "shared_node" : nodeReason.edgeType
-    const score = sharedNodeReason ? 1.5 : nodeReason.score
+    const confidence = sharedNodeReason ? 1 : nodeReason.confidence
+    const score = sharedNodeReason ? graphReasonRank({ edgeType, hopCount, confidence }) : nodeReason.score
     const linkedViaNode = buildNodeLabel(nodeDetails.get(row.node_id), row.node_id)
 
     const candidate: CandidateScore = {
@@ -242,6 +279,7 @@ export async function expandMemoryGraph(params: ExpandMemoryGraphParams): Promis
       linkedViaNode,
       edgeType,
       hopCount,
+      confidence,
       seedMemoryId: nodeReason.seedMemoryId,
       score,
     }
@@ -269,6 +307,7 @@ export async function expandMemoryGraph(params: ExpandMemoryGraphParams): Promis
       linkedViaNode: candidate.linkedViaNode,
       edgeType: candidate.edgeType,
       hopCount: candidate.hopCount,
+      confidence: candidate.confidence,
       seedMemoryId: candidate.seedMemoryId,
     })
   }

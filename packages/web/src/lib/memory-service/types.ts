@@ -85,6 +85,7 @@ export interface GraphExplainability {
   linkedViaNode: string
   edgeType: string
   hopCount: number
+  confidence: number
   seedMemoryId: string
 }
 
