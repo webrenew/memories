@@ -14,6 +14,7 @@ import {
   evaluateWorkspaceSwitchProfiling,
   type WorkspaceSwitchProfilingHealth,
 } from "@/lib/workspace-switch-profiling"
+import { isMissingDeletedAtColumnError } from "@/lib/sqlite-errors"
 
 type WorkspaceSwitchHealthWithProfiling = WorkspaceSwitchHealth & {
   profiling: WorkspaceSwitchProfilingHealth
@@ -120,11 +121,6 @@ async function scalarCount(
 ): Promise<number> {
   const result = await turso.execute({ sql, args })
   return Number(result.rows[0]?.count ?? 0)
-}
-
-function isMissingDeletedAtColumnError(error: unknown): boolean {
-  const message = parseError(error).toLowerCase()
-  return message.includes("no such column") && message.includes("deleted_at")
 }
 
 async function countMemories(turso: ReturnType<typeof createTurso>): Promise<number> {

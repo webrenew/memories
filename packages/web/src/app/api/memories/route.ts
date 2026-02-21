@@ -4,8 +4,68 @@ import { NextRequest, NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, createMemorySchema, updateMemorySchema, deleteMemorySchema } from "@/lib/validations"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { isMissingDeletedAtColumnError } from "@/lib/sqlite-errors"
 
-export async function GET(): Promise<Response> {
+const DEFAULT_GET_LIMIT = 100
+const MAX_GET_LIMIT = 200
+
+function parseLimit(raw: string | null): number {
+  const parsed = Number.parseInt(raw ?? "", 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_GET_LIMIT
+  return Math.min(parsed, MAX_GET_LIMIT)
+}
+
+async function queryMemories(
+  turso: ReturnType<typeof createTurso>,
+  {
+    limit,
+    beforeCreatedAt,
+    beforeId,
+  }: {
+    limit: number
+    beforeCreatedAt: string | null
+    beforeId: string | null
+  },
+) {
+  const hasCursor = Boolean(beforeCreatedAt && beforeId)
+  const withDeletedAtSql = hasCursor
+    ? `SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at
+       FROM memories
+       WHERE deleted_at IS NULL AND (created_at < ? OR (created_at = ? AND id < ?))
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?`
+    : `SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at
+       FROM memories
+       WHERE deleted_at IS NULL
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?`
+
+  const withoutDeletedAtSql = hasCursor
+    ? `SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at
+       FROM memories
+       WHERE (created_at < ? OR (created_at = ? AND id < ?))
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?`
+    : `SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at
+       FROM memories
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?`
+
+  const args = hasCursor
+    ? [beforeCreatedAt!, beforeCreatedAt!, beforeId!, limit + 1]
+    : [limit + 1]
+
+  try {
+    return await turso.execute({ sql: withDeletedAtSql, args })
+  } catch (error) {
+    if (!isMissingDeletedAtColumnError(error)) {
+      throw error
+    }
+    return turso.execute({ sql: withoutDeletedAtSql, args })
+  }
+}
+
+export async function GET(request: Request): Promise<Response> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -27,11 +87,19 @@ export async function GET(): Promise<Response> {
       authToken: context.turso_db_token,
     })
 
-    const result = await turso.execute(
-      "SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at FROM memories WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 100"
-    )
+    const searchParams = new URL(request.url).searchParams
+    const limit = parseLimit(searchParams.get("limit"))
+    const beforeCreatedAt = searchParams.get("beforeCreatedAt")
+    const beforeId = searchParams.get("beforeId")
+    const result = await queryMemories(turso, {
+      limit,
+      beforeCreatedAt,
+      beforeId,
+    })
+    const hasMore = result.rows.length > limit
+    const memories = hasMore ? result.rows.slice(0, limit) : result.rows
 
-    return NextResponse.json({ memories: result.rows })
+    return NextResponse.json({ memories, hasMore })
   } catch (err) {
     console.error("Failed to list memories:", err)
     return NextResponse.json({ error: "Failed to connect to Turso" }, { status: 500 })

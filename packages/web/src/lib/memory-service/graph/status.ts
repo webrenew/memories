@@ -18,6 +18,7 @@ import {
   type GraphRolloutQualitySummary,
 } from "./rollout"
 import { removeMemoryGraphMapping, syncMemoryGraphMapping } from "./upsert"
+import { isMissingDeletedAtColumnError } from "@/lib/sqlite-errors"
 
 interface GraphTopNodeRow {
   node_type: string
@@ -154,11 +155,6 @@ function parseTagList(tags: string | null): string[] {
     .split(",")
     .map((tag) => tag.trim())
     .filter(Boolean)
-}
-
-function isMissingDeletedAtColumnError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message.toLowerCase() : ""
-  return message.includes("no such column") && message.includes("deleted_at")
 }
 
 async function listUnmappedMemories(turso: TursoClient): Promise<GraphSyncMemoryRow[]> {
