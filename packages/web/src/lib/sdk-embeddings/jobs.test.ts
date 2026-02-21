@@ -379,7 +379,7 @@ describe("sdk embedding jobs", () => {
 
     await insertMemory(db, {
       id: "mem_seed",
-      content: "I like coffee",
+      content: "I like coffee in the morning and avoid it in the evening.",
       nowIso,
     })
     await insertMemory(db, {
@@ -390,7 +390,7 @@ describe("sdk embedding jobs", () => {
 
     await syncMemoryGraphMapping(db, {
       id: "mem_seed",
-      content: "I like coffee",
+      content: "I like coffee in the morning and avoid it in the evening.",
       type: "note",
       layer: "long_term",
       expiresAt: null,
@@ -426,6 +426,7 @@ describe("sdk embedding jobs", () => {
       ],
     })
 
+    let chatCallCount = 0
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = String(input)
       if (url.includes("/v1/embeddings")) {
@@ -442,15 +443,45 @@ describe("sdk embedding jobs", () => {
       }
 
       if (url.includes("/v1/chat/completions")) {
+        chatCallCount += 1
+        if (chatCallCount === 1) {
+          return new Response(
+            JSON.stringify({
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({
+                      relationship: "contradicts",
+                      confidence: 0.91,
+                      explanation: "Opposite preference on the same topic.",
+                    }),
+                  },
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            }
+          )
+        }
+
         return new Response(
           JSON.stringify({
             choices: [
               {
                 message: {
                   content: JSON.stringify({
-                    relationship: "contradicts",
-                    confidence: 0.91,
-                    explanation: "Opposite preference on the same topic.",
+                    edges: [
+                      {
+                        type: "caused_by",
+                        target_memory_index: 1,
+                        condition_key: null,
+                        direction: "from_new",
+                        confidence: 0.82,
+                        evidence: "because",
+                      },
+                    ],
                   }),
                 },
               },
@@ -471,7 +502,7 @@ describe("sdk embedding jobs", () => {
     await enqueueEmbeddingJob({
       turso: db,
       memoryId: "mem_seed",
-      content: "I like coffee",
+      content: "I like coffee in the morning and avoid it in the evening.",
       modelId,
       operation: "add",
       nowIso,
@@ -495,6 +526,15 @@ describe("sdk embedding jobs", () => {
 
     const pairs = relationshipEdges.rows.map((row) => `${row.from_key}->${row.to_key}`)
     expect(pairs).toEqual(["mem_neighbor->mem_seed", "mem_seed->mem_neighbor"])
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    const semanticEdges = await db.execute({
+      sql: `SELECT from_n.node_key AS from_key, to_n.node_key AS to_key
+            FROM graph_edges e
+            JOIN graph_nodes from_n ON from_n.id = e.from_node_id
+            JOIN graph_nodes to_n ON to_n.id = e.to_node_id
+            WHERE e.edge_type = 'caused_by'`,
+    })
+    expect(semanticEdges.rows.map((row) => `${row.from_key}->${row.to_key}`)).toEqual(["mem_seed->mem_neighbor"])
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

@@ -8,7 +8,7 @@ import {
   getSdkEmbeddingJobRetryMaxMs,
   getSdkEmbeddingJobWorkerBatchSize,
 } from "@/lib/env"
-import { classifyMemoryRelationship } from "@/lib/memory-service/graph/llm-extract"
+import { classifyMemoryRelationship, extractSemanticRelationships } from "@/lib/memory-service/graph/llm-extract"
 import { syncRelationshipEdgesForMemory } from "@/lib/memory-service/graph/similarity"
 import {
   defaultLayerForType,
@@ -515,6 +515,7 @@ async function processSingleJob(turso: TursoClient, job: EmbeddingJobRow, nowIso
           memoryContent: job.content,
           memoryCreatedAt: typeof memoryRow.created_at === "string" ? memoryRow.created_at : null,
           classifier: llmExtractionEnabled ? classifyMemoryRelationship : null,
+          semanticExtractor: llmExtractionEnabled ? extractSemanticRelationships : null,
           nowIso,
         })
       } catch (error) {
