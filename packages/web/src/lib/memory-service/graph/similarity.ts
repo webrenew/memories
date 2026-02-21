@@ -431,14 +431,14 @@ async function buildSemanticRelationshipEdges(
   const minChars = Math.max(1, input.semanticMinChars ?? getGraphLlmSemanticMinChars())
   if (sourceContent.length < minChars) return []
 
-  const semanticContext = await selectRecentMemoryContext(input)
-  if (semanticContext.length === 0) return []
-
   const confidenceThreshold = normalizeScore(
     input.semanticConfidenceThreshold ?? getGraphLlmSemanticConfidenceThreshold()
   )
 
   try {
+    const semanticContext = await selectRecentMemoryContext(input)
+    if (semanticContext.length === 0) return []
+
     const extraction = await input.semanticExtractor({
       newMemory: {
         id: input.memoryId,
