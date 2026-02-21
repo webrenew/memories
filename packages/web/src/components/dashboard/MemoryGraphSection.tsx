@@ -35,10 +35,13 @@ import {
   trimMiddle,
   truncateText,
 } from "./memory-graph-helpers"
+import { fetchGraphStatusPayload } from "./memory-graph-status-client"
 
 interface MemoryGraphSectionProps {
   status: GraphStatusPayload | null
 }
+
+const GRAPH_STATUS_REFRESH_INTERVAL_MS = 30_000
 
 function metricCard(
   label: string,
@@ -60,6 +63,8 @@ function metricCard(
 export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.JSX.Element {
   const [localStatus, setLocalStatus] = useState(status)
   const [modeError, setModeError] = useState<string | null>(null)
+  const [statusRefreshError, setStatusRefreshError] = useState<string | null>(null)
+  const [isStatusRefreshing, setIsStatusRefreshing] = useState(false)
   const [selectedNode, setSelectedNode] = useState<GraphNodeSelection | null>(null)
   const [explorerData, setExplorerData] = useState<GraphExplorerResponse | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
@@ -78,9 +83,12 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
   const graphViewportRef = useRef<HTMLDivElement | null>(null)
   const panStartRef = useRef<{ pointerId: number; clientX: number; clientY: number } | null>(null)
   const pendingEdgeIdFromUrlRef = useRef<string | null>(null)
+  const statusRefreshInFlightRef = useRef(false)
+  const statusRefreshAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     setLocalStatus(status)
+    setStatusRefreshError(null)
   }, [status])
 
   useEffect(() => {
@@ -189,6 +197,62 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
     setIsPanning(false)
     panStartRef.current = null
   }, [selectedNode?.nodeType, selectedNode?.nodeKey])
+
+  const refreshGraphStatus = useCallback(async () => {
+    if (statusRefreshInFlightRef.current) return
+
+    statusRefreshInFlightRef.current = true
+    setIsStatusRefreshing(true)
+    setStatusRefreshError(null)
+
+    const controller = new AbortController()
+    statusRefreshAbortRef.current = controller
+
+    try {
+      const result = await fetchGraphStatusPayload(controller.signal)
+      if (result.error) {
+        setStatusRefreshError(result.error)
+        return
+      }
+      setLocalStatus(result.status)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return
+      }
+      setStatusRefreshError("Network error while refreshing graph status.")
+    } finally {
+      if (statusRefreshAbortRef.current === controller) {
+        statusRefreshAbortRef.current = null
+      }
+      statusRefreshInFlightRef.current = false
+      setIsStatusRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      statusRefreshAbortRef.current?.abort()
+      statusRefreshAbortRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!urlHydrated) return
+    void refreshGraphStatus()
+  }, [refreshGraphStatus, urlHydrated])
+
+  useEffect(() => {
+    if (!urlHydrated || typeof window === "undefined") return
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState !== "visible" || isPending) return
+      void refreshGraphStatus()
+    }, GRAPH_STATUS_REFRESH_INTERVAL_MS)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [isPending, refreshGraphStatus, urlHydrated])
 
   const activeStatus = localStatus
   const fallbackRate = activeStatus?.shadowMetrics.fallbackRate ?? 0
@@ -609,7 +673,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
             Node and edge health for this workspace memory graph.
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-right space-y-2">
           <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">
             Status
           </p>
@@ -620,8 +684,22 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
               ? "Schema Missing"
               : "Unavailable"}
           </p>
+          <button
+            type="button"
+            onClick={() => void refreshGraphStatus()}
+            disabled={isStatusRefreshing || isPending}
+            className={`h-7 px-2 rounded-md ring-1 text-[10px] uppercase tracking-[0.12em] font-bold transition-colors ${
+              isStatusRefreshing || isPending
+                ? "cursor-not-allowed opacity-70 ring-border/40 bg-card/30"
+                : "ring-border/50 bg-card/40 hover:bg-card/70"
+            }`}
+          >
+            {isStatusRefreshing ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
       </div>
+
+      {statusRefreshError ? <p className="text-xs text-red-500">{statusRefreshError}</p> : null}
 
       {!activeStatus ? (
         <div className="border border-border bg-card/20 p-6 text-sm text-muted-foreground">
