@@ -13,6 +13,8 @@ description: Product and documentation updates.
 - Extended `vacuum_memories` cleanup to prune graph mappings for purged soft-deleted memories.
 - Added embedding-driven `similar_to` graph edges between memory nodes (bidirectional) using cosine thresholding and per-memory caps.
 - Added similarity edge controls: `SIMILARITY_EDGE_THRESHOLD`, `SIMILARITY_EDGE_MAX_K`, `SIMILARITY_EDGE_MAX_PER_MEMORY`.
+- Added optional LLM relationship extraction for ambiguous similarity matches to create `contradicts` and `supersedes` memory edges.
+- Added graph LLM controls: `GRAPH_LLM_AMBIGUOUS_SIMILARITY_MIN`, `GRAPH_LLM_AMBIGUOUS_SIMILARITY_MAX`, `GRAPH_LLM_RELATIONSHIP_CONFIDENCE_THRESHOLD`, `GRAPH_LLM_RELATIONSHIP_MODEL_ID`.
 - Updated memory graph architecture docs to document memory nodes and self-link behavior.
 
 ## February 20, 2026

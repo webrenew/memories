@@ -258,16 +258,32 @@ export async function replaceMemorySimilarityEdges(
   edges: GraphEdgeWrite[],
   options: { nowIso?: string } = {}
 ): Promise<void> {
+  await replaceMemoryRelationshipEdges(turso, memoryId, edges, {
+    nowIso: options.nowIso,
+    edgeTypes: ["similar_to"],
+  })
+}
+
+export async function replaceMemoryRelationshipEdges(
+  turso: TursoClient,
+  memoryId: string,
+  edges: GraphEdgeWrite[],
+  options: { nowIso?: string; edgeTypes?: string[] } = {}
+): Promise<void> {
   await ensureGraphTables(turso)
+  const edgeTypes = Array.from(new Set((options.edgeTypes ?? []).map((value) => value.trim()).filter(Boolean)))
+  const hasTypedDelete = edgeTypes.length > 0
 
   const memoryNodeIds = await resolveMemoryNodeIds(turso, [memoryId])
   if (memoryNodeIds.length > 0) {
+    const typeMarkers = hasTypedDelete ? placeholders(edgeTypes.length) : ""
+    const memoryMarkers = placeholders(memoryNodeIds.length)
+    const edgeTypeFilter = hasTypedDelete ? `edge_type IN (${typeMarkers}) AND ` : ""
     await turso.execute({
       sql: `DELETE FROM graph_edges
-            WHERE edge_type = 'similar_to'
-              AND (from_node_id IN (${placeholders(memoryNodeIds.length)})
-                   OR to_node_id IN (${placeholders(memoryNodeIds.length)}))`,
-      args: [...memoryNodeIds, ...memoryNodeIds],
+            WHERE ${edgeTypeFilter}(from_node_id IN (${memoryMarkers})
+                   OR to_node_id IN (${memoryMarkers}))`,
+      args: [...edgeTypes, ...memoryNodeIds, ...memoryNodeIds],
     })
   }
 
