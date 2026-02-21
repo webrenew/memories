@@ -9,7 +9,7 @@
     --color-background: var(--background);
     --color-background-secondary: var(--background-secondary);
     --color-foreground: var(--foreground);
-    --font-sans: 'Satoshi', var(--font-geist-sans);
+    --font-sans: var(--font-geist-sans);
     --font-mono: var(--font-geist-mono);
     --font-display: var(--font-departure-mono);
     --color-sidebar-ring: var(--sidebar-ring);
@@ -169,7 +169,7 @@
     }
     body {
       @apply bg-background text-foreground selection:bg-primary/30 antialiased;
-      font-family: 'Satoshi', var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+      font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
     }
     h1,
     h2,

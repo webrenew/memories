@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { VisualEditsMessenger } from "orchids-visual-edits";
@@ -17,6 +17,18 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const jetBrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
+  subsets: ["latin"],
+  weight: ["300", "400", "600", "700"],
 });
 
 const departureMono = localFont({
@@ -109,14 +121,8 @@ export default function RootLayout({
 }>): React.JSX.Element {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link
-          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${departureMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${jetBrainsMono.variable} ${spaceGrotesk.variable} ${departureMono.variable} antialiased`}
       >
         <ThemeProvider
           attribute="class"
