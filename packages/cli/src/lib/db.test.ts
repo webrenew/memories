@@ -19,6 +19,8 @@ const GRAPH_INDEXES = [
   "idx_memory_node_links_node_id",
   "idx_memory_node_links_memory_id",
 ];
+const REMINDER_TABLES = ["reminders"];
+const REMINDER_INDEXES = ["idx_reminders_scope_project", "idx_reminders_enabled_next"];
 
 const FTS_TRIGGERS = ["memories_ai", "memories_ad", "memories_au"];
 
@@ -39,6 +41,26 @@ describe("db graph migrations", () => {
     }
 
     for (const indexName of GRAPH_INDEXES) {
+      const result = await db.execute({
+        sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
+        args: [indexName],
+      });
+      expect(result.rows.length).toBe(1);
+    }
+  });
+
+  it("creates reminder tables and indexes", async () => {
+    const db = await getDb();
+
+    for (const table of REMINDER_TABLES) {
+      const result = await db.execute({
+        sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        args: [table],
+      });
+      expect(result.rows.length).toBe(1);
+    }
+
+    for (const indexName of REMINDER_INDEXES) {
       const result = await db.execute({
         sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
         args: [indexName],

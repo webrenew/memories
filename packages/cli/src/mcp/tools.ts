@@ -12,6 +12,13 @@ import {
   bulkForgetByIds,
   vacuumMemories,
 } from "../lib/memory.js";
+import {
+  createReminder,
+  listReminders,
+  runDueReminders,
+  setReminderEnabled,
+  deleteReminder,
+} from "../lib/reminders.js";
 import { resolveMemoryScopeInput } from "./scope.js";
 import {
   TYPE_LABELS,
@@ -422,6 +429,201 @@ Requires at least one filter, or all:true to delete everything. Cannot combine a
       } catch (error) {
         return {
           content: [{ type: "text", text: `Failed to vacuum: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: add_reminder
+  server.tool(
+    "add_reminder",
+    "Create a cron-based reminder. Local CLI MCP only.",
+    {
+      cron_expression: z
+        .string()
+        .describe("5-field cron expression: minute hour day-of-month month day-of-week"),
+      message: z.string().describe("Reminder message"),
+      global: z.boolean().optional().describe("Store as global reminder"),
+      project_id: z.string().optional().describe("Explicit project id (e.g., github.com/org/repo)"),
+    },
+    async ({ cron_expression, message, global: isGlobal, project_id }) => {
+      try {
+        const scopeOpts = resolveMemoryScopeInput({ global: isGlobal, project_id });
+        const reminder = await createReminder(message, {
+          cronExpression: cron_expression,
+          ...scopeOpts,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Created reminder ${reminder.id} (${reminder.scope}) next at ${reminder.next_trigger_at ?? "n/a"}: ${reminder.message}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to add reminder: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: list_reminders
+  server.tool(
+    "list_reminders",
+    "List reminders for the current scope (global + project when project_id is provided). Local CLI MCP only.",
+    {
+      include_disabled: z.boolean().optional().describe("Include disabled reminders"),
+      project_id: z.string().optional().describe("Explicit project id (e.g., github.com/org/repo)"),
+    },
+    async ({ include_disabled, project_id }) => {
+      try {
+        const reminders = await listReminders({
+          includeDisabled: include_disabled,
+          projectId: project_id?.trim() ? project_id.trim() : undefined,
+        });
+
+        if (reminders.length === 0) {
+          return {
+            content: [{ type: "text", text: "No reminders found." }],
+          };
+        }
+
+        const formatted = reminders
+          .map((reminder) => {
+            const status = reminder.enabled ? "enabled" : "disabled";
+            return `- ${reminder.id} [${status}] ${reminder.cron_expression} :: ${reminder.message} (next: ${reminder.next_trigger_at ?? "n/a"})`;
+          })
+          .join("\n");
+        return {
+          content: [{ type: "text", text: `${reminders.length} reminders:\n${formatted}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to list reminders: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: run_due_reminders
+  server.tool(
+    "run_due_reminders",
+    "Evaluate and emit due reminders; advances next trigger unless dry_run is true. Local CLI MCP only.",
+    {
+      dry_run: z.boolean().optional().describe("Preview due reminders without updating next trigger"),
+      project_id: z.string().optional().describe("Explicit project id (e.g., github.com/org/repo)"),
+    },
+    async ({ dry_run, project_id }) => {
+      try {
+        const result = await runDueReminders({
+          dryRun: dry_run,
+          projectId: project_id?.trim() ? project_id.trim() : undefined,
+        });
+
+        if (result.triggered.length === 0) {
+          return {
+            content: [{ type: "text", text: `No due reminders (${result.checkedCount} active checked).` }],
+          };
+        }
+
+        const lines = result.triggered
+          .map((reminder) => `- ${reminder.id} :: ${reminder.message} (${reminder.cron_expression})`)
+          .join("\n");
+        return {
+          content: [{ type: "text", text: `Triggered ${result.triggered.length} reminder(s):\n${lines}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to run due reminders: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: enable_reminder
+  server.tool(
+    "enable_reminder",
+    "Enable a reminder and recompute next trigger time. Local CLI MCP only.",
+    {
+      id: z.string().describe("Reminder ID"),
+    },
+    async ({ id }) => {
+      try {
+        const reminder = await setReminderEnabled(id, true);
+        if (!reminder) {
+          return {
+            content: [{ type: "text", text: `Reminder ${id} not found.` }],
+            isError: true,
+          };
+        }
+        return {
+          content: [{ type: "text", text: `Enabled reminder ${id}. Next trigger: ${reminder.next_trigger_at ?? "n/a"}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to enable reminder: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: disable_reminder
+  server.tool(
+    "disable_reminder",
+    "Disable a reminder. Local CLI MCP only.",
+    {
+      id: z.string().describe("Reminder ID"),
+    },
+    async ({ id }) => {
+      try {
+        const reminder = await setReminderEnabled(id, false);
+        if (!reminder) {
+          return {
+            content: [{ type: "text", text: `Reminder ${id} not found.` }],
+            isError: true,
+          };
+        }
+        return {
+          content: [{ type: "text", text: `Disabled reminder ${id}.` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to disable reminder: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: delete_reminder
+  server.tool(
+    "delete_reminder",
+    "Delete a reminder by ID. Local CLI MCP only.",
+    {
+      id: z.string().describe("Reminder ID"),
+    },
+    async ({ id }) => {
+      try {
+        const deleted = await deleteReminder(id);
+        if (!deleted) {
+          return {
+            content: [{ type: "text", text: `Reminder ${id} not found.` }],
+            isError: true,
+          };
+        }
+        return {
+          content: [{ type: "text", text: `Deleted reminder ${id}.` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to delete reminder: ${error instanceof Error ? error.message : "Unknown error"}` }],
           isError: true,
         };
       }

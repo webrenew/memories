@@ -1,0 +1,90 @@
+---
+title: memories reminders
+description: Manage cron-based reminders from the CLI.
+---
+
+```bash
+memories reminders <subcommand> [options]
+```
+
+Create and run lightweight cron-style reminders stored in your local memories database.
+
+## Subcommands
+
+### `memories reminders add <cron> <message...>`
+
+Create a reminder with a 5-field cron expression.
+
+| Option | Description |
+|--------|-------------|
+| `-g, --global` | Store reminder as global (default is project-scoped inside a git repo) |
+| `--json` | Output created reminder as JSON |
+
+```bash
+memories reminders add "0 9 * * 1-5" "Standup prep"
+memories reminders add "*/30 * * * *" "Stretch break" --global
+```
+
+### `memories reminders list`
+
+List reminders visible in the current scope.
+
+| Option | Description |
+|--------|-------------|
+| `--all` | Include disabled reminders |
+| `--json` | Output list as JSON |
+
+```bash
+memories reminders list
+memories reminders list --all --json
+```
+
+### `memories reminders run`
+
+Evaluate due reminders and emit them to stdout.
+
+| Option | Description |
+|--------|-------------|
+| `--dry-run` | Show due reminders without advancing schedule |
+| `--json` | Output result as JSON |
+
+```bash
+memories reminders run
+memories reminders run --dry-run
+```
+
+### `memories reminders enable <id>`
+
+Enable a reminder and recompute its next trigger time.
+
+### `memories reminders disable <id>`
+
+Disable a reminder (keeps reminder record, stops triggering).
+
+### `memories reminders delete <id>`
+
+Delete a reminder permanently.
+
+## Cron Format
+
+Use standard 5-field cron syntax:
+
+```text
+minute hour day-of-month month day-of-week
+```
+
+Examples:
+
+- `*/15 * * * *` every 15 minutes
+- `0 9 * * 1-5` 9:00 AM Monday-Friday
+- `30 18 1 * *` 6:30 PM on day 1 of each month
+
+## Running on a Schedule
+
+`memories reminders run` only checks and emits reminders when it executes. To automate it, run it from your system scheduler (cron, launchd, systemd timer, CI scheduler, etc.).
+
+Example cron entry (every minute):
+
+```cron
+* * * * * /usr/local/bin/memories reminders run
+```

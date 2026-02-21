@@ -34,6 +34,9 @@ memories files ingest --global --include-config
 
 # 10) Apply workspace files
 memories files apply --global --include-config --force
+
+# 11) Optional: add weekday reminder for OpenClaw refresh
+memories reminders add "0 9 * * 1-5" "OpenClaw refresh: run generate + skills copy + files apply"
 ```
 
 ## Path B: Ongoing refresh
@@ -45,6 +48,12 @@ memories generate agents
 if [ -d .agents/skills ]; then cp -R .agents/skills/. ~/.openclaw/workspace/skills/; fi
 memories files ingest --global --include-config
 memories files apply --global --include-config --force
+```
+
+Optional reminder run:
+
+```bash
+memories reminders run
 ```
 
 ## Expected workspace artifacts

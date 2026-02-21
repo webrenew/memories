@@ -32,6 +32,10 @@ memories add --rule "Always use TypeScript strict mode"
 memories add --decision "Chose Supabase for auth — built-in RLS"
 memories add --rule "Use RESTful naming" --paths "src/api/**" --category api
 
+# Add and run reminders
+memories reminders add "0 9 * * 1-5" "Review open TODOs"
+memories reminders run
+
 # Generate configs for all detected tools
 memories generate
 
@@ -92,7 +96,7 @@ memories doctor --local-only
 }
 ```
 
-**Tools**: `get_context`, `add_memory`, `search_memories`, `get_rules`, `list_memories`, `edit_memory`, `forget_memory`, `bulk_forget_memories`, `vacuum_memories`
+**Tools**: `get_context`, `add_memory`, `search_memories`, `get_rules`, `list_memories`, `edit_memory`, `forget_memory`, `bulk_forget_memories`, `vacuum_memories`, `add_reminder`, `list_reminders`, `run_due_reminders`, `enable_reminder`, `disable_reminder`, `delete_reminder`
 
 If your MCP client runs outside the repo directory, force project scope with `project_id`:
 

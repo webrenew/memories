@@ -1,6 +1,6 @@
 {
   "name": "@memories.sh/cli",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "description": "A local-first memory layer for AI coding agents — persistent context for Claude, Cursor, and more",
   "type": "module",
   "license": "Apache-2.0",

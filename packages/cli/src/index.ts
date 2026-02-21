@@ -28,6 +28,7 @@ import { embedCommand } from "./commands/embed.js";
 import { loginCommand, logoutCommand } from "./commands/login.js";
 import { filesCommand } from "./commands/files.js";
 import { orgCommand } from "./commands/org.js";
+import { remindersCommand } from "./commands/reminders.js";
 import { CLI_VERSION } from "./lib/version.js";
 
 const program = new Command()
@@ -72,6 +73,7 @@ program.addCommand(revertCommand);
 program.addCommand(embedCommand);
 program.addCommand(filesCommand);
 program.addCommand(orgCommand);
+program.addCommand(remindersCommand);
 
 // Auth commands
 program.addCommand(loginCommand);

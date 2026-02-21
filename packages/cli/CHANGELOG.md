@@ -1,5 +1,13 @@
 # @memories.sh/cli
 
+## 0.7.9
+
+### Minor Changes
+
+- Add cron-based reminder support to the CLI with `memories reminders` subcommands (`add`, `list`, `run`, `enable`, `disable`, `delete`).
+- Add local CLI MCP reminder tools: `add_reminder`, `list_reminders`, `run_due_reminders`, `enable_reminder`, `disable_reminder`, and `delete_reminder`.
+- Add reminder schema migration (`reminders` table + due/scope indexes) and coverage tests for scheduling, scope filtering, and due-run execution.
+
 ## 0.7.7
 
 ### Patch Changes

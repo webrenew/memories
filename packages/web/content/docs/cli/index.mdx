@@ -20,6 +20,10 @@ memories add --fact "API rate limit is 100/min"
 memories search "authentication"
 memories search "how to handle login" --semantic
 
+# Reminders
+memories reminders add "0 9 * * 1-5" "Review open TODOs"
+memories reminders run
+
 # Generate instruction files
 memories generate all
 
@@ -60,6 +64,7 @@ memories files apply --global
 | [`edit`](/docs/cli/edit) | Edit an existing memory |
 | [`forget`](/docs/cli/forget) | Soft-delete memories by ID or bulk filter |
 | [`tag`](/docs/cli/tag) | Bulk tag and untag operations |
+| [`reminders`](/docs/cli/reminders) | Manage cron-based reminders (`add`, `list`, `run`, `enable`, `disable`, `delete`) |
 
 ### Generation Commands
 

@@ -110,6 +110,12 @@ The MCP server exposes these tools:
 | `forget_memory` | Soft-delete a memory |
 | `bulk_forget_memories` | Bulk soft-delete memories matching filters |
 | `vacuum_memories` | Permanently purge soft-deleted memories |
+| `add_reminder` | Create a cron-based reminder |
+| `list_reminders` | List reminders |
+| `run_due_reminders` | Evaluate and emit due reminders |
+| `enable_reminder` | Enable a reminder |
+| `disable_reminder` | Disable a reminder |
+| `delete_reminder` | Delete a reminder |
 
 When your MCP client runs outside the target repo, pass `project_id` to force project scope:
 

@@ -251,6 +251,33 @@ async function runMigrations(db: Client): Promise<void> {
     // Index might already exist
   }
 
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS reminders (
+      id TEXT PRIMARY KEY,
+      message TEXT NOT NULL,
+      cron_expression TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'global',
+      project_id TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_triggered_at TEXT,
+      next_trigger_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  );
+
+  try {
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_reminders_scope_project ON reminders(scope, project_id)`);
+  } catch {
+    // Index might already exist
+  }
+
+  try {
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_reminders_enabled_next ON reminders(enabled, next_trigger_at)`);
+  } catch {
+    // Index might already exist
+  }
+
   await ensureGraphSchema(db);
 
   // Files table for syncing config files (.agents/, .cursor/, .claude/, etc.)

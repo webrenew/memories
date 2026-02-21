@@ -1,6 +1,6 @@
 ---
 name: openclaw
-description: "OpenClaw integration workflows for memories.sh. Use when: (1) Setting up OpenClaw with memories.sh (`openclaw onboard`, `memories init`), (2) Syncing OpenClaw workspace contracts (`~/.openclaw/workspace/AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`, memory files, and skills), (3) Running repeatable refresh flows after memory updates, (4) Troubleshooting OpenClaw workspace drift, missing skills, or path/config mismatches, (5) Updating OpenClaw runbooks or `llms.txt` guidance."
+description: "OpenClaw integration workflows for memories.sh. Use when: (1) Setting up OpenClaw with memories.sh (`openclaw onboard`, `memories init`), (2) Syncing OpenClaw workspace contracts (`~/.openclaw/workspace/AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`, memory files, and skills), (3) Running repeatable refresh flows after memory updates, (4) Scheduling reminder prompts for OpenClaw refresh via `memories reminders`, (5) Troubleshooting OpenClaw workspace drift, missing skills, or path/config mismatches, (6) Updating OpenClaw runbooks or `llms.txt` guidance."
 ---
 
 # openclaw
@@ -20,6 +20,9 @@ mkdir -p ~/.openclaw/workspace/skills
 if [ -d .agents/skills ]; then cp -R .agents/skills/. ~/.openclaw/workspace/skills/; fi
 memories files ingest --global --include-config
 memories files apply --global --include-config --force
+
+# Optional: schedule a weekday reminder to run the refresh flow
+memories reminders add "0 9 * * 1-5" "OpenClaw refresh: run generate + skills copy + files apply"
 ```
 
 ## Workflow Decision Tree
@@ -39,6 +42,13 @@ memories generate agents
 if [ -d .agents/skills ]; then cp -R .agents/skills/. ~/.openclaw/workspace/skills/; fi
 memories files ingest --global --include-config
 memories files apply --global --include-config --force
+```
+
+Optional reminder check:
+
+```bash
+memories reminders list
+memories reminders run
 ```
 
 ## Guardrails

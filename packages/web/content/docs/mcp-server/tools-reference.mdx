@@ -3,7 +3,7 @@ title: Tools Reference
 description: Complete reference for all MCP tools exposed by the memories.sh server.
 ---
 
-The memories.sh MCP server exposes 9 tools that AI agents can call to interact with your memory store.
+The memories.sh MCP server exposes 9 core memory tools. The local CLI MCP server (`memories serve`) also adds 6 reminder tools.
 
 <Callout>
 SaaS apps that already call SDK endpoints (`/api/sdk/v1/*`) do not need these MCP tools unless they serve MCP-native clients.
@@ -226,3 +226,62 @@ Permanently purge all soft-deleted memories to reclaim storage space. This hard-
 ```
 
 Returns `purged` (count of permanently removed records) and a `message` string.
+
+## Local CLI Reminder Tools
+
+<Callout type="info">
+The reminder tools below are available in the local CLI MCP server (`memories serve`). They are not part of hosted tenant-routed MCP today.
+</Callout>
+
+### add_reminder
+
+Create a cron-based reminder.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `cron_expression` | `string` | Yes | 5-field cron expression (`minute hour day-of-month month day-of-week`) |
+| `message` | `string` | Yes | Reminder message |
+| `global` | `boolean` | No | Store as global reminder |
+| `project_id` | `string` | No | Explicit project identifier |
+
+### list_reminders
+
+List reminders in current scope.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include_disabled` | `boolean` | No | Include disabled reminders |
+| `project_id` | `string` | No | Explicit project identifier |
+
+### run_due_reminders
+
+Evaluate and emit due reminders.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `dry_run` | `boolean` | No | Preview due reminders without advancing schedule |
+| `project_id` | `string` | No | Explicit project identifier |
+
+### enable_reminder
+
+Enable a reminder and recompute `next_trigger_at`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `string` | Yes | Reminder ID |
+
+### disable_reminder
+
+Disable a reminder without deleting it.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `string` | Yes | Reminder ID |
+
+### delete_reminder
+
+Delete a reminder by ID.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `string` | Yes | Reminder ID |

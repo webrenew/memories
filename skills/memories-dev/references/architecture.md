@@ -190,7 +190,7 @@ Detects installed AI coding tools and configures MCP:
 - `/api/memories` — CRUD (GET, POST, PATCH, DELETE) with full field set (paths, category, metadata)
 - `/api/auth/cli` — Device code flow endpoint
 - `/api/db/provision` — Turso DB provisioning
-- `/api/mcp` — Cloud MCP endpoint (7 tools, FTS5 search with LIKE fallback, at feature parity with CLI MCP)
+- `/api/mcp` — Cloud MCP endpoint (core memory tools with FTS5 search + LIKE fallback). Local CLI MCP additionally exposes reminder and streaming-only tools.
 
 ---
 

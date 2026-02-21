@@ -1,6 +1,6 @@
 ---
 name: memories-mcp
-description: "MCP server integration for memories.sh — the persistent memory layer for AI agents. Use when: (1) Configuring the memories.sh MCP server for any client (Claude Code, Cursor, Windsurf, VS Code, v0, Claude Desktop, OpenCode, Factory), (2) Using MCP tools to store, search, or retrieve memories programmatically, (3) Understanding get_context vs search_memories vs list_memories, (4) Working with streaming memory tools for SSE content, (5) Troubleshooting MCP connection issues, (6) Choosing between cloud MCP (HTTP) and local MCP (stdio) transports."
+description: "MCP server integration for memories.sh — the persistent memory layer for AI agents. Use when: (1) Configuring the memories.sh MCP server for any client (Claude Code, Cursor, Windsurf, VS Code, v0, Claude Desktop, OpenCode, Factory), (2) Using MCP tools to store, search, retrieve memories, or manage reminder schedules, (3) Understanding get_context vs search_memories vs list_memories, (4) Working with streaming memory tools for SSE content, (5) Troubleshooting MCP connection issues, (6) Choosing between cloud MCP (HTTP) and local MCP (stdio) transports."
 ---
 
 # memories-mcp
@@ -50,6 +50,9 @@ Leave `query` empty to get just rules. Use `limit` to control memory count (defa
 | Remove a memory | `forget_memory` | Soft-delete (recoverable) |
 | Bulk remove memories | `bulk_forget_memories` | Filtered mass soft-delete by type, tags, age, pattern |
 | Reclaim storage | `vacuum_memories` | Permanently purge all soft-deleted records |
+| Add reminder (local) | `add_reminder` | Create cron-based reminder in local CLI DB |
+| Run reminders (local) | `run_due_reminders` | Emit due reminders and advance schedule |
+| Manage reminders (local) | `list_reminders`, `enable_reminder`, `disable_reminder`, `delete_reminder` | Inspect and control reminder lifecycle |
 
 ## Memory Types
 
@@ -94,6 +97,8 @@ For clients that support MCP resources:
 | **stdio** | Claude Code, Cursor, local tools | `memories serve` |
 | **HTTP/SSE** | v0, web-based agents, remote | `memories serve --sse --port 3030` |
 | **Cloud** | No local install, cross-device | `https://memories.sh/api/mcp` + `Authorization: Bearer KEY` |
+
+Reminder tools are local CLI MCP only (`memories serve`).
 
 ## Reference Files
 

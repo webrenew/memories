@@ -1,6 +1,6 @@
 ---
 name: memories-cli
-description: "CLI reference and workflows for memories.sh — the persistent memory layer for AI agents. Use when: (1) Running memories CLI commands to add, search, edit, or manage memories, (2) Setting up memories.sh in a new project (memories init), (3) Generating AI tool config files (CLAUDE.md, .cursor/rules, etc.), (4) Importing existing rules from AI tools (memories ingest), (5) Managing cloud sync, embeddings, or git hooks, (6) Troubleshooting with memories doctor, (7) Working with memory templates, links, history, or tags."
+description: "CLI reference and workflows for memories.sh — the persistent memory layer for AI agents. Use when: (1) Running memories CLI commands to add, search, edit, or manage memories, (2) Setting up memories.sh in a new project (memories init), (3) Generating AI tool config files (CLAUDE.md, .cursor/rules, etc.), (4) Importing existing rules from AI tools (memories ingest), (5) Managing cloud sync, embeddings, git hooks, or reminders, (6) Troubleshooting with memories doctor, (7) Working with memory templates, links, history, tags, or reminder schedules."
 ---
 
 # memories-cli
@@ -31,6 +31,7 @@ memories init                      # Initialize in current project
 | `memories generate` | Generate AI tool config files |
 | `memories prompt` | Generate a system prompt |
 | `memories serve` | Start MCP server |
+| `memories reminders` | Manage cron reminders (`add`, `list`, `run`, `enable`, `disable`, `delete`) |
 
 ## Core Workflows
 
@@ -100,6 +101,14 @@ memories review                           # Interactive cleanup
 memories validate                         # Check memory integrity
 ```
 
+### 8. Reminders
+
+```bash
+memories reminders add "0 9 * * 1-5" "Review open TODOs"
+memories reminders list
+memories reminders run
+```
+
 ## Memory Types
 
 Use `--type` flag with `add`:
@@ -123,6 +132,7 @@ When using MCP instead of CLI commands (for example from browser tools or agents
 - **Tags**: `memories tag <id> add api,auth`
 - **Export/Import**: `memories export > backup.yaml` / `memories import backup.yaml`
 - **Git Hooks**: `memories hook install` — auto-generate on commit
+- **Reminders**: `memories reminders ...` — cron-style prompts persisted in the local DB
 
 ## Reference Files
 

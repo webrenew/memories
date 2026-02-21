@@ -80,6 +80,12 @@ if [ -d .agents/skills ]; then
 fi
 ```
 
+Optional reminder setup:
+
+```bash
+memories reminders add "0 9 * * 1-5" "OpenClaw refresh: run generate + skills copy + files apply"
+```
+
 ## Important Notes
 
 - OpenClaw docs define a full workspace contract (`AGENTS`, `SOUL`, `TOOLS`, `IDENTITY`, `USER`, `HEARTBEAT`, `BOOTSTRAP`, `BOOT`, and memory files).

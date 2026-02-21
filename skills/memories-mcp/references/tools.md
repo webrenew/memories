@@ -13,6 +13,7 @@ Complete reference for all memories.sh MCP tools.
 - [forget_memory](#forget_memory)
 - [bulk_forget_memories](#bulk_forget_memories)
 - [vacuum_memories](#vacuum_memories)
+- [Local Reminder Tools](#local-reminder-tools)
 - [Streaming Tools](#streaming-tools)
 
 ---
@@ -212,6 +213,49 @@ Permanently purge all soft-deleted memories to reclaim storage space.
 vacuum_memories({})
 → Vacuumed 15 soft-deleted memories
 ```
+
+---
+
+## Local Reminder Tools
+
+> **CLI local MCP only.** These tools are available when running `memories serve` from the CLI.
+
+### add_reminder
+
+Create a cron reminder.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `cron_expression` | string | Yes | 5-field cron expression |
+| `message` | string | Yes | Reminder text |
+| `global` | boolean | No | Store globally |
+| `project_id` | string | No | Explicit project scope override |
+
+### list_reminders
+
+List reminders in current scope.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `include_disabled` | boolean | No | Include disabled reminders |
+| `project_id` | string | No | Explicit project scope override |
+
+### run_due_reminders
+
+Evaluate reminders due at current time.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `dry_run` | boolean | No | Preview without advancing schedule |
+| `project_id` | string | No | Explicit project scope override |
+
+### enable_reminder / disable_reminder / delete_reminder
+
+| Tool | Parameter | Type | Required | Description |
+|------|-----------|------|----------|-------------|
+| `enable_reminder` | `id` | string | Yes | Enable reminder and recompute next trigger |
+| `disable_reminder` | `id` | string | Yes | Disable reminder |
+| `delete_reminder` | `id` | string | Yes | Delete reminder |
 
 ---
 

@@ -8,6 +8,7 @@ Complete reference for all `memories` CLI commands.
 - [Query Commands](#query-commands)
 - [Management Commands](#management-commands)
 - [Advanced Commands](#advanced-commands)
+- [Reminders](#reminders)
 - [Auth Commands](#auth-commands)
 
 ---
@@ -190,6 +191,46 @@ Start the MCP server.
 - `-p, --port <port>` — Port for SSE (default: 3030)
 - `--host <host>` — Host to bind (default: 127.0.0.1)
 - `--cors` — Enable CORS
+
+---
+
+## Reminders
+
+### `memories reminders add <cron> <message...>`
+
+Create a reminder with a 5-field cron expression.
+
+**Options:**
+- `-g, --global` — Store as global reminder
+- `--json` — JSON output
+
+### `memories reminders list`
+
+List reminders in current scope.
+
+**Options:**
+- `--all` — Include disabled reminders
+- `--json` — JSON output
+
+### `memories reminders run`
+
+Evaluate and emit due reminders.
+
+**Options:**
+- `--dry-run` — Preview due reminders without updating schedule
+- `--json` — JSON output
+
+### `memories reminders enable <id>`
+
+Enable a reminder and recompute next trigger.
+
+### `memories reminders disable <id>`
+
+Disable a reminder without deleting it.
+
+### `memories reminders delete <id>`
+
+Delete a reminder by ID.
 
 ### `memories sync`
 
