@@ -63,6 +63,15 @@ export interface GraphViewport {
   y: number
 }
 
+export interface MiniMapViewport {
+  width: number
+  height: number
+  viewportX: number
+  viewportY: number
+  viewportWidth: number
+  viewportHeight: number
+}
+
 export const ROLLOUT_MODES: Array<{ value: GraphRolloutMode; label: string; description: string }> = [
   { value: "off", label: "Off", description: "Always serve baseline retrieval." },
   { value: "shadow", label: "Shadow", description: "Run graph retrieval without applying it." },
@@ -96,6 +105,28 @@ export function scaleViewportAtPoint(
     scale: clampedScale,
     x: anchor.x - (anchor.x - viewport.x) * ratio,
     y: anchor.y - (anchor.y - viewport.y) * ratio,
+  }
+}
+
+export function buildMiniMapViewport(viewport: GraphViewport): MiniMapViewport {
+  const width = 172
+  const height = 98
+  const unclampedViewportWidth = GRAPH_WIDTH / viewport.scale
+  const unclampedViewportHeight = GRAPH_HEIGHT / viewport.scale
+  const viewportWidth = clamp(unclampedViewportWidth, 0, GRAPH_WIDTH)
+  const viewportHeight = clamp(unclampedViewportHeight, 0, GRAPH_HEIGHT)
+  const rawViewportX = (-viewport.x) / viewport.scale
+  const rawViewportY = (-viewport.y) / viewport.scale
+  const maxViewportX = Math.max(0, GRAPH_WIDTH - viewportWidth)
+  const maxViewportY = Math.max(0, GRAPH_HEIGHT - viewportHeight)
+
+  return {
+    width,
+    height,
+    viewportX: clamp(rawViewportX, 0, maxViewportX),
+    viewportY: clamp(rawViewportY, 0, maxViewportY),
+    viewportWidth,
+    viewportHeight,
   }
 }
 
