@@ -223,10 +223,41 @@ Response `data`:
 - `mode`, `query`
 - `rules[]`
 - `memories[]`
+- `conflicts[]` (optional contradiction pairs when returned memories are linked by `contradicts` edges)
 - `skillFiles[]`
 - `workingMemories[]`
 - `longTermMemories[]`
 - `trace` (strategy, rollout mode, fallback details, candidate counts, retrieval policy diagnostics)
+
+`memories[].graph` explainability (present for graph-expanded memories):
+
+- `whyIncluded`: `graph_expansion`
+- `linkedViaNode`: graph node label that connected the memory
+- `edgeType`: relationship edge used for expansion
+- `hopCount`: traversal depth from seed memory
+- `confidence`: normalized edge confidence (`0..1`)
+- `seedMemoryId`: originating seed memory id
+
+`conflicts[]` item shape (`ConflictPair` in `@memories.sh/core`):
+
+```json
+{
+  "memoryAId": "mem_a",
+  "memoryBId": "mem_b",
+  "edgeType": "contradicts",
+  "confidence": 0.91,
+  "explanation": "These memories are linked by a contradiction edge from relationship extraction.",
+  "suggestion": "These memories may conflict. Consider asking the user to clarify which preference is current."
+}
+```
+
+`trace` includes rollout + retrieval diagnostics such as:
+
+- `retrievalPolicyDefaultStrategy`, `retrievalPolicyAppliedStrategy`, `retrievalPolicySelection`
+- `semanticStrategyRequested`, `semanticStrategyApplied`, `semanticFallbackTriggered`, `semanticFallbackReason`
+- `graphDepth`, `graphLimit`, `rolloutMode`, `shadowExecuted`
+- `baselineCandidates`, `graphCandidates`, `graphExpandedCount`, `conflictCount`, `totalCandidates`
+- `fallbackTriggered`, `fallbackReason`
 
 ### `POST /api/sdk/v1/memories/add`
 

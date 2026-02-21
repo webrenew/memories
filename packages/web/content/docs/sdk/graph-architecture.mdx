@@ -53,6 +53,30 @@ Graph expansion can include semantically related memories via `similar_to` edges
 
 Graph candidate ranking is edge-type aware and confidence-weighted. For equal hop counts, higher-priority relationships (for example `caused_by`, `contradicts`, `supersedes`) outrank generic relational links.
 
+### Edge Weight Table
+
+The retrieval ranker applies edge-type multipliers before hop decay:
+
+| Edge type | Weight | Why |
+| --- | --- | --- |
+| `caused_by` | `1.5` | Causal updates should dominate older generic preference facts |
+| `contradicts` | `1.3` | Surface conflicts quickly for clarification |
+| `supersedes` | `1.2` | Prefer newer refinement over stale variants |
+| `similar_to` | `1.0` | Semantic neighbor baseline |
+| `depends_on` | `0.9` | Preserve workflow ordering context |
+| `prefers_over` | `0.8` | Preference edges with lower certainty than causal updates |
+| `specializes` | `0.7` | Hierarchical narrowing |
+| `conditional_on` | `0.6` | Condition-gated relationships |
+| `shared_node` | `0.25` | Legacy/shared metadata traversal fallback |
+
+Ranking formula:
+
+```text
+score = (edge_type_weight * edge_weight * confidence) / max(1, hop_count)
+```
+
+At equal confidence and hop count, `caused_by` will outrank `prefers_over`, which is how causal facts can override older stated preferences.
+
 Fallback reasons include:
 
 - `feature_flag_disabled`
@@ -102,6 +126,44 @@ Environment controls:
 - `GRAPH_LLM_AMBIGUOUS_SIMILARITY_MAX` (default `0.90`)
 - `GRAPH_LLM_RELATIONSHIP_CONFIDENCE_THRESHOLD` (default `0.70`)
 - `GRAPH_LLM_RELATIONSHIP_MODEL_ID` (default `anthropic/claude-3-5-haiku-latest`)
+- `GRAPH_LLM_SEMANTIC_CONTEXT_LIMIT` (default `20`)
+- `GRAPH_LLM_SEMANTIC_CONFIDENCE_THRESHOLD` (default `0.60`)
+- `GRAPH_LLM_SEMANTIC_MIN_CHARS` (default `20`)
+
+### Contradiction Detection Pipeline
+
+Contradiction/refinement extraction runs in the async embedding worker:
+
+1. Compute similarity neighbors from `memory_embeddings`.
+2. Filter to ambiguous matches using `GRAPH_LLM_AMBIGUOUS_SIMILARITY_MIN..MAX`.
+3. Classify each pair as `agrees`, `contradicts`, `refines`, or `unrelated`.
+4. Persist only edges meeting `GRAPH_LLM_RELATIONSHIP_CONFIDENCE_THRESHOLD`.
+
+Outputs:
+
+- `contradicts` (bidirectional memory-memory edge)
+- `supersedes` (directional memory-memory edge)
+
+### Semantic Relationship Extraction Pipeline
+
+Semantic extraction also runs asynchronously in the embedding worker and does not block memory writes:
+
+1. Select recent scoped memories (`GRAPH_LLM_SEMANTIC_CONTEXT_LIMIT`).
+2. Send new-memory + recent-memory context to the configured model with strict JSON schema output.
+3. Parse + validate typed edges (`caused_by`, `prefers_over`, `depends_on`, `specializes`, `conditional_on`).
+4. Drop low-confidence edges (< `GRAPH_LLM_SEMANTIC_CONFIDENCE_THRESHOLD`).
+5. Persist edges with evidence metadata; map `conditional_on` to shared `condition` nodes.
+
+### Cost And Operations Note
+
+Enabling `GRAPH_LLM_EXTRACTION_ENABLED` adds model calls per memory write (pairwise ambiguous classification + semantic extraction pass). These calls run in background embedding jobs and are best-effort.
+
+Operationally:
+
+- memory writes still succeed if extraction fails
+- extraction failures are logged and skipped
+- monitor AI Gateway usage when enabling this in high-write tenants
+- embedding usage endpoints currently report embedding spend, not a separate semantic-extraction meter
 
 ## Scope And Workspace Routing
 

@@ -73,6 +73,8 @@ memories generate
 - **Skills** — define reusable agent workflows following the [Agent Skills](https://agentskills.io) standard
 - **`.agents/` canonical directory** — tool-agnostic intermediate format, checked into git
 - **Semantic search** — AI-powered embeddings find related memories, not just keyword matches
+- **Relationship-aware graph retrieval** — traverses `similar_to`, `contradicts`, `supersedes`, and semantic edges (`caused_by`, `prefers_over`, `depends_on`, `specializes`, `conditional_on`) with confidence-aware ranking
+- **Conflict surfacing** — `get_context` can return contradiction pairs so agents can ask clarification questions before acting
 - **MCP server** — fallback MCP server for agents that need real-time access beyond static configs
 - **Auto-setup** — `memories setup` (`init` alias) detects installed tools, configures MCP, and imports existing project skills automatically
 - **Global SKILLS.md bootstrap** — installs cross-tool memory usage guidance into detected global agent config directories
