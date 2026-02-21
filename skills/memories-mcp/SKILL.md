@@ -37,12 +37,15 @@ get_context({ query: "authentication flow" })
 
 Leave `query` empty to get just rules. Use `limit` to control memory count (default: 10).
 
+When relationship extraction is enabled server-side, `get_context` may also return `conflicts[]` for contradiction-linked memories. Treat these as clarification prompts before taking irreversible actions.
+
 ## Tool Selection Guide
 
 | Goal | Tool | When |
 |------|------|------|
 | Start a task | `get_context` | Beginning of any task — gets rules + relevant context |
 | Save knowledge | `add_memory` | After learning something worth persisting |
+| Resolve contradictory context | `get_context` | If `conflicts[]` is present, ask a disambiguating question and persist the answer |
 | Find specific info | `search_memories` | Full-text search with prefix matching |
 | Browse recent | `list_memories` | Explore what's stored, filter by type/tags |
 | Get coding standards | `get_rules` | When you only need rules, not memories |

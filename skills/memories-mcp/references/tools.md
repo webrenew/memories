@@ -30,6 +30,8 @@ Complete reference for all memories.sh MCP tools.
 
 **Returns:** Markdown with `## Project Rules` and `## Global Rules` sections + `## Relevant Memories` section. Uses FTS5 with BM25 ranking (LIKE fallback for older databases).
 
+When contradiction edges are present in returned memories, `structuredContent.data.conflicts[]` is included with `memoryAId`, `memoryBId`, `edgeType`, `confidence`, `explanation`, and `suggestion`.
+
 **When to use:** At the start of any task. Call with no query to get just rules.
 
 ```
@@ -40,6 +42,24 @@ get_context({ query: "database migration" })
 → ## Relevant to: "database migration"
 → 💡 DECISION (P) abc123: Chose Drizzle ORM for type-safe migrations
 → 📋 FACT (P) def456: Production DB is PostgreSQL 15 on Supabase
+```
+
+Conflict example (structured payload fragment):
+
+```json
+{
+  "data": {
+    "conflicts": [
+      {
+        "memoryAId": "mem_a",
+        "memoryBId": "mem_b",
+        "edgeType": "contradicts",
+        "confidence": 0.9,
+        "suggestion": "These memories may conflict. Consider asking the user to clarify which preference is current."
+      }
+    ]
+  }
+}
 ```
 
 ---

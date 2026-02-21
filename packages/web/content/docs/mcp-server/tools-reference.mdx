@@ -42,6 +42,33 @@ Returns all rules first (including path scope and category when set), followed b
 
 If returned memories include contradiction links, the response also includes a `conflicts[]` array with pair IDs, confidence, explanation text, and a suggestion for clarification.
 
+Example `structuredContent` conflict payload fragment:
+
+```json
+{
+  "data": {
+    "memories": [
+      { "id": "mem_a", "content": "I prefer tea in the afternoon." },
+      { "id": "mem_b", "content": "I avoid tea after lunch." }
+    ],
+    "conflicts": [
+      {
+        "memoryAId": "mem_a",
+        "memoryBId": "mem_b",
+        "edgeType": "contradicts",
+        "confidence": 0.88,
+        "explanation": "These memories are linked by a contradiction edge from relationship extraction.",
+        "suggestion": "These memories may conflict. Consider asking the user to clarify which preference is current."
+      }
+    ],
+    "trace": {
+      "strategy": "hybrid_graph",
+      "conflictCount": 1
+    }
+  }
+}
+```
+
 ## add_memory
 
 Store a new memory with optional metadata, path scoping, and categorization.
