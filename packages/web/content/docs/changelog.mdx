@@ -22,6 +22,7 @@ description: Product and documentation updates.
 - Added structured LLM extraction degradation reporting in embedding worker metrics (`GRAPH_RELATIONSHIP_PARTIAL_DEGRADE`) with issue-level codes (`GRAPH_LLM_CLASSIFICATION_FAILED`, `GRAPH_LLM_SEMANTIC_EXTRACTION_FAILED`).
 - Optimized graph-only retry path after `GRAPH_RELATIONSHIP_SYNC_FAILED` to reuse stored embeddings and avoid redundant embeddings API calls.
 - Added live Graph Explorer status refresh (manual + background polling) so rollout health, alarms, and quality gate data stay current without page reloads.
+- Added keyboard-accessible graph canvas interactions in Graph Explorer (focusable node/edge controls with Enter/Space activation and ARIA labels).
 - Updated memory graph architecture docs to document memory nodes and self-link behavior.
 - Expanded graph + MCP docs with edge weight tables, contradiction/semantic extraction pipeline guidance, conflict payload schemas/examples, and skills guidance for conflict-aware agent handling.
 

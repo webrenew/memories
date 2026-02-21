@@ -1,6 +1,7 @@
 "use client"
 
 import React, {
+  type KeyboardEvent,
   type PointerEvent,
   type WheelEvent,
   useCallback,
@@ -22,12 +23,15 @@ import {
   clamp,
   DEFAULT_GRAPH_VIEWPORT,
   formatNodeLabel,
+  graphEdgeAriaLabel,
+  graphNodeAriaLabel,
   getNodeStyle,
   GRAPH_HEIGHT,
   GRAPH_WIDTH,
   GRAPH_ZOOM_MAX,
   GRAPH_ZOOM_MIN,
   GRAPH_ZOOM_STEP,
+  handleGraphActivationKey,
   qualityStatusClass,
   qualityStatusLabel,
   ROLLOUT_MODES,
@@ -68,6 +72,8 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
   const [selectedNode, setSelectedNode] = useState<GraphNodeSelection | null>(null)
   const [explorerData, setExplorerData] = useState<GraphExplorerResponse | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
+  const [focusedEdgeId, setFocusedEdgeId] = useState<string | null>(null)
   const [explorerError, setExplorerError] = useState<string | null>(null)
   const [isExplorerLoading, setIsExplorerLoading] = useState(false)
   const [isFocusMode, setIsFocusMode] = useState(false)
@@ -196,6 +202,8 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
     setGraphViewport(DEFAULT_GRAPH_VIEWPORT)
     setIsPanning(false)
     panStartRef.current = null
+    setFocusedNodeId(null)
+    setFocusedEdgeId(null)
   }, [selectedNode?.nodeType, selectedNode?.nodeKey])
 
   const refreshGraphStatus = useCallback(async () => {
@@ -582,6 +590,13 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
     []
   )
 
+  const handleGraphActivation = useCallback(
+    (event: KeyboardEvent<SVGElement>, onActivate: () => void) => {
+      handleGraphActivationKey(event, onActivate)
+    },
+    []
+  )
+
   const clearGraphFilters = useCallback(() => {
     setEdgeTypeFilter(edgeTypeOptions)
     setNodeTypeFilter(nodeTypeOptions)
@@ -925,7 +940,8 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
               <div>
                 <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-muted-foreground">Graph Explorer</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Traverse adjacent edges and linked memories for a selected node. Scroll to zoom and drag to pan.
+                  Traverse adjacent edges and linked memories for a selected node. Scroll to zoom, drag to pan, and use
+                  Tab + Enter/Space to select nodes or edges.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1164,19 +1180,30 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
                         <g transform={`translate(${graphViewport.x} ${graphViewport.y}) scale(${graphViewport.scale})`}>
                           {filteredGraph.edges.map((edge) => {
                             const isSelectedEdge = selectedEdge?.id === edge.id
-                            const showEdgeLabel = isSelectedEdge || graphViewport.scale >= 0.92
+                            const isFocusedEdge = focusedEdgeId === edge.id
+                            const showEdgeLabel = isSelectedEdge || isFocusedEdge || graphViewport.scale >= 0.92
                             return (
                               <g key={edge.id}>
                                 <path
                                   d={edge.path}
                                   fill="none"
-                                  stroke={isSelectedEdge ? "#f43f5e" : "#64748b"}
-                                  strokeOpacity={isSelectedEdge ? 0.95 : 0.55}
-                                  strokeWidth={isSelectedEdge ? 2.3 : 1.35}
+                                  stroke={isSelectedEdge ? "#f43f5e" : isFocusedEdge ? "#cbd5e1" : "#64748b"}
+                                  strokeOpacity={isSelectedEdge ? 0.95 : isFocusedEdge ? 0.9 : 0.55}
+                                  strokeWidth={isSelectedEdge ? 2.3 : isFocusedEdge ? 2 : 1.35}
                                   strokeDasharray={edge.expiresAt ? "5 4" : undefined}
                                   markerEnd="url(#graph-arrow-head)"
                                   className="cursor-pointer transition-all duration-200"
                                   onClick={() => setSelectedEdgeId(edge.id)}
+                                  onFocus={() => setFocusedEdgeId(edge.id)}
+                                  onBlur={() => setFocusedEdgeId((current) => (current === edge.id ? null : current))}
+                                  onKeyDown={(event) =>
+                                    handleGraphActivation(event, () => {
+                                      setSelectedEdgeId(edge.id)
+                                    })}
+                                  tabIndex={0}
+                                  role="button"
+                                  focusable="true"
+                                  aria-label={graphEdgeAriaLabel(edge)}
                                 >
                                   <title>{`${edge.from.nodeType}:${edge.from.nodeKey} -> ${edge.to.nodeType}:${edge.to.nodeKey} | ${edge.edgeType} | ${edge.direction} | weight ${edge.weight.toFixed(2)} | confidence ${edge.confidence.toFixed(2)}`}</title>
                                 </path>
@@ -1185,7 +1212,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
                                     x={edge.labelX}
                                     y={edge.labelY}
                                     textAnchor="middle"
-                                    fill={isSelectedEdge ? "#fda4af" : "#94a3b8"}
+                                    fill={isSelectedEdge ? "#fda4af" : isFocusedEdge ? "#e2e8f0" : "#94a3b8"}
                                     fontSize={11}
                                     fontFamily="var(--font-geist-mono)"
                                     pointerEvents="none"
@@ -1199,10 +1226,13 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
 
                           {filteredGraph.nodes.map((node) => {
                             const style = getNodeStyle(node.nodeType)
+                            const isFocusedNode = focusedNodeId === node.id
+                            const isActiveNode = node.isSelected || isFocusedNode
                             const radius = node.isSelected
                               ? 18
                               : Math.min(16, 10 + Math.log2((node.degree || 0) + 1) * 2.3)
-                            const showLabel = node.isSelected || filteredGraph.nodes.length <= 14 || node.degree > 1
+                            const showLabel =
+                              node.isSelected || isFocusedNode || filteredGraph.nodes.length <= 14 || node.degree > 1
 
                             return (
                               <g
@@ -1214,6 +1244,20 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
                                     nodeKey: node.nodeKey,
                                     label: node.label,
                                   })}
+                                onFocus={() => setFocusedNodeId(node.id)}
+                                onBlur={() => setFocusedNodeId((current) => (current === node.id ? null : current))}
+                                onKeyDown={(event) =>
+                                  handleGraphActivation(event, () => {
+                                    setSelectedNode({
+                                      nodeType: node.nodeType,
+                                      nodeKey: node.nodeKey,
+                                      label: node.label,
+                                    })
+                                  })}
+                                tabIndex={0}
+                                role="button"
+                                focusable="true"
+                                aria-label={graphNodeAriaLabel(node)}
                               >
                                 <circle
                                   cx={node.x}
@@ -1221,8 +1265,8 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
                                   r={radius + (node.isSelected ? 4 : 2)}
                                   fill="transparent"
                                   stroke={style.stroke}
-                                  strokeOpacity={node.isSelected ? 0.55 : 0.22}
-                                  strokeWidth={1}
+                                  strokeOpacity={node.isSelected ? 0.55 : isFocusedNode ? 0.45 : 0.22}
+                                  strokeWidth={isActiveNode ? 1.4 : 1}
                                 />
                                 <circle
                                   cx={node.x}
@@ -1230,7 +1274,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
                                   r={radius}
                                   fill={style.fill}
                                   stroke={style.stroke}
-                                  strokeWidth={node.isSelected ? 2.3 : 1.4}
+                                  strokeWidth={isActiveNode ? 2.3 : 1.4}
                                 >
                                   <title>{`${node.nodeType}:${node.nodeKey} | label ${node.label} | degree ${node.degree}`}</title>
                                 </circle>
@@ -1242,7 +1286,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
                                       textAnchor="middle"
                                       fill={style.text}
                                       fontSize={11}
-                                      fontWeight={node.isSelected ? 700 : 600}
+                                      fontWeight={isActiveNode ? 700 : 600}
                                       fontFamily="var(--font-geist-mono)"
                                       pointerEvents="none"
                                     >

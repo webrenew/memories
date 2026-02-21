@@ -116,6 +116,31 @@ export function truncateText(value: string, max = 180): string {
   return `${value.slice(0, max).trim()}...`
 }
 
+export function isGraphActivationKey(key: string): boolean {
+  return key === "Enter" || key === " " || key === "Spacebar"
+}
+
+export function handleGraphActivationKey(
+  event: Pick<KeyboardEvent, "key" | "preventDefault">,
+  onActivate: () => void
+): boolean {
+  if (!isGraphActivationKey(event.key)) {
+    return false
+  }
+
+  event.preventDefault()
+  onActivate()
+  return true
+}
+
+export function graphNodeAriaLabel(node: GraphCanvasNode): string {
+  return `Graph node ${node.label}. Type ${node.nodeType}. Degree ${node.degree}.`
+}
+
+export function graphEdgeAriaLabel(edge: GraphCanvasEdge): string {
+  return `Graph edge ${edge.edgeType}. ${edge.direction}. From ${edge.from.nodeType}:${edge.from.nodeKey} to ${edge.to.nodeType}:${edge.to.nodeKey}. Weight ${edge.weight.toFixed(2)}. Confidence ${edge.confidence.toFixed(2)}.`
+}
+
 export function nodeRefId(node: GraphNodeSelection): string {
   return `${node.nodeType}:${node.nodeKey}`
 }
