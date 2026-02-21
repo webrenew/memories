@@ -106,8 +106,9 @@ async function resolveNodeId(turso: TursoClient, ref: GraphNodeRef): Promise<str
 
 function defaultNodeLabel(ref: GraphNodeRef): string {
   if (ref.nodeType === "condition") {
-    const [, value] = ref.nodeKey.split(":")
-    return value?.trim() || ref.nodeKey
+    const [, ...rest] = ref.nodeKey.split(":")
+    const value = rest.join(":")
+    return value.trim() || ref.nodeKey
   }
   return ref.nodeKey
 }

@@ -12,6 +12,7 @@ import {
 import { buildNotExpiredFilter, buildUserScopeFilter } from "../scope"
 import type { MemoryLayer, TursoClient } from "../types"
 import type { GraphNodeRef } from "./extract"
+import type { SemanticRelationshipEdgeType } from "./llm-extract"
 import { replaceMemoryRelationshipEdges, replaceMemorySimilarityEdges, type GraphEdgeWrite } from "./upsert"
 
 interface SimilarityCandidateRow {
@@ -71,13 +72,6 @@ export interface RelationshipClassifierResult {
 export type RelationshipClassifier = (
   input: RelationshipClassifierInput
 ) => Promise<RelationshipClassifierResult>
-
-export type SemanticRelationshipEdgeType =
-  | "caused_by"
-  | "prefers_over"
-  | "depends_on"
-  | "specializes"
-  | "conditional_on"
 
 export interface SemanticRelationshipContextMemory {
   id: string
