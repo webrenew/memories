@@ -222,10 +222,19 @@ export interface VacuumResult {
 
 export interface ManagementKeyStatus {
   hasKey: boolean
+  keyCount?: number
+  activeKeyCount?: number
   keyPreview?: string
   createdAt?: string | null
   expiresAt?: string | null
   isExpired?: boolean
+  keys?: Array<{
+    id: string
+    keyPreview?: string | null
+    createdAt?: string | null
+    expiresAt?: string | null
+    isExpired?: boolean
+  }>
 }
 
 export interface ManagementKeyCreateInput {
@@ -234,6 +243,7 @@ export interface ManagementKeyCreateInput {
 
 export interface ManagementKeyCreateResult {
   apiKey: string
+  keyId?: string
   keyPreview?: string
   createdAt?: string
   expiresAt?: string

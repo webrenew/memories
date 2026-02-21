@@ -14,6 +14,7 @@ import {
   resolveSdkProjectBillingContext,
   type SdkProjectBillingContext,
 } from "@/lib/sdk-project-billing"
+import { resolveApiKeyOwnerByHash } from "@/lib/mcp-api-key-store"
 import {
   apiError,
   type TursoClient,
@@ -270,12 +271,8 @@ async function resolveTenantOwnerScope(params: {
   let ownerUserId = params.ownerUserId ?? null
 
   if (!ownerUserId) {
-    const { data: keyOwnerData } = await params.admin
-      .from("users")
-      .select("id")
-      .eq("mcp_api_key_hash", params.apiKeyHash)
-      .maybeSingle()
-    ownerUserId = (keyOwnerData?.id as string | undefined) ?? null
+    const owner = await resolveApiKeyOwnerByHash(params.admin, params.apiKeyHash)
+    ownerUserId = owner?.userId ?? null
   }
 
   let billingContext: SdkProjectBillingContext | null = null

@@ -4,6 +4,7 @@ import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { authenticateRequest } from "@/lib/auth"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { hashMcpApiKey, isValidMcpApiKey } from "@/lib/mcp-api-key"
+import { resolveApiKeyOwnerByHash } from "@/lib/mcp-api-key-store"
 
 export async function GET(request: NextRequest): Promise<Response> {
   const authHeader = request.headers.get("authorization")
@@ -26,22 +27,16 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     const apiKeyHash = hashMcpApiKey(bearer)
-    const res = await admin
-      .from("users")
-      .select("id, mcp_api_key_expires_at")
-      .eq("mcp_api_key_hash", apiKeyHash)
-      .single()
-
-    if (res.error || !res.data?.id || !res.data?.mcp_api_key_expires_at) {
-      console.error("Credentials lookup error:", res.error)
+    const owner = await resolveApiKeyOwnerByHash(admin, apiKeyHash)
+    if (!owner?.userId || !owner.expiresAt) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    if (new Date(res.data.mcp_api_key_expires_at).getTime() <= Date.now()) {
+    if (new Date(owner.expiresAt).getTime() <= Date.now()) {
       return NextResponse.json({ error: "API key expired" }, { status: 401 })
     }
 
-    userId = res.data.id as string
+    userId = owner.userId
   } else {
     // Bearer cli_* (or session cookies) is used by CLI login/sync flows.
     const auth = await authenticateRequest(request)

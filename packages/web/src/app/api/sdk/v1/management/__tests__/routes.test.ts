@@ -124,7 +124,7 @@ describe("/api/sdk/v1/management/keys", () => {
   it("forwards delete status", async () => {
     mockKeyDelete.mockResolvedValue(jsonResponse({ ok: true }, 200))
 
-    const response = await keysDelete()
+    const response = await keysDelete(new Request("https://example.com", { method: "DELETE" }))
     expect(response.status).toBe(200)
     const body = await response.json()
     expect(body.ok).toBe(true)

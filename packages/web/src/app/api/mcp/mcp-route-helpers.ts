@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { hashMcpApiKey, isValidMcpApiKey } from "@/lib/mcp-api-key"
+import { resolveApiKeyOwnerByHash } from "@/lib/mcp-api-key-store"
 import { MCP_SESSION_IDLE_MS } from "@/lib/env"
 import { apiError, type ApiErrorDetail } from "@/lib/memory-service/tools"
 
@@ -106,13 +107,9 @@ export async function authenticateAndGetTurso(apiKey: string): Promise<AuthSucce
 
   const apiKeyHash = hashMcpApiKey(apiKey)
   const admin = createAdminClient()
-  const { data: user, error } = await admin
-    .from("users")
-    .select("id, email, mcp_api_key_expires_at")
-    .eq("mcp_api_key_hash", apiKeyHash)
-    .single()
+  const user = await resolveApiKeyOwnerByHash(admin, apiKeyHash)
 
-  if (error || !user) {
+  if (!user) {
     return {
       error: apiError({
         type: "auth_error",
@@ -124,7 +121,7 @@ export async function authenticateAndGetTurso(apiKey: string): Promise<AuthSucce
     }
   }
 
-  if (!user.mcp_api_key_expires_at || new Date(user.mcp_api_key_expires_at).getTime() <= Date.now()) {
+  if (!user.expiresAt || new Date(user.expiresAt).getTime() <= Date.now()) {
     return {
       error: apiError({
         type: "auth_error",
@@ -136,7 +133,7 @@ export async function authenticateAndGetTurso(apiKey: string): Promise<AuthSucce
     }
   }
 
-  const context = await resolveActiveMemoryContext(admin, user.id, {
+  const context = await resolveActiveMemoryContext(admin, user.userId, {
     fallbackToUserWithoutOrgCredentials: true,
   })
   if (!context?.turso_db_url || !context?.turso_db_token) {
@@ -156,7 +153,15 @@ export async function authenticateAndGetTurso(apiKey: string): Promise<AuthSucce
     authToken: context.turso_db_token,
   })
 
-  return { turso, user: user as AuthenticatedUser, apiKeyHash }
+  return {
+    turso,
+    user: {
+      id: user.userId,
+      email: user.email,
+      mcp_api_key_expires_at: user.expiresAt,
+    },
+    apiKeyHash,
+  }
 }
 
 // Extract API key from request

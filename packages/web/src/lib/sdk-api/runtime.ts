@@ -1,5 +1,6 @@
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { hashMcpApiKey, isValidMcpApiKey } from "@/lib/mcp-api-key"
+import { resolveApiKeyOwnerByHash } from "@/lib/mcp-api-key-store"
 import { checkRateLimit, mcpRateLimit } from "@/lib/rate-limit"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { apiError, type ApiErrorDetail, resolveTenantTurso } from "@/lib/memory-service/tools"
@@ -140,13 +141,9 @@ export async function authenticateApiKey(
   }
 
   const admin = createAdminClient()
-  const { data: user, error } = await admin
-    .from("users")
-    .select("id, mcp_api_key_expires_at")
-    .eq("mcp_api_key_hash", apiKeyHash)
-    .single()
+  const user = await resolveApiKeyOwnerByHash(admin, apiKeyHash)
 
-  if (error || !user) {
+  if (!user) {
     return errorResponse(
       endpoint,
       requestId,
@@ -160,7 +157,7 @@ export async function authenticateApiKey(
     )
   }
 
-  if (!user.mcp_api_key_expires_at || new Date(user.mcp_api_key_expires_at).getTime() <= Date.now()) {
+  if (!user.expiresAt || new Date(user.expiresAt).getTime() <= Date.now()) {
     return errorResponse(
       endpoint,
       requestId,
@@ -175,7 +172,7 @@ export async function authenticateApiKey(
   }
 
   return {
-    userId: user.id as string,
+    userId: user.userId,
     apiKeyHash,
   }
 }
