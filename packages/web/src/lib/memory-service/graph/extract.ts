@@ -2,6 +2,7 @@ import type { MemoryLayer } from "../types"
 
 export interface GraphMemorySnapshot {
   id: string
+  content?: string | null
   type: string
   layer: MemoryLayer
   expiresAt: string | null
@@ -45,6 +46,13 @@ interface DeterministicGraphExtract {
 
 function normalizeText(value: string): string {
   return value.trim()
+}
+
+function truncateLabel(value: string, maxLength = 120): string {
+  const normalized = normalizeText(value)
+  if (!normalized) return ""
+  if (normalized.length <= maxLength) return normalized
+  return `${normalized.slice(0, Math.max(1, maxLength - 3)).trim()}...`
 }
 
 function normalizeTag(tag: string): string {
@@ -119,6 +127,16 @@ export function extractDeterministicGraph(snapshot: GraphMemorySnapshot): Determ
       })
     }
   }
+
+  const memoryNode = addNode("memory", snapshot.id, truncateLabel(snapshot.content ?? "") || snapshot.id, {
+    memoryId: snapshot.id,
+    type: snapshot.type,
+    layer: snapshot.layer,
+    scope: snapshot.projectId ? "project" : "global",
+    projectId: snapshot.projectId,
+    userId: snapshot.userId,
+  })
+  addLink(memoryNode, "self")
 
   const typeNode = addNode("memory_type", snapshot.type, snapshot.type, null)
   addLink(typeNode, "type")

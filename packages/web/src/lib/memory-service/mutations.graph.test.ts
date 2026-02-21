@@ -146,6 +146,16 @@ describe("memory mutations graph integration", () => {
     expect(await tableExists(db, "graph_edges")).toBe(true)
     expect(await tableExists(db, "memory_node_links")).toBe(true)
 
+    const memorySelfLinkCount = await scalarCount(
+      db,
+      `SELECT COUNT(*) as count
+       FROM memory_node_links l
+       JOIN graph_nodes n ON n.id = l.node_id
+       WHERE l.memory_id = ? AND l.role = 'self' AND n.node_type = 'memory' AND n.node_key = ?`,
+      [added.data.id, added.data.id]
+    )
+    expect(memorySelfLinkCount).toBe(1)
+
     const billingLinks = await scalarCount(
       db,
       `SELECT COUNT(*) as count
@@ -216,8 +226,14 @@ describe("memory mutations graph integration", () => {
       "SELECT COUNT(*) as count FROM graph_edges WHERE evidence_memory_id = ?",
       [added.data.id]
     )
+    const memoryNodeCount = await scalarCount(
+      db,
+      "SELECT COUNT(*) as count FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      [added.data.id]
+    )
     expect(remainingLinks).toBe(0)
     expect(remainingEdges).toBe(0)
+    expect(memoryNodeCount).toBe(0)
   })
 
   it("scopes forget to working-layer memories when requested", async () => {
@@ -400,6 +416,57 @@ describe("memory mutations graph integration", () => {
     const longStillExists = await scalarCount(db, "SELECT COUNT(*) as count FROM memories WHERE id = ?", ["long-deleted"])
     expect(workingGone).toBe(0)
     expect(longStillExists).toBe(1)
+  })
+
+  it("cleans graph mappings for memories purged by vacuum", async () => {
+    const db = await setupDb("memories-mutations-vacuum-graph-cleanup")
+    const { addMemoryPayload, vacuumMemoriesPayload } = await loadMutationsModule(true)
+
+    const nowIso = "2026-02-11T19:20:00.000Z"
+    const added = await addMemoryPayload({
+      turso: db,
+      args: {
+        content: "This memory will be soft-deleted then vacuumed",
+        type: "note",
+        tags: ["graph", "vacuum"],
+      },
+      projectId: "github.com/webrenew/memories",
+      userId: "user-vacuum-graph",
+      nowIso,
+    })
+
+    await db.execute({
+      sql: "UPDATE memories SET deleted_at = ?, updated_at = ? WHERE id = ?",
+      args: ["2026-02-11T19:21:00.000Z", "2026-02-11T19:21:00.000Z", added.data.id],
+    })
+
+    const memoryNodeBefore = await scalarCount(
+      db,
+      "SELECT COUNT(*) as count FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      [added.data.id]
+    )
+    expect(memoryNodeBefore).toBe(1)
+
+    const result = await vacuumMemoriesPayload({
+      turso: db,
+      userId: "user-vacuum-graph",
+    })
+
+    expect(result.data.purged).toBe(1)
+
+    const remainingRow = await scalarCount(db, "SELECT COUNT(*) as count FROM memories WHERE id = ?", [added.data.id])
+    const remainingLinks = await scalarCount(db, "SELECT COUNT(*) as count FROM memory_node_links WHERE memory_id = ?", [added.data.id])
+    const remainingEdges = await scalarCount(db, "SELECT COUNT(*) as count FROM graph_edges WHERE evidence_memory_id = ?", [added.data.id])
+    const memoryNodeAfter = await scalarCount(
+      db,
+      "SELECT COUNT(*) as count FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      [added.data.id]
+    )
+
+    expect(remainingRow).toBe(0)
+    expect(remainingLinks).toBe(0)
+    expect(remainingEdges).toBe(0)
+    expect(memoryNodeAfter).toBe(0)
   })
 
   it("keeps memory writes successful if graph sync fails", async () => {

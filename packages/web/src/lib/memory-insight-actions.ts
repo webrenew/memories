@@ -189,6 +189,7 @@ async function updateMemoryTags(
     try {
       await syncMemoryGraphMapping(turso, {
         id: row.id,
+        content: row.content,
         type: row.type,
         layer: effectiveLayer(row),
         expiresAt: row.expires_at,

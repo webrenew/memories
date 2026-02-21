@@ -30,6 +30,7 @@ interface GraphTopNodeRow {
 
 interface GraphSyncMemoryRow {
   id: string
+  content?: string | null
   type: string
   memory_layer: string | null
   expires_at: string | null
@@ -255,6 +256,7 @@ async function opportunisticGraphSync(
     try {
       await syncMemoryGraphMapping(turso, {
         id: row.id,
+        content: row.content,
         type: row.type,
         layer: parseLayer(row.type, row.memory_layer),
         expiresAt: row.expires_at,

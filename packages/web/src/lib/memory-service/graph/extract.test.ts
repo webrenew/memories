@@ -5,6 +5,7 @@ describe("extractDeterministicGraph", () => {
   it("extracts deterministic nodes, links, and edges", () => {
     const graph = extractDeterministicGraph({
       id: "mem-1",
+      content: "I prefer semantic retrieval over pure lexical when quality gates stay green.",
       type: "decision",
       layer: "long_term",
       expiresAt: null,
@@ -18,6 +19,7 @@ describe("extractDeterministicGraph", () => {
     expect(nodeKeys).toEqual(
       [
         "category:architecture",
+        "memory:mem-1",
         "memory_type:decision",
         "repo:github.com/webrenew/memories",
         "topic:auth",
@@ -29,6 +31,7 @@ describe("extractDeterministicGraph", () => {
     const roles = graph.links.map((link) => link.role)
     expect(roles).toContain("scope")
     expect(roles).toContain("subject")
+    expect(roles).toContain("self")
     expect(roles).toContain("type")
     expect(roles).toContain("category")
     expect(roles.filter((role) => role === "tag").length).toBe(2)
@@ -56,5 +59,26 @@ describe("extractDeterministicGraph", () => {
     for (const edge of graph.edges) {
       expect(edge.expiresAt).toBe(expiresAt)
     }
+  })
+
+  it("creates a memory self-node with a truncated label", () => {
+    const graph = extractDeterministicGraph({
+      id: "mem-label",
+      content: "x".repeat(220),
+      type: "note",
+      layer: "long_term",
+      expiresAt: null,
+      projectId: null,
+      userId: null,
+      tags: [],
+      category: null,
+    })
+
+    const memoryNode = graph.nodes.find((node) => node.nodeType === "memory" && node.nodeKey === "mem-label")
+    expect(memoryNode).toBeDefined()
+    expect(memoryNode?.label.length).toBeLessThanOrEqual(120)
+
+    const selfLink = graph.links.find((link) => link.node.nodeType === "memory" && link.node.nodeKey === "mem-label")
+    expect(selfLink?.role).toBe("self")
   })
 })

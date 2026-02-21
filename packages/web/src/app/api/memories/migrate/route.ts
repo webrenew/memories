@@ -218,6 +218,7 @@ export async function POST(request: Request): Promise<Response> {
       try {
         await syncMemoryGraphMapping(destDb, {
           id: row.id,
+          content: row.content,
           type,
           layer: parseLayer(type, row.memory_layer),
           expiresAt: row.expires_at ?? null,
