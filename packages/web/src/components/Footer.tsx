@@ -1,12 +1,40 @@
-"use client";
-import React from "react"
-
 import Link from "next/link";
 import Image from "next/image";
-import { ThemeSwitcher } from "./ThemeSwitcher";
-import { StatusIndicator } from "./StatusIndicator";
+import dynamic from "next/dynamic";
 
-export function Footer(): React.JSX.Element {
+const ThemeSwitcher = dynamic(
+  () => import("./ThemeSwitcher").then((mod) => mod.ThemeSwitcher),
+  {
+    loading: () => <FooterWidgetPlaceholder label="Theme" widthClassName="w-28" />,
+  },
+);
+const StatusIndicator = dynamic(
+  () => import("./StatusIndicator").then((mod) => mod.StatusIndicator),
+  {
+    loading: () => <FooterWidgetPlaceholder label="Status" widthClassName="w-20" />,
+  },
+);
+
+function FooterWidgetPlaceholder({
+  label,
+  widthClassName,
+}: {
+  label: string;
+  widthClassName: string;
+}) {
+  return (
+    <div
+      className={`h-8 ${widthClassName} rounded-md border border-border bg-muted/40 flex items-center justify-center`}
+      aria-hidden="true"
+    >
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+export function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
