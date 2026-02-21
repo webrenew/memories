@@ -9,6 +9,7 @@ type UserSubscriber = (state: { user: User | null; loading: boolean }) => void
 let cachedUser: User | null = null
 let hasResolvedUser = false
 let isBootstrapping = false
+let authStateGeneration = 0
 let authInitialized = false
 let authSubscription: { unsubscribe: () => void } | null = null
 const subscribers = new Set<UserSubscriber>()
@@ -20,17 +21,22 @@ function notifySubscribers(state: { user: User | null; loading: boolean }): void
 async function bootstrapAuthState() {
   if (isBootstrapping || hasResolvedUser) return
   isBootstrapping = true
+  const generation = authStateGeneration
+  let user: User | null = null
   try {
     const supabase = createClient()
     const { data } = await supabase.auth.getUser()
-    cachedUser = data.user
+    user = data.user
   } catch {
-    cachedUser = null
-  } finally {
-    hasResolvedUser = true
-    isBootstrapping = false
-    notifySubscribers({ user: cachedUser, loading: false })
+    user = null
   }
+
+  if (generation !== authStateGeneration) return
+
+  cachedUser = user
+  hasResolvedUser = true
+  isBootstrapping = false
+  notifySubscribers({ user: cachedUser, loading: false })
 }
 
 function initializeAuthSubscription() {
@@ -69,6 +75,7 @@ export function useUser(): { user: User | null; loading: boolean } {
     return () => {
       subscribers.delete(subscriber)
       if (subscribers.size === 0 && authSubscription) {
+        authStateGeneration += 1
         authSubscription.unsubscribe()
         authSubscription = null
         authInitialized = false
