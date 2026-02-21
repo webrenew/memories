@@ -15,21 +15,28 @@ export default async function TeamPage(): Promise<React.JSX.Element> {
     redirect("/login")
   }
 
-  // Get user's organizations with member counts
-  const { data: memberships } = await supabase
-    .from("org_members")
-    .select(`
-      role,
-      organization:organizations(
-        id,
-        name,
-        slug,
-        owner_id,
-        plan,
-        created_at
-      )
-    `)
-    .eq("user_id", user.id)
+  const [membershipsResult, profileResult] = await Promise.all([
+    supabase
+      .from("org_members")
+      .select(`
+        role,
+        organization:organizations(
+          id,
+          name,
+          slug,
+          owner_id,
+          plan,
+          created_at
+        )
+      `)
+      .eq("user_id", user.id),
+    supabase
+      .from("users")
+      .select("current_org_id")
+      .eq("id", user.id)
+      .single(),
+  ])
+  const { data: memberships } = membershipsResult
 
   interface Organization {
     id: string
@@ -49,12 +56,7 @@ export default async function TeamPage(): Promise<React.JSX.Element> {
     }
   }).filter(o => o.id) || []
 
-  // Get user's current org
-  const { data: profile } = await supabase
-    .from("users")
-    .select("current_org_id")
-    .eq("id", user.id)
-    .single()
+  const { data: profile } = profileResult
 
   return (
     <TeamContent 

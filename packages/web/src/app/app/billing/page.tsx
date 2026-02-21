@@ -145,23 +145,37 @@ export default async function BillingPage(): Promise<React.JSX.Element | null> {
 
   if (!user) return null
 
-  const workspace = await resolveWorkspaceContext(supabase, user.id)
+  const [workspace, profileResult, tenantRouting] = await Promise.all([
+    resolveWorkspaceContext(supabase, user.id),
+    supabase
+      .from("users")
+      .select("stripe_customer_id, created_at")
+      .eq("id", user.id)
+      .single(),
+    getTenantRoutingStatus(user.id),
+  ])
+  const { data: profile } = profileResult
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("stripe_customer_id, created_at")
-    .eq("id", user.id)
-    .single()
-
-  let orgStripeCustomerId: string | null = null
-  if (workspace?.ownerType === "organization" && workspace.orgId) {
-    const { data: organization } = await supabase
-      .from("organizations")
-      .select("stripe_customer_id")
-      .eq("id", workspace.orgId)
-      .single()
-    orgStripeCustomerId = organization?.stripe_customer_id ?? null
-  }
+  const [orgStripeCustomerId, usage] = await Promise.all([
+    workspace?.ownerType === "organization" && workspace.orgId
+      ? supabase
+          .from("organizations")
+          .select("stripe_customer_id")
+          .eq("id", workspace.orgId)
+          .single()
+          .then(({ data }) => data?.stripe_customer_id ?? null)
+      : Promise.resolve<string | null>(null),
+    workspace?.turso_db_url && workspace?.turso_db_token
+      ? getUsageStats(workspace.turso_db_url, workspace.turso_db_token)
+      : Promise.resolve<UsageStats>({
+          totalMemories: 0,
+          totalRules: 0,
+          totalDecisions: 0,
+          totalFacts: 0,
+          projectCount: 0,
+          lastSync: null,
+        }),
+  ])
 
   const plan: WorkspacePlan = workspace?.plan ?? "free"
   const hasStripeCustomer =
@@ -169,20 +183,6 @@ export default async function BillingPage(): Promise<React.JSX.Element | null> {
       ? Boolean(orgStripeCustomerId)
       : Boolean(profile?.stripe_customer_id)
   const memberSince = profile?.created_at
-
-  let usage: UsageStats = {
-    totalMemories: 0,
-    totalRules: 0,
-    totalDecisions: 0,
-    totalFacts: 0,
-    projectCount: 0,
-    lastSync: null,
-  }
-
-  if (workspace?.turso_db_url && workspace?.turso_db_token) {
-    usage = await getUsageStats(workspace.turso_db_url, workspace.turso_db_token)
-  }
-  const tenantRouting = await getTenantRoutingStatus(user.id)
 
   return (
     <BillingContent 

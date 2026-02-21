@@ -26,21 +26,25 @@ export default async function AcceptInvitePage({
   const adminSupabase = hasServiceRoleKey() ? createAdminClient() : null
   const supabase = await createClient()
   
-  // Get invite details
   const inviteLookup = adminSupabase ?? supabase
-  const { data: invite, error: inviteError } = await inviteLookup
-    .from("org_invites")
-    .select(`
-      id,
-      token,
-      email,
-      role,
-      expires_at,
-      accepted_at,
-      organization:organizations(id, name, slug)
-    `)
-    .in("token", tokenCandidates)
-    .maybeSingle()
+  const [inviteResult, userResult] = await Promise.all([
+    inviteLookup
+      .from("org_invites")
+      .select(`
+        id,
+        token,
+        email,
+        role,
+        expires_at,
+        accepted_at,
+        organization:organizations(id, name, slug)
+      `)
+      .in("token", tokenCandidates)
+      .maybeSingle(),
+    supabase.auth.getUser(),
+  ])
+  const { data: invite, error: inviteError } = inviteResult
+  const { data: { user } } = userResult
 
   if (inviteError) {
     console.error("Invite lookup failed on accept page", {
@@ -82,9 +86,6 @@ export default async function AcceptInvitePage({
       </div>
     )
   }
-
-  // Check if user is logged in
-  const { data: { user } } = await supabase.auth.getUser()
 
   // Collect all linked emails from user's identities
   const userEmails: string[] = []
