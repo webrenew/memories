@@ -106,6 +106,20 @@ function conflictPairKey(memoryAId: string, memoryBId: string): string {
   return memoryAId < memoryBId ? `${memoryAId}::${memoryBId}` : `${memoryBId}::${memoryAId}`
 }
 
+function parseQueryErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message.toLowerCase()
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return String((error as { message?: unknown }).message ?? "").toLowerCase()
+  }
+  return ""
+}
+
+function isMissingGraphTablesError(error: unknown): boolean {
+  const message = parseQueryErrorMessage(error)
+  if (!message.includes("no such table")) return false
+  return message.includes("graph_edges") || message.includes("graph_nodes")
+}
+
 async function listContextConflicts(
   turso: TursoClient,
   memoryIds: string[],
@@ -115,21 +129,29 @@ async function listContextConflicts(
   if (uniqueMemoryIds.length < 2) return []
 
   const marker = placeholders(uniqueMemoryIds.length)
-  const result = await turso.execute({
-    sql: `SELECT from_n.node_key AS memory_a_id,
-                 to_n.node_key AS memory_b_id,
-                 e.confidence
-          FROM graph_edges e
-          JOIN graph_nodes from_n ON from_n.id = e.from_node_id
-          JOIN graph_nodes to_n ON to_n.id = e.to_node_id
-          WHERE e.edge_type = 'contradicts'
-            AND (e.expires_at IS NULL OR e.expires_at > ?)
-            AND from_n.node_type = 'memory'
-            AND to_n.node_type = 'memory'
-            AND from_n.node_key IN (${marker})
-            AND to_n.node_key IN (${marker})`,
-    args: [nowIso, ...uniqueMemoryIds, ...uniqueMemoryIds],
-  })
+  let result: Awaited<ReturnType<TursoClient["execute"]>>
+  try {
+    result = await turso.execute({
+      sql: `SELECT from_n.node_key AS memory_a_id,
+                   to_n.node_key AS memory_b_id,
+                   e.confidence
+            FROM graph_edges e
+            JOIN graph_nodes from_n ON from_n.id = e.from_node_id
+            JOIN graph_nodes to_n ON to_n.id = e.to_node_id
+            WHERE e.edge_type = 'contradicts'
+              AND (e.expires_at IS NULL OR e.expires_at > ?)
+              AND from_n.node_type = 'memory'
+              AND to_n.node_type = 'memory'
+              AND from_n.node_key IN (${marker})
+              AND to_n.node_key IN (${marker})`,
+      args: [nowIso, ...uniqueMemoryIds, ...uniqueMemoryIds],
+    })
+  } catch (error) {
+    if (isMissingGraphTablesError(error)) {
+      return []
+    }
+    throw error
+  }
 
   const conflictsByPair = new Map<string, ContextConflict>()
   for (const row of result.rows as Array<Record<string, unknown>>) {
