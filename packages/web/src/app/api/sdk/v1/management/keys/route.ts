@@ -40,8 +40,8 @@ export async function POST(request: Request): Promise<Response> {
   return wrapLegacyResponse(requestId, response)
 }
 
-export async function DELETE(): Promise<Response> {
+export async function DELETE(request: Request): Promise<Response> {
   const requestId = crypto.randomUUID()
-  const response = await legacyDelete()
+  const response = await legacyDelete(request)
   return wrapLegacyResponse(requestId, response)
 }

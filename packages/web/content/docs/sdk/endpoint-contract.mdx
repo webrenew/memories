@@ -656,9 +656,9 @@ Response `data`:
 
 ### `GET|POST|DELETE /api/sdk/v1/management/keys`
 
-- `GET`: current key status (`hasKey`, `keyPreview`, `createdAt`, `expiresAt`, `isExpired`)
-- `POST`: rotate key with `expiresAt` body
-- `DELETE`: revoke key
+- `GET`: current key status plus key inventory (`hasKey`, `keyCount`, `activeKeyCount`, primary preview timestamps, and `keys[]`)
+- `POST`: create an additional key with `expiresAt` body (returns new `apiKey` once)
+- `DELETE`: revoke all keys, or revoke one key when `keyId` query param is provided
 
 `POST` request:
 
@@ -666,6 +666,13 @@ Response `data`:
 {
   "expiresAt": "2027-01-01T00:00:00.000Z"
 }
+```
+
+`DELETE` examples:
+
+```http
+DELETE /api/sdk/v1/management/keys
+DELETE /api/sdk/v1/management/keys?keyId=3c02d4fd-6f3d-4f7f-a190-9dc7527dd0b3
 ```
 
 ### `GET|POST|DELETE /api/sdk/v1/management/tenant-overrides`

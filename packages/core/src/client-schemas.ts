@@ -152,14 +152,26 @@ export const vacuumResultSchema = z.object({
 
 export const managementKeyStatusSchema = z.object({
   hasKey: z.boolean(),
+  keyCount: z.number().int().nonnegative().optional(),
+  activeKeyCount: z.number().int().nonnegative().optional(),
   keyPreview: z.string().optional(),
   createdAt: z.string().nullable().optional(),
   expiresAt: z.string().nullable().optional(),
   isExpired: z.boolean().optional(),
+  keys: z.array(
+    z.object({
+      id: z.string(),
+      keyPreview: z.string().nullable().optional(),
+      createdAt: z.string().nullable().optional(),
+      expiresAt: z.string().nullable().optional(),
+      isExpired: z.boolean().optional(),
+    })
+  ).optional(),
 })
 
 export const managementKeyCreateSchema = z.object({
   apiKey: z.string(),
+  keyId: z.string().optional(),
   keyPreview: z.string().optional(),
   createdAt: z.string().optional(),
   expiresAt: z.string().optional(),

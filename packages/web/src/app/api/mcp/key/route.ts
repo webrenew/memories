@@ -3,12 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import {
-  formatMcpApiKeyPreview,
-  generateMcpApiKey,
-  getMcpApiKeyLast4,
-  getMcpApiKeyPrefix,
-  hashMcpApiKey,
-} from "@/lib/mcp-api-key"
+  createUserApiKey,
+  listUserApiKeys,
+  revokeUserApiKeys,
+} from "@/lib/mcp-api-key-store"
 
 const MAX_KEY_TTL_DAYS = 365
 const MAX_KEY_TTL_MS = MAX_KEY_TTL_DAYS * 24 * 60 * 60 * 1000
@@ -70,31 +68,30 @@ export async function GET(): Promise<Response> {
   if (rateLimited) return applyLegacyHeaders(rateLimited)
 
   const admin = createAdminClient()
-  const { data: userData, error: userDataError } = await admin
-    .from("users")
-    .select("mcp_api_key_hash, mcp_api_key_prefix, mcp_api_key_last4, mcp_api_key_created_at, mcp_api_key_expires_at")
-    .eq("id", user.id)
-    .single()
-
-  if (userDataError) {
-    console.error("Failed to load API key status metadata:", userDataError)
+  let keys
+  try {
+    keys = await listUserApiKeys(admin, user.id)
+  } catch (error) {
+    console.error("Failed to load API key status metadata:", error)
     return legacyJson({ error: "Failed to load API key status metadata" }, { status: 500 })
   }
 
-  if (!userData?.mcp_api_key_hash) {
-    return legacyJson({ hasKey: false })
+  if (!keys || keys.length === 0) {
+    return legacyJson({ hasKey: false, keys: [] })
   }
 
-  const keyPreview = formatMcpApiKeyPreview(userData.mcp_api_key_prefix, userData.mcp_api_key_last4)
-  const expiresAt = userData.mcp_api_key_expires_at as string | null
-  const isExpired = !expiresAt || new Date(expiresAt).getTime() <= Date.now()
+  const primary = keys.find((key) => !key.isExpired) ?? keys[0]
+  const activeKeyCount = keys.filter((key) => !key.isExpired).length
 
-  return legacyJson({ 
+  return legacyJson({
     hasKey: true, 
-    keyPreview,
-    createdAt: userData.mcp_api_key_created_at,
-    expiresAt,
-    isExpired,
+    keyCount: keys.length,
+    activeKeyCount,
+    keyPreview: primary?.keyPreview ?? null,
+    createdAt: primary?.createdAt ?? null,
+    expiresAt: primary?.expiresAt ?? null,
+    isExpired: primary?.isExpired ?? false,
+    keys,
   })
 }
 
@@ -124,41 +121,31 @@ export async function POST(request: Request): Promise<Response> {
     return legacyJson({ error: expiry.error }, { status: 400 })
   }
 
-  const apiKey = generateMcpApiKey()
-  const apiKeyHash = hashMcpApiKey(apiKey)
-  const apiKeyPrefix = getMcpApiKeyPrefix(apiKey)
-  const apiKeyLast4 = getMcpApiKeyLast4(apiKey)
-  const createdAt = new Date().toISOString()
-
   const admin = createAdminClient()
-  const { error } = await admin
-    .from("users")
-    .update({
-      mcp_api_key: null,
-      mcp_api_key_hash: apiKeyHash,
-      mcp_api_key_prefix: apiKeyPrefix,
-      mcp_api_key_last4: apiKeyLast4,
-      mcp_api_key_created_at: createdAt,
-      mcp_api_key_expires_at: expiry.expiresAt,
+  let created
+  try {
+    created = await createUserApiKey(admin, {
+      userId: user.id,
+      expiresAt: expiry.expiresAt,
     })
-    .eq("id", user.id)
-
-  if (error) {
+  } catch (error) {
+    console.error("Failed to create API key:", error)
     return legacyJson({ error: "Failed to generate key" }, { status: 500 })
   }
 
   // Return the full key (only time it's shown)
-  return legacyJson({ 
-    apiKey,
-    keyPreview: formatMcpApiKeyPreview(apiKeyPrefix, apiKeyLast4),
-    createdAt,
+  return legacyJson({
+    apiKey: created.apiKey,
+    keyId: created.keyId,
+    keyPreview: created.keyPreview,
+    createdAt: created.createdAt,
     expiresAt: expiry.expiresAt,
     message: "Save this key - it won't be shown again",
   })
 }
 
 // DELETE - Revoke API key
-export async function DELETE(): Promise<Response> {
+export async function DELETE(request: Request): Promise<Response> {
   logDeprecatedAccess("DELETE")
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -171,23 +158,28 @@ export async function DELETE(): Promise<Response> {
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return applyLegacyHeaders(rateLimited)
 
+  const keyId = new URL(request.url).searchParams.get("keyId")?.trim() || null
+
   const admin = createAdminClient()
-
-  const { error } = await admin
-    .from("users")
-    .update({
-      mcp_api_key: null,
-      mcp_api_key_hash: null,
-      mcp_api_key_prefix: null,
-      mcp_api_key_last4: null,
-      mcp_api_key_created_at: null,
-      mcp_api_key_expires_at: null,
+  let revokedCount = 0
+  try {
+    const revoked = await revokeUserApiKeys(admin, {
+      userId: user.id,
+      keyId: keyId ?? undefined,
     })
-    .eq("id", user.id)
-
-  if (error) {
+    revokedCount = revoked.revokedCount
+  } catch (error) {
+    console.error("Failed to revoke API key:", error)
     return legacyJson({ error: "Failed to revoke key" }, { status: 500 })
   }
 
-  return legacyJson({ ok: true })
+  if (keyId && revokedCount === 0) {
+    return legacyJson({ error: "API key not found" }, { status: 404 })
+  }
+
+  return legacyJson({
+    ok: true,
+    revokedCount,
+    revokedKeyId: keyId,
+  })
 }

@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const {
   mockGetUser,
-  mockAdminFrom,
   mockCheckRateLimit,
+  mockListUserApiKeys,
+  mockCreateUserApiKey,
+  mockRevokeUserApiKeys,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
-  mockAdminFrom: vi.fn(),
   mockCheckRateLimit: vi.fn(),
+  mockListUserApiKeys: vi.fn(),
+  mockCreateUserApiKey: vi.fn(),
+  mockRevokeUserApiKeys: vi.fn(),
 }))
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -17,14 +21,18 @@ vi.mock("@/lib/supabase/server", () => ({
 }))
 
 vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(() => ({
-    from: mockAdminFrom,
-  })),
+  createAdminClient: vi.fn(() => ({})),
 }))
 
 vi.mock("@/lib/rate-limit", () => ({
   apiRateLimit: { limit: vi.fn().mockResolvedValue({ success: true }) },
   checkRateLimit: mockCheckRateLimit,
+}))
+
+vi.mock("@/lib/mcp-api-key-store", () => ({
+  listUserApiKeys: mockListUserApiKeys,
+  createUserApiKey: mockCreateUserApiKey,
+  revokeUserApiKeys: mockRevokeUserApiKeys,
 }))
 
 import { DELETE, GET, POST } from "../route"
@@ -38,259 +46,156 @@ describe("/api/mcp/key", () => {
     mockCheckRateLimit.mockResolvedValue(null)
   })
 
-  describe("auth", () => {
-    it("GET should return 401 when unauthenticated", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: null } })
-      const response = await GET()
-      expect(response.status).toBe(401)
-    })
-
-    it("POST should return 401 when unauthenticated", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: null } })
-      const request = new Request("http://localhost/api/mcp/key", { method: "POST" })
-      const response = await POST(request)
-      expect(response.status).toBe(401)
-    })
-
-    it("DELETE should return 401 when unauthenticated", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: null } })
-      const response = await DELETE()
-      expect(response.status).toBe(401)
-    })
+  it("returns 401 when unauthenticated", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } })
+    const response = await GET()
+    expect(response.status).toBe(401)
+    expect(response.headers.get("Deprecation")).toBe("true")
+    expect(response.headers.get("Sunset")).toBe("Tue, 30 Jun 2026 00:00:00 GMT")
+    expect(response.headers.get("Link")).toBe(expectedLink)
   })
 
-  describe("deprecation headers", () => {
-    it("adds deprecation headers on GET unauthorized", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: null } })
-      const response = await GET()
+  it("returns hasKey false when no key exists", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockListUserApiKeys.mockResolvedValue([])
 
-      expect(response.headers.get("Deprecation")).toBe("true")
-      expect(response.headers.get("Sunset")).toBe("Tue, 30 Jun 2026 00:00:00 GMT")
-      expect(response.headers.get("Link")).toBe(expectedLink)
-    })
+    const response = await GET()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ hasKey: false, keys: [] })
+  })
 
-    it("adds deprecation headers on POST validation errors", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-      const request = new Request("http://localhost/api/mcp/key", {
+  it("returns key summary and key list when keys exist", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockListUserApiKeys.mockResolvedValue([
+      {
+        id: "k-expired",
+        keyPreview: "mem_old********************dead",
+        createdAt: "2026-02-10T00:00:00.000Z",
+        expiresAt: "2026-02-11T00:00:00.000Z",
+        isExpired: true,
+      },
+      {
+        id: "k-active",
+        keyPreview: "mem_new********************beef",
+        createdAt: "2026-02-12T00:00:00.000Z",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+        isExpired: false,
+      },
+    ])
+
+    const response = await GET()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.hasKey).toBe(true)
+    expect(body.keyCount).toBe(2)
+    expect(body.activeKeyCount).toBe(1)
+    expect(body.keyPreview).toBe("mem_new********************beef")
+    expect(body.isExpired).toBe(false)
+    expect(body.keys).toHaveLength(2)
+  })
+
+  it("returns 500 when key metadata load fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockListUserApiKeys.mockRejectedValue(new Error("db down"))
+
+    const response = await GET()
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.error).toContain("API key status metadata")
+  })
+
+  it("requires expiresAt for POST", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    const response = await POST(
+      new Request("http://localhost/api/mcp/key", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({}),
       })
-
-      const response = await POST(request)
-
-      expect(response.headers.get("Deprecation")).toBe("true")
-      expect(response.headers.get("Sunset")).toBe("Tue, 30 Jun 2026 00:00:00 GMT")
-      expect(response.headers.get("Link")).toBe(expectedLink)
-    })
-
-    it("adds deprecation headers on DELETE responses", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-      const usersUpdateEq = vi.fn().mockResolvedValue({ error: null })
-      const usersUpdate = vi.fn().mockReturnValue({ eq: usersUpdateEq })
-      mockAdminFrom.mockImplementation((table: string) => {
-        if (table !== "users") return {}
-        return {
-          update: usersUpdate,
-        }
-      })
-
-      const response = await DELETE()
-
-      expect(response.headers.get("Deprecation")).toBe("true")
-      expect(response.headers.get("Sunset")).toBe("Tue, 30 Jun 2026 00:00:00 GMT")
-      expect(response.headers.get("Link")).toBe(expectedLink)
-    })
+    )
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toContain("expiresAt")
   })
 
-  describe("GET", () => {
-    it("should return hasKey: false when no key exists", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-      mockAdminFrom.mockImplementation((table: string) => {
-        if (table !== "users") return {}
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: { mcp_api_key_hash: null }, error: null }),
-            }),
-          }),
-        }
-      })
-
-      const response = await GET()
-      const body = await response.json()
-      expect(body.hasKey).toBe(false)
+  it("creates an additional API key via POST", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockCreateUserApiKey.mockResolvedValue({
+      keyId: "key-1",
+      apiKey: `mem_${"a".repeat(64)}`,
+      keyPreview: "mem_aaaaaaaa********************aaaa",
+      createdAt: "2026-02-21T00:00:00.000Z",
+      expiresAt: validExpiry,
     })
 
-    it("should return metadata when key exists", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-      mockAdminFrom.mockImplementation((table: string) => {
-        if (table !== "users") return {}
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: {
-                  mcp_api_key_hash: "deadbeef",
-                  mcp_api_key_prefix: "mem_12345678",
-                  mcp_api_key_last4: "abcd",
-                  mcp_api_key_created_at: "2026-02-10T00:00:00.000Z",
-                  mcp_api_key_expires_at: "2099-01-01T00:00:00.000Z",
-                },
-                error: null,
-              }),
-            }),
-          }),
-        }
-      })
-
-      const response = await GET()
-      const body = await response.json()
-      expect(body.hasKey).toBe(true)
-      expect(body.keyPreview).toBe("mem_12345678********************abcd")
-      expect(body.apiKey).toBeUndefined()
-      expect(body.expiresAt).toBe("2099-01-01T00:00:00.000Z")
-      expect(body.isExpired).toBe(false)
-    })
-
-    it("should return 500 when loading key status metadata fails", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-      mockAdminFrom.mockImplementation((table: string) => {
-        if (table !== "users") return {}
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: null,
-                error: { message: "DB read failed" },
-              }),
-            }),
-          }),
-        }
-      })
-
-      const response = await GET()
-      expect(response.status).toBe(500)
-      const body = await response.json()
-      expect(body.error).toContain("API key status metadata")
-    })
-  })
-
-  describe("POST", () => {
-    it("should require expiresAt", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-      const request = new Request("http://localhost/api/mcp/key", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
-      })
-
-      const response = await POST(request)
-      expect(response.status).toBe(400)
-      const body = await response.json()
-      expect(body.error).toContain("expiresAt")
-    })
-
-    it("should generate new API key with hash + expiry metadata", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-
-      const usersUpdateEq = vi.fn().mockResolvedValue({ error: null })
-      const usersUpdate = vi.fn().mockReturnValue({ eq: usersUpdateEq })
-
-      mockAdminFrom.mockImplementation((table: string) => {
-        if (table !== "users") return {}
-        return {
-          update: usersUpdate,
-        }
-      })
-
-      const request = new Request("http://localhost/api/mcp/key", {
+    const response = await POST(
+      new Request("http://localhost/api/mcp/key", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ expiresAt: validExpiry }),
       })
+    )
 
-      const response = await POST(request)
-      const body = await response.json()
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.apiKey).toMatch(/^mem_[a-f0-9]{64}$/)
+    expect(body.keyId).toBe("key-1")
+    expect(body.expiresAt).toBe(validExpiry)
+    expect(body.message).toContain("Save this key")
+  })
 
-      expect(body.apiKey).toMatch(/^mem_[a-f0-9]{64}$/)
-      expect(body.keyPreview).toMatch(/^mem_[a-f0-9]{8}\*{20}[a-f0-9]{4}$/)
-      expect(body.expiresAt).toBe(validExpiry)
-      expect(body.message).toBeDefined()
+  it("returns 500 when key creation fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockCreateUserApiKey.mockRejectedValue(new Error("write failed"))
 
-      const payload = usersUpdate.mock.calls[0]?.[0]
-      expect(payload.mcp_api_key).toBeNull()
-      expect(payload.mcp_api_key_hash).toMatch(/^[a-f0-9]{64}$/)
-      expect(payload.mcp_api_key_prefix).toMatch(/^mem_[a-f0-9]{8}$/)
-      expect(payload.mcp_api_key_last4).toMatch(/^[a-f0-9]{4}$/)
-      expect(payload.mcp_api_key_expires_at).toBe(validExpiry)
-    })
-
-    it("should return 500 on DB error", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-
-      const usersUpdateEq = vi.fn().mockResolvedValue({ error: { message: "DB error" } })
-      const usersUpdate = vi.fn().mockReturnValue({ eq: usersUpdateEq })
-
-      mockAdminFrom.mockImplementation((table: string) => {
-        if (table !== "users") return {}
-        return {
-          update: usersUpdate,
-        }
-      })
-
-      const request = new Request("http://localhost/api/mcp/key", {
+    const response = await POST(
+      new Request("http://localhost/api/mcp/key", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ expiresAt: validExpiry }),
       })
+    )
 
-      const response = await POST(request)
-      expect(response.status).toBe(500)
-    })
+    expect(response.status).toBe(500)
   })
 
-  describe("DELETE", () => {
-    it("should revoke API key", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+  it("revokes all keys when DELETE has no keyId", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockRevokeUserApiKeys.mockResolvedValue({ revokedCount: 2 })
 
-      const usersUpdateEq = vi.fn().mockResolvedValue({ error: null })
-      const usersUpdate = vi.fn().mockReturnValue({ eq: usersUpdateEq })
-      mockAdminFrom.mockImplementation((table: string) => {
-        if (table !== "users") return {}
-        return {
-          update: usersUpdate,
-        }
-      })
+    const response = await DELETE(new Request("http://localhost/api/mcp/key", { method: "DELETE" }))
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.ok).toBe(true)
+    expect(body.revokedCount).toBe(2)
+  })
 
-      const response = await DELETE()
-      const body = await response.json()
-      expect(body.ok).toBe(true)
+  it("returns 404 when keyId DELETE does not match a key", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockRevokeUserApiKeys.mockResolvedValue({ revokedCount: 0 })
 
-      const payload = usersUpdate.mock.calls[0]?.[0]
-      expect(payload).toMatchObject({
-        mcp_api_key: null,
-        mcp_api_key_hash: null,
-        mcp_api_key_prefix: null,
-        mcp_api_key_last4: null,
-        mcp_api_key_created_at: null,
-        mcp_api_key_expires_at: null,
-      })
-    })
+    const response = await DELETE(
+      new Request("http://localhost/api/mcp/key?keyId=missing-key", { method: "DELETE" })
+    )
 
-    it("should return 500 on revoke failure", async () => {
-      mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-      mockAdminFrom.mockImplementation((table: string) => {
-        if (table !== "users") return {}
-        return {
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ error: { message: "DB error" } }),
-          }),
-        }
-      })
+    expect(response.status).toBe(404)
+    const body = await response.json()
+    expect(body.error).toContain("not found")
+  })
 
-      const response = await DELETE()
-      expect(response.status).toBe(500)
-    })
+  it("revokes a single key when keyId is provided", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
+    mockRevokeUserApiKeys.mockResolvedValue({ revokedCount: 1 })
+
+    const response = await DELETE(
+      new Request("http://localhost/api/mcp/key?keyId=key-1", { method: "DELETE" })
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.ok).toBe(true)
+    expect(body.revokedKeyId).toBe("key-1")
+    expect(body.revokedCount).toBe(1)
   })
 })

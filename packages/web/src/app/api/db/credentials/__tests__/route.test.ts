@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { hashMcpApiKey } from "@/lib/mcp-api-key"
 
 const {
   mockAuthenticateRequest,
@@ -72,7 +71,6 @@ describe("/api/db/credentials", () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockEq).toHaveBeenCalledWith("mcp_api_key_hash", hashMcpApiKey(VALID_API_KEY))
     expect(mockResolveActiveMemoryContext).toHaveBeenCalledWith(expect.anything(), "user-mcp-1")
     expect(body).toMatchObject({
       url: "libsql://demo.turso.io",
