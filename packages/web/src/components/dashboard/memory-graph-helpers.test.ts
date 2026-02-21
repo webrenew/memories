@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest"
 import type { GraphCanvasEdge, GraphCanvasNode } from "./memory-graph-helpers"
 import {
+  GRAPH_ZOOM_MAX,
+  GRAPH_ZOOM_MIN,
+  GRAPH_ZOOM_STEP,
   graphEdgeAriaLabel,
   graphNodeAriaLabel,
   handleGraphActivationKey,
   isAbortLikeError,
   isGraphActivationKey,
+  scaleViewportAtPoint,
 } from "./memory-graph-helpers"
 
 function buildNodeFixture(overrides: Partial<GraphCanvasNode> = {}): GraphCanvasNode {
@@ -108,5 +112,25 @@ describe("memory-graph-helpers abort detection", () => {
     expect(isAbortLikeError(new Error("network"))).toBe(false)
     expect(isAbortLikeError({ name: "TypeError" })).toBe(false)
     expect(isAbortLikeError(null)).toBe(false)
+  })
+})
+
+describe("memory-graph-helpers viewport scaling", () => {
+  it("composes repeated zoom steps against the latest viewport", () => {
+    const anchor = { x: 540, y: 310 }
+    const first = scaleViewportAtPoint({ scale: 1, x: 0, y: 0 }, 1 + GRAPH_ZOOM_STEP, anchor)
+    const second = scaleViewportAtPoint(first, 1 + GRAPH_ZOOM_STEP, anchor)
+
+    expect(second.scale).toBeCloseTo((1 + GRAPH_ZOOM_STEP) ** 2, 6)
+    expect(second.scale).toBeGreaterThan(first.scale)
+  })
+
+  it("clamps viewport scaling to configured min and max", () => {
+    const anchor = { x: 540, y: 310 }
+    const maxed = scaleViewportAtPoint({ scale: GRAPH_ZOOM_MAX, x: 0, y: 0 }, 1 + GRAPH_ZOOM_STEP, anchor)
+    const mined = scaleViewportAtPoint({ scale: GRAPH_ZOOM_MIN, x: 0, y: 0 }, 1 - GRAPH_ZOOM_STEP, anchor)
+
+    expect(maxed.scale).toBe(GRAPH_ZOOM_MAX)
+    expect(mined.scale).toBe(GRAPH_ZOOM_MIN)
   })
 })
