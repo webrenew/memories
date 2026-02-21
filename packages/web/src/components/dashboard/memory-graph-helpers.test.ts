@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 import type { GraphCanvasEdge, GraphCanvasNode } from "./memory-graph-helpers"
 import {
+  buildMiniMapViewport,
+  GRAPH_HEIGHT,
+  GRAPH_WIDTH,
   GRAPH_ZOOM_MAX,
   GRAPH_ZOOM_MIN,
   GRAPH_ZOOM_STEP,
@@ -132,5 +135,35 @@ describe("memory-graph-helpers viewport scaling", () => {
 
     expect(maxed.scale).toBe(GRAPH_ZOOM_MAX)
     expect(mined.scale).toBe(GRAPH_ZOOM_MIN)
+  })
+})
+
+describe("memory-graph-helpers minimap viewport", () => {
+  it("clamps low-zoom viewport extents to graph bounds", () => {
+    const miniMap = buildMiniMapViewport({
+      scale: 0.5,
+      x: -400,
+      y: -260,
+    })
+
+    expect(miniMap.viewportWidth).toBe(GRAPH_WIDTH)
+    expect(miniMap.viewportHeight).toBe(GRAPH_HEIGHT)
+    expect(miniMap.viewportX).toBe(0)
+    expect(miniMap.viewportY).toBe(0)
+  })
+
+  it("keeps viewport origin within bounds at higher zoom levels", () => {
+    const miniMap = buildMiniMapViewport({
+      scale: 2,
+      x: -900,
+      y: -800,
+    })
+
+    expect(miniMap.viewportWidth).toBeCloseTo(GRAPH_WIDTH / 2, 6)
+    expect(miniMap.viewportHeight).toBeCloseTo(GRAPH_HEIGHT / 2, 6)
+    expect(miniMap.viewportX).toBeGreaterThanOrEqual(0)
+    expect(miniMap.viewportY).toBeGreaterThanOrEqual(0)
+    expect(miniMap.viewportX + miniMap.viewportWidth).toBeLessThanOrEqual(GRAPH_WIDTH)
+    expect(miniMap.viewportY + miniMap.viewportHeight).toBeLessThanOrEqual(GRAPH_HEIGHT)
   })
 })

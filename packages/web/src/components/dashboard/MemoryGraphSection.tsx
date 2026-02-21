@@ -20,6 +20,7 @@ import {
   type GraphRolloutMode,
   type GraphViewport,
   buildGraphCanvasModel,
+  buildMiniMapViewport,
   clamp,
   DEFAULT_GRAPH_VIEWPORT,
   formatNodeLabel,
@@ -593,28 +594,8 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
 
   const miniMapViewport = useMemo(() => {
     if (!filteredGraph || filteredGraph.nodes.length === 0) return null
-
-    const width = 172
-    const height = 98
-    const viewportWidth = GRAPH_WIDTH / graphViewport.scale
-    const viewportHeight = GRAPH_HEIGHT / graphViewport.scale
-    const rawViewportX = (-graphViewport.x) / graphViewport.scale
-    const rawViewportY = (-graphViewport.y) / graphViewport.scale
-    const maxViewportX = Math.max(0, GRAPH_WIDTH - viewportWidth)
-    const maxViewportY = Math.max(0, GRAPH_HEIGHT - viewportHeight)
-
-    const viewportX = clamp(rawViewportX, 0, maxViewportX)
-    const viewportY = clamp(rawViewportY, 0, maxViewportY)
-
-    return {
-      width,
-      height,
-      viewportX,
-      viewportY,
-      viewportWidth,
-      viewportHeight,
-    }
-  }, [filteredGraph, graphViewport.scale, graphViewport.x, graphViewport.y])
+    return buildMiniMapViewport(graphViewport)
+  }, [filteredGraph, graphViewport])
 
   const updateRolloutMode = (mode: GraphRolloutMode) => {
     if (!activeStatus || activeStatus.rollout.mode === mode) {
