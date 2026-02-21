@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest"
-import type { GraphCanvasEdge, GraphCanvasNode } from "./memory-graph-helpers"
+import type { GraphCanvasEdge, GraphCanvasModel, GraphCanvasNode } from "./memory-graph-helpers"
 import {
   buildMiniMapViewport,
+  filterGraphCanvasModel,
   GRAPH_HEIGHT,
   GRAPH_WIDTH,
   GRAPH_ZOOM_MAX,
@@ -12,7 +13,9 @@ import {
   handleGraphActivationKey,
   isAbortLikeError,
   isGraphActivationKey,
+  resolveSelectedGraphEdge,
   scaleViewportAtPoint,
+  summarizeGraphNodeStats,
 } from "./memory-graph-helpers"
 
 function buildNodeFixture(overrides: Partial<GraphCanvasNode> = {}): GraphCanvasNode {
@@ -54,6 +57,77 @@ function buildEdgeFixture(overrides: Partial<GraphCanvasEdge> = {}): GraphCanvas
     labelX: 10,
     labelY: 15,
     ...overrides,
+  }
+}
+
+function buildGraphCanvasFixture(): GraphCanvasModel {
+  const selectedNode = buildNodeFixture({
+    id: "repo:github.com/webrenew/memories",
+    nodeType: "repo",
+    nodeKey: "github.com/webrenew/memories",
+    label: "memories",
+    degree: 3,
+    isSelected: true,
+  })
+  const topicNode = buildNodeFixture({
+    id: "topic:graph",
+    nodeType: "topic",
+    nodeKey: "graph",
+    label: "graph",
+    degree: 2,
+  })
+  const categoryNode = buildNodeFixture({
+    id: "category:ops",
+    nodeType: "category",
+    nodeKey: "ops",
+    label: "ops",
+    degree: 1,
+  })
+
+  const edges: GraphCanvasEdge[] = [
+    buildEdgeFixture({
+      id: "edge-1",
+      edgeType: "similar_to",
+      direction: "outbound",
+      weight: 0.92,
+      confidence: 0.96,
+      evidenceMemoryId: "mem_1",
+      from: selectedNode,
+      to: topicNode,
+      fromId: selectedNode.id,
+      toId: topicNode.id,
+    }),
+    buildEdgeFixture({
+      id: "edge-2",
+      edgeType: "caused_by",
+      direction: "inbound",
+      weight: 0.71,
+      confidence: 0.82,
+      evidenceMemoryId: null,
+      expiresAt: "2026-03-01T00:00:00.000Z",
+      from: topicNode,
+      to: selectedNode,
+      fromId: topicNode.id,
+      toId: selectedNode.id,
+    }),
+    buildEdgeFixture({
+      id: "edge-3",
+      edgeType: "similar_to",
+      direction: "outbound",
+      weight: 0.42,
+      confidence: 0.31,
+      evidenceMemoryId: null,
+      from: selectedNode,
+      to: categoryNode,
+      fromId: selectedNode.id,
+      toId: categoryNode.id,
+    }),
+  ]
+
+  return {
+    nodes: [selectedNode, topicNode, categoryNode],
+    edges,
+    nodeTypes: ["category", "repo", "topic"],
   }
 }
 
@@ -165,5 +239,50 @@ describe("memory-graph-helpers minimap viewport", () => {
     expect(miniMap.viewportY).toBeGreaterThanOrEqual(0)
     expect(miniMap.viewportX + miniMap.viewportWidth).toBeLessThanOrEqual(GRAPH_WIDTH)
     expect(miniMap.viewportY + miniMap.viewportHeight).toBeLessThanOrEqual(GRAPH_HEIGHT)
+  })
+})
+
+describe("memory-graph-helpers interaction projections", () => {
+  it("filters graph canvas by edge type, confidence, and evidence", () => {
+    const graphCanvas = buildGraphCanvasFixture()
+    const filtered = filterGraphCanvasModel(graphCanvas, {
+      edgeTypeFilter: ["similar_to"],
+      nodeTypeFilter: [],
+      minWeight: 0,
+      minConfidence: 0.5,
+      onlyEvidenceEdges: true,
+    })
+
+    expect(filtered?.edges.map((edge) => edge.id)).toEqual(["edge-1"])
+    expect(filtered?.nodes.map((node) => node.id)).toEqual([
+      "repo:github.com/webrenew/memories",
+      "topic:graph",
+    ])
+  })
+
+  it("falls back to the first available edge when selected id is missing", () => {
+    const graphCanvas = buildGraphCanvasFixture()
+    const selected = resolveSelectedGraphEdge(graphCanvas, "missing-edge-id")
+
+    expect(selected?.id).toBe("edge-1")
+  })
+
+  it("summarizes outbound/inbound and evidence/expiry stats from filtered edges", () => {
+    const graphCanvas = buildGraphCanvasFixture()
+    const filtered = filterGraphCanvasModel(graphCanvas, {
+      edgeTypeFilter: [],
+      nodeTypeFilter: ["repo", "topic"],
+      minWeight: 0.5,
+      minConfidence: 0.5,
+      onlyEvidenceEdges: false,
+    })
+
+    expect(filtered?.edges.map((edge) => edge.id)).toEqual(["edge-1", "edge-2"])
+    expect(summarizeGraphNodeStats(filtered)).toEqual({
+      outbound: 1,
+      inbound: 1,
+      expiring: 1,
+      withEvidence: 1,
+    })
   })
 })

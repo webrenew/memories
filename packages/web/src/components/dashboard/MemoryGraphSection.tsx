@@ -23,6 +23,7 @@ import {
   buildMiniMapViewport,
   clamp,
   DEFAULT_GRAPH_VIEWPORT,
+  filterGraphCanvasModel,
   formatNodeLabel,
   graphEdgeAriaLabel,
   graphNodeAriaLabel,
@@ -36,9 +37,11 @@ import {
   isAbortLikeError,
   qualityStatusClass,
   qualityStatusLabel,
+  resolveSelectedGraphEdge,
   ROLLOUT_MODES,
   scaleViewportAtPoint,
   severityClass,
+  summarizeGraphNodeStats,
   trimMiddle,
   truncateText,
 } from "./memory-graph-helpers"
@@ -287,55 +290,23 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
   )
   const nodeTypeOptions = useMemo(() => graphCanvas?.nodeTypes ?? [], [graphCanvas])
   const filteredGraph = useMemo(() => {
-    if (!graphCanvas) return null
-
-    const allowedEdgeTypes =
-      edgeTypeFilter.length > 0 ? new Set(edgeTypeFilter) : new Set(edgeTypeOptions)
-    const allowedNodeTypes =
-      nodeTypeFilter.length > 0 ? new Set(nodeTypeFilter) : new Set(nodeTypeOptions)
-
-    const edges = graphCanvas.edges.filter((edge) => {
-      if (!allowedEdgeTypes.has(edge.edgeType)) return false
-      if (!allowedNodeTypes.has(edge.from.nodeType) || !allowedNodeTypes.has(edge.to.nodeType)) {
-        return false
-      }
-      if (edge.weight < minWeight) return false
-      if (edge.confidence < minConfidence) return false
-      if (onlyEvidenceEdges && !edge.evidenceMemoryId) return false
-      return true
+    return filterGraphCanvasModel(graphCanvas, {
+      edgeTypeFilter,
+      nodeTypeFilter,
+      minWeight,
+      minConfidence,
+      onlyEvidenceEdges,
     })
-
-    const visibleNodeIds = new Set<string>()
-    for (const node of graphCanvas.nodes) {
-      if (node.isSelected) {
-        visibleNodeIds.add(node.id)
-      }
-    }
-    for (const edge of edges) {
-      visibleNodeIds.add(edge.fromId)
-      visibleNodeIds.add(edge.toId)
-    }
-
-    const nodes = graphCanvas.nodes.filter((node) => {
-      if (!node.isSelected && !allowedNodeTypes.has(node.nodeType)) return false
-      return visibleNodeIds.has(node.id)
-    })
-    const nodeTypes = [...new Set(nodes.map((node) => node.nodeType))].sort()
-    return { nodes, edges, nodeTypes }
   }, [
     edgeTypeFilter,
-    edgeTypeOptions,
     graphCanvas,
     minConfidence,
     minWeight,
     nodeTypeFilter,
-    nodeTypeOptions,
     onlyEvidenceEdges,
   ])
   const selectedEdge = useMemo(() => {
-    if (!filteredGraph || filteredGraph.edges.length === 0) return null
-    if (!selectedEdgeId) return filteredGraph.edges[0]
-    return filteredGraph.edges.find((edge) => edge.id === selectedEdgeId) ?? filteredGraph.edges[0]
+    return resolveSelectedGraphEdge(filteredGraph, selectedEdgeId)
   }, [filteredGraph, selectedEdgeId])
 
   useEffect(() => {
@@ -397,39 +368,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
   ])
 
   const selectedNodeStats = useMemo(() => {
-    if (!filteredGraph) {
-      return {
-        outbound: 0,
-        inbound: 0,
-        expiring: 0,
-        withEvidence: 0,
-      }
-    }
-
-    let outbound = 0
-    let inbound = 0
-    let expiring = 0
-    let withEvidence = 0
-    for (const edge of filteredGraph.edges) {
-      if (edge.direction === "outbound") {
-        outbound += 1
-      } else {
-        inbound += 1
-      }
-      if (edge.expiresAt) {
-        expiring += 1
-      }
-      if (edge.evidenceMemoryId) {
-        withEvidence += 1
-      }
-    }
-
-    return {
-      outbound,
-      inbound,
-      expiring,
-      withEvidence,
-    }
+    return summarizeGraphNodeStats(filteredGraph)
   }, [filteredGraph])
 
   const applyScaleAtPoint = useCallback((scaleMultiplier: number, anchor: { x: number; y: number }) => {

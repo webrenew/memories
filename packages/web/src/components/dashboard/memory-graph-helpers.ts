@@ -57,6 +57,21 @@ export interface GraphCanvasModel {
   nodeTypes: string[]
 }
 
+export interface GraphFilterOptions {
+  edgeTypeFilter: string[]
+  nodeTypeFilter: string[]
+  minWeight: number
+  minConfidence: number
+  onlyEvidenceEdges: boolean
+}
+
+export interface GraphNodeStats {
+  outbound: number
+  inbound: number
+  expiring: number
+  withEvidence: number
+}
+
 export interface GraphViewport {
   scale: number
   x: number
@@ -373,4 +388,93 @@ export function buildGraphCanvasModel(
 
   const nodeTypes = [...new Set(nodes.map((node) => node.nodeType))].sort()
   return { nodes, edges, nodeTypes }
+}
+
+export function filterGraphCanvasModel(
+  graphCanvas: GraphCanvasModel | null,
+  options: GraphFilterOptions
+): GraphCanvasModel | null {
+  if (!graphCanvas) return null
+
+  const edgeTypeOptions = [...new Set(graphCanvas.edges.map((edge) => edge.edgeType))].sort()
+  const allowedEdgeTypes =
+    options.edgeTypeFilter.length > 0 ? new Set(options.edgeTypeFilter) : new Set(edgeTypeOptions)
+  const allowedNodeTypes =
+    options.nodeTypeFilter.length > 0 ? new Set(options.nodeTypeFilter) : new Set(graphCanvas.nodeTypes)
+
+  const edges = graphCanvas.edges.filter((edge) => {
+    if (!allowedEdgeTypes.has(edge.edgeType)) return false
+    if (!allowedNodeTypes.has(edge.from.nodeType) || !allowedNodeTypes.has(edge.to.nodeType)) {
+      return false
+    }
+    if (edge.weight < options.minWeight) return false
+    if (edge.confidence < options.minConfidence) return false
+    if (options.onlyEvidenceEdges && !edge.evidenceMemoryId) return false
+    return true
+  })
+
+  const visibleNodeIds = new Set<string>()
+  for (const node of graphCanvas.nodes) {
+    if (node.isSelected) {
+      visibleNodeIds.add(node.id)
+    }
+  }
+  for (const edge of edges) {
+    visibleNodeIds.add(edge.fromId)
+    visibleNodeIds.add(edge.toId)
+  }
+
+  const nodes = graphCanvas.nodes.filter((node) => {
+    if (!node.isSelected && !allowedNodeTypes.has(node.nodeType)) return false
+    return visibleNodeIds.has(node.id)
+  })
+
+  const nodeTypes = [...new Set(nodes.map((node) => node.nodeType))].sort()
+  return { nodes, edges, nodeTypes }
+}
+
+export function resolveSelectedGraphEdge(
+  filteredGraph: GraphCanvasModel | null,
+  selectedEdgeId: string | null
+): GraphCanvasEdge | null {
+  if (!filteredGraph || filteredGraph.edges.length === 0) return null
+  if (!selectedEdgeId) return filteredGraph.edges[0]
+  return filteredGraph.edges.find((edge) => edge.id === selectedEdgeId) ?? filteredGraph.edges[0]
+}
+
+export function summarizeGraphNodeStats(filteredGraph: GraphCanvasModel | null): GraphNodeStats {
+  if (!filteredGraph) {
+    return {
+      outbound: 0,
+      inbound: 0,
+      expiring: 0,
+      withEvidence: 0,
+    }
+  }
+
+  let outbound = 0
+  let inbound = 0
+  let expiring = 0
+  let withEvidence = 0
+
+  for (const edge of filteredGraph.edges) {
+    if (edge.direction === "outbound") {
+      outbound += 1
+    } else {
+      inbound += 1
+    }
+    if (edge.expiresAt) {
+      expiring += 1
+    }
+    if (edge.evidenceMemoryId) {
+      withEvidence += 1
+    }
+  }
+
+  return {
+    outbound,
+    inbound,
+    expiring,
+    withEvidence,
+  }
 }

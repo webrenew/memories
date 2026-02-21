@@ -26,6 +26,7 @@ description: Product and documentation updates.
 - Updated Graph Explorer node switching to cancel stale `/api/graph/explore` requests using `AbortController`, reducing redundant in-flight fetches during rapid navigation.
 - Stabilized Graph Explorer wheel zoom behavior so rapid scroll events compose against the latest viewport state without dropping zoom steps.
 - Clamped Graph Explorer mini-map viewport geometry at low zoom to keep viewport bounds inside the graph canvas extent.
+- Added Graph Explorer interaction logic tests (filtering, selected-edge fallback, zoom/minimap math, and node-stat summaries).
 - Updated memory graph architecture docs to document memory nodes and self-link behavior.
 - Expanded graph + MCP docs with edge weight tables, contradiction/semantic extraction pipeline guidance, conflict payload schemas/examples, and skills guidance for conflict-aware agent handling.
 
