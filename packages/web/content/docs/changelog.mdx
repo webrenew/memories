@@ -34,6 +34,7 @@ description: Product and documentation updates.
 - Added default retrieval strategy policy autopilot (`GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED`, default `true`) with two-window promotion (`lexical -> hybrid`) and automatic rollback on gate regression.
 - Updated `context/get` and `graph/trace` to apply policy defaults when `strategy` is omitted and return retrieval-policy trace diagnostics.
 - Added `retrievalPolicy` snapshot payload to `GET|POST|PATCH /api/sdk/v1/graph/rollout`.
+- Added scheduled `Graph Rollout Baseline Report` automation (every 6 hours) that persists `reports/graph-rollout/{history,latest}.json` + `latest.md` with blocker trends, recommendation history, and readiness regression detection.
 - Added `memories setup --minimal-local` preset for local-only onboarding with no cloud/workspace dependency.
 - Added `memories doctor --local-only` to skip cloud checks and provide cleaner local-mode diagnostics.
 - Documented a 10-minute local happy path (`setup -> doctor --local-only -> add -> search`) across CLI and Getting Started docs.

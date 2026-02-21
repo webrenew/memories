@@ -1,0 +1,74 @@
+name: Graph Rollout Baseline Report
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: graph-rollout-baseline-report
+  cancel-in-progress: false
+
+jobs:
+  generate-report:
+    name: Generate Graph Rollout Baseline Report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate rollout baseline report
+        id: generate
+        continue-on-error: true
+        env:
+          MEMORIES_GRAPH_ROLLOUT_API_KEY: ${{ secrets.MEMORIES_GRAPH_ROLLOUT_API_KEY }}
+          MEMORIES_GRAPH_ROLLOUT_API_BASE_URL: ${{ vars.MEMORIES_GRAPH_ROLLOUT_API_BASE_URL }}
+          MEMORIES_GRAPH_ROLLOUT_TARGETS_JSON: ${{ vars.MEMORIES_GRAPH_ROLLOUT_TARGETS_JSON }}
+          MEMORIES_GRAPH_ROLLOUT_FAIL_ON_REGRESSION: "true"
+          MEMORIES_GRAPH_ROLLOUT_REPORT_DIR: reports/graph-rollout
+        run: |
+          set +e
+          node .github/scripts/generate-graph-rollout-baseline-report.mjs
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: graph-rollout-baseline-report
+          path: |
+            reports/graph-rollout/latest.json
+            reports/graph-rollout/latest.md
+            reports/graph-rollout/history.json
+          if-no-files-found: warn
+
+      - name: Commit latest report
+        if: steps.generate.outputs.exit_code == '0' || steps.generate.outputs.exit_code == '2'
+        run: |
+          if git diff --quiet -- reports/graph-rollout; then
+            echo "No report changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/graph-rollout
+          git commit -m "chore(graph): refresh rollout baseline report [skip ci]"
+          git push origin HEAD:main
+
+      - name: Fail when report generation detects regression or errors
+        if: steps.generate.outputs.exit_code != '0'
+        run: |
+          echo "Rollout baseline report exited with code ${{ steps.generate.outputs.exit_code }}."
+          echo "Treat this run as alert-worthy if regressions were detected."
+          exit 1

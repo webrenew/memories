@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": null,
+  "apiBaseUrl": "https://memories.sh",
+  "trendWindow": 20,
+  "currentTargets": [],
+  "regressions": [],
+  "workspaces": []
+}

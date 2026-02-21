@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import { createMDX } from 'fumadocs-mdx/next';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,4 +75,10 @@ const nextConfig = {
 
 const withMDX = createMDX();
 
-export default withMDX(nextConfig);
+export default withSentryConfig(withMDX(nextConfig), {
+  org: "webrenew",
+  project: "memories",
+  silent: !globalThis.process?.env?.CI,
+  widenClientFileUpload: true,
+  tunnelRoute: "/monitoring",
+});

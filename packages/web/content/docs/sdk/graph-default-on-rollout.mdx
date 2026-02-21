@@ -28,18 +28,20 @@ Source of truth in code:
 
 Use `GET /api/sdk/v1/graph/rollout` and inspect `data.rolloutPlan.baseline`.
 
-Assumption: repository-only context has no attached production telemetry. Until a workspace report is collected, baseline values should be treated as zero-sample.
+Automated baseline snapshots are published by the scheduled workflow:
 
-Initial baseline snapshot (zero-sample assumption):
+- Workflow: [Graph Rollout Baseline Report](https://github.com/webrenew/memories/actions/workflows/graph-rollout-baseline-report.yml)
+- Latest markdown report: [reports/graph-rollout/latest.md](https://github.com/webrenew/memories/blob/main/reports/graph-rollout/latest.md)
+- Latest JSON report: [reports/graph-rollout/latest.json](https://github.com/webrenew/memories/blob/main/reports/graph-rollout/latest.json)
+- Historical snapshots: [reports/graph-rollout/history.json](https://github.com/webrenew/memories/blob/main/reports/graph-rollout/history.json)
 
-| Metric | Current | Target | Gap |
-| --- | --- | --- | --- |
-| `shadow_executions` | `0` | `40` | `40` |
-| `hybrid_samples` | `0` | `20` | `20` |
-| `canary_samples` | `0` | `12` | `12` |
-| `fallback_rate` | `0` | `<= 0.15` | `0` |
-| `graph_error_rate` | `0` | `<= 0.05` | `0` |
-| `expansion_coverage` | `0` | `>= 0.10` | `0.10` |
+Report content includes:
+
+- timestamped baseline snapshots (`rolloutPlan.baseline`)
+- current blocker codes (`rolloutPlan.blockerCodes`)
+- blocker trends across recent snapshots
+- promotion recommendation history (`recommendedMode`, `defaultBehaviorDecision`)
+- readiness regression detection
 
 ## Rollout Automation Policy
 
@@ -75,6 +77,6 @@ Both endpoints return trace metadata so clients can audit how strategy was selec
 
 ## Default Behavior Decision
 
-Current decision in zero-sample state: `hold_lexical_default`.
+Current decision depends on live rollout telemetry.
 
-Reason: required hybrid/canary sample sizes are not met yet. Switch to default hybrid only after `rolloutPlan.readyForDefaultOn === true`.
+`hold_lexical_default` remains correct until rollout meets default-on SLOs (`rolloutPlan.readyForDefaultOn === true`).
