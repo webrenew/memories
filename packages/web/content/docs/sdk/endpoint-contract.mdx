@@ -767,6 +767,7 @@ Query params:
 Response `data` includes:
 
 - `queue`, `worker`, `backfill`, `retrieval`, `cost`
+- `worker.topErrorCodes[]` (top 5 `error_code` values in the window; includes graph relationship signals such as `GRAPH_RELATIONSHIP_SYNC_FAILED` and `GRAPH_RELATIONSHIP_PARTIAL_DEGRADE`)
 - `slos`
 - `alarms[]`
 - `health` (`healthy` | `degraded` | `critical`)

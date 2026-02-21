@@ -54,6 +54,7 @@ For relationship-edge extraction incidents, focus on:
   - indicates edge write/sync failures that trigger retry/dead-letter behavior
 - `GRAPH_RELATIONSHIP_PARTIAL_DEGRADE` in successful worker metrics:
   - indicates writes succeeded but LLM classification/semantic extraction degraded (`GRAPH_LLM_CLASSIFICATION_FAILED`, `GRAPH_LLM_SEMANTIC_EXTRACTION_FAILED`)
+  - summary payload format is structured for aggregation: `relationship_issues=<total>;GRAPH_LLM_CLASSIFICATION_FAILED:<count>,GRAPH_LLM_SEMANTIC_EXTRACTION_FAILED:<count>`
 
 Operational note:
 
