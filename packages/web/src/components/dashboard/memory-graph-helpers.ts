@@ -81,6 +81,24 @@ export const DEFAULT_GRAPH_VIEWPORT: GraphViewport = {
   y: 0,
 }
 
+export function scaleViewportAtPoint(
+  viewport: GraphViewport,
+  scaleMultiplier: number,
+  anchor: { x: number; y: number }
+): GraphViewport {
+  const clampedScale = clamp(viewport.scale * scaleMultiplier, GRAPH_ZOOM_MIN, GRAPH_ZOOM_MAX)
+  if (clampedScale === viewport.scale) {
+    return viewport
+  }
+
+  const ratio = clampedScale / viewport.scale
+  return {
+    scale: clampedScale,
+    x: anchor.x - (anchor.x - viewport.x) * ratio,
+    y: anchor.y - (anchor.y - viewport.y) * ratio,
+  }
+}
+
 export const NODE_TYPE_STYLES: Record<string, { fill: string; stroke: string; text: string }> = {
   repo: { fill: "rgba(56, 189, 248, 0.16)", stroke: "#38bdf8", text: "#d8f3ff" },
   topic: { fill: "rgba(16, 185, 129, 0.16)", stroke: "#10b981", text: "#dcfce7" },

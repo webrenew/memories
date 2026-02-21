@@ -36,6 +36,7 @@ import {
   qualityStatusClass,
   qualityStatusLabel,
   ROLLOUT_MODES,
+  scaleViewportAtPoint,
   severityClass,
   trimMiddle,
   truncateText,
@@ -430,36 +431,16 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
     }
   }, [filteredGraph])
 
-  const applyScaleAtPoint = useCallback((nextScale: number, anchor: { x: number; y: number }) => {
+  const applyScaleAtPoint = useCallback((scaleMultiplier: number, anchor: { x: number; y: number }) => {
     setGraphViewport((current) => {
-      const clampedScale = clamp(nextScale, GRAPH_ZOOM_MIN, GRAPH_ZOOM_MAX)
-      if (clampedScale === current.scale) {
-        return current
-      }
-
-      const ratio = clampedScale / current.scale
-      return {
-        scale: clampedScale,
-        x: anchor.x - (anchor.x - current.x) * ratio,
-        y: anchor.y - (anchor.y - current.y) * ratio,
-      }
+      return scaleViewportAtPoint(current, scaleMultiplier, anchor)
     })
   }, [])
 
   const zoomFromCenter = useCallback((scaleMultiplier: number) => {
     const anchor = { x: GRAPH_WIDTH / 2, y: GRAPH_HEIGHT / 2 }
     setGraphViewport((current) => {
-      const clampedScale = clamp(current.scale * scaleMultiplier, GRAPH_ZOOM_MIN, GRAPH_ZOOM_MAX)
-      if (clampedScale === current.scale) {
-        return current
-      }
-
-      const ratio = clampedScale / current.scale
-      return {
-        scale: clampedScale,
-        x: anchor.x - (anchor.x - current.x) * ratio,
-        y: anchor.y - (anchor.y - current.y) * ratio,
-      }
+      return scaleViewportAtPoint(current, scaleMultiplier, anchor)
     })
   }, [])
 
@@ -518,12 +499,10 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
       const rect = container.getBoundingClientRect()
       const px = ((event.clientX - rect.left) / rect.width) * GRAPH_WIDTH
       const py = ((event.clientY - rect.top) / rect.height) * GRAPH_HEIGHT
-      const direction = event.deltaY > 0 ? -1 : 1
-      const scaleMultiplier = 1 + GRAPH_ZOOM_STEP * direction
-      const nextScale = graphViewport.scale * scaleMultiplier
-      applyScaleAtPoint(nextScale, { x: px, y: py })
+      const scaleMultiplier = event.deltaY > 0 ? 1 - GRAPH_ZOOM_STEP : 1 + GRAPH_ZOOM_STEP
+      applyScaleAtPoint(scaleMultiplier, { x: px, y: py })
     },
-    [applyScaleAtPoint, graphViewport.scale]
+    [applyScaleAtPoint]
   )
 
   const stopPanning = useCallback((event: PointerEvent<HTMLDivElement>) => {
