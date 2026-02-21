@@ -438,4 +438,116 @@ describe("similarity graph edges", () => {
 
     expect(Number(result.rows[0]?.count ?? 0)).toBe(0)
   })
+
+  it("adds semantic relationship edge types and reuses condition nodes", async () => {
+    const db = await setupDb("memories-graph-semantic-relationships")
+    const nowIso = "2026-02-22T00:30:00.000Z"
+    const modelId = "openai/text-embedding-3-small"
+
+    await insertMemory(db, {
+      id: "mem-new",
+      content: "I stopped fast food because I'm on a diet and now only drink coffee in the morning.",
+      nowIso,
+    })
+    await insertMemory(db, {
+      id: "mem-target",
+      content: "I'm on a diet and planning meals.",
+      nowIso,
+    })
+
+    const semanticExtractor = async () => ({
+      edges: [
+        {
+          type: "caused_by" as const,
+          targetMemoryId: "mem-target",
+          direction: "from_new" as const,
+          confidence: 0.9,
+          evidence: "because I'm on a diet",
+        },
+        {
+          type: "prefers_over" as const,
+          targetMemoryId: "mem-target",
+          direction: "from_new" as const,
+          confidence: 0.82,
+          evidence: "prefer this over that",
+        },
+        {
+          type: "depends_on" as const,
+          targetMemoryId: "mem-target",
+          direction: "to_new" as const,
+          confidence: 0.78,
+          evidence: "do this before that",
+        },
+        {
+          type: "specializes" as const,
+          targetMemoryId: "mem-target",
+          direction: "from_new" as const,
+          confidence: 0.76,
+          evidence: "specific type",
+        },
+        {
+          type: "conditional_on" as const,
+          conditionKey: "time:morning",
+          direction: "from_new" as const,
+          confidence: 0.88,
+          evidence: "in the morning",
+        },
+      ],
+    })
+
+    await syncRelationshipEdgesForMemory({
+      turso: db,
+      memoryId: "mem-new",
+      embedding: [1, 0],
+      modelId,
+      projectId: null,
+      userId: null,
+      layer: "long_term",
+      expiresAt: null,
+      nowIso,
+      threshold: 0.99,
+      memoryContent: "I stopped fast food because I'm on a diet and now only drink coffee in the morning.",
+      memoryCreatedAt: nowIso,
+      semanticExtractor,
+    })
+
+    await syncRelationshipEdgesForMemory({
+      turso: db,
+      memoryId: "mem-new",
+      embedding: [1, 0],
+      modelId,
+      projectId: null,
+      userId: null,
+      layer: "long_term",
+      expiresAt: null,
+      nowIso,
+      threshold: 0.99,
+      memoryContent: "I stopped fast food because I'm on a diet and now only drink coffee in the morning.",
+      memoryCreatedAt: nowIso,
+      semanticExtractor,
+    })
+
+    const edgeCounts = await db.execute({
+      sql: `SELECT edge_type, COUNT(*) AS count
+            FROM graph_edges
+            WHERE edge_type IN ('caused_by', 'prefers_over', 'depends_on', 'specializes', 'conditional_on')
+            GROUP BY edge_type`,
+    })
+    const counts = new Map(edgeCounts.rows.map((row) => [String(row.edge_type), Number(row.count)]))
+
+    expect(counts.get("caused_by")).toBe(1)
+    expect(counts.get("prefers_over")).toBe(1)
+    expect(counts.get("depends_on")).toBe(1)
+    expect(counts.get("specializes")).toBe(1)
+    expect(counts.get("conditional_on")).toBe(1)
+
+    const conditionNodes = await db.execute({
+      sql: `SELECT COUNT(*) AS count
+            FROM graph_nodes
+            WHERE node_type = 'condition' AND node_key = ?`,
+      args: ["time:morning"],
+    })
+
+    expect(Number(conditionNodes.rows[0]?.count ?? 0)).toBe(1)
+  })
 })

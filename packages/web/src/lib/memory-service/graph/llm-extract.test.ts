@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { classifyMemoryRelationship } from "./llm-extract"
+import { classifyMemoryRelationship, extractSemanticRelationships } from "./llm-extract"
 
 const originalAiGatewayApiKey = process.env.AI_GATEWAY_API_KEY
 const originalAiGatewayBaseUrl = process.env.AI_GATEWAY_BASE_URL
@@ -141,5 +141,79 @@ describe("classifyMemoryRelationship", () => {
         memoryB: { id: "mem-b", content: "B", createdAt: null },
       })
     ).rejects.toThrow("Invalid relationship classification")
+  })
+})
+
+describe("extractSemanticRelationships", () => {
+  it("maps target memory indexes and condition keys to typed semantic edges", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    edges: [
+                      {
+                        type: "caused_by",
+                        target_memory_index: 1,
+                        condition_key: null,
+                        direction: "from_new",
+                        confidence: 0.84,
+                        evidence: "because I'm on a diet",
+                      },
+                      {
+                        type: "conditional_on",
+                        target_memory_index: null,
+                        condition_key: "time:morning",
+                        direction: "from_new",
+                        confidence: 0.76,
+                        evidence: "in the morning",
+                      },
+                    ],
+                  }),
+                },
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }
+        )
+      )
+    )
+
+    const result = await extractSemanticRelationships({
+      newMemory: {
+        id: "mem-new",
+        content: "I stopped fast food because I'm on a diet and drink coffee in the morning.",
+        createdAt: "2026-02-21T00:00:00.000Z",
+      },
+      recentMemories: [
+        { id: "mem-old", content: "I'm on a diet.", createdAt: "2026-02-20T00:00:00.000Z" },
+      ],
+    })
+
+    expect(result.edges).toEqual([
+      {
+        type: "caused_by",
+        targetMemoryId: "mem-old",
+        conditionKey: null,
+        direction: "from_new",
+        confidence: 0.84,
+        evidence: "because I'm on a diet",
+      },
+      {
+        type: "conditional_on",
+        targetMemoryId: null,
+        conditionKey: "time:morning",
+        direction: "from_new",
+        confidence: 0.76,
+        evidence: "in the morning",
+      },
+    ])
   })
 })

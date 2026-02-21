@@ -104,6 +104,55 @@ async function resolveNodeId(turso: TursoClient, ref: GraphNodeRef): Promise<str
   return (result.rows[0]?.id as string | undefined) ?? null
 }
 
+function defaultNodeLabel(ref: GraphNodeRef): string {
+  if (ref.nodeType === "condition") {
+    const [, value] = ref.nodeKey.split(":")
+    return value?.trim() || ref.nodeKey
+  }
+  return ref.nodeKey
+}
+
+function defaultNodeMetadata(ref: GraphNodeRef): string | null {
+  if (ref.nodeType !== "condition") return null
+  const [conditionType, ...rest] = ref.nodeKey.split(":")
+  const conditionValue = rest.join(":").trim()
+  return JSON.stringify({
+    conditionKey: ref.nodeKey,
+    conditionType: conditionType || null,
+    conditionValue: conditionValue || null,
+  })
+}
+
+async function ensureNonMemoryGraphNode(
+  turso: TursoClient,
+  ref: GraphNodeRef,
+  nowIso: string
+): Promise<string | null> {
+  if (ref.nodeType === "memory") {
+    return null
+  }
+
+  await turso.execute({
+    sql: `INSERT INTO graph_nodes (id, node_type, node_key, label, metadata, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(node_type, node_key) DO UPDATE SET
+            label = excluded.label,
+            metadata = COALESCE(excluded.metadata, graph_nodes.metadata),
+            updated_at = excluded.updated_at`,
+    args: [
+      nodeIdFallback(ref),
+      ref.nodeType,
+      ref.nodeKey,
+      defaultNodeLabel(ref),
+      defaultNodeMetadata(ref),
+      nowIso,
+      nowIso,
+    ],
+  })
+
+  return resolveNodeId(turso, ref)
+}
+
 async function pruneOrphanGraphNodes(turso: TursoClient): Promise<void> {
   await turso.execute(
     `DELETE FROM graph_nodes
@@ -204,7 +253,10 @@ export async function upsertGraphEdges(
   }
 
   for (const [refKey, ref] of nodeRefs.entries()) {
-    const resolved = await resolveNodeId(turso, ref)
+    let resolved = await resolveNodeId(turso, ref)
+    if (!resolved) {
+      resolved = await ensureNonMemoryGraphNode(turso, ref, nowIso)
+    }
     if (resolved) {
       nodeIdByRef.set(refKey, resolved)
     }

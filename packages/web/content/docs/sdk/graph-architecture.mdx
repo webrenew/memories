@@ -92,6 +92,9 @@ When `GRAPH_LLM_EXTRACTION_ENABLED=true`, ambiguous similarity matches can be cl
 
 - `contradicts`: bidirectional conflict relationship.
 - `supersedes`: directional "newer memory refines older memory" relationship.
+- semantic extraction edges: `caused_by`, `prefers_over`, `depends_on`, `specializes`, `conditional_on`.
+
+`conditional_on` edges link memories to shared `condition` nodes (for example `time:morning`), which are auto-created and reused during graph upsert.
 
 Environment controls:
 

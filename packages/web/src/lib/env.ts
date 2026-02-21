@@ -316,6 +316,19 @@ export function getGraphLlmRelationshipModelId(): string {
   return envValue("GRAPH_LLM_RELATIONSHIP_MODEL_ID") ?? "anthropic/claude-3-5-haiku-latest"
 }
 
+export function getGraphLlmSemanticContextLimit(): number {
+  return parsePositiveInt(process.env.GRAPH_LLM_SEMANTIC_CONTEXT_LIMIT, 20)
+}
+
+export function getGraphLlmSemanticConfidenceThreshold(): number {
+  const value = parseNonNegativeFloat(process.env.GRAPH_LLM_SEMANTIC_CONFIDENCE_THRESHOLD, 0.6)
+  return Math.max(0, Math.min(1, value))
+}
+
+export function getGraphLlmSemanticMinChars(): number {
+  return parsePositiveInt(process.env.GRAPH_LLM_SEMANTIC_MIN_CHARS, 20)
+}
+
 // ── Other ────────────────────────────────────────────────────────────
 
 export function getAppUrl(): string {

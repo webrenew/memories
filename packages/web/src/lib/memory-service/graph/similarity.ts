@@ -2,6 +2,9 @@ import {
   getGraphLlmAmbiguousSimilarityMax,
   getGraphLlmAmbiguousSimilarityMin,
   getGraphLlmRelationshipConfidenceThreshold,
+  getGraphLlmSemanticConfidenceThreshold,
+  getGraphLlmSemanticContextLimit,
+  getGraphLlmSemanticMinChars,
   getSimilarityEdgeMaxK,
   getSimilarityEdgeMaxPerMemory,
   getSimilarityEdgeThreshold,
@@ -70,11 +73,50 @@ export type RelationshipClassifier = (
   input: RelationshipClassifierInput
 ) => Promise<RelationshipClassifierResult>
 
+export type SemanticRelationshipEdgeType =
+  | "caused_by"
+  | "prefers_over"
+  | "depends_on"
+  | "specializes"
+  | "conditional_on"
+
+export interface SemanticRelationshipContextMemory {
+  id: string
+  content: string
+  createdAt: string | null
+}
+
+export interface SemanticRelationshipExtractedEdge {
+  type: SemanticRelationshipEdgeType
+  targetMemoryId?: string | null
+  conditionKey?: string | null
+  direction: "from_new" | "to_new"
+  confidence: number
+  evidence: string
+}
+
+export interface SemanticRelationshipExtractionResult {
+  edges: SemanticRelationshipExtractedEdge[]
+}
+
+export type SemanticRelationshipExtractor = (input: {
+  newMemory: {
+    id: string
+    content: string
+    createdAt: string | null
+  }
+  recentMemories: SemanticRelationshipContextMemory[]
+}) => Promise<SemanticRelationshipExtractionResult>
+
 export interface ComputeRelationshipEdgesInput extends ComputeSimilarityEdgesInput {
   ambiguousMinScore?: number
   ambiguousMaxScore?: number
   llmConfidenceThreshold?: number
   classifier?: RelationshipClassifier | null
+  semanticExtractor?: SemanticRelationshipExtractor | null
+  semanticContextLimit?: number
+  semanticConfidenceThreshold?: number
+  semanticMinChars?: number
 }
 
 function memoryNodeRef(memoryId: string): GraphNodeRef {
@@ -173,6 +215,47 @@ async function selectSimilarityCandidates(input: ComputeSimilarityEdgesInput): P
     })
     .filter((entry): entry is SimilarityMatch => Boolean(entry))
     .sort((a, b) => b.score - a.score || String(b.updatedAt).localeCompare(String(a.updatedAt)))
+}
+
+async function selectRecentMemoryContext(
+  input: ComputeRelationshipEdgesInput
+): Promise<SemanticRelationshipContextMemory[]> {
+  const nowIso = input.nowIso ?? new Date().toISOString()
+  const limit = Math.max(1, input.semanticContextLimit ?? getGraphLlmSemanticContextLimit())
+  const userFilter = buildUserScopeFilter(input.userId, "m.")
+  const activeFilter = buildNotExpiredFilter(nowIso, "m.")
+  const projectFilter = input.projectId
+    ? "AND (m.scope = 'global' OR (m.scope = 'project' AND m.project_id = ?))"
+    : "AND m.scope = 'global'"
+
+  const args: (string | number)[] = [input.memoryId]
+  if (input.projectId) {
+    args.push(input.projectId)
+  }
+  args.push(...userFilter.args)
+  args.push(...activeFilter.args)
+  args.push(limit)
+
+  const result = await input.turso.execute({
+    sql: `SELECT m.id, m.content, m.created_at
+          FROM memories m
+          WHERE m.id != ?
+            AND m.deleted_at IS NULL
+            ${projectFilter}
+            AND ${userFilter.clause}
+            AND ${activeFilter.clause}
+          ORDER BY m.updated_at DESC
+          LIMIT ?`,
+    args,
+  })
+
+  return (result.rows as Array<Record<string, unknown>>)
+    .map((row) => ({
+      id: String(row.id ?? "").trim(),
+      content: String(row.content ?? "").trim(),
+      createdAt: typeof row.created_at === "string" ? row.created_at : null,
+    }))
+    .filter((row) => row.id.length > 0 && row.content.length > 0)
 }
 
 function buildBidirectionalMemoryEdges(params: {
@@ -333,6 +416,89 @@ async function buildLlmRelationshipEdges(
   return edges
 }
 
+function normalizeConditionKey(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, "_")
+}
+
+async function buildSemanticRelationshipEdges(
+  input: ComputeRelationshipEdgesInput,
+  expiresAt: string | null
+): Promise<GraphEdgeWrite[]> {
+  if (!input.semanticExtractor) return []
+
+  const sourceContent = input.memoryContent?.trim()
+  if (!sourceContent) return []
+  const minChars = Math.max(1, input.semanticMinChars ?? getGraphLlmSemanticMinChars())
+  if (sourceContent.length < minChars) return []
+
+  const semanticContext = await selectRecentMemoryContext(input)
+  if (semanticContext.length === 0) return []
+
+  const confidenceThreshold = normalizeScore(
+    input.semanticConfidenceThreshold ?? getGraphLlmSemanticConfidenceThreshold()
+  )
+
+  try {
+    const extraction = await input.semanticExtractor({
+      newMemory: {
+        id: input.memoryId,
+        content: sourceContent,
+        createdAt: input.memoryCreatedAt ?? null,
+      },
+      recentMemories: semanticContext,
+    })
+
+    const edges: GraphEdgeWrite[] = []
+    for (const extractedEdge of extraction.edges) {
+      const confidence = normalizeScore(extractedEdge.confidence)
+      if (confidence < confidenceThreshold) continue
+
+      if (extractedEdge.type === "conditional_on") {
+        const conditionKey = typeof extractedEdge.conditionKey === "string"
+          ? normalizeConditionKey(extractedEdge.conditionKey)
+          : ""
+        if (!conditionKey) continue
+
+        const conditionRef = {
+          nodeType: "condition",
+          nodeKey: conditionKey,
+        } satisfies GraphNodeRef
+
+        edges.push({
+          from: extractedEdge.direction === "to_new" ? conditionRef : memoryNodeRef(input.memoryId),
+          to: extractedEdge.direction === "to_new" ? memoryNodeRef(input.memoryId) : conditionRef,
+          edgeType: extractedEdge.type,
+          weight: 1,
+          confidence,
+          evidenceMemoryId: input.memoryId,
+          expiresAt,
+        })
+        continue
+      }
+
+      const targetMemoryId = extractedEdge.targetMemoryId?.trim()
+      if (!targetMemoryId || targetMemoryId === input.memoryId) continue
+      const hasTarget = semanticContext.some((entry) => entry.id === targetMemoryId)
+      if (!hasTarget) continue
+
+      edges.push({
+        from: extractedEdge.direction === "to_new" ? memoryNodeRef(targetMemoryId) : memoryNodeRef(input.memoryId),
+        to: extractedEdge.direction === "to_new" ? memoryNodeRef(input.memoryId) : memoryNodeRef(targetMemoryId),
+        edgeType: extractedEdge.type,
+        weight: 1,
+        confidence,
+        evidenceMemoryId: input.memoryId,
+        expiresAt,
+      })
+    }
+
+    return edges
+  } catch (error) {
+    console.error("Semantic relationship extraction failed:", error)
+    return []
+  }
+}
+
 export async function computeSimilarityEdges(input: ComputeSimilarityEdgesInput): Promise<GraphEdgeWrite[]> {
   if (input.embedding.length === 0) return []
 
@@ -368,8 +534,9 @@ export async function computeRelationshipEdges(input: ComputeRelationshipEdgesIn
     expiresAt,
   })
   const llmEdges = await buildLlmRelationshipEdges(input, matches, expiresAt)
+  const semanticEdges = await buildSemanticRelationshipEdges(input, expiresAt)
 
-  return dedupeEdges([...similarEdges, ...llmEdges])
+  return dedupeEdges([...similarEdges, ...llmEdges, ...semanticEdges])
 }
 
 export async function syncSimilarityEdgesForMemory(input: ComputeSimilarityEdgesInput): Promise<void> {
@@ -381,6 +548,15 @@ export async function syncRelationshipEdgesForMemory(input: ComputeRelationshipE
   const edges = await computeRelationshipEdges(input)
   await replaceMemoryRelationshipEdges(input.turso, input.memoryId, edges, {
     nowIso: input.nowIso,
-    edgeTypes: ["similar_to", "contradicts", "supersedes"],
+    edgeTypes: [
+      "similar_to",
+      "contradicts",
+      "supersedes",
+      "caused_by",
+      "prefers_over",
+      "depends_on",
+      "specializes",
+      "conditional_on",
+    ],
   })
 }
