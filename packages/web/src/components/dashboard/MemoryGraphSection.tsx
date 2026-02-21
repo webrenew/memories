@@ -118,6 +118,15 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
     }
 
     setIsFocusMode(urlState.isFocusMode)
+    if (urlState.filters.edgeTypes) {
+      setEdgeTypeFilter(urlState.filters.edgeTypes)
+    }
+    if (urlState.filters.nodeTypes) {
+      setNodeTypeFilter(urlState.filters.nodeTypes)
+    }
+    setMinWeight(urlState.filters.minWeight)
+    setMinConfidence(urlState.filters.minConfidence)
+    setOnlyEvidenceEdges(urlState.filters.onlyEvidenceEdges)
 
     setUrlHydrated(true)
   }, [])
@@ -308,6 +317,32 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
   const selectedEdge = useMemo(() => {
     return resolveSelectedGraphEdge(filteredGraph, selectedEdgeId)
   }, [filteredGraph, selectedEdgeId])
+  const persistedEdgeTypeFilter = useMemo(() => {
+    if (edgeTypeFilter.length === 0) return null
+    const normalizedCurrent = [...new Set(edgeTypeFilter)].sort()
+    if (edgeTypeOptions.length === 0) {
+      return normalizedCurrent
+    }
+
+    const normalizedOptions = [...edgeTypeOptions].sort()
+    const isDefaultSelection =
+      normalizedCurrent.length === normalizedOptions.length &&
+      normalizedCurrent.every((value, index) => value === normalizedOptions[index])
+    return isDefaultSelection ? null : normalizedCurrent
+  }, [edgeTypeFilter, edgeTypeOptions])
+  const persistedNodeTypeFilter = useMemo(() => {
+    if (nodeTypeFilter.length === 0) return null
+    const normalizedCurrent = [...new Set(nodeTypeFilter)].sort()
+    if (nodeTypeOptions.length === 0) {
+      return normalizedCurrent
+    }
+
+    const normalizedOptions = [...nodeTypeOptions].sort()
+    const isDefaultSelection =
+      normalizedCurrent.length === normalizedOptions.length &&
+      normalizedCurrent.every((value, index) => value === normalizedOptions[index])
+    return isDefaultSelection ? null : normalizedCurrent
+  }, [nodeTypeFilter, nodeTypeOptions])
 
   useEffect(() => {
     if (!graphCanvas) {
@@ -350,6 +385,13 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
       selectedNode,
       selectedEdgeId,
       isFocusMode,
+      filters: {
+        edgeTypes: persistedEdgeTypeFilter,
+        nodeTypes: persistedNodeTypeFilter,
+        minWeight,
+        minConfidence,
+        onlyEvidenceEdges,
+      },
     })
 
     const nextPath = graphUrlToRelativePath(nextUrl)
@@ -358,7 +400,14 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
       window.history.replaceState({}, "", nextPath)
     }
   }, [
+    edgeTypeFilter,
     isFocusMode,
+    minConfidence,
+    minWeight,
+    nodeTypeFilter,
+    onlyEvidenceEdges,
+    persistedEdgeTypeFilter,
+    persistedNodeTypeFilter,
     selectedEdgeId,
     selectedNode,
     selectedNode?.label,
