@@ -119,7 +119,6 @@ function isMissingGraphTablesError(error: unknown): boolean {
   if (!message.includes("no such table")) return false
   return message.includes("graph_edges") || message.includes("graph_nodes")
 }
-
 async function listContextConflicts(
   turso: TursoClient,
   memoryIds: string[],
