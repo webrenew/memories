@@ -1,6 +1,6 @@
 import React from "react"
 import { createClient } from "@/lib/supabase/server"
-import { StatsCharts } from "./stats-charts"
+import { LazyStatsCharts } from "./stats-charts-lazy"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 
@@ -254,7 +254,7 @@ export default async function StatsPage(): Promise<React.JSX.Element | null> {
         </div>
       </div>
 
-      <StatsCharts 
+      <LazyStatsCharts
         byType={stats.byType} 
         byDayAndType={stats.byDayAndType}
         byProject={stats.byProject}
