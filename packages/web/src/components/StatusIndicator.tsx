@@ -1,21 +1,26 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 
 type Status = "healthy" | "unhealthy" | "checking";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const MIN_REFRESH_WINDOW_MS = 30 * 1000; // matches API s-maxage window
 
 export function StatusIndicator(): React.JSX.Element {
   const [status, setStatus] = useState<Status>("checking");
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const lastRequestedAt = useRef<number>(0);
 
-  const checkHealth = useCallback(async () => {
+  const checkHealth = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastRequestedAt.current < MIN_REFRESH_WINDOW_MS) {
+      return;
+    }
+    lastRequestedAt.current = now;
+
     try {
-      const response = await fetch("/api/health", {
-        method: "GET",
-        cache: "no-store",
-      });
+      const response = await fetch("/api/health", { method: "GET" });
 
       if (response.ok) {
         setStatus("healthy");
@@ -31,13 +36,23 @@ export function StatusIndicator(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    // Initial check
-    checkHealth();
+    void checkHealth(true);
 
-    // Set up polling interval
-    const interval = setInterval(checkHealth, POLL_INTERVAL_MS);
+    const interval = setInterval(() => {
+      void checkHealth();
+    }, POLL_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void checkHealth();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [checkHealth]);
 
   const statusConfig = {
