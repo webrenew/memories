@@ -10,13 +10,11 @@ import type { Memory } from "@/types/memory"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { ensureMemoryUserIdSchema } from "@/lib/memory-service/scope"
 import { buildMemoryInsights, type MemoryInsights } from "@/lib/memory-insights"
+import { isMissingDeletedAtColumnError } from "@/lib/sqlite-errors"
 
 const INITIAL_MEMORIES_LIMIT = 50
-
-function isMissingDeletedAtColumnError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message.toLowerCase() : ""
-  return message.includes("no such column") && message.includes("deleted_at")
-}
+const INSIGHTS_MEMORIES_LIMIT = 200
+const MEMORY_QUERY_LIMIT = Math.max(INITIAL_MEMORIES_LIMIT + 1, INSIGHTS_MEMORIES_LIMIT)
 
 async function listMemories(turso: ReturnType<typeof createTurso>) {
   try {
@@ -25,7 +23,7 @@ async function listMemories(turso: ReturnType<typeof createTurso>) {
        FROM memories
        WHERE deleted_at IS NULL
        ORDER BY created_at DESC, id DESC
-       LIMIT ${INITIAL_MEMORIES_LIMIT + 1}`
+       LIMIT ${MEMORY_QUERY_LIMIT}`
     )
   } catch (error) {
     if (!isMissingDeletedAtColumnError(error)) {
@@ -36,7 +34,7 @@ async function listMemories(turso: ReturnType<typeof createTurso>) {
       `SELECT id, content, tags, type, scope, project_id, paths, category, metadata, created_at, updated_at
        FROM memories
        ORDER BY created_at DESC, id DESC
-       LIMIT ${INITIAL_MEMORIES_LIMIT + 1}`
+       LIMIT ${MEMORY_QUERY_LIMIT}`
     )
   }
 }
@@ -72,10 +70,7 @@ export default async function MemoriesPage(): Promise<React.JSX.Element | null> 
 
     const memoriesResult = await listMemories(turso)
 
-    hasMore = memoriesResult.rows.length > INITIAL_MEMORIES_LIMIT
-    const visibleRows = memoriesResult.rows.slice(0, INITIAL_MEMORIES_LIMIT)
-
-    memories = visibleRows.map(row => ({
+    const loadedMemories = memoriesResult.rows.map(row => ({
       id: row.id as string,
       content: row.content as string,
       tags: row.tags as string | null,
@@ -88,7 +83,9 @@ export default async function MemoriesPage(): Promise<React.JSX.Element | null> 
       created_at: row.created_at as string,
       updated_at: (row.updated_at as string) ?? (row.created_at as string),
     }))
-    memoryInsights = buildMemoryInsights(memories)
+    hasMore = loadedMemories.length > INITIAL_MEMORIES_LIMIT
+    memories = loadedMemories.slice(0, INITIAL_MEMORIES_LIMIT)
+    memoryInsights = buildMemoryInsights(loadedMemories.slice(0, INSIGHTS_MEMORIES_LIMIT))
   } catch (err) {
     console.error("Turso connection error:", err)
     connectError = true

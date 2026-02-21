@@ -4,14 +4,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, createMemorySchema, updateMemorySchema, deleteMemorySchema } from "@/lib/validations"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { isMissingDeletedAtColumnError } from "@/lib/sqlite-errors"
 
 const DEFAULT_GET_LIMIT = 100
 const MAX_GET_LIMIT = 200
-
-function isMissingDeletedAtColumnError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message.toLowerCase() : ""
-  return message.includes("no such column") && message.includes("deleted_at")
-}
 
 function parseLimit(raw: string | null): number {
   const parsed = Number.parseInt(raw ?? "", 10)

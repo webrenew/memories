@@ -1,6 +1,7 @@
 import { GRAPH_MAPPING_ENABLED, type MemoryLayer, type TursoClient } from "@/lib/memory-service/types"
 import { removeMemoryGraphMapping, syncMemoryGraphMapping } from "@/lib/memory-service/graph/upsert"
 import type { InsightAction } from "@/lib/memory-insights"
+import { isMissingDeletedAtColumnError } from "@/lib/sqlite-errors"
 
 interface MemoryActionRow {
   id: string
@@ -36,11 +37,6 @@ export interface ApplyMemoryInsightActionResult {
   updatedTags: MemoryTagUpdate[]
   canonicalId: string | null
   message: string
-}
-
-function isMissingDeletedAtColumnError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message.toLowerCase() : ""
-  return message.includes("no such column") && message.includes("deleted_at")
 }
 
 function parseIsoMs(value: string | null | undefined): number {
