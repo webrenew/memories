@@ -14,18 +14,18 @@ import {
   Legend,
 } from "recharts"
 
-interface TypeCount {
+export interface TypeCount {
   type: string
   count: number
 }
 
-interface DayTypeCount {
+export interface DayTypeCount {
   date: string
   type: string
   count: number
 }
 
-interface ProjectCount {
+export interface ProjectCount {
   project_id: string | null
   scope: string
   count: number
@@ -35,7 +35,7 @@ interface ProjectCount {
   note_count: number
 }
 
-interface RecentMemory {
+export interface RecentMemory {
   id: string
   content: string
   type: string
@@ -99,19 +99,21 @@ function truncateContent(content: string, maxLength: number = 60): string {
   return content.slice(0, maxLength).trim() + "..."
 }
 
+export interface StatsChartsProps {
+  byType: TypeCount[]
+  byDayAndType: DayTypeCount[]
+  byProject: ProjectCount[]
+  recent: RecentMemory[]
+  globalVsProject: { global: number; project: number }
+}
+
 export function StatsCharts({
   byType,
   byDayAndType,
   byProject,
   recent,
   globalVsProject,
-}: {
-  byType: TypeCount[]
-  byDayAndType: DayTypeCount[]
-  byProject: ProjectCount[]
-  recent: RecentMemory[]
-  globalVsProject: { global: number; project: number }
-}): React.JSX.Element {
+}: StatsChartsProps): React.JSX.Element {
   // Transform daily data for stacked bar chart
   const dailyData = byDayAndType.reduce((acc, item) => {
     const existing = acc.find(d => d.date === item.date)
