@@ -3,8 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 
 const style = `
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;600&display=swap');
-
   .oc-root, .oc-root * { box-sizing: border-box; margin: 0; padding: 0; }
 
   .oc-root {
@@ -19,7 +17,7 @@ const style = `
     --text-dim: rgba(255,255,255,0.55);
 
     width: 100%;
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-jetbrains-mono), var(--font-geist-mono), monospace;
     color: #e2e8f0;
     background: transparent;
     position: relative;
@@ -418,7 +416,7 @@ const style = `
     letter-spacing: -0.02em;
     line-height: 1;
     margin-bottom: 4px;
-    font-family: 'Space Grotesk', 'JetBrains Mono', sans-serif;
+    font-family: var(--font-space-grotesk), var(--font-jetbrains-mono), var(--font-geist-sans), sans-serif;
   }
 
   .oc-stat-label {
