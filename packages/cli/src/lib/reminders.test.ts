@@ -35,6 +35,24 @@ describe("reminders", () => {
     if (!invalid.valid) {
       expect(invalid.error).toContain("5 fields");
     }
+
+    const invalidStep = validateCronExpression("*/a * * * *");
+    expect(invalidStep.valid).toBe(false);
+    if (!invalidStep.valid) {
+      expect(invalidStep.error).toContain("Invalid minute step");
+    }
+
+    const invalidSegment = validateCronExpression("*/2/3 * * * *");
+    expect(invalidSegment.valid).toBe(false);
+    if (!invalidSegment.valid) {
+      expect(invalidSegment.error).toContain("Invalid minute segment");
+    }
+
+    const invalidRange = validateCronExpression("1-2-3 * * * *");
+    expect(invalidRange.valid).toBe(false);
+    if (!invalidRange.valid) {
+      expect(invalidRange.error).toContain("Invalid minute range");
+    }
   });
 
   it("computes next reminder timestamp", () => {
