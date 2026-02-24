@@ -11,6 +11,7 @@ import { getDb } from "../lib/db.js";
 import {
   parseFrontmatter,
   extractBulletPoints,
+  stripHtmlComments,
   dedupKey,
   ingestClaudeRules,
   ingestCursorRules,
@@ -217,6 +218,35 @@ short
     const items = extractBulletPoints(body);
     expect(items).toHaveLength(1);
     expect(items[0]).toBe("Important rule that should be extracted");
+  });
+
+  it("should strip multiline HTML comments", () => {
+    const body = `- Keep this rule
+<!--
+multi-line generated marker
+that should be removed
+-->
+- Keep this one too`;
+
+    const items = extractBulletPoints(body);
+    expect(items).toContain("Keep this rule");
+    expect(items).toContain("Keep this one too");
+    expect(items.join(" ")).not.toContain("multi-line generated marker");
+  });
+});
+
+describe("stripHtmlComments", () => {
+  it("removes single-line and multiline HTML comments", () => {
+    const text = `alpha <!-- one --> beta
+<!--
+multi
+line
+-->
+gamma`;
+
+    expect(stripHtmlComments(text)).toBe(`alpha  beta
+
+gamma`);
   });
 });
 
