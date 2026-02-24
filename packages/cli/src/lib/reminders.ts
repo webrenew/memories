@@ -114,8 +114,17 @@ function parseField(field: string, min: number, max: number, label: string, allo
       throw new Error(`Invalid empty ${label} segment in "${field}"`);
     }
 
-    const [rangePartRaw, stepPartRaw] = segment.split("/");
-    const rangePart = rangePartRaw.trim();
+    const stepParts = segment.split("/");
+    if (stepParts.length > 2) {
+      throw new Error(`Invalid ${label} segment "${segment}"`);
+    }
+
+    const rangePart = stepParts[0].trim();
+    const stepPartRaw = stepParts[1]?.trim();
+    if (stepPartRaw !== undefined && !/^\d+$/.test(stepPartRaw)) {
+      throw new Error(`Invalid ${label} step in segment "${segment}"`);
+    }
+
     const step = stepPartRaw === undefined ? 1 : Number.parseInt(stepPartRaw, 10);
 
     if (!Number.isFinite(step) || step <= 0) {
@@ -127,8 +136,13 @@ function parseField(field: string, min: number, max: number, label: string, allo
       continue;
     }
 
-    if (rangePart.includes("-")) {
-      const [startRaw, endRaw] = rangePart.split("-");
+    const rangeParts = rangePart.split("-");
+    if (rangeParts.length > 2) {
+      throw new Error(`Invalid ${label} range in segment "${segment}"`);
+    }
+
+    if (rangeParts.length === 2) {
+      const [startRaw, endRaw] = rangeParts;
       const start = parseNumericValue(startRaw, min, max, label, allowDowSeven);
       const end = parseNumericValue(endRaw, min, max, label, allowDowSeven);
       addRangeWithStep(result, start, end, step, min, max, label, allowDowSeven);
