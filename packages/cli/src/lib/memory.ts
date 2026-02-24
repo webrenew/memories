@@ -84,6 +84,53 @@ interface QueryMemoryOpts {
   types?: MemoryType[]; // Filter by memory types
 }
 
+function normalizeContent(content: string): string {
+  const normalized = content.trim();
+  if (!normalized) {
+    throw new Error("Memory content cannot be empty");
+  }
+  return normalized;
+}
+
+function normalizeStringList(values?: string[]): string[] | undefined {
+  if (!values) return undefined;
+
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function resolvePositiveLimit(limit: number | undefined, fallback: number): number {
+  if (!Number.isFinite(limit)) {
+    return fallback;
+  }
+
+  const parsed = Math.trunc(limit as number);
+  return parsed > 0 ? parsed : fallback;
+}
+
+function toFtsPrefixQuery(query: string): string | null {
+  const terms = query
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (terms.length === 0) {
+    return null;
+  }
+
+  return terms
+    .map((term) => `"${term.replace(/"/g, "\"\"")}"*`)
+    .join(" OR ");
+}
+
 /**
  * Add a new memory.
  * By default, scopes to current git project. Use global: true for global scope.
@@ -94,10 +141,13 @@ export async function addMemory(
 ): Promise<Memory> {
   const db = await getDb();
   const id = nanoid(12);
-  const tags = opts?.tags?.length ? opts.tags.join(",") : null;
+  const normalizedContent = normalizeContent(content);
+  const normalizedTags = normalizeStringList(opts?.tags);
+  const normalizedPaths = normalizeStringList(opts?.paths);
+  const tags = normalizedTags?.length ? normalizedTags.join(",") : null;
   const type = opts?.type ?? "note";
-  const paths = opts?.paths?.length ? opts.paths.join(",") : null;
-  const category = opts?.category ?? null;
+  const paths = normalizedPaths?.length ? normalizedPaths.join(",") : null;
+  const category = opts?.category?.trim() ? opts.category.trim() : null;
   const metadata = opts?.metadata ? JSON.stringify(opts.metadata) : null;
 
   let scope: Scope = "global";
@@ -113,11 +163,11 @@ export async function addMemory(
 
   await db.execute({
     sql: `INSERT INTO memories (id, content, tags, scope, project_id, type, paths, category, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, content, tags, scope, projectId, type, paths, category, metadata],
+    args: [id, normalizedContent, tags, scope, projectId, type, paths, category, metadata],
   });
 
   // Generate embedding in background (don't block on it)
-  generateEmbeddingAsync(id, content);
+  generateEmbeddingAsync(id, normalizedContent);
 
   const result = await db.execute({
     sql: `SELECT * FROM memories WHERE id = ?`,
@@ -167,7 +217,12 @@ export async function searchMemories(
   opts?: QueryMemoryOpts
 ): Promise<Memory[]> {
   const db = await getDb();
-  const limit = opts?.limit ?? 20;
+  const limit = resolvePositiveLimit(opts?.limit, 20);
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) {
+    return [];
+  }
+
   const includeGlobal = opts?.includeGlobal ?? true;
   // Skip auto-detect if globalOnly is set
   const projectId = opts?.globalOnly ? undefined : (opts?.projectId ?? getProjectId());
@@ -199,11 +254,10 @@ export async function searchMemories(
 
   // Use FTS5 for better search with ranking
   // The bm25() function returns relevance scores (lower is better)
-  const ftsQuery = query
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(term => `"${term}"*`) // Prefix matching for each term
-    .join(" OR ");
+  const ftsQuery = toFtsPrefixQuery(normalizedQuery);
+  if (!ftsQuery) {
+    return [];
+  }
 
   args.push(limit);
 
@@ -227,7 +281,7 @@ export async function searchMemories(
   } catch (error) {
     // Fallback to LIKE search if FTS fails (e.g., empty index)
     logger.warn("FTS search failed, falling back to LIKE:", error);
-    return searchMemoriesLike(query, opts);
+    return searchMemoriesLike(normalizedQuery, { ...opts, limit });
   }
 }
 
@@ -239,12 +293,17 @@ async function searchMemoriesLike(
   opts?: QueryMemoryOpts
 ): Promise<Memory[]> {
   const db = await getDb();
-  const limit = opts?.limit ?? 20;
+  const limit = resolvePositiveLimit(opts?.limit, 20);
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) {
+    return [];
+  }
+
   const includeGlobal = opts?.includeGlobal ?? true;
   const projectId = opts?.globalOnly ? undefined : (opts?.projectId ?? getProjectId());
 
   const conditions: string[] = ["deleted_at IS NULL", "content LIKE ?"];
-  const args: (string | number)[] = [`%${query}%`];
+  const args: (string | number)[] = [`%${normalizedQuery}%`];
 
   const scopeConditions: string[] = [];
   if (includeGlobal) {
@@ -283,7 +342,7 @@ async function searchMemoriesLike(
  */
 export async function listMemories(opts?: QueryMemoryOpts): Promise<Memory[]> {
   const db = await getDb();
-  const limit = opts?.limit ?? 50;
+  const limit = resolvePositiveLimit(opts?.limit, 50);
   const includeGlobal = opts?.includeGlobal ?? true;
   // Skip auto-detect if globalOnly is set
   const projectId = opts?.globalOnly ? undefined : (opts?.projectId ?? getProjectId());
@@ -309,10 +368,11 @@ export async function listMemories(opts?: QueryMemoryOpts): Promise<Memory[]> {
   conditions.push(`(${scopeConditions.join(" OR ")})`);
 
   // Tag filter
-  if (opts?.tags?.length) {
-    const tagClauses = opts.tags.map(() => `tags LIKE ?`).join(" OR ");
+  const normalizedTagFilters = normalizeStringList(opts?.tags);
+  if (normalizedTagFilters?.length) {
+    const tagClauses = normalizedTagFilters.map(() => `tags LIKE ?`).join(" OR ");
     conditions.push(`(${tagClauses})`);
-    args.push(...opts.tags.map((t) => `%${t}%`));
+    args.push(...normalizedTagFilters.map((t) => `%${t}%`));
   }
 
   // Type filter
