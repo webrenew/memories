@@ -42,28 +42,40 @@ export function getGitRoot(cwd?: string): string | null {
  *   git@github.com:user/repo.git -> github.com/user/repo
  *   https://github.com/user/repo.git -> github.com/user/repo
  */
-function normalizeGitUrl(url: string): string {
+export function normalizeGitUrl(url: string): string {
   let normalized = url.trim();
-
-  // Remove .git suffix
-  if (normalized.endsWith(".git")) {
-    normalized = normalized.slice(0, -4);
+  if (!normalized) {
+    return normalized;
   }
 
-  // SSH format: git@github.com:user/repo
-  const sshMatch = normalized.match(/^git@([^:]+):(.+)$/);
-  if (sshMatch) {
-    return `${sshMatch[1]}/${sshMatch[2]}`;
+  // Remove trailing slashes and optional .git suffix.
+  normalized = normalized.replace(/\/+$/, "").replace(/\.git$/i, "");
+
+  // SCP-like SSH format: git@github.com:user/repo
+  const sshScpMatch = normalized.match(/^git@([^:]+):(.+)$/);
+  if (sshScpMatch) {
+    const path = sshScpMatch[2].replace(/^\/+/, "").replace(/\/+$/, "");
+    return `${sshScpMatch[1]}/${path}`;
   }
 
-  // HTTPS format: https://github.com/user/repo
-  const httpsMatch = normalized.match(/^https?:\/\/([^/]+)\/(.+)$/);
-  if (httpsMatch) {
-    return `${httpsMatch[1]}/${httpsMatch[2]}`;
-  }
+  // URL-style remotes: https://, ssh://, git+ssh://, git://
+  try {
+    const parsed = new URL(normalized);
+    const supportedProtocols = new Set(["http:", "https:", "ssh:", "git+ssh:", "git:"]);
+    if (!supportedProtocols.has(parsed.protocol)) {
+      return normalized;
+    }
 
-  // Return as-is if no match
-  return normalized;
+    const path = parsed.pathname.replace(/^\/+/, "").replace(/\/+$/, "");
+    if (!parsed.hostname || !path) {
+      return normalized;
+    }
+
+    return `${parsed.hostname}/${path}`;
+  } catch {
+    // Return as-is when parsing fails.
+    return normalized;
+  }
 }
 
 /**

@@ -8,7 +8,13 @@ export function getDataDir(): string {
 
 /** API URL for the memories.sh cloud service. */
 export function getApiUrl(): string {
-  return process.env.MEMORIES_API_URL || "https://memories.sh"
+  const configured = process.env.MEMORIES_API_URL?.trim()
+  if (!configured) {
+    return "https://memories.sh"
+  }
+
+  const normalized = configured.replace(/\/+$/, "")
+  return normalized || "https://memories.sh"
 }
 
 /** Turso platform API token (required for database provisioning). */
@@ -24,7 +30,17 @@ export function getTursoApiToken(): string {
 
 /** Whether debug logging is enabled. */
 export function isDebug(): boolean {
-  return Boolean(process.env.DEBUG)
+  const raw = process.env.DEBUG
+  if (!raw) {
+    return false
+  }
+
+  const normalized = raw.trim().toLowerCase()
+  if (!normalized) {
+    return false
+  }
+
+  return !["0", "false", "off", "no", "n"].includes(normalized)
 }
 
 /** Resolve the user's preferred text editor. */
