@@ -49,13 +49,17 @@ function hasMarker(content: string): boolean {
   return content.includes(MARKER);
 }
 
+export function stripHtmlComments(content: string): string {
+  return content.replace(/<!--[\s\S]*?-->/g, "");
+}
+
 /**
  * Extract bullet points from markdown body content.
  * Reuses the same logic as the existing extractMemories but with simpler output.
  */
 export function extractBulletPoints(body: string): string[] {
   const results: string[] = [];
-  const clean = body.replace(/<!--.*?-->/g, "").trim();
+  const clean = stripHtmlComments(body).trim();
 
   for (const line of clean.split("\n")) {
     const trimmed = line.trim();

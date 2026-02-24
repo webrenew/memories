@@ -3,12 +3,19 @@ import { startMcpServer, startMcpHttpServer, setCloudCredentials } from "../mcp/
 import { getProjectId } from "../lib/git.js";
 import { logger } from "../lib/logger.js";
 import { getApiUrl } from "../lib/env.js";
+import { parsePortOption } from "../lib/cli-options.js";
 
 const MEMORIES_API = getApiUrl();
 
 interface CloudCredentials {
   turso_db_url: string;
   turso_db_token: string;
+}
+
+export function resolveSseBinding(opts: { port?: string; host?: string }): { port: number; host: string } {
+  const port = parsePortOption(opts.port ?? "3030");
+  const host = opts.host?.trim() || "127.0.0.1";
+  return { port, host };
 }
 
 async function fetchCloudCredentials(apiKey: string): Promise<CloudCredentials> {
@@ -56,8 +63,16 @@ export const serveCommand = new Command("serve")
     }
 
     if (opts.sse) {
-      const port = parseInt(opts.port || "3030", 10);
-      const host = opts.host || "127.0.0.1";
+      let port: number;
+      let host: string;
+      try {
+        const binding = resolveSseBinding(opts);
+        port = binding.port;
+        host = binding.host;
+      } catch (error) {
+        logger.error(error instanceof Error ? error.message : "Invalid SSE options");
+        process.exit(1);
+      }
 
       logger.info(`Starting MCP server with SSE transport`);
       logger.info(`Listening on http://${host}:${port}`);

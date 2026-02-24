@@ -6,6 +6,7 @@ import { addMemory, isMemoryType, MEMORY_TYPES, type MemoryType } from "../lib/m
 import { getDb } from "../lib/db.js";
 import {
   dedupKey,
+  stripHtmlComments,
   ingestClaudeRules,
   ingestCursorRules,
   ingestSkills,
@@ -77,8 +78,8 @@ function extractMemories(content: string): { content: string; type: MemoryType }
   // Strip YAML frontmatter
   const stripped = content.replace(/^---[\s\S]*?---\n*/m, "");
 
-  // Strip our own marker
-  const clean = stripped.replace(/<!--.*?-->/g, "").trim();
+  // Strip HTML comments (including multiline marker blocks)
+  const clean = stripHtmlComments(stripped).trim();
 
   for (const line of clean.split("\n")) {
     const trimmed = line.trim();

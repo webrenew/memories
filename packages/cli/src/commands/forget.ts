@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { createInterface } from "node:readline/promises";
 import chalk from "chalk";
 import * as ui from "../lib/ui.js";
+import { normalizeOptionalOption, parsePositiveIntegerOption } from "../lib/cli-options.js";
 import {
   forgetMemory,
   findMemoriesToForget,
@@ -62,15 +63,21 @@ export const forgetCommand = new Command("forget")
         return;
       }
 
+      const normalizedTag = normalizeOptionalOption(opts.tag);
+      const normalizedPattern = normalizeOptionalOption(opts.pattern);
+      const olderThanDays = opts.olderThan === undefined
+        ? undefined
+        : parsePositiveIntegerOption(opts.olderThan, "--older-than");
+
       // Bulk delete — need at least one filter
-      const hasBulkFilter = opts.type || opts.tag || opts.olderThan || opts.pattern || opts.all;
+      const hasBulkFilter = opts.type || normalizedTag || olderThanDays !== undefined || normalizedPattern || opts.all;
       if (!hasBulkFilter) {
         ui.error("Provide a memory ID or a bulk filter (--type, --tag, --older-than, --pattern, --all)");
         process.exit(1);
       }
 
       // Reject --all combined with other filters (ambiguous intent)
-      if (opts.all && (opts.type || opts.tag || opts.olderThan || opts.pattern)) {
+      if (opts.all && (opts.type || normalizedTag || olderThanDays !== undefined || normalizedPattern)) {
         ui.error("--all cannot be combined with other filters. Use --all alone to delete everything.");
         process.exit(1);
       }
@@ -81,18 +88,12 @@ export const forgetCommand = new Command("forget")
         process.exit(1);
       }
 
-      // Validate older-than
-      if (opts.olderThan && (isNaN(parseInt(opts.olderThan, 10)) || parseInt(opts.olderThan, 10) <= 0)) {
-        ui.error("--older-than must be a positive number of days");
-        process.exit(1);
-      }
-
       // Build filter
       const filter: BulkForgetFilter = {
         types: opts.type && isMemoryType(opts.type) ? [opts.type] : undefined,
-        tags: opts.tag ? [opts.tag] : undefined,
-        olderThanDays: opts.olderThan ? parseInt(opts.olderThan, 10) : undefined,
-        pattern: opts.pattern,
+        tags: normalizedTag ? [normalizedTag] : undefined,
+        olderThanDays,
+        pattern: normalizedPattern,
         all: opts.all,
         projectId: opts.projectOnly ? (getProjectId() ?? undefined) : undefined,
       };
@@ -137,7 +138,12 @@ export const forgetCommand = new Command("forget")
       const count = await bulkForgetByIds(ids);
       ui.success(`Forgot ${count} memories.`);
     } catch (error) {
-      ui.error("Failed to forget: " + (error instanceof Error ? error.message : "Unknown error"));
+      const message = error instanceof Error ? error.message : "Unknown error";
+      if (message === "--older-than must be a positive integer") {
+        ui.error("--older-than must be a positive number of days");
+      } else {
+        ui.error("Failed to forget: " + message);
+      }
       process.exit(1);
     }
   });

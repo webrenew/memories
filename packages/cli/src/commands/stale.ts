@@ -3,8 +3,9 @@ import chalk from "chalk";
 import * as ui from "../lib/ui.js";
 import { getDb } from "../lib/db.js";
 import { getProjectId } from "../lib/git.js";
-import { forgetMemory, type MemoryType } from "../lib/memory.js";
+import { forgetMemory, isMemoryType, MEMORY_TYPES, type MemoryType } from "../lib/memory.js";
 import { createInterface } from "node:readline/promises";
+import { parsePositiveIntegerOption } from "../lib/cli-options.js";
 
 const TYPE_ICONS: Record<string, string> = {
   rule: "📌",
@@ -38,11 +39,11 @@ export const staleCommand = new Command("stale")
   .action(async (opts: { days: string; type?: string; json?: boolean }) => {
     try {
       const db = await getDb();
-      const days = parseInt(opts.days, 10);
+      const days = parsePositiveIntegerOption(opts.days, "--days");
       const projectId = getProjectId() ?? undefined;
 
-      if (isNaN(days) || days <= 0) {
-        ui.error("--days must be a positive number");
+      if (opts.type && !isMemoryType(opts.type)) {
+        ui.error(`Invalid type "${opts.type}". Valid: ${MEMORY_TYPES.join(", ")}`);
         process.exit(1);
       }
 
@@ -92,7 +93,12 @@ export const staleCommand = new Command("stale")
       console.log(`${stale.length} stale ${stale.length === 1 ? "memory" : "memories"} found`);
       console.log(chalk.dim("Run 'memories review' to clean up interactively"));
     } catch (error) {
-      ui.error("Failed: " + (error instanceof Error ? error.message : "Unknown error"));
+      const message = error instanceof Error ? error.message : "Unknown error";
+      if (message === "--days must be a positive integer") {
+        ui.error("--days must be a positive number");
+      } else {
+        ui.error("Failed: " + message);
+      }
       process.exit(1);
     }
   });
@@ -103,7 +109,7 @@ export const reviewCommand = new Command("review")
   .action(async (opts: { days: string }) => {
     try {
       const db = await getDb();
-      const days = parseInt(opts.days, 10);
+      const days = parsePositiveIntegerOption(opts.days, "--days");
 
       const result = await db.execute({
         sql: `
@@ -160,7 +166,12 @@ export const reviewCommand = new Command("review")
       console.log(chalk.bold("\nReview Summary:"));
       console.log(`  Kept: ${kept}, Deleted: ${deleted}, Skipped: ${skipped}`);
     } catch (error) {
-      ui.error("Review failed: " + (error instanceof Error ? error.message : "Unknown error"));
+      const message = error instanceof Error ? error.message : "Unknown error";
+      if (message === "--days must be a positive integer") {
+        ui.error("--days must be a positive number");
+      } else {
+        ui.error("Review failed: " + message);
+      }
       process.exit(1);
     }
   });
