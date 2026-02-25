@@ -11,11 +11,13 @@ import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 
 import {
+  type SyncedFile,
   type ListedFile,
   type ExistingFile,
   type ApplyFile,
   type ShowFile,
   hashContent,
+  normalizeSyncedPath,
   OPTIONAL_CONFIG_PATHS,
   OPTIONAL_CONFIG_INTEGRATIONS,
   REDACTED_PLACEHOLDER,
@@ -26,6 +28,9 @@ import {
   sanitizeOptionalConfig,
   hydrateOptionalConfig,
   configProjectId,
+  resolveProjectScope,
+  buildApplyScopeFilter,
+  selectScopedFileMatch,
   pushConfigSecretsToVault,
   fetchConfigSecretsFromVault,
   scanAllTargets,
@@ -103,7 +108,7 @@ filesCommand
     const home = homedir();
     const cwd = process.cwd();
     const includeConfig = Boolean(opts.includeConfig);
-    const projectId = getProjectId(cwd);
+    const projectScope = resolveProjectScope(getProjectId(cwd));
 
     const filesToIngest: { path: string; fullPath: string; scope: string; source: string }[] = [];
 
@@ -119,14 +124,16 @@ filesCommand
     }
 
     // Scan project configs
-    if (opts.project) {
+    if (opts.project && projectScope) {
       const files = await scanAllTargets(cwd, { includeConfig });
       for (const file of files) {
         filesToIngest.push({
           ...file,
-          scope: "project", // Will be resolved to git remote
+          scope: projectScope,
         });
       }
+    } else if (opts.project) {
+      ui.warn("No git project id detected. Skipping --project file ingest.");
     }
 
     if (filesToIngest.length === 0) {
@@ -164,7 +171,7 @@ filesCommand
             const integration = OPTIONAL_CONFIG_INTEGRATIONS.get(file.path);
             if (integration) {
               const scope = file.scope === "global" ? "global" : "project";
-              const scopedProjectId = scope === "project" ? projectId : null;
+              const scopedProjectId = scope === "project" ? projectScope : null;
               if (scope === "global" || scopedProjectId) {
                 const entry: ConfigVaultEntry = {
                   scope,
@@ -245,7 +252,7 @@ filesCommand
             process.exitCode = 1;
           }
         }
-      } else if (includeConfig && opts.project && !projectId) {
+      } else if (includeConfig && opts.project && !projectScope) {
         console.log(chalk.yellow("Skipped project-scoped Vault sync for config secrets (no git project id detected)."));
       }
     }
@@ -267,22 +274,22 @@ filesCommand
     const db = await getDb();
     const home = homedir();
     const cwd = process.cwd();
+    const projectScope = resolveProjectScope(getProjectId(cwd));
+    const scopeFilter = buildApplyScopeFilter(opts, projectScope);
 
     let sql = "SELECT id, path, content, scope, source FROM files WHERE deleted_at IS NULL";
-    const args: string[] = [];
-
-    if (opts.global && !opts.project) {
-      sql += " AND scope = 'global'";
-    } else if (opts.project && !opts.global) {
-      sql += " AND scope != 'global'";
-    }
+    const args: string[] = [...scopeFilter.args];
+    sql += ` AND ${scopeFilter.clause}`;
 
     const result = await db.execute({ sql, args });
     const includeConfig = Boolean(opts.includeConfig);
-    const projectId = getProjectId(cwd);
     const files = (result.rows as unknown as ApplyFile[]).filter((file) =>
       includeConfig || !OPTIONAL_CONFIG_PATHS.has(file.path),
     );
+
+    if (scopeFilter.warning) {
+      console.log(chalk.yellow(scopeFilter.warning));
+    }
 
     if (files.length === 0) {
       console.log(chalk.dim("No files to apply."));
@@ -392,7 +399,7 @@ filesCommand
     if (hydratedSecretValues > 0) {
       console.log(chalk.green(`Hydrated ${hydratedSecretValues} config secret value${hydratedSecretValues === 1 ? "" : "s"} from Vault.`));
     }
-    if (includeConfig && opts.project && !projectId) {
+    if (includeConfig && opts.project && !projectScope) {
       console.log(chalk.yellow("Project-scoped config secret hydration was skipped (no git project id detected)."));
     }
     if (hydrationWarnings > 0) {
@@ -407,22 +414,35 @@ filesCommand
 filesCommand
   .command("show <path>")
   .description("Show content of a synced file")
-  .action(async (path) => {
+  .option("-s, --scope <scope>", "Scope key (global or project id)")
+  .action(async (path: string, opts: { scope?: string }) => {
     const db = await getDb();
+    const normalizedPath = normalizeSyncedPath(path);
 
     const result = await db.execute({
       sql: "SELECT content, scope, source, updated_at FROM files WHERE path = ? AND deleted_at IS NULL",
-      args: [path],
+      args: [normalizedPath],
     });
+    const matches = result.rows as unknown as ShowFile[];
+    const selection = selectScopedFileMatch(matches, opts.scope);
+    const requestedScope = opts.scope?.trim();
 
-    if (result.rows.length === 0) {
-      console.log(chalk.red(`File not found: ${path}`));
+    if (selection.ambiguous) {
+      console.log(chalk.red(`Multiple files found for ${normalizedPath}.`));
+      console.log(chalk.dim(`Use --scope with one of: ${selection.availableScopes.join(", ")}`));
+      process.exitCode = 1;
       return;
     }
 
-    const file = result.rows[0] as unknown as ShowFile;
+    if (!selection.match) {
+      const suffix = requestedScope ? ` (scope: ${requestedScope})` : "";
+      console.log(chalk.red(`File not found: ${normalizedPath}${suffix}`));
+      return;
+    }
 
-    console.log(chalk.dim(`# ${path}`));
+    const file = selection.match;
+
+    console.log(chalk.dim(`# ${normalizedPath}`));
     console.log(chalk.dim(`# Scope: ${file.scope} | Source: ${file.source || "unknown"}`));
     console.log(chalk.dim(`# Updated: ${file.updated_at}`));
     console.log(chalk.dim("─".repeat(50)));
@@ -433,18 +453,36 @@ filesCommand
 filesCommand
   .command("forget <path>")
   .description("Remove a file from sync (soft delete)")
-  .action(async (path) => {
+  .option("-s, --scope <scope>", "Scope key (global or project id)")
+  .action(async (path: string, opts: { scope?: string }) => {
     const db = await getDb();
+    const normalizedPath = normalizeSyncedPath(path);
+    const requestedScope = opts.scope?.trim();
 
-    const result = await db.execute({
-      sql: "UPDATE files SET deleted_at = datetime('now') WHERE path = ? AND deleted_at IS NULL",
-      args: [path],
+    const matchesResult = await db.execute({
+      sql: "SELECT scope FROM files WHERE path = ? AND deleted_at IS NULL",
+      args: [normalizedPath],
     });
+    const matches = matchesResult.rows as unknown as Array<Pick<SyncedFile, "scope">>;
+    const selection = selectScopedFileMatch(matches, requestedScope);
 
-    if (result.rowsAffected === 0) {
-      console.log(chalk.red(`File not found: ${path}`));
+    if (selection.ambiguous) {
+      console.log(chalk.red(`Multiple files found for ${normalizedPath}.`));
+      console.log(chalk.dim(`Use --scope with one of: ${selection.availableScopes.join(", ")}`));
+      process.exitCode = 1;
       return;
     }
+
+    if (!selection.match) {
+      const suffix = requestedScope ? ` (scope: ${requestedScope})` : "";
+      console.log(chalk.red(`File not found: ${normalizedPath}${suffix}`));
+      return;
+    }
+
+    const result = await db.execute({
+      sql: "UPDATE files SET deleted_at = datetime('now') WHERE path = ? AND scope = ? AND deleted_at IS NULL",
+      args: [normalizedPath, selection.match.scope],
+    });
 
     // Sync to cloud if enabled
     const sync = await readSyncConfig();
@@ -452,5 +490,11 @@ filesCommand
       await syncDb();
     }
 
-    ui.success(`Removed ${path} from sync`);
+    if (Number(result.rowsAffected ?? 0) > 0) {
+      ui.success(`Removed ${normalizedPath} from sync (${selection.match.scope})`);
+      return;
+    }
+
+    const suffix = requestedScope ? ` (scope: ${requestedScope})` : "";
+    console.log(chalk.red(`File not found: ${normalizedPath}${suffix}`));
   });

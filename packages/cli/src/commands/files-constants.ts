@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { posix } from "node:path";
 
 export interface SyncedFile {
   id: string;
@@ -20,6 +20,19 @@ export type ShowFile = Pick<SyncedFile, "content" | "scope" | "source" | "update
 
 export function hashContent(content: string): string {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
+}
+
+/**
+ * Canonical path format for synced file keys.
+ * Paths are always stored as POSIX-style forward slashes to remain cross-platform.
+ */
+export function normalizeSyncedPath(input: string): string {
+  const normalized = posix.normalize(input.replaceAll("\\", "/"));
+  return normalized.startsWith("./") ? normalized.slice(2) : normalized;
+}
+
+export function joinSyncedPath(...parts: string[]): string {
+  return normalizeSyncedPath(posix.join(...parts));
 }
 
 // Specific file paths and patterns to sync from each tool directory
@@ -138,7 +151,7 @@ export function listOptionalConfigPaths(): string[] {
   for (const target of OPTIONAL_CONFIG_TARGETS) {
     if (!target.files) continue;
     for (const file of target.files) {
-      paths.push(join(target.dir, file));
+      paths.push(joinSyncedPath(target.dir, file));
     }
   }
   return paths;
@@ -146,8 +159,8 @@ export function listOptionalConfigPaths(): string[] {
 
 export const OPTIONAL_CONFIG_PATHS = new Set(listOptionalConfigPaths());
 export const OPTIONAL_CONFIG_INTEGRATIONS = new Map<string, string>([
-  [join(".config/opencode", "opencode.json"), "opencode"],
-  [join(".openclaw", "openclaw.json"), "openclaw"],
+  [joinSyncedPath(".config/opencode", "opencode.json"), "opencode"],
+  [joinSyncedPath(".openclaw", "openclaw.json"), "openclaw"],
 ]);
 export const REDACTED_PLACEHOLDER = "[REDACTED]";
 export const CLOUD_AUTH_REQUIRED_MESSAGE =

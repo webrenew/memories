@@ -10,6 +10,7 @@ import {
   CLOUD_AUTH_REQUIRED_MESSAGE,
   SENSITIVE_DOUBLE_QUOTED_VALUE_RE,
   SENSITIVE_SINGLE_QUOTED_VALUE_RE,
+  joinSyncedPath,
   getSyncTargets,
 } from "./files-constants.js";
 
@@ -31,6 +32,18 @@ export interface VaultOperationResult {
   error?: string;
   proRequired?: boolean;
   unauthenticated?: boolean;
+}
+
+export interface ApplyScopeFilter {
+  clause: string;
+  args: string[];
+  warning?: string;
+}
+
+export interface ScopedFileSelection<T extends { scope: string }> {
+  match: T | null;
+  ambiguous: boolean;
+  availableScopes: string[];
 }
 
 export function sanitizeOptionalConfig(path: string, content: string): OptionalConfigSanitization {
@@ -87,6 +100,75 @@ export function hydrateOptionalConfig(path: string, content: string, secrets: Re
 export function configProjectId(scope: string, cwd: string): string | null {
   if (scope === "global") return null;
   return getProjectId(cwd);
+}
+
+export function resolveProjectScope(projectId: string | null): string | null {
+  const trimmed = projectId?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+export function buildApplyScopeFilter(
+  opts: { global?: boolean; project?: boolean },
+  projectScope: string | null,
+): ApplyScopeFilter {
+  if (opts.global && !opts.project) {
+    return { clause: "scope = 'global'", args: [] };
+  }
+
+  if (opts.project && !opts.global) {
+    if (!projectScope) {
+      return {
+        clause: "scope = 'global' AND 1 = 0",
+        args: [],
+        warning: "Project scope requested, but no git project id was detected.",
+      };
+    }
+    return { clause: "scope = ?", args: [projectScope] };
+  }
+
+  if (opts.project && opts.global) {
+    if (!projectScope) {
+      return {
+        clause: "scope = 'global'",
+        args: [],
+        warning: "Project scope requested, but no git project id was detected. Applying global files only.",
+      };
+    }
+    return { clause: "(scope = 'global' OR scope = ?)", args: [projectScope] };
+  }
+
+  return { clause: "1 = 1", args: [] };
+}
+
+export function selectScopedFileMatch<T extends { scope: string }>(
+  rows: T[],
+  requestedScope?: string,
+): ScopedFileSelection<T> {
+  const availableScopes = [...new Set(rows.map((row) => row.scope))].sort();
+  const normalizedScope = requestedScope?.trim();
+
+  if (normalizedScope) {
+    const scopedMatch = rows.find((row) => row.scope === normalizedScope) ?? null;
+    return {
+      match: scopedMatch,
+      ambiguous: false,
+      availableScopes,
+    };
+  }
+
+  if (rows.length === 1) {
+    return {
+      match: rows[0],
+      ambiguous: false,
+      availableScopes,
+    };
+  }
+
+  return {
+    match: null,
+    ambiguous: rows.length > 1,
+    availableScopes,
+  };
 }
 
 export async function pushConfigSecretsToVault(entries: ConfigVaultEntry[]): Promise<{ synced: number } & VaultOperationResult> {
@@ -169,7 +251,7 @@ export async function fetchConfigSecretsFromVault(params: {
   return { secrets: payload.secrets ?? {} };
 }
 
-export async function scanTarget(baseDir: string, target: SyncTarget, relativeTo: string = ""): Promise<{ path: string; fullPath: string; source: string }[]> {
+export async function scanTarget(baseDir: string, target: SyncTarget): Promise<{ path: string; fullPath: string; source: string }[]> {
   const results: { path: string; fullPath: string; source: string }[] = [];
   const targetDir = join(baseDir, target.dir);
 
@@ -189,7 +271,7 @@ export async function scanTarget(baseDir: string, target: SyncTarget, relativeTo
         const stats = await stat(fullPath);
         if (stats.isFile()) {
           results.push({
-            path: join(target.dir, file),
+            path: joinSyncedPath(target.dir, file),
             fullPath,
             source,
           });
@@ -206,12 +288,12 @@ export async function scanTarget(baseDir: string, target: SyncTarget, relativeTo
 
   for (const entry of entries) {
     const fullPath = join(targetDir, entry.name);
-    const relativePath = join(target.dir, entry.name);
+    const relativePath = joinSyncedPath(target.dir, entry.name);
 
     if (entry.isDirectory() && target.recurse) {
       // Recurse into subdirectories
       const subTarget: SyncTarget = { dir: relativePath, pattern: target.pattern, recurse: true };
-      const subResults = await scanTarget(baseDir, subTarget, relativeTo);
+      const subResults = await scanTarget(baseDir, subTarget);
       results.push(...subResults);
     } else if (entry.isFile() && target.pattern.test(entry.name)) {
       results.push({ path: relativePath, fullPath, source });
