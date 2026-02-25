@@ -8,6 +8,23 @@ export interface BulkForgetFilter {
   pattern?: string;
   all?: boolean;
   projectId?: string;
+  projectOnly?: boolean;
+}
+
+function normalizeStringFilter(values?: string[]): string[] {
+  if (!values) return [];
+
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+
+  return normalized;
 }
 
 /**
@@ -15,6 +32,10 @@ export interface BulkForgetFilter {
  * Filters are always applied, even with `all: true` (which just means no filter is required).
  */
 export async function findMemoriesToForget(filter: BulkForgetFilter): Promise<Memory[]> {
+  if (filter.projectOnly && !filter.projectId) {
+    return [];
+  }
+
   const db = await getDb();
 
   const conditions: string[] = ["deleted_at IS NULL"];
@@ -26,10 +47,11 @@ export async function findMemoriesToForget(filter: BulkForgetFilter): Promise<Me
     args.push(...filter.types);
   }
 
-  if (filter.tags?.length) {
-    const tagClauses = filter.tags.map(() => `tags LIKE ?`).join(" OR ");
+  const normalizedTags = normalizeStringFilter(filter.tags);
+  if (normalizedTags.length > 0) {
+    const tagClauses = normalizedTags.map(() => `tags LIKE ?`).join(" OR ");
     conditions.push(`(${tagClauses})`);
-    args.push(...filter.tags.map((t) => `%${t}%`));
+    args.push(...normalizedTags.map((tag) => `%${tag}%`));
   }
 
   if (filter.olderThanDays !== undefined) {
@@ -37,9 +59,11 @@ export async function findMemoriesToForget(filter: BulkForgetFilter): Promise<Me
     args.push(`-${filter.olderThanDays} days`);
   }
 
-  if (filter.pattern) {
+  const pattern = filter.pattern?.trim();
+  if (pattern) {
     // Escape literal LIKE wildcards, then convert glob syntax (* → %, ? → _)
-    const likePattern = filter.pattern
+    const likePattern = pattern
+      .replace(/\\/g, "\\\\")
       .replace(/%/g, "\\%")
       .replace(/_/g, "\\_")
       .replace(/\*/g, "%")
@@ -68,21 +92,24 @@ export async function findMemoriesToForget(filter: BulkForgetFilter): Promise<Me
  * Batches in chunks of 500 to stay within SQLite variable limits.
  */
 export async function bulkForgetByIds(ids: string[]): Promise<number> {
-  if (ids.length === 0) return 0;
+  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  if (uniqueIds.length === 0) return 0;
 
   const db = await getDb();
   const batchSize = 500;
+  let affected = 0;
 
-  for (let i = 0; i < ids.length; i += batchSize) {
-    const batch = ids.slice(i, i + batchSize);
+  for (let i = 0; i < uniqueIds.length; i += batchSize) {
+    const batch = uniqueIds.slice(i, i + batchSize);
     const placeholders = batch.map(() => "?").join(", ");
-    await db.execute({
+    const result = await db.execute({
       sql: `UPDATE memories SET deleted_at = datetime('now') WHERE id IN (${placeholders})`,
       args: batch,
     });
+    affected += Number(result.rowsAffected ?? 0);
   }
 
-  return ids.length;
+  return affected;
 }
 
 /**
