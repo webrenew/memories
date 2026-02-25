@@ -68,6 +68,12 @@ export const forgetCommand = new Command("forget")
       const olderThanDays = opts.olderThan === undefined
         ? undefined
         : parsePositiveIntegerOption(opts.olderThan, "--older-than");
+      const projectId = opts.projectOnly ? (getProjectId() ?? undefined) : undefined;
+
+      if (opts.projectOnly && !projectId) {
+        ui.warn("Not in a git repository. No project memories to forget.");
+        return;
+      }
 
       // Bulk delete — need at least one filter
       const hasBulkFilter = opts.type || normalizedTag || olderThanDays !== undefined || normalizedPattern || opts.all;
@@ -95,7 +101,8 @@ export const forgetCommand = new Command("forget")
         olderThanDays,
         pattern: normalizedPattern,
         all: opts.all,
-        projectId: opts.projectOnly ? (getProjectId() ?? undefined) : undefined,
+        projectId,
+        projectOnly: opts.projectOnly ?? false,
       };
 
       // Preview
