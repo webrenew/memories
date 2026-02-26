@@ -17,6 +17,7 @@ const ENDPOINT = "/api/sdk/v1/skills/files/upsert"
 const requestSchema = z.object({
   path: z.string().trim().min(1).max(400),
   content: z.string().trim().min(1).max(120_000),
+  procedureKey: z.string().trim().min(1).max(120).optional(),
   scope: scopeSchema,
 })
 
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       turso,
       path: parsedRequest.path,
       content: parsedRequest.content,
+      procedureKey: parsedRequest.procedureKey,
       projectId,
       userId,
       nowIso: new Date().toISOString(),

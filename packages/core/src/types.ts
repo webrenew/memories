@@ -146,6 +146,9 @@ export interface SkillFileRecord {
   scope: MemoryScope
   projectId: string | null
   userId: string | null
+  usageCount: number
+  lastUsedAt: string | null
+  procedureKey: string | null
   createdAt: string
   updatedAt: string
 }
@@ -159,10 +162,13 @@ export interface SkillFileScopeOptions {
 export interface SkillFileUpsertInput extends SkillFileScopeOptions {
   path: string
   content: string
+  procedureKey?: string
 }
 
 export interface SkillFileListOptions extends SkillFileScopeOptions {
   limit?: number
+  query?: string
+  procedureKey?: string
 }
 
 export interface SkillFileDeleteInput extends SkillFileScopeOptions {

@@ -1,6 +1,6 @@
 import { getContextPayload } from "@/lib/memory-service/queries"
 import { evaluateGraphRetrievalPolicy } from "@/lib/memory-service/graph/rollout"
-import { listSkillFilesPayload } from "@/lib/memory-service/skill-files"
+import { listSkillFilesPayload, markSkillFilesUsedPayload } from "@/lib/memory-service/skill-files"
 import { apiError, ensureMemoryUserIdSchema, parseTenantId, parseUserId, ToolExecutionError } from "@/lib/memory-service/tools"
 import {
   authenticateApiKey,
@@ -129,8 +129,22 @@ export async function POST(request: NextRequest): Promise<Response> {
           projectId,
           userId,
           limit: 100,
+          query: parsedRequest.query,
         })
       : { data: { skillFiles: [], count: 0 } }
+
+    if (includeSkillFiles && skillFilesPayload.data.skillFiles.length > 0) {
+      try {
+        await markSkillFilesUsedPayload({
+          turso,
+          ids: skillFilesPayload.data.skillFiles.map((skillFile) => skillFile.id),
+          userId,
+          nowIso,
+        })
+      } catch (error) {
+        console.error("Failed to update skill file usage signals", error)
+      }
+    }
 
     return successResponse(ENDPOINT, requestId, {
       mode,
