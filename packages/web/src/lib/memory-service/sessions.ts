@@ -138,12 +138,16 @@ function validationError(code: string, message: string, field: string): ToolExec
   )
 }
 
-function sessionNotActiveError(sessionId: string, status: string): ToolExecutionError {
+function sessionNotActiveError(
+  sessionId: string,
+  status: string,
+  operation: "checkpointed" | "ended"
+): ToolExecutionError {
   return new ToolExecutionError(
     apiError({
       type: "validation_error",
       code: "SESSION_NOT_ACTIVE",
-      message: `Session ${sessionId} is ${status}; only active sessions can be checkpointed`,
+      message: `Session ${sessionId} is ${status}; only active sessions can be ${operation}`,
       status: 409,
       retryable: false,
       details: { sessionId, status },
@@ -280,7 +284,7 @@ export async function checkpointSessionPayload(params: {
   }
 
   if (session.status !== "active") {
-    throw sessionNotActiveError(sessionId, session.status)
+    throw sessionNotActiveError(sessionId, session.status, "checkpointed")
   }
 
   const role: SessionRole = args.role ?? "assistant"
@@ -360,6 +364,10 @@ export async function endSessionPayload(params: {
   })
   if (!session) {
     throw sessionNotFoundError(sessionId)
+  }
+
+  if (session.status !== "active") {
+    throw sessionNotActiveError(sessionId, session.status, "ended")
   }
 
   await turso.execute({
