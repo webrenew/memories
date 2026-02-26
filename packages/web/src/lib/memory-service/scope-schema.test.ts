@@ -61,6 +61,28 @@ describe("ensureMemoryUserIdSchema", () => {
     })
     expect(String(embeddingsMarker.rows[0]?.value ?? "")).toBe("1")
 
+    const sessionTables = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?)",
+      args: ["memory_sessions", "memory_session_events", "memory_session_snapshots"],
+    })
+    const sessionTableNames = new Set(sessionTables.rows.map((row) => String(row.name)))
+    expect(sessionTableNames.has("memory_sessions")).toBe(true)
+    expect(sessionTableNames.has("memory_session_events")).toBe(true)
+    expect(sessionTableNames.has("memory_session_snapshots")).toBe(true)
+
+    const sessionIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN (?, ?, ?)",
+      args: [
+        "idx_memory_sessions_scope",
+        "idx_memory_session_events_session",
+        "idx_memory_session_snapshots_session",
+      ],
+    })
+    const sessionIndexNames = new Set(sessionIndexes.rows.map((row) => String(row.name)))
+    expect(sessionIndexNames.has("idx_memory_sessions_scope")).toBe(true)
+    expect(sessionIndexNames.has("idx_memory_session_events_session")).toBe(true)
+    expect(sessionIndexNames.has("idx_memory_session_snapshots_session")).toBe(true)
+
     const embeddingJobsMarker = await db.execute({
       sql: "SELECT value FROM memory_schema_state WHERE key = ?",
       args: ["memory_embedding_jobs_v1"],

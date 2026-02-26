@@ -160,6 +160,62 @@ async function ensureGraphSchema(turso: TursoClient): Promise<void> {
   )
 }
 
+// ─── Session Schema ───────────────────────────────────────────────────────────
+
+async function ensureSessionSchema(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_sessions (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL DEFAULT 'global',
+      project_id TEXT,
+      user_id TEXT,
+      client TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      title TEXT,
+      started_at TEXT NOT NULL,
+      last_activity_at TEXT NOT NULL,
+      ended_at TEXT,
+      metadata TEXT
+    )`
+  )
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_session_events (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      content TEXT NOT NULL,
+      token_count INTEGER,
+      turn_index INTEGER,
+      is_meaningful INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    )`
+  )
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_session_snapshots (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      source_trigger TEXT NOT NULL,
+      transcript_md TEXT NOT NULL,
+      message_count INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    )`
+  )
+
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_sessions_scope ON memory_sessions(scope, project_id, user_id, status)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_session_events_session ON memory_session_events(session_id, created_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_session_snapshots_session ON memory_session_snapshots(session_id, created_at)"
+  )
+}
+
 // ─── Skill File Schema ────────────────────────────────────────────────────────
 
 async function ensureSkillFileSchema(turso: TursoClient): Promise<void> {
@@ -437,6 +493,7 @@ export async function ensureMemoryUserIdSchema(
     await markMemorySchemaApplied(turso, MEMORY_USER_ID_SCHEMA_STATE_KEY)
   }
 
+  await ensureSessionSchema(turso)
   await ensureGraphSchema(turso)
   await ensureSkillFileSchema(turso)
   await ensureEmbeddingSchema(turso)
