@@ -482,6 +482,7 @@ export class MemoriesClient {
       const result = await this.callSdkEndpoint("/api/sdk/v1/skills/files/upsert", {
         path: input.path,
         content: input.content,
+        procedureKey: input.procedureKey,
         scope: sdkScope,
       })
 
@@ -503,6 +504,8 @@ export class MemoriesClient {
       const sdkScope = rawScope && Object.keys(rawScope).length > 0 ? rawScope : undefined
       const result = await this.callSdkEndpoint("/api/sdk/v1/skills/files/list", {
         limit: options.limit,
+        query: options.query,
+        procedureKey: options.procedureKey,
         scope: sdkScope,
       })
 

@@ -125,6 +125,20 @@ describe("ensureMemoryUserIdSchema", () => {
     expect(consolidationIndexNames.has("idx_memories_source_session")).toBe(true)
     expect(consolidationIndexNames.has("idx_memories_upsert_live")).toBe(true)
 
+    const skillFileColumns = await db.execute("PRAGMA table_info(skill_files)")
+    const skillFileColumnNames = new Set(skillFileColumns.rows.map((row) => String(row.name)))
+    expect(skillFileColumnNames.has("usage_count")).toBe(true)
+    expect(skillFileColumnNames.has("last_used_at")).toBe(true)
+    expect(skillFileColumnNames.has("procedure_key")).toBe(true)
+
+    const skillFileIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN (?, ?)",
+      args: ["idx_skill_files_usage", "idx_skill_files_procedure_key"],
+    })
+    const skillFileIndexNames = new Set(skillFileIndexes.rows.map((row) => String(row.name)))
+    expect(skillFileIndexNames.has("idx_skill_files_usage")).toBe(true)
+    expect(skillFileIndexNames.has("idx_skill_files_procedure_key")).toBe(true)
+
     const embeddingJobsMarker = await db.execute({
       sql: "SELECT value FROM memory_schema_state WHERE key = ?",
       args: ["memory_embedding_jobs_v1"],
