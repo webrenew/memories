@@ -48,12 +48,24 @@ describe("ensureMemoryUserIdSchema", () => {
     expect(columnNames.has("user_id")).toBe(true)
     expect(columnNames.has("memory_layer")).toBe(true)
     expect(columnNames.has("expires_at")).toBe(true)
+    expect(columnNames.has("upsert_key")).toBe(true)
+    expect(columnNames.has("source_session_id")).toBe(true)
+    expect(columnNames.has("superseded_by")).toBe(true)
+    expect(columnNames.has("superseded_at")).toBe(true)
+    expect(columnNames.has("confidence")).toBe(true)
+    expect(columnNames.has("last_confirmed_at")).toBe(true)
 
     const marker = await db.execute({
       sql: "SELECT value FROM memory_schema_state WHERE key = ?",
       args: ["memory_user_id_v1"],
     })
     expect(String(marker.rows[0]?.value ?? "")).toBe("1")
+
+    const consolidationMarker = await db.execute({
+      sql: "SELECT value FROM memory_schema_state WHERE key = ?",
+      args: ["memory_consolidation_v1"],
+    })
+    expect(String(consolidationMarker.rows[0]?.value ?? "")).toBe("1")
 
     const embeddingsMarker = await db.execute({
       sql: "SELECT value FROM memory_schema_state WHERE key = ?",
@@ -82,6 +94,50 @@ describe("ensureMemoryUserIdSchema", () => {
     expect(sessionIndexNames.has("idx_memory_sessions_scope")).toBe(true)
     expect(sessionIndexNames.has("idx_memory_session_events_session")).toBe(true)
     expect(sessionIndexNames.has("idx_memory_session_snapshots_session")).toBe(true)
+
+    const compactionTables = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?)",
+      args: ["memory_compaction_events"],
+    })
+    const compactionTableNames = new Set(compactionTables.rows.map((row) => String(row.name)))
+    expect(compactionTableNames.has("memory_compaction_events")).toBe(true)
+
+    const compactionIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN (?)",
+      args: ["idx_memory_compaction_session"],
+    })
+    const compactionIndexNames = new Set(compactionIndexes.rows.map((row) => String(row.name)))
+    expect(compactionIndexNames.has("idx_memory_compaction_session")).toBe(true)
+
+    const consolidationTable = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?)",
+      args: ["memory_consolidation_runs"],
+    })
+    const consolidationTableNames = new Set(consolidationTable.rows.map((row) => String(row.name)))
+    expect(consolidationTableNames.has("memory_consolidation_runs")).toBe(true)
+
+    const consolidationIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN (?, ?, ?)",
+      args: ["idx_memories_upsert_key", "idx_memories_source_session", "idx_memories_upsert_live"],
+    })
+    const consolidationIndexNames = new Set(consolidationIndexes.rows.map((row) => String(row.name)))
+    expect(consolidationIndexNames.has("idx_memories_upsert_key")).toBe(true)
+    expect(consolidationIndexNames.has("idx_memories_source_session")).toBe(true)
+    expect(consolidationIndexNames.has("idx_memories_upsert_live")).toBe(true)
+
+    const skillFileColumns = await db.execute("PRAGMA table_info(skill_files)")
+    const skillFileColumnNames = new Set(skillFileColumns.rows.map((row) => String(row.name)))
+    expect(skillFileColumnNames.has("usage_count")).toBe(true)
+    expect(skillFileColumnNames.has("last_used_at")).toBe(true)
+    expect(skillFileColumnNames.has("procedure_key")).toBe(true)
+
+    const skillFileIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN (?, ?)",
+      args: ["idx_skill_files_usage", "idx_skill_files_procedure_key"],
+    })
+    const skillFileIndexNames = new Set(skillFileIndexes.rows.map((row) => String(row.name)))
+    expect(skillFileIndexNames.has("idx_skill_files_usage")).toBe(true)
+    expect(skillFileIndexNames.has("idx_skill_files_procedure_key")).toBe(true)
 
     const embeddingJobsMarker = await db.execute({
       sql: "SELECT value FROM memory_schema_state WHERE key = ?",

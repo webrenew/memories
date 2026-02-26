@@ -4,6 +4,7 @@ import type {
   ContextGetOptions,
   ContextMode,
   ContextStrategy,
+  LegacyContextStrategy,
   MemoriesErrorData,
   MemoriesResponseEnvelope,
   MemoryRecord,
@@ -57,6 +58,51 @@ export type ContextGetMethod = {
 
 const contextModes = new Set<ContextMode>(["all", "working", "long_term", "rules_only"])
 const contextStrategies = new Set<ContextStrategy>(["lexical", "semantic", "hybrid", "baseline", "hybrid_graph"])
+const legacyStrategyWarningSeen = new Set<LegacyContextStrategy>()
+
+function isLegacyWarningSuppressed(): boolean {
+  if (typeof process === "undefined") return false
+  const value = process.env.MEMORIES_SUPPRESS_DEPRECATION_WARNINGS
+  if (!value) return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on"
+}
+
+function warnLegacyStrategy(strategy: LegacyContextStrategy, replacement: NormalizedRetrievalStrategy): void {
+  if (legacyStrategyWarningSeen.has(strategy) || isLegacyWarningSuppressed()) return
+  legacyStrategyWarningSeen.add(strategy)
+  if (typeof console !== "undefined" && typeof console.warn === "function") {
+    console.warn(`[memories] retrieval strategy "${strategy}" is deprecated. Use "${replacement}" instead.`)
+  }
+}
+
+export function resetLegacyStrategyWarningsForTest(): void {
+  legacyStrategyWarningSeen.clear()
+}
+
+function normalizeOptionalPositiveInt(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined
+  }
+  const normalized = Math.floor(value)
+  return normalized > 0 ? normalized : undefined
+}
+
+function normalizeOptionalNonNegativeInt(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined
+  }
+  const normalized = Math.floor(value)
+  return normalized >= 0 ? normalized : undefined
+}
+
+function normalizeOptionalIsoDate(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const parsed = new Date(trimmed)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
+}
 
 export function errorTypeForStatus(status: number): MemoriesErrorData["type"] {
   if (status === 400) return "validation_error"
@@ -162,6 +208,9 @@ export function toSkillFileRecord(skillFile: z.infer<typeof structuredSkillFileS
     scope: normalizeMemoryScope(skillFile.scope),
     projectId: skillFile.projectId ?? null,
     userId: skillFile.userId ?? null,
+    usageCount: skillFile.usageCount ?? 0,
+    lastUsedAt: skillFile.lastUsedAt ?? null,
+    procedureKey: skillFile.procedureKey ?? null,
     createdAt: skillFile.createdAt,
     updatedAt: skillFile.updatedAt,
   }
@@ -190,8 +239,14 @@ export function normalizeContextMode(mode: unknown): ContextMode {
 
 export function normalizeContextStrategy(strategy: unknown): NormalizedRetrievalStrategy {
   if (typeof strategy === "string" && contextStrategies.has(strategy as ContextStrategy)) {
-    if (strategy === "baseline") return "lexical"
-    if (strategy === "hybrid_graph") return "hybrid"
+    if (strategy === "baseline") {
+      warnLegacyStrategy("baseline", "lexical")
+      return "lexical"
+    }
+    if (strategy === "hybrid_graph") {
+      warnLegacyStrategy("hybrid_graph", "hybrid")
+      return "hybrid"
+    }
     if (strategy === "lexical" || strategy === "semantic" || strategy === "hybrid") {
       return strategy
     }
@@ -233,6 +288,17 @@ export function normalizeContextInput(
 
   return {
     ...fromObject,
+    sessionId: typeof fromObject.sessionId === "string" && fromObject.sessionId.trim()
+      ? fromObject.sessionId.trim()
+      : undefined,
+    budgetTokens: normalizeOptionalPositiveInt(fromObject.budgetTokens),
+    turnCount: normalizeOptionalNonNegativeInt(fromObject.turnCount),
+    turnBudget: normalizeOptionalPositiveInt(fromObject.turnBudget),
+    lastActivityAt: normalizeOptionalIsoDate(fromObject.lastActivityAt),
+    inactivityThresholdMinutes: normalizeOptionalPositiveInt(fromObject.inactivityThresholdMinutes),
+    taskCompleted: typeof fromObject.taskCompleted === "boolean" ? fromObject.taskCompleted : undefined,
+    includeSessionSummary:
+      typeof fromObject.includeSessionSummary === "boolean" ? fromObject.includeSessionSummary : undefined,
     mode: normalizeContextMode(fromObject.mode),
     strategy: normalizeContextStrategy(fromObject.strategy),
     graphDepth: normalizeGraphDepth(fromObject.graphDepth),

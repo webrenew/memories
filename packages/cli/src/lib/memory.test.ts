@@ -1,12 +1,29 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 // Use a temp directory so tests never hit sync
 process.env.MEMORIES_DATA_DIR = mkdtempSync(join(tmpdir(), "memories-test-"));
 
-import { addMemory, searchMemories, listMemories, forgetMemory, getMemoryById } from "./memory.js";
+import {
+  addMemory,
+  searchMemories,
+  listMemories,
+  forgetMemory,
+  getMemoryById,
+  startMemorySession,
+  checkpointMemorySession,
+  listMemorySessionEvents,
+  createMemorySessionSnapshot,
+  getMemorySessionStatus,
+  endMemorySession,
+  getLatestActiveMemorySession,
+  estimateContextTokenCount,
+  writeAheadCompactionCheckpoint,
+  runInactivityCompactionWorker,
+  consolidateMemories,
+} from "./memory.js";
 import { getDb } from "./db.js";
 
 describe("memory", () => {
@@ -190,5 +207,370 @@ describe("memory", () => {
     });
     expect(both.some((m) => m.scope === "global")).toBe(true);
     expect(both.some((m) => m.scope === "project")).toBe(true);
+  });
+
+  it("should overwrite an existing live memory when upsertKey matches", async () => {
+    const upsertKey = `prefs-editor-${Date.now()}`;
+    const first = await addMemory("Preferred editor: vim", {
+      global: true,
+      type: "note",
+      upsertKey,
+      sourceSessionId: "session-a",
+      confidence: 0.6,
+    });
+
+    const second = await addMemory("Preferred editor: neovim", {
+      global: true,
+      type: "note",
+      upsertKey,
+      sourceSessionId: "session-b",
+      confidence: 0.95,
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(second.content).toBe("Preferred editor: neovim");
+    expect(second.upsert_key).toBe(upsertKey);
+    expect(second.source_session_id).toBe("session-b");
+    expect(second.confidence).toBe(0.95);
+  });
+
+  it("should consolidate duplicate memories and add supersession/conflict links", async () => {
+    const token = `consolidate-${Date.now()}`;
+    const older = await addMemory(`UI theme preference: dark (${token})`, {
+      global: true,
+      type: "note",
+      category: token,
+    });
+    const newer = await addMemory(`UI theme preference: light (${token})`, {
+      global: true,
+      type: "note",
+      category: token,
+    });
+
+    const db = await getDb();
+    await db.execute({
+      sql: "UPDATE memories SET updated_at = ? WHERE id = ?",
+      args: ["2020-01-01T00:00:00.000Z", older.id],
+    });
+    await db.execute({
+      sql: "UPDATE memories SET updated_at = ? WHERE id = ?",
+      args: ["2026-02-26T00:00:00.000Z", newer.id],
+    });
+
+    const run = await consolidateMemories({
+      globalOnly: true,
+      types: ["note"],
+      model: "heuristic-v1",
+    });
+
+    expect(run.run.input_count).toBeGreaterThan(0);
+    expect(run.run.merged_count).toBeGreaterThan(0);
+    expect(run.supersededMemoryIds).toContain(older.id);
+    expect(run.winnerMemoryIds).toContain(newer.id);
+    expect(run.run.conflicted_count).toBeGreaterThan(0);
+
+    const olderRow = await db.execute({
+      sql: "SELECT superseded_by, superseded_at, upsert_key FROM memories WHERE id = ?",
+      args: [older.id],
+    });
+    expect(String(olderRow.rows[0]?.superseded_by ?? "")).toBe(newer.id);
+    expect(String(olderRow.rows[0]?.superseded_at ?? "")).not.toBe("");
+    expect(String(olderRow.rows[0]?.upsert_key ?? "")).toContain(token);
+
+    const links = await db.execute({
+      sql: `SELECT link_type
+            FROM memory_links
+            WHERE source_id = ? AND target_id = ?`,
+      args: [newer.id, older.id],
+    });
+    const linkTypes = new Set(links.rows.map((row) => String((row as { link_type?: unknown }).link_type ?? "")));
+    expect(linkTypes.has("supersedes")).toBe(true);
+    expect(linkTypes.has("contradicts")).toBe(true);
+
+    const consolidationRunRow = await db.execute({
+      sql: "SELECT id FROM memory_consolidation_runs WHERE id = ?",
+      args: [run.run.id],
+    });
+    expect(consolidationRunRow.rows.length).toBe(1);
+  });
+
+  it("should support session lifecycle operations", async () => {
+    const session = await startMemorySession({
+      global: true,
+      title: "Lifecycle test session",
+      client: "vitest",
+    });
+    expect(session.status).toBe("active");
+
+    const firstEvent = await checkpointMemorySession(session.id, "Initial user message", {
+      role: "user",
+      kind: "message",
+      turnIndex: 1,
+      tokenCount: 18,
+    });
+    expect(firstEvent.session_id).toBe(session.id);
+    expect(firstEvent.kind).toBe("message");
+
+    const checkpoint = await checkpointMemorySession(session.id, "Checkpointed key details");
+    expect(checkpoint.kind).toBe("checkpoint");
+
+    const events = await listMemorySessionEvents(session.id, { limit: 10, meaningfulOnly: true });
+    expect(events.length).toBe(2);
+    expect(new Set(events.map((event) => event.id))).toEqual(new Set([firstEvent.id, checkpoint.id]));
+
+    const snapshot = await createMemorySessionSnapshot(session.id, {
+      sourceTrigger: "manual",
+      transcriptMd: "# Snapshot\n\n- user: Initial message\n- assistant: Checkpointed key details",
+      messageCount: events.length,
+    });
+    expect(snapshot.session_id).toBe(session.id);
+    expect(snapshot.message_count).toBe(2);
+
+    const summary = await getMemorySessionStatus(session.id);
+    expect(summary).not.toBeNull();
+    expect(summary?.eventCount).toBe(2);
+    expect(summary?.checkpointCount).toBe(1);
+    expect(summary?.snapshotCount).toBe(1);
+    expect(summary?.latestCheckpointId).toBe(checkpoint.id);
+
+    const closed = await endMemorySession(session.id, { status: "closed" });
+    expect(closed?.status).toBe("closed");
+    expect(closed?.ended_at).toBeTruthy();
+
+    await expect(checkpointMemorySession(session.id, "Should fail after close")).rejects.toThrow(
+      `Cannot checkpoint session ${session.id} because it is closed`
+    );
+  });
+
+  it("should checkpoint openclaw bootstrap context into new sessions when file mode is enabled", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "memories-openclaw-session-bootstrap-"));
+    const dailyDir = join(workspaceDir, "memory", "daily");
+    mkdirSync(dailyDir, { recursive: true });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    writeFileSync(join(workspaceDir, "memory.md"), "Prefer deterministic migration plans.");
+    writeFileSync(join(dailyDir, `${today}.md`), "## Today\n- Started phase 4.2");
+    writeFileSync(join(dailyDir, `${yesterday}.md`), "## Yesterday\n- Merged phase 4.1");
+
+    const previousMode = process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+    const previousWorkspace = process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+    process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = "1";
+    process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = workspaceDir;
+
+    try {
+      const session = await startMemorySession({
+        global: true,
+        title: "OpenClaw bootstrap session",
+      });
+
+      const events = await listMemorySessionEvents(session.id, {
+        limit: 10,
+        meaningfulOnly: false,
+      });
+      const bootstrapEvent = events.find((event) => event.kind === "summary" && event.role === "tool");
+
+      expect(bootstrapEvent).toBeDefined();
+      expect(bootstrapEvent?.content).toContain("OpenClaw bootstrap context.");
+      expect(bootstrapEvent?.content).toContain("Prefer deterministic migration plans.");
+      expect(bootstrapEvent?.content).toContain("Daily log (");
+    } finally {
+      if (previousMode === undefined) {
+        delete process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+      } else {
+        process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = previousMode;
+      }
+      if (previousWorkspace === undefined) {
+        delete process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+      } else {
+        process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = previousWorkspace;
+      }
+    }
+  });
+
+  it("should resolve latest active session for project scope", async () => {
+    await startMemorySession({ global: true, title: "Global session A" });
+    const projectSession = await startMemorySession({
+      projectId: "github.com/acme/memories",
+      title: "Project session",
+    });
+    await checkpointMemorySession(projectSession.id, "project activity", {
+      kind: "event",
+      role: "assistant",
+    });
+
+    const latest = await getLatestActiveMemorySession({
+      projectId: "github.com/acme/memories",
+      includeGlobal: true,
+    });
+
+    expect(latest).not.toBeNull();
+    expect(latest?.id).toBe(projectSession.id);
+    expect(latest?.scope).toBe("project");
+  });
+
+  it("should create write-ahead checkpoints and compaction event logs", async () => {
+    const session = await startMemorySession({
+      global: true,
+      title: "Compaction test session",
+      client: "vitest",
+    });
+    const rule = await addMemory("Always checkpoint before compaction", {
+      type: "rule",
+      global: true,
+    });
+    const memory = await addMemory("Context payload that may exceed token budget", {
+      type: "note",
+      global: true,
+    });
+
+    const estimate = estimateContextTokenCount({
+      rules: [rule],
+      memories: [memory],
+    });
+    expect(estimate).toBeGreaterThan(0);
+
+    const result = await writeAheadCompactionCheckpoint(session.id, {
+      query: "compaction flow",
+      rules: [rule],
+      memories: [memory],
+      triggerType: "count",
+      reason: "Estimated tokens exceed budget",
+      tokenCountBefore: estimate,
+      turnCountBefore: 19,
+    });
+
+    expect(result.tokenCountBefore).toBe(estimate);
+    expect(result.checkpointEvent.kind).toBe("checkpoint");
+    expect(result.compactionEvent.trigger_type).toBe("count");
+    expect(result.compactionEvent.checkpoint_memory_id).toBe(result.checkpointEvent.id);
+    expect(result.compactionEvent.turn_count_before).toBe(19);
+
+    const summary = await getMemorySessionStatus(session.id);
+    expect(summary).not.toBeNull();
+    expect(summary?.checkpointCount).toBeGreaterThan(0);
+  });
+
+  it("should flush pre-compaction checkpoints to openclaw daily logs when file mode is enabled", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "memories-openclaw-compaction-"));
+    const previousMode = process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+    const previousWorkspace = process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+    process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = "1";
+    process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = workspaceDir;
+
+    try {
+      const session = await startMemorySession({
+        global: true,
+        title: "Compaction to daily log",
+        client: "vitest",
+      });
+      const rule = await addMemory("Always include a changelog link", {
+        type: "rule",
+        global: true,
+      });
+      const memory = await addMemory("Pending migration risks for file mode", {
+        type: "note",
+        global: true,
+      });
+
+      const result = await writeAheadCompactionCheckpoint(session.id, {
+        query: "phase 4.2 compaction flush",
+        rules: [rule],
+        memories: [memory],
+        triggerType: "count",
+        reason: "Token budget exceeded",
+      });
+
+      expect(result.openClawDailyLogPath).toBeTruthy();
+      expect(result.openClawDailyLogPath && existsSync(result.openClawDailyLogPath)).toBe(true);
+
+      const dailyContent = readFileSync(result.openClawDailyLogPath as string, "utf-8");
+      expect(dailyContent).toContain("Compaction checkpoint");
+      expect(dailyContent).toContain(session.id);
+      expect(dailyContent).toContain(result.compactionEvent.id);
+    } finally {
+      if (previousMode === undefined) {
+        delete process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+      } else {
+        process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = previousMode;
+      }
+      if (previousWorkspace === undefined) {
+        delete process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+      } else {
+        process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = previousWorkspace;
+      }
+    }
+  });
+
+  it("should write reset snapshots to openclaw snapshot files when file mode is enabled", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "memories-openclaw-snapshot-"));
+    const previousMode = process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+    const previousWorkspace = process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+    process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = "1";
+    process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = workspaceDir;
+
+    try {
+      const session = await startMemorySession({
+        global: true,
+        title: "Snapshot file hook session",
+      });
+
+      const snapshot = await createMemorySessionSnapshot(session.id, {
+        sourceTrigger: "reset",
+        transcriptMd: "# Session Snapshot\n\n### user (message)\nReset now",
+        messageCount: 1,
+      });
+
+      const dateKey = snapshot.created_at.slice(0, 10);
+      const snapshotPath = join(workspaceDir, "memory", "snapshots", dateKey, `${snapshot.slug}.md`);
+      expect(existsSync(snapshotPath)).toBe(true);
+      const snapshotContent = readFileSync(snapshotPath, "utf-8");
+      expect(snapshotContent).toContain("session_id:");
+      expect(snapshotContent).toContain("source_trigger: reset");
+      expect(snapshotContent).toContain("Reset now");
+    } finally {
+      if (previousMode === undefined) {
+        delete process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+      } else {
+        process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = previousMode;
+      }
+      if (previousWorkspace === undefined) {
+        delete process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+      } else {
+        process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = previousWorkspace;
+      }
+    }
+  });
+
+  it("should compact inactive sessions with the inactivity worker", async () => {
+    const session = await startMemorySession({
+      global: true,
+      title: "Inactive session",
+      client: "vitest",
+    });
+    await checkpointMemorySession(session.id, "Old activity", {
+      role: "assistant",
+      kind: "message",
+    });
+
+    const db = await getDb();
+    await db.execute({
+      sql: "UPDATE memory_sessions SET last_activity_at = ? WHERE id = ?",
+      args: ["2020-01-01T00:00:00.000Z", session.id],
+    });
+
+    const result = await runInactivityCompactionWorker({
+      inactivityMinutes: 30,
+      limit: 10,
+      eventWindow: 5,
+    });
+
+    expect(result.scanned).toBeGreaterThan(0);
+    expect(result.compacted).toBeGreaterThan(0);
+    expect(result.failures).toEqual([]);
+
+    const updated = await getMemorySessionStatus(session.id);
+    expect(updated?.session.status).toBe("compacted");
+    expect(updated?.checkpointCount).toBeGreaterThan(0);
   });
 });

@@ -123,7 +123,7 @@ export const SYNC_TARGETS = [
 
   // OpenClaw workspace artifacts
   { dir: ".openclaw/workspace", files: ["AGENTS.md", "SOUL.md", "TOOLS.md", "IDENTITY.md", "USER.md", "HEARTBEAT.md", "BOOTSTRAP.md", "BOOT.md", "MEMORY.md", "memory.md"] },
-  { dir: ".openclaw/workspace/memory", pattern: /\.md$/ },
+  { dir: ".openclaw/workspace/memory", pattern: /\.md$/, recurse: true },
   { dir: ".openclaw/workspace/skills", pattern: /\.(md|json|yaml|yml|toml|txt)$/, recurse: true },
 ];
 

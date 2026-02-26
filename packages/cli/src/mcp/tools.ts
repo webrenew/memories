@@ -11,6 +11,15 @@ import {
   findMemoriesToForget,
   bulkForgetByIds,
   vacuumMemories,
+  startMemorySession,
+  checkpointMemorySession,
+  endMemorySession,
+  listMemorySessionEvents,
+  createMemorySessionSnapshot,
+  estimateContextTokenCount,
+  writeAheadCompactionCheckpoint,
+  consolidateMemories,
+  type MemorySessionEvent,
 } from "../lib/memory.js";
 import {
   createReminder,
@@ -28,6 +37,13 @@ import {
   withStorageWarnings,
 } from "./formatters.js";
 
+function buildSnapshotTranscript(sessionId: string, events: MemorySessionEvent[]): string {
+  const body = events
+    .map((event) => `### ${event.role} (${event.kind})\n${event.content}`)
+    .join("\n\n");
+  return `# Session Snapshot\n\nSession ID: ${sessionId}\n\n${body}`;
+}
+
 // ─── Core Tool Registrations ─────────────────────────────────────────────────
 
 export function registerCoreTools(server: McpServer, projectId: string | null): void {
@@ -44,8 +60,27 @@ Use this at the start of tasks to understand project conventions and recall past
       query: z.string().optional().describe("What you're working on - used to find relevant memories. Leave empty to get just rules."),
       limit: z.number().optional().describe("Max memories to return (default: 10, rules always included)"),
       mode: z.enum(["all", "working", "long_term", "rules_only"]).optional().describe("Context mode (default: all)"),
+      session_id: z.string().optional().describe("Optional session identifier for lifecycle-aware callers"),
+      budget_tokens: z.number().int().positive().optional().describe("Optional token budget hint for compaction-aware clients"),
+      turn_count: z.number().int().nonnegative().optional().describe("Optional current turn count for count-based compaction checks"),
+      turn_budget: z.number().int().positive().optional().describe("Optional turn-count budget for count-based compaction checks"),
+      last_activity_at: z.string().optional().describe("ISO timestamp of last session activity for inactivity-trigger checks"),
+      inactivity_threshold_minutes: z.number().int().positive().optional().describe("Inactivity threshold in minutes for time-trigger checks"),
+      task_completed: z.boolean().optional().describe("Semantic completion hint to trigger checkpointing after task completion"),
+      include_session_summary: z.boolean().optional().describe("Reserved for future snapshot/session summary hydration"),
     },
-    async ({ query, limit, mode }) => {
+    async ({
+      query,
+      limit,
+      mode,
+      session_id,
+      budget_tokens,
+      turn_count,
+      turn_budget,
+      last_activity_at,
+      inactivity_threshold_minutes,
+      task_completed,
+    }) => {
       try {
         const { rules, memories } = await getContext(query, {
           projectId: projectId ?? undefined,
@@ -54,6 +89,67 @@ Use this at the start of tasks to understand project conventions and recall past
         });
 
         const parts: string[] = [];
+        let compactionSection: string | null = null;
+
+        if (session_id) {
+          const estimatedTokens = estimateContextTokenCount({ rules, memories });
+          const tokenTriggered = budget_tokens !== undefined && estimatedTokens > budget_tokens;
+          const turnTriggered = turn_budget !== undefined && turn_count !== undefined && turn_count > turn_budget;
+          const parsedLastActivity = last_activity_at ? new Date(last_activity_at) : null;
+          const inactivityTriggered = Boolean(
+            parsedLastActivity &&
+            !Number.isNaN(parsedLastActivity.getTime()) &&
+            inactivity_threshold_minutes !== undefined &&
+            Date.now() - parsedLastActivity.getTime() >= inactivity_threshold_minutes * 60 * 1000
+          );
+          const semanticTriggered = task_completed === true;
+
+          let triggerType: "count" | "time" | "semantic" | null = null;
+          let reason = "";
+          if (tokenTriggered || turnTriggered) {
+            triggerType = "count";
+            reason = tokenTriggered
+              ? `Estimated context tokens ${estimatedTokens} exceed budget ${budget_tokens}.`
+              : `Turn count ${turn_count} exceeds budget ${turn_budget}.`;
+          } else if (inactivityTriggered) {
+            triggerType = "time";
+            reason = `Session inactive beyond ${inactivity_threshold_minutes} minute threshold.`;
+          } else if (semanticTriggered) {
+            triggerType = "semantic";
+            reason = "Caller signaled task completion.";
+          }
+
+          if (triggerType) {
+            try {
+              const wal = await writeAheadCompactionCheckpoint(session_id, {
+                query,
+                rules,
+                memories,
+                triggerType,
+                reason,
+                tokenCountBefore: estimatedTokens,
+                turnCountBefore: turn_count,
+              });
+              compactionSection = [
+                "## Compaction",
+                `Trigger: ${triggerType}`,
+                `Reason: ${reason}`,
+                `Write-ahead checkpoint: ${wal.checkpointEvent.id}`,
+                `Compaction event: ${wal.compactionEvent.id}`,
+                wal.openClawDailyLogPath ? `OpenClaw daily log: ${wal.openClawDailyLogPath}` : null,
+              ]
+                .filter((line): line is string => Boolean(line))
+                .join("\n");
+            } catch (error) {
+              compactionSection = [
+                "## Compaction",
+                `Trigger: ${triggerType}`,
+                `Reason: ${reason}`,
+                `Write-ahead checkpoint failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+              ].join("\n");
+            }
+          }
+        }
 
         if (rules.length > 0) {
           parts.push(formatRulesSection(rules));
@@ -61,6 +157,10 @@ Use this at the start of tasks to understand project conventions and recall past
 
         if (memories.length > 0) {
           parts.push(formatMemoriesSection(memories, query ? `Relevant to: "${query}"` : "Recent Memories"));
+        }
+
+        if (compactionSection) {
+          parts.push(compactionSection);
         }
 
         if (parts.length === 0) {
@@ -75,6 +175,206 @@ Use this at the start of tasks to understand project conventions and recall past
       } catch (error) {
         return {
           content: [{ type: "text", text: `Failed to get context: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: start_session
+  server.tool(
+    "start_session",
+    "Start a new memory session for checkpointing and snapshot workflows.",
+    {
+      title: z.string().optional().describe("Optional session title"),
+      client: z.string().optional().describe("Client name (e.g., codex, cursor, claude-code)"),
+      user_id: z.string().optional().describe("Optional user ID"),
+      metadata: z.record(z.string(), z.unknown()).optional().describe("Optional session metadata"),
+      global: z.boolean().optional().describe("Create as global session"),
+      project_id: z.string().optional().describe("Explicit project id (e.g., github.com/org/repo)"),
+    },
+    async ({ title, client, user_id, metadata, global: isGlobal, project_id }) => {
+      try {
+        const scopeOpts = resolveMemoryScopeInput({ global: isGlobal, project_id });
+        const session = await startMemorySession({
+          ...scopeOpts,
+          title,
+          client,
+          userId: user_id,
+          metadata,
+        });
+
+        return {
+          content: [{ type: "text", text: `Started session ${session.id} (${session.scope}${session.project_id ? `: ${session.project_id}` : ""})` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to start session: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: checkpoint_session
+  server.tool(
+    "checkpoint_session",
+    "Write a checkpoint event into an active session.",
+    {
+      session_id: z.string().describe("Session ID"),
+      content: z.string().describe("Checkpoint content"),
+      role: z.enum(["user", "assistant", "tool"]).optional().describe("Event role (default: assistant)"),
+      kind: z.enum(["message", "checkpoint", "summary", "event"]).optional().describe("Event kind (default: checkpoint)"),
+      token_count: z.number().int().optional().describe("Optional token count"),
+      turn_index: z.number().int().optional().describe("Optional turn index"),
+      is_meaningful: z.boolean().optional().describe("Whether this event is meaningful (default: true)"),
+    },
+    async ({ session_id, content, role, kind, token_count, turn_index, is_meaningful }) => {
+      try {
+        const event = await checkpointMemorySession(session_id, content, {
+          role,
+          kind,
+          tokenCount: token_count,
+          turnIndex: turn_index,
+          isMeaningful: is_meaningful,
+        });
+        return {
+          content: [{ type: "text", text: `Checkpointed session ${event.session_id} with event ${event.id}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to checkpoint session: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: end_session
+  server.tool(
+    "end_session",
+    "End a session and mark it as closed or compacted.",
+    {
+      session_id: z.string().describe("Session ID"),
+      status: z.enum(["closed", "compacted"]).optional().describe("Final status (default: closed)"),
+    },
+    async ({ session_id, status }) => {
+      try {
+        const session = await endMemorySession(session_id, { status });
+        if (!session) {
+          return {
+            content: [{ type: "text", text: `Session ${session_id} not found.` }],
+            isError: true,
+          };
+        }
+        return {
+          content: [{ type: "text", text: `Ended session ${session.id} as ${session.status}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to end session: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: snapshot_session
+  server.tool(
+    "snapshot_session",
+    "Create a raw markdown snapshot from explicit transcript input or recent session events.",
+    {
+      session_id: z.string().describe("Session ID"),
+      source_trigger: z.enum(["new_session", "reset", "manual", "auto_compaction"]).optional().describe("Snapshot trigger source (default: manual)"),
+      slug: z.string().optional().describe("Optional custom slug for snapshot filename"),
+      transcript_md: z.string().optional().describe("Explicit markdown transcript; if omitted, generated from recent events"),
+      message_count: z.number().int().min(1).optional().describe("Number of events to use when transcript_md is omitted (default: 15)"),
+      meaningful_only: z.boolean().optional().describe("When generating from events, include only meaningful events (default: true)"),
+    },
+    async ({ session_id, source_trigger, slug, transcript_md, message_count, meaningful_only }) => {
+      try {
+        let transcript = transcript_md?.trim();
+        let messageCount = message_count ?? 15;
+
+        if (!transcript) {
+          const events = await listMemorySessionEvents(session_id, {
+            limit: message_count ?? 15,
+            meaningfulOnly: meaningful_only !== false,
+          });
+          if (events.length === 0) {
+            return {
+              content: [{ type: "text", text: `No events available for session ${session_id}` }],
+              isError: true,
+            };
+          }
+          transcript = buildSnapshotTranscript(session_id, events);
+          messageCount = events.length;
+        }
+
+        const snapshot = await createMemorySessionSnapshot(session_id, {
+          slug,
+          sourceTrigger: source_trigger,
+          transcriptMd: transcript,
+          messageCount,
+        });
+
+        return {
+          content: [{ type: "text", text: `Created snapshot ${snapshot.id} (${snapshot.slug}) for session ${snapshot.session_id}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to create snapshot: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: consolidate_memories
+  server.tool(
+    "consolidate_memories",
+    "Consolidate duplicate memories, supersede outdated entries, and record a consolidation audit run.",
+    {
+      types: z.array(z.enum(["rule", "decision", "fact", "note", "skill"])).optional().describe("Memory types to include"),
+      include_global: z.boolean().optional().describe("Include global memories (default: true)"),
+      global_only: z.boolean().optional().describe("Restrict consolidation to global memories only"),
+      project_id: z.string().optional().describe("Explicit project id (e.g., github.com/org/repo)"),
+      dry_run: z.boolean().optional().describe("Preview consolidation effects without mutating rows"),
+      model: z.string().optional().describe("Optional model identifier to record in consolidation audit metadata"),
+    },
+    async ({ types, include_global, global_only, project_id, dry_run, model }) => {
+      try {
+        const scopeOpts = resolveMemoryScopeInput({ global: global_only, project_id });
+        const resolvedProjectId = scopeOpts.global ? undefined : (scopeOpts.projectId ?? (projectId ?? undefined));
+        const result = await consolidateMemories({
+          projectId: resolvedProjectId,
+          includeGlobal: include_global,
+          globalOnly: global_only,
+          types,
+          dryRun: dry_run,
+          model: model?.trim() || undefined,
+        });
+
+        const lines = [
+          `${dry_run ? "Dry-run " : ""}consolidation run ${result.run.id}`,
+          `input=${result.run.input_count}`,
+          `merged=${result.run.merged_count}`,
+          `superseded=${result.run.superseded_count}`,
+          `conflicts=${result.run.conflicted_count}`,
+        ];
+        if (result.winnerMemoryIds.length > 0) {
+          lines.push(`winners=${result.winnerMemoryIds.join(",")}`);
+        }
+        if (result.supersededMemoryIds.length > 0) {
+          lines.push(`superseded_ids=${result.supersededMemoryIds.join(",")}`);
+        }
+
+        return {
+          content: [{ type: "text", text: lines.join("\n") }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to consolidate memories: ${error instanceof Error ? error.message : "Unknown error"}` }],
           isError: true,
         };
       }

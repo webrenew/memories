@@ -1,6 +1,7 @@
 export type MemoryType = "rule" | "decision" | "fact" | "note" | "skill"
 export type MemoryLayer = "rule" | "working" | "long_term"
 export type RetrievalStrategy = "lexical" | "semantic" | "hybrid"
+/** @deprecated Use lexical/hybrid retrieval strategy names instead. */
 export type LegacyContextStrategy = "baseline" | "hybrid_graph"
 export type ContextStrategy = RetrievalStrategy | LegacyContextStrategy
 
@@ -69,6 +70,7 @@ export interface ContextResult {
   memories: MemoryRecord[]
   conflicts?: ConflictPair[]
   skillFiles?: SkillFileRecord[]
+  session?: ContextSessionState
   trace?: {
     requestedStrategy?: ContextStrategy
     strategy: ContextStrategy
@@ -98,6 +100,19 @@ export interface ContextResult {
   raw: string
 }
 
+export type CompactionTriggerType = "count" | "time" | "semantic"
+
+export interface ContextSessionState {
+  sessionId: string | null
+  estimatedTokens: number
+  budgetTokens: number | null
+  turnCount: number | null
+  turnBudget: number | null
+  compactionRequired: boolean
+  triggerHint: CompactionTriggerType | null
+  reason: string
+}
+
 export type ContextMode = "all" | "working" | "long_term" | "rules_only"
 
 export interface ContextGetOptions {
@@ -111,6 +126,14 @@ export interface ContextGetOptions {
   strategy?: ContextStrategy
   graphDepth?: 0 | 1 | 2
   graphLimit?: number
+  sessionId?: string
+  budgetTokens?: number
+  turnCount?: number
+  turnBudget?: number
+  lastActivityAt?: string
+  inactivityThresholdMinutes?: number
+  taskCompleted?: boolean
+  includeSessionSummary?: boolean
 }
 
 export interface ContextGetInput extends ContextGetOptions {
@@ -124,6 +147,9 @@ export interface SkillFileRecord {
   scope: MemoryScope
   projectId: string | null
   userId: string | null
+  usageCount: number
+  lastUsedAt: string | null
+  procedureKey: string | null
   createdAt: string
   updatedAt: string
 }
@@ -137,14 +163,26 @@ export interface SkillFileScopeOptions {
 export interface SkillFileUpsertInput extends SkillFileScopeOptions {
   path: string
   content: string
+  procedureKey?: string
 }
 
 export interface SkillFileListOptions extends SkillFileScopeOptions {
   limit?: number
+  query?: string
+  procedureKey?: string
 }
 
 export interface SkillFileDeleteInput extends SkillFileScopeOptions {
   path: string
+}
+
+export interface SkillFilePromoteInput extends SkillFileScopeOptions {
+  sessionId: string
+  snapshotId?: string
+  path: string
+  title?: string
+  procedureKey?: string
+  maxSteps?: number
 }
 
 export interface MemoryAddInput {

@@ -62,6 +62,9 @@ export const structuredSkillFileSchema = z.object({
   scope: z.string(),
   projectId: z.string().nullable().optional(),
   userId: z.string().nullable().optional(),
+  usageCount: z.number().int().nonnegative().optional(),
+  lastUsedAt: z.string().nullable().optional(),
+  procedureKey: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -73,6 +76,18 @@ export const contextStructuredSchema = z.object({
   skillFiles: z.array(structuredSkillFileSchema).optional().default([]),
   workingMemories: z.array(structuredMemorySchema).optional().default([]),
   longTermMemories: z.array(structuredMemorySchema).optional().default([]),
+  session: z
+    .object({
+      sessionId: z.string().nullable().optional(),
+      estimatedTokens: z.number().int().nonnegative(),
+      budgetTokens: z.number().int().positive().nullable().optional(),
+      turnCount: z.number().int().nonnegative().nullable().optional(),
+      turnBudget: z.number().int().positive().nullable().optional(),
+      compactionRequired: z.boolean(),
+      triggerHint: z.union([z.literal("count"), z.literal("time"), z.literal("semantic")]).nullable(),
+      reason: z.string(),
+    })
+    .optional(),
   trace: z
     .object({
       requestedStrategy: z

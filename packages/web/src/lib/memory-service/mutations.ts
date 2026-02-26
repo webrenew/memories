@@ -78,6 +78,328 @@ async function compactWorkingMemoriesForUser(
   await turso.execute({ sql, args })
 }
 
+interface ConsolidationCandidateRow {
+  id: string
+  content: string
+  type: string
+  scope: "global" | "project"
+  project_id: string | null
+  user_id: string | null
+  category: string | null
+  upsert_key: string | null
+  updated_at: string
+  created_at: string
+}
+
+interface ConsolidationRunRow {
+  id: string
+  scope: "global" | "project"
+  project_id: string | null
+  user_id: string | null
+  input_count: number
+  merged_count: number
+  superseded_count: number
+  conflicted_count: number
+  model: string | null
+  created_at: string
+  metadata: string | null
+}
+
+function parseRunMetadata(value: string | null): Record<string, unknown> | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value)
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    // Ignore malformed metadata for backward compatibility
+  }
+  return null
+}
+
+function toStructuredConsolidationRun(row: ConsolidationRunRow) {
+  return {
+    id: row.id,
+    scope: row.scope,
+    projectId: row.project_id,
+    userId: row.user_id,
+    inputCount: row.input_count,
+    mergedCount: row.merged_count,
+    supersededCount: row.superseded_count,
+    conflictedCount: row.conflicted_count,
+    model: row.model,
+    createdAt: row.created_at,
+    metadata: parseRunMetadata(row.metadata),
+  }
+}
+
+function normalizeUpsertKey(value: string | null | undefined): string | null {
+  if (!value) return null
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120)
+  return normalized || null
+}
+
+function deriveUpsertKey(memory: Pick<ConsolidationCandidateRow, "type" | "content" | "category">): string | null {
+  const fromCategory = normalizeUpsertKey(memory.category ?? undefined)
+  if (fromCategory) {
+    return `${memory.type}:${fromCategory}`
+  }
+
+  const sourceLine = memory.content
+    .split(/\r?\n/)
+    .find((line) => line.trim().length > 0)
+  if (!sourceLine) return null
+
+  const prefix = sourceLine.includes(":")
+    ? sourceLine.split(":")[0]
+    : sourceLine.split(/\s+/).slice(0, 6).join(" ")
+  const normalizedPrefix = normalizeUpsertKey(prefix)
+  if (!normalizedPrefix) return null
+  return `${memory.type}:${normalizedPrefix}`
+}
+
+function normalizeComparableContent(content: string): string {
+  return content.trim().replace(/\s+/g, " ").toLowerCase()
+}
+
+function parseTimestamp(value: string | null | undefined): number {
+  if (!value) return 0
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime()
+}
+
+async function ensureMemoryLinksTable(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_links (
+      id TEXT PRIMARY KEY,
+      source_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      link_type TEXT NOT NULL DEFAULT 'related',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+  )
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_links_source ON memory_links(source_id)")
+  await turso.execute("CREATE INDEX IF NOT EXISTS idx_links_target ON memory_links(target_id)")
+}
+
+async function ensureMemoryLink(
+  turso: TursoClient,
+  sourceId: string,
+  targetId: string,
+  linkType: "supersedes" | "contradicts",
+  nowIso: string
+): Promise<void> {
+  const existing = await turso.execute({
+    sql: `SELECT id FROM memory_links WHERE source_id = ? AND target_id = ? AND link_type = ? LIMIT 1`,
+    args: [sourceId, targetId, linkType],
+  })
+
+  if (existing.rows.length > 0) return
+
+  await turso.execute({
+    sql: `INSERT INTO memory_links (id, source_id, target_id, link_type, created_at)
+          VALUES (?, ?, ?, ?, ?)`,
+    args: [crypto.randomUUID().replace(/-/g, "").slice(0, 12), sourceId, targetId, linkType, nowIso],
+  })
+}
+
+export async function consolidateMemoriesPayload(params: {
+  turso: TursoClient
+  args: Record<string, unknown>
+  projectId?: string
+  userId: string | null
+  nowIso: string
+}): Promise<{
+  text: string
+  data: {
+    runId: string
+    message: string
+    run: ReturnType<typeof toStructuredConsolidationRun>
+    winnerMemoryIds: string[]
+    supersededMemoryIds: string[]
+  }
+}> {
+  const { turso, args, projectId, userId, nowIso } = params
+
+  const includeGlobalRaw = args.includeGlobal ?? args.include_global
+  const includeGlobal = typeof includeGlobalRaw === "boolean" ? includeGlobalRaw : true
+  const globalOnlyRaw = args.globalOnly ?? args.global_only
+  const globalOnly = globalOnlyRaw === true
+  const dryRunRaw = args.dryRun ?? args.dry_run
+  const dryRun = dryRunRaw === true
+  const model = typeof args.model === "string" && args.model.trim() ? args.model.trim() : null
+
+  const requestedTypes = Array.isArray(args.types)
+    ? (args.types as string[]).filter((candidate) => VALID_TYPES.has(candidate))
+    : []
+  const types = requestedTypes.length > 0 ? requestedTypes : ["rule", "decision", "fact", "note"]
+  const typePlaceholders = types.map(() => "?").join(", ")
+
+  const scopeClauses: string[] = []
+  const scopeArgs: (string | number)[] = []
+  if (globalOnly || !projectId) {
+    scopeClauses.push("scope = 'global'")
+  } else if (includeGlobal) {
+    scopeClauses.push("scope = 'global'")
+    scopeClauses.push("(scope = 'project' AND project_id = ?)")
+    scopeArgs.push(projectId)
+  } else {
+    scopeClauses.push("(scope = 'project' AND project_id = ?)")
+    scopeArgs.push(projectId)
+  }
+
+  const userClause = userId ? "user_id = ?" : "user_id IS NULL"
+  const userArgs = userId ? [userId] : []
+
+  const candidatesResult = await turso.execute({
+    sql: `SELECT id, content, type, scope, project_id, user_id, category, upsert_key, updated_at, created_at
+          FROM memories
+          WHERE deleted_at IS NULL
+            AND superseded_at IS NULL
+            AND ${userClause}
+            AND (${scopeClauses.join(" OR ")})
+            AND type IN (${typePlaceholders})`,
+    args: [...userArgs, ...scopeArgs, ...types],
+  })
+
+  const candidates = candidatesResult.rows as unknown as ConsolidationCandidateRow[]
+  const groups = new Map<string, ConsolidationCandidateRow[]>()
+  const winnerMemoryIds: string[] = []
+  const supersededMemoryIds: string[] = []
+
+  for (const candidate of candidates) {
+    const upsertKey = normalizeUpsertKey(candidate.upsert_key ?? undefined) ?? deriveUpsertKey(candidate)
+    if (!upsertKey) continue
+
+    const groupKey = `${candidate.scope}|${candidate.project_id ?? "global"}|${candidate.user_id ?? "anon"}|${candidate.type}|${upsertKey}`
+    const bucket = groups.get(groupKey) ?? []
+    bucket.push(candidate)
+    groups.set(groupKey, bucket)
+
+    if (!dryRun && !candidate.upsert_key) {
+      await turso.execute({
+        sql: "UPDATE memories SET upsert_key = ?, updated_at = ? WHERE id = ?",
+        args: [upsertKey, nowIso, candidate.id],
+      })
+    }
+  }
+
+  let mergedCount = 0
+  let conflictedCount = 0
+
+  if (!dryRun) {
+    await ensureMemoryLinksTable(turso)
+  }
+
+  for (const [groupKey, bucket] of groups) {
+    if (bucket.length <= 1) continue
+
+    const groupParts = groupKey.split("|")
+    const upsertKey = groupParts[groupParts.length - 1] ?? ""
+    const sorted = [...bucket].sort((a, b) => {
+      const updatedDiff = parseTimestamp(b.updated_at) - parseTimestamp(a.updated_at)
+      if (updatedDiff !== 0) return updatedDiff
+      return parseTimestamp(b.created_at) - parseTimestamp(a.created_at)
+    })
+
+    const winner = sorted[0]
+    const losers = sorted.slice(1)
+    mergedCount += 1
+    winnerMemoryIds.push(winner.id)
+
+    if (!dryRun) {
+      await turso.execute({
+        sql: `UPDATE memories
+              SET upsert_key = ?,
+                  confidence = COALESCE(confidence, 1.0),
+                  last_confirmed_at = COALESCE(last_confirmed_at, ?),
+                  updated_at = ?
+              WHERE id = ?`,
+        args: [upsertKey, nowIso, nowIso, winner.id],
+      })
+    }
+
+    for (const loser of losers) {
+      const conflicting = normalizeComparableContent(loser.content) !== normalizeComparableContent(winner.content)
+      if (conflicting) {
+        conflictedCount += 1
+      }
+      supersededMemoryIds.push(loser.id)
+
+      if (dryRun) continue
+
+      await turso.execute({
+        sql: `UPDATE memories
+              SET superseded_by = ?, superseded_at = ?, upsert_key = ?, updated_at = ?
+              WHERE id = ?`,
+        args: [winner.id, nowIso, upsertKey, nowIso, loser.id],
+      })
+      await ensureMemoryLink(turso, winner.id, loser.id, "supersedes", nowIso)
+      if (conflicting) {
+        await ensureMemoryLink(turso, winner.id, loser.id, "contradicts", nowIso)
+      }
+    }
+  }
+
+  const run: ConsolidationRunRow = {
+    id: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+    scope: !globalOnly && projectId ? "project" : "global",
+    project_id: !globalOnly ? projectId ?? null : null,
+    user_id: userId,
+    input_count: candidates.length,
+    merged_count: mergedCount,
+    superseded_count: supersededMemoryIds.length,
+    conflicted_count: conflictedCount,
+    model,
+    created_at: nowIso,
+    metadata: JSON.stringify({
+      dryRun,
+      includeGlobal,
+      globalOnly,
+      types,
+      candidateGroups: groups.size,
+    }),
+  }
+
+  await turso.execute({
+    sql: `INSERT INTO memory_consolidation_runs
+          (id, scope, project_id, user_id, input_count, merged_count, superseded_count, conflicted_count, model, created_at, metadata)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      run.id,
+      run.scope,
+      run.project_id,
+      run.user_id,
+      run.input_count,
+      run.merged_count,
+      run.superseded_count,
+      run.conflicted_count,
+      run.model,
+      run.created_at,
+      run.metadata,
+    ],
+  })
+
+  const message = `${dryRun ? "Dry-run " : ""}consolidation run ${run.id} completed`
+  return {
+    text: message,
+    data: {
+      runId: run.id,
+      message,
+      run: toStructuredConsolidationRun(run),
+      winnerMemoryIds,
+      supersededMemoryIds,
+    },
+  }
+}
+
 export async function addMemoryPayload(params: {
   turso: TursoClient
   args: Record<string, unknown>

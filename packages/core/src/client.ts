@@ -25,6 +25,7 @@ import type {
   MemoryAddInput,
   SkillFileDeleteInput,
   SkillFileListOptions,
+  SkillFilePromoteInput,
   SkillFileRecord,
   SkillFileUpsertInput,
   MemoryEditInput,
@@ -73,6 +74,7 @@ import {
   toTypedHttpError,
 } from "./client-helpers"
 import { MemoriesClientError } from "./client-error"
+import { evaluateCompactionTrigger, hasCompactionSignals } from "./compaction"
 
 export { MemoriesClientError } from "./client-error"
 
@@ -148,6 +150,30 @@ export class MemoriesClient {
         tenantId: input.tenantId,
       })
       const sdkScope = rawScope && Object.keys(rawScope).length > 0 ? rawScope : undefined
+      const finalizeContext = (context: ContextResult): ContextResult => {
+        const withRulesApplied = input.includeRules === false ? { ...context, rules: [] } : context
+        if (withRulesApplied.session) {
+          return withRulesApplied
+        }
+        if (!hasCompactionSignals(input)) {
+          return withRulesApplied
+        }
+        return {
+          ...withRulesApplied,
+          session: evaluateCompactionTrigger({
+            sessionId: input.sessionId,
+            rules: withRulesApplied.rules,
+            memories: withRulesApplied.memories,
+            skillFiles: withRulesApplied.skillFiles,
+            budgetTokens: input.budgetTokens,
+            turnCount: input.turnCount,
+            turnBudget: input.turnBudget,
+            lastActivityAt: input.lastActivityAt,
+            inactivityThresholdMinutes: input.inactivityThresholdMinutes,
+            taskCompleted: input.taskCompleted,
+          }),
+        }
+      }
 
       const result = this.transport === "sdk_http"
         ? await this.callSdkEndpoint("/api/sdk/v1/context/get", {
@@ -159,6 +185,14 @@ export class MemoriesClient {
             strategy,
             graphDepth: input.graphDepth,
             graphLimit: input.graphLimit,
+            sessionId: input.sessionId,
+            budgetTokens: input.budgetTokens,
+            turnCount: input.turnCount,
+            turnBudget: input.turnBudget,
+            lastActivityAt: input.lastActivityAt,
+            inactivityThresholdMinutes: input.inactivityThresholdMinutes,
+            taskCompleted: input.taskCompleted,
+            includeSessionSummary: input.includeSessionSummary,
             scope: sdkScope,
           })
         : await this.callTool("get_context", {
@@ -171,6 +205,14 @@ export class MemoriesClient {
             retrieval_strategy: toMcpContextStrategy(input.strategy),
             graph_depth: input.graphDepth,
             graph_limit: input.graphLimit,
+            session_id: input.sessionId,
+            budget_tokens: input.budgetTokens,
+            turn_count: input.turnCount,
+            turn_budget: input.turnBudget,
+            last_activity_at: input.lastActivityAt,
+            inactivity_threshold_minutes: input.inactivityThresholdMinutes,
+            task_completed: input.taskCompleted,
+            include_session_summary: input.includeSessionSummary,
           })
 
       const structured = contextStructuredSchema.safeParse(result.structured)
@@ -180,21 +222,27 @@ export class MemoriesClient {
           rules: structured.data.rules.map(toMemoryRecord),
           memories: orderedMemories.map(toMemoryRecord),
           skillFiles: structured.data.skillFiles.map(toSkillFileRecord),
+          session: structured.data.session
+            ? {
+                sessionId: structured.data.session.sessionId ?? null,
+                estimatedTokens: structured.data.session.estimatedTokens,
+                budgetTokens: structured.data.session.budgetTokens ?? null,
+                turnCount: structured.data.session.turnCount ?? null,
+                turnBudget: structured.data.session.turnBudget ?? null,
+                compactionRequired: structured.data.session.compactionRequired,
+                triggerHint: structured.data.session.triggerHint ?? null,
+                reason: structured.data.session.reason,
+              }
+            : undefined,
           trace: structured.data.trace,
           raw: result.raw,
         }
-        if (input.includeRules === false) {
-          return { ...parsedFromStructured, rules: [] }
-        }
-        return parsedFromStructured
+        return finalizeContext(parsedFromStructured)
       }
 
       const parsed = parseContextResponse(result.raw)
       const modeFiltered = input.mode === "rules_only" ? { ...parsed, memories: [] } : parsed
-      if (input.includeRules === false) {
-        return { ...modeFiltered, rules: [] }
-      }
-      return modeFiltered
+      return finalizeContext(modeFiltered)
     },
   }
 
@@ -435,6 +483,7 @@ export class MemoriesClient {
       const result = await this.callSdkEndpoint("/api/sdk/v1/skills/files/upsert", {
         path: input.path,
         content: input.content,
+        procedureKey: input.procedureKey,
         scope: sdkScope,
       })
 
@@ -456,6 +505,8 @@ export class MemoriesClient {
       const sdkScope = rawScope && Object.keys(rawScope).length > 0 ? rawScope : undefined
       const result = await this.callSdkEndpoint("/api/sdk/v1/skills/files/list", {
         limit: options.limit,
+        query: options.query,
+        procedureKey: options.procedureKey,
         scope: sdkScope,
       })
 
@@ -480,6 +531,33 @@ export class MemoriesClient {
       })
 
       const message = (messageFromEnvelope(result.envelope) ?? result.raw) || `Deleted skill file ${input.path}`
+      return {
+        ok: true,
+        message,
+        raw: result.raw,
+        envelope: result.envelope ?? undefined,
+      }
+    },
+
+    promoteFromSession: async (input: SkillFilePromoteInput): Promise<MutationResult> => {
+      const rawScope = this.withDefaultScopeSdk({
+        projectId: input.projectId,
+        userId: input.userId,
+        tenantId: input.tenantId,
+      })
+      const sdkScope = rawScope && Object.keys(rawScope).length > 0 ? rawScope : undefined
+      const result = await this.callSdkEndpoint("/api/sdk/v1/skills/files/promote", {
+        sessionId: input.sessionId,
+        snapshotId: input.snapshotId,
+        path: input.path,
+        title: input.title,
+        procedureKey: input.procedureKey,
+        maxSteps: input.maxSteps,
+        scope: sdkScope,
+      })
+
+      const message =
+        (messageFromEnvelope(result.envelope) ?? result.raw) || `Promoted session ${input.sessionId} to ${input.path}`
       return {
         ok: true,
         message,

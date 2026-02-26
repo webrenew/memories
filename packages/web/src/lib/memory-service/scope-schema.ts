@@ -7,6 +7,7 @@ const memorySchemaEnsuredClients = new WeakSet<TursoClient>()
 const memorySchemaEnsuredKeys = new Set<string>()
 const MEMORY_SCHEMA_STATE_TABLE = "memory_schema_state"
 const MEMORY_USER_ID_SCHEMA_STATE_KEY = "memory_user_id_v1"
+const MEMORY_CONSOLIDATION_SCHEMA_STATE_KEY = "memory_consolidation_v1"
 const MEMORY_EMBEDDINGS_SCHEMA_STATE_KEY = "memory_embeddings_v1"
 const MEMORY_EMBEDDING_JOBS_SCHEMA_STATE_KEY = "memory_embedding_jobs_v1"
 const MEMORY_EMBEDDING_BACKFILL_SCHEMA_STATE_KEY = "memory_embedding_backfill_v1"
@@ -216,6 +217,79 @@ async function ensureSessionSchema(turso: TursoClient): Promise<void> {
   )
 }
 
+async function ensureCompactionSchema(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_compaction_events (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      trigger_type TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      token_count_before INTEGER,
+      turn_count_before INTEGER,
+      summary_tokens INTEGER,
+      checkpoint_memory_id TEXT,
+      created_at TEXT NOT NULL
+    )`
+  )
+
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_compaction_session ON memory_compaction_events(session_id, created_at)"
+  )
+}
+
+async function ensureConsolidationSchema(turso: TursoClient): Promise<void> {
+  const columns = await memoryColumns(turso)
+
+  if (!columns.has("upsert_key")) {
+    await turso.execute("ALTER TABLE memories ADD COLUMN upsert_key TEXT")
+  }
+  if (!columns.has("source_session_id")) {
+    await turso.execute("ALTER TABLE memories ADD COLUMN source_session_id TEXT")
+  }
+  if (!columns.has("superseded_by")) {
+    await turso.execute("ALTER TABLE memories ADD COLUMN superseded_by TEXT")
+  }
+  if (!columns.has("superseded_at")) {
+    await turso.execute("ALTER TABLE memories ADD COLUMN superseded_at TEXT")
+  }
+  if (!columns.has("confidence")) {
+    await turso.execute("ALTER TABLE memories ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0")
+  }
+  if (!columns.has("last_confirmed_at")) {
+    await turso.execute("ALTER TABLE memories ADD COLUMN last_confirmed_at TEXT")
+  }
+
+  await turso.execute("UPDATE memories SET confidence = 1.0 WHERE confidence IS NULL")
+
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memories_upsert_key ON memories(scope, project_id, type, upsert_key)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memories_source_session ON memories(source_session_id)"
+  )
+  await turso.execute(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_upsert_live
+     ON memories(scope, project_id, user_id, type, upsert_key)
+     WHERE upsert_key IS NOT NULL AND deleted_at IS NULL AND superseded_at IS NULL`
+  )
+
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_consolidation_runs (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL,
+      project_id TEXT,
+      user_id TEXT,
+      input_count INTEGER NOT NULL,
+      merged_count INTEGER NOT NULL,
+      superseded_count INTEGER NOT NULL,
+      conflicted_count INTEGER NOT NULL,
+      model TEXT,
+      created_at TEXT NOT NULL,
+      metadata TEXT
+    )`
+  )
+}
+
 // ─── Skill File Schema ────────────────────────────────────────────────────────
 
 async function ensureSkillFileSchema(turso: TursoClient): Promise<void> {
@@ -227,11 +301,34 @@ async function ensureSkillFileSchema(turso: TursoClient): Promise<void> {
       scope TEXT NOT NULL DEFAULT 'global',
       project_id TEXT,
       user_id TEXT,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      last_used_at TEXT,
+      procedure_key TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT
     )`
   )
+
+  const result = await turso.execute("PRAGMA table_info(skill_files)")
+  const columns = new Set(
+    (Array.isArray(result.rows) ? result.rows : [])
+      .map((row) => String((row as { name?: unknown }).name ?? ""))
+      .filter((name) => name.length > 0)
+  )
+
+  if (!columns.has("usage_count")) {
+    await turso.execute("ALTER TABLE skill_files ADD COLUMN usage_count INTEGER NOT NULL DEFAULT 0")
+  }
+  if (!columns.has("last_used_at")) {
+    await turso.execute("ALTER TABLE skill_files ADD COLUMN last_used_at TEXT")
+  }
+  if (!columns.has("procedure_key")) {
+    await turso.execute("ALTER TABLE skill_files ADD COLUMN procedure_key TEXT")
+  }
+
+  await turso.execute("UPDATE skill_files SET usage_count = 0 WHERE usage_count IS NULL")
+
   await turso.execute(
     "CREATE INDEX IF NOT EXISTS idx_skill_files_scope_project_path ON skill_files(scope, project_id, path)"
   )
@@ -240,6 +337,12 @@ async function ensureSkillFileSchema(turso: TursoClient): Promise<void> {
   )
   await turso.execute(
     "CREATE INDEX IF NOT EXISTS idx_skill_files_updated_at ON skill_files(updated_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_skill_files_usage ON skill_files(scope, project_id, usage_count DESC, updated_at DESC)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_skill_files_procedure_key ON skill_files(procedure_key)"
   )
 }
 
@@ -494,6 +597,11 @@ export async function ensureMemoryUserIdSchema(
   }
 
   await ensureSessionSchema(turso)
+  await ensureCompactionSchema(turso)
+  await ensureConsolidationSchema(turso)
+  if (!(await isMemorySchemaMarked(turso, MEMORY_CONSOLIDATION_SCHEMA_STATE_KEY))) {
+    await markMemorySchemaApplied(turso, MEMORY_CONSOLIDATION_SCHEMA_STATE_KEY)
+  }
   await ensureGraphSchema(turso)
   await ensureSkillFileSchema(turso)
   await ensureEmbeddingSchema(turso)
