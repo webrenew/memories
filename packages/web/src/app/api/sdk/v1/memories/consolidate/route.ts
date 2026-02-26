@@ -9,6 +9,7 @@ import {
   successResponse,
 } from "@/lib/sdk-api/runtime"
 import { memoryTypeSchema, scopeSchema } from "@/lib/sdk-api/schemas"
+import { isMemoryConsolidationEnabled } from "@/lib/env"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -44,6 +45,21 @@ export async function POST(request: NextRequest): Promise<Response> {
   const authResult = await authenticateApiKey(apiKey, ENDPOINT, requestId)
   if (authResult instanceof NextResponse) {
     return authResult
+  }
+
+  if (!isMemoryConsolidationEnabled()) {
+    return errorResponse(
+      ENDPOINT,
+      requestId,
+      apiError({
+        type: "validation_error",
+        code: "MEMORY_CONSOLIDATION_DISABLED",
+        message: "Memory consolidation is disabled by MEMORY_CONSOLIDATION_ENABLED=0.",
+        status: 403,
+        retryable: false,
+        details: { flag: "MEMORY_CONSOLIDATION_ENABLED" },
+      })
+    )
   }
 
   let parsedRequest: z.infer<typeof requestSchema>

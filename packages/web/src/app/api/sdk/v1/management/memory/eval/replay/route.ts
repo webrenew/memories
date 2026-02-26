@@ -2,6 +2,7 @@ import { resolveManagementIdentity } from "@/app/api/sdk/v1/management/identity"
 import { apiError } from "@/lib/memory-service/tools"
 import { runReplayEval } from "@/lib/memory-service/eval"
 import { errorResponse, invalidRequestResponse, resolveTursoForScope, successResponse } from "@/lib/sdk-api/runtime"
+import { isMemoryCompactionEnabled } from "@/lib/env"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -77,6 +78,21 @@ export async function POST(request: NextRequest): Promise<Response> {
     apiKeyMetadataLookupLogContext: "Failed to load API key metadata for memory replay eval:",
   })
   if (identity instanceof NextResponse) return identity
+
+  if (!isMemoryCompactionEnabled()) {
+    return errorResponse(
+      ENDPOINT,
+      requestId,
+      apiError({
+        type: "validation_error",
+        code: "MEMORY_COMPACTION_DISABLED",
+        message: "Memory replay eval is disabled by MEMORY_COMPACTION_ENABLED=0.",
+        status: 403,
+        retryable: false,
+        details: { flag: "MEMORY_COMPACTION_ENABLED" },
+      })
+    )
+  }
 
   const parsed = postSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) {

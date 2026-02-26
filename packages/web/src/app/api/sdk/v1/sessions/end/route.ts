@@ -9,6 +9,7 @@ import {
   successResponse,
 } from "@/lib/sdk-api/runtime"
 import { scopeSchema } from "@/lib/sdk-api/schemas"
+import { isMemorySessionEnabled } from "@/lib/env"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -41,6 +42,21 @@ export async function POST(request: NextRequest): Promise<Response> {
   const authResult = await authenticateApiKey(apiKey, ENDPOINT, requestId)
   if (authResult instanceof NextResponse) {
     return authResult
+  }
+
+  if (!isMemorySessionEnabled()) {
+    return errorResponse(
+      ENDPOINT,
+      requestId,
+      apiError({
+        type: "validation_error",
+        code: "MEMORY_SESSION_DISABLED",
+        message: "Memory session lifecycle endpoints are disabled by MEMORY_SESSION_ENABLED=0.",
+        status: 403,
+        retryable: false,
+        details: { flag: "MEMORY_SESSION_ENABLED" },
+      })
+    )
   }
 
   let parsedRequest: z.infer<typeof requestSchema>
