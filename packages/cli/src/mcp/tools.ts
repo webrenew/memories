@@ -57,6 +57,9 @@ Use this at the start of tasks to understand project conventions and recall past
       query: z.string().optional().describe("What you're working on - used to find relevant memories. Leave empty to get just rules."),
       limit: z.number().optional().describe("Max memories to return (default: 10, rules always included)"),
       mode: z.enum(["all", "working", "long_term", "rules_only"]).optional().describe("Context mode (default: all)"),
+      session_id: z.string().optional().describe("Optional session identifier for lifecycle-aware callers"),
+      budget_tokens: z.number().int().positive().optional().describe("Optional token budget hint for compaction-aware clients"),
+      include_session_summary: z.boolean().optional().describe("Reserved for future snapshot/session summary hydration"),
     },
     async ({ query, limit, mode }) => {
       try {

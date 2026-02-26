@@ -73,6 +73,7 @@ import {
   toTypedHttpError,
 } from "./client-helpers"
 import { MemoriesClientError } from "./client-error"
+import { evaluateCompactionTrigger, hasCompactionSignals } from "./compaction"
 
 export { MemoriesClientError } from "./client-error"
 
@@ -148,6 +149,30 @@ export class MemoriesClient {
         tenantId: input.tenantId,
       })
       const sdkScope = rawScope && Object.keys(rawScope).length > 0 ? rawScope : undefined
+      const finalizeContext = (context: ContextResult): ContextResult => {
+        const withRulesApplied = input.includeRules === false ? { ...context, rules: [] } : context
+        if (withRulesApplied.session) {
+          return withRulesApplied
+        }
+        if (!hasCompactionSignals(input)) {
+          return withRulesApplied
+        }
+        return {
+          ...withRulesApplied,
+          session: evaluateCompactionTrigger({
+            sessionId: input.sessionId,
+            rules: withRulesApplied.rules,
+            memories: withRulesApplied.memories,
+            skillFiles: withRulesApplied.skillFiles,
+            budgetTokens: input.budgetTokens,
+            turnCount: input.turnCount,
+            turnBudget: input.turnBudget,
+            lastActivityAt: input.lastActivityAt,
+            inactivityThresholdMinutes: input.inactivityThresholdMinutes,
+            taskCompleted: input.taskCompleted,
+          }),
+        }
+      }
 
       const result = this.transport === "sdk_http"
         ? await this.callSdkEndpoint("/api/sdk/v1/context/get", {
@@ -159,6 +184,9 @@ export class MemoriesClient {
             strategy,
             graphDepth: input.graphDepth,
             graphLimit: input.graphLimit,
+            sessionId: input.sessionId,
+            budgetTokens: input.budgetTokens,
+            includeSessionSummary: input.includeSessionSummary,
             scope: sdkScope,
           })
         : await this.callTool("get_context", {
@@ -171,6 +199,9 @@ export class MemoriesClient {
             retrieval_strategy: toMcpContextStrategy(input.strategy),
             graph_depth: input.graphDepth,
             graph_limit: input.graphLimit,
+            session_id: input.sessionId,
+            budget_tokens: input.budgetTokens,
+            include_session_summary: input.includeSessionSummary,
           })
 
       const structured = contextStructuredSchema.safeParse(result.structured)
@@ -180,21 +211,27 @@ export class MemoriesClient {
           rules: structured.data.rules.map(toMemoryRecord),
           memories: orderedMemories.map(toMemoryRecord),
           skillFiles: structured.data.skillFiles.map(toSkillFileRecord),
+          session: structured.data.session
+            ? {
+                sessionId: structured.data.session.sessionId ?? null,
+                estimatedTokens: structured.data.session.estimatedTokens,
+                budgetTokens: structured.data.session.budgetTokens ?? null,
+                turnCount: structured.data.session.turnCount ?? null,
+                turnBudget: structured.data.session.turnBudget ?? null,
+                compactionRequired: structured.data.session.compactionRequired,
+                triggerHint: structured.data.session.triggerHint ?? null,
+                reason: structured.data.session.reason,
+              }
+            : undefined,
           trace: structured.data.trace,
           raw: result.raw,
         }
-        if (input.includeRules === false) {
-          return { ...parsedFromStructured, rules: [] }
-        }
-        return parsedFromStructured
+        return finalizeContext(parsedFromStructured)
       }
 
       const parsed = parseContextResponse(result.raw)
       const modeFiltered = input.mode === "rules_only" ? { ...parsed, memories: [] } : parsed
-      if (input.includeRules === false) {
-        return { ...modeFiltered, rules: [] }
-      }
-      return modeFiltered
+      return finalizeContext(modeFiltered)
     },
   }
 
