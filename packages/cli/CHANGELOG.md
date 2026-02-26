@@ -1,5 +1,26 @@
 # @memories.sh/cli
 
+## Unreleased
+
+### Migration Notes (Phase 1 Parity)
+
+- Local CLI schema now includes `memory_layer` and `expires_at` on `memories` with backfills:
+  - `type='rule'` rows are normalized to `memory_layer='rule'`.
+  - Null layers are normalized to `memory_layer='long_term'`.
+  - Existing `working` rows with null expiry receive a default TTL.
+- Working-memory expiry defaults to 24 hours and can be overridden with
+  `MEMORIES_WORKING_MEMORY_TTL_HOURS` (or `MCP_WORKING_MEMORY_TTL_HOURS` for compatibility).
+- New CLI options:
+  - `memories add --layer <rule|working|long_term>`
+  - `memories list --layer <rule|working|long_term>`
+  - `memories search --layer <rule|working|long_term>`
+  - `memories recall --mode <all|working|long_term|rules_only>`
+- MCP parity updates:
+  - `get_context` accepts `mode`.
+  - `add_memory` accepts `layer`.
+  - `search_memories` and `list_memories` accept `type` + `layer` while retaining `types`.
+  - `list_memories.tags` accepts either string (comma-separated) or string array.
+
 ## 0.7.9
 
 ### Minor Changes
