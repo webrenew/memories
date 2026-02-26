@@ -58,6 +58,14 @@ export function isMemoryLayer(value: string): value is MemoryLayer {
   return (MEMORY_LAYERS as readonly string[]).includes(value);
 }
 
+export type ContextMode = "all" | "working" | "long_term" | "rules_only";
+
+export const CONTEXT_MODES: readonly ContextMode[] = ["all", "working", "long_term", "rules_only"] as const;
+
+export function isContextMode(value: string): value is ContextMode {
+  return (CONTEXT_MODES as readonly string[]).includes(value);
+}
+
 export interface Memory {
   id: string;
   content: string;
@@ -93,6 +101,7 @@ interface QueryMemoryOpts {
   includeGlobal?: boolean; // Default true - include global memories
   globalOnly?: boolean; // Only return global memories (skips project auto-detect)
   types?: MemoryType[]; // Filter by memory types
+  layers?: MemoryLayer[]; // Filter by memory layers
 }
 
 const DEFAULT_WORKING_MEMORY_TTL_HOURS = 24;
@@ -130,6 +139,20 @@ function resolvePositiveLimit(limit: number | undefined, fallback: number): numb
   return parsed > 0 ? parsed : fallback;
 }
 
+function normalizeLayerList(values?: MemoryLayer[]): MemoryLayer[] | undefined {
+  if (!values) return undefined;
+
+  const seen = new Set<MemoryLayer>();
+  const normalized: MemoryLayer[] = [];
+  for (const value of values) {
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    normalized.push(value);
+  }
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function addHours(iso: string, hours: number): string {
   return new Date(new Date(iso).getTime() + hours * 60 * 60 * 1000).toISOString();
 }
@@ -159,6 +182,34 @@ function buildActiveMemoryFilter(columnPrefix = ""): { clause: string; args: str
     clause: `${columnPrefix}deleted_at IS NULL AND (${columnPrefix}expires_at IS NULL OR ${columnPrefix}expires_at > ?)`,
     args: [new Date().toISOString()],
   };
+}
+
+function buildLayerFilter(columnPrefix = "", layers?: MemoryLayer[]): { clause: string; args: string[] } {
+  const normalized = normalizeLayerList(layers);
+  if (!normalized) {
+    return { clause: "1 = 1", args: [] };
+  }
+
+  const clauses: string[] = [];
+  for (const layer of normalized) {
+    if (layer === "rule") {
+      clauses.push(`(${columnPrefix}memory_layer = 'rule' OR ${columnPrefix}type = 'rule')`);
+      continue;
+    }
+
+    if (layer === "working") {
+      clauses.push(`${columnPrefix}memory_layer = 'working'`);
+      continue;
+    }
+
+    clauses.push(`(${columnPrefix}memory_layer = 'long_term' OR (${columnPrefix}memory_layer IS NULL AND ${columnPrefix}type != 'rule'))`);
+  }
+
+  if (clauses.length === 1) {
+    return { clause: clauses[0], args: [] };
+  }
+
+  return { clause: `(${clauses.join(" OR ")})`, args: [] };
 }
 
 function toFtsPrefixQuery(query: string): string | null {
@@ -274,6 +325,7 @@ export async function searchMemories(
   const includeGlobal = opts?.includeGlobal ?? true;
   // Skip auto-detect if globalOnly is set
   const projectId = opts?.globalOnly ? undefined : (opts?.projectId ?? getProjectId());
+  const layerFilter = buildLayerFilter("m.", opts?.layers);
 
   // Build scope filter
   const scopeConditions: string[] = [];
@@ -316,12 +368,13 @@ export async function searchMemories(
         JOIN memories_fts fts ON m.rowid = fts.rowid
         WHERE memories_fts MATCH ?
           AND ${activeFilter.clause}
+          AND ${layerFilter.clause}
           AND (${scopeConditions.join(" OR ")})
           ${typeFilter}
         ORDER BY rank ASC, m.created_at DESC
         LIMIT ?
       `,
-      args: [ftsQuery, ...activeFilter.args, ...queryArgs, limit],
+      args: [ftsQuery, ...activeFilter.args, ...layerFilter.args, ...queryArgs, limit],
     });
 
     return result.rows as unknown as Memory[];
@@ -350,8 +403,9 @@ async function searchMemoriesLike(
   const projectId = opts?.globalOnly ? undefined : (opts?.projectId ?? getProjectId());
 
   const activeFilter = buildActiveMemoryFilter();
-  const conditions: string[] = [activeFilter.clause, "content LIKE ?"];
-  const args: (string | number)[] = [...activeFilter.args, `%${normalizedQuery}%`];
+  const layerFilter = buildLayerFilter("", opts?.layers);
+  const conditions: string[] = [activeFilter.clause, layerFilter.clause, "content LIKE ?"];
+  const args: (string | number)[] = [...activeFilter.args, ...layerFilter.args, `%${normalizedQuery}%`];
 
   const scopeConditions: string[] = [];
   if (includeGlobal) {
@@ -396,8 +450,9 @@ export async function listMemories(opts?: QueryMemoryOpts): Promise<Memory[]> {
   const projectId = opts?.globalOnly ? undefined : (opts?.projectId ?? getProjectId());
 
   const activeFilter = buildActiveMemoryFilter();
-  const conditions: string[] = [activeFilter.clause];
-  const args: (string | number)[] = [...activeFilter.args];
+  const layerFilter = buildLayerFilter("", opts?.layers);
+  const conditions: string[] = [activeFilter.clause, layerFilter.clause];
+  const args: (string | number)[] = [...activeFilter.args, ...layerFilter.args];
 
   // Build scope filter
   const scopeConditions: string[] = [];
@@ -475,21 +530,33 @@ export async function getRules(opts?: { projectId?: string }): Promise<Memory[]>
  */
 export async function getContext(
   query?: string,
-  opts?: { projectId?: string; limit?: number }
+  opts?: { projectId?: string; limit?: number; mode?: ContextMode }
 ): Promise<{ rules: Memory[]; memories: Memory[] }> {
   const projectId = opts?.projectId ?? getProjectId();
   const limit = opts?.limit ?? 10;
+  const mode = opts?.mode ?? "all";
 
   // Always get all rules
   const rules = await getRules({ projectId: projectId ?? undefined });
 
+  if (mode === "rules_only") {
+    return { rules, memories: [] };
+  }
+
   // If there's a query, search for relevant memories (excluding rules)
   let memories: Memory[] = [];
   if (query) {
+    const layers =
+      mode === "working"
+        ? (["working"] as MemoryLayer[])
+        : mode === "long_term"
+          ? (["long_term"] as MemoryLayer[])
+          : undefined;
     memories = await searchMemories(query, {
       projectId: projectId ?? undefined,
       limit,
       types: ["decision", "fact", "note"], // Exclude rules, they're already included
+      layers,
     });
   }
 

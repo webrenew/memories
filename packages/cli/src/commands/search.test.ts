@@ -15,6 +15,8 @@ describe("search", () => {
     await addMemory("API rate limit is 100 requests per minute", { type: "fact", global: true });
     await addMemory("Chose PostgreSQL for JSONB support", { type: "decision", global: true });
     await addMemory("Meeting notes from January standup", { type: "note", global: true });
+    await addMemory("Deployment draft checklist", { type: "note", layer: "working", global: true });
+    await addMemory("Deployment runbook finalized", { type: "fact", layer: "long_term", global: true });
   });
 
   it("should find memories by keyword", async () => {
@@ -39,5 +41,16 @@ describe("search", () => {
   it("should respect limit", async () => {
     const results = await searchMemories("a", { limit: 1 });
     expect(results.length).toBeLessThanOrEqual(1);
+  });
+
+  it("should filter search by layer", async () => {
+    const working = await searchMemories("Deployment", { limit: 10, layers: ["working"] });
+    expect(working.length).toBeGreaterThan(0);
+    expect(working.every((entry) => entry.memory_layer === "working")).toBe(true);
+
+    const longTerm = await searchMemories("Deployment", { limit: 10, layers: ["long_term"] });
+    expect(longTerm.length).toBeGreaterThan(0);
+    expect(longTerm.some((entry) => entry.content.includes("runbook finalized"))).toBe(true);
+    expect(longTerm.every((entry) => entry.memory_layer === "long_term" || entry.memory_layer === null)).toBe(true);
   });
 });
