@@ -25,6 +25,7 @@ import type {
   MemoryAddInput,
   SkillFileDeleteInput,
   SkillFileListOptions,
+  SkillFilePromoteInput,
   SkillFileRecord,
   SkillFileUpsertInput,
   MemoryEditInput,
@@ -530,6 +531,33 @@ export class MemoriesClient {
       })
 
       const message = (messageFromEnvelope(result.envelope) ?? result.raw) || `Deleted skill file ${input.path}`
+      return {
+        ok: true,
+        message,
+        raw: result.raw,
+        envelope: result.envelope ?? undefined,
+      }
+    },
+
+    promoteFromSession: async (input: SkillFilePromoteInput): Promise<MutationResult> => {
+      const rawScope = this.withDefaultScopeSdk({
+        projectId: input.projectId,
+        userId: input.userId,
+        tenantId: input.tenantId,
+      })
+      const sdkScope = rawScope && Object.keys(rawScope).length > 0 ? rawScope : undefined
+      const result = await this.callSdkEndpoint("/api/sdk/v1/skills/files/promote", {
+        sessionId: input.sessionId,
+        snapshotId: input.snapshotId,
+        path: input.path,
+        title: input.title,
+        procedureKey: input.procedureKey,
+        maxSteps: input.maxSteps,
+        scope: sdkScope,
+      })
+
+      const message =
+        (messageFromEnvelope(result.envelope) ?? result.raw) || `Promoted session ${input.sessionId} to ${input.path}`
       return {
         ok: true,
         message,
