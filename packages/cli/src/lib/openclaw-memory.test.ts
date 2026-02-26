@@ -1,16 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { join } from "node:path";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import {
   DEFAULT_OPENCLAW_WORKSPACE_RELATIVE_PATH,
   OPENCLAW_CONFIG_RELATIVE_PATH,
+  appendOpenClawDailyLog,
   buildOpenClawPathContract,
   extractOpenClawWorkspaceSetting,
+  formatOpenClawBootstrapContext,
   isOpenClawFileModeEnabled,
   normalizeOpenClawDateKey,
   normalizeOpenClawSnapshotSlug,
+  readOpenClawBootstrapContext,
   resolveOpenClawMemoryBucket,
   resolveOpenClawWorkspaceDirectory,
   routeOpenClawMemoryFile,
+  writeOpenClawSnapshot,
 } from "./openclaw-memory.js";
 
 describe("openclaw-memory", () => {
@@ -137,5 +143,59 @@ describe("openclaw-memory", () => {
     expect(isOpenClawFileModeEnabled({ MEMORY_OPENCLAW_FILE_MODE_ENABLED: "true" })).toBe(true);
     expect(isOpenClawFileModeEnabled({ MEMORY_OPENCLAW_FILE_MODE_ENABLED: "false" })).toBe(false);
     expect(isOpenClawFileModeEnabled({})).toBe(false);
+  });
+
+  it("reads and formats bootstrap context from semantic + daily files", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "memories-openclaw-bootstrap-"));
+    mkdirSync(join(workspaceDir, "memory", "daily"), { recursive: true });
+
+    const today = normalizeOpenClawDateKey("2026-02-26T15:00:00.000Z");
+    const yesterday = normalizeOpenClawDateKey("2026-02-25T15:00:00.000Z");
+    writeFileSync(join(workspaceDir, "memory.md"), "Always include acceptance criteria.");
+    writeFileSync(join(workspaceDir, "memory", "daily", `${today}.md`), "## Today\n- Ship phase 4.2");
+    writeFileSync(join(workspaceDir, "memory", "daily", `${yesterday}.md`), "## Yesterday\n- Merged phase 4.1");
+
+    const bootstrap = await readOpenClawBootstrapContext({
+      workspaceDir,
+      now: "2026-02-26T15:00:00.000Z",
+    });
+
+    expect(bootstrap.semanticFile).toBe(join(workspaceDir, "memory.md"));
+    expect(bootstrap.semanticContent).toContain("Always include acceptance criteria.");
+    expect(bootstrap.dailyLogs.map((log) => log.dateKey)).toEqual([today, yesterday]);
+
+    const formatted = formatOpenClawBootstrapContext(bootstrap);
+    expect(formatted).toContain("OpenClaw bootstrap context.");
+    expect(formatted).toContain("Semantic memory:");
+    expect(formatted).toContain("Daily log (2026-02-26)");
+    expect(formatted).toContain("Daily log (2026-02-25)");
+  });
+
+  it("appends daily log entries and writes snapshots", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "memories-openclaw-write-"));
+
+    const dailyResult = await appendOpenClawDailyLog("Compaction checkpoint payload", {
+      workspaceDir,
+      date: "2026-02-26T01:00:00.000Z",
+      heading: "## Compaction checkpoint",
+    });
+    expect(dailyResult.route.absolutePath).toBe(
+      join(workspaceDir, "memory", "daily", "2026-02-26.md"),
+    );
+    const dailyContent = readFileSync(dailyResult.route.absolutePath, "utf-8");
+    expect(dailyContent).toContain("## Compaction checkpoint");
+    expect(dailyContent).toContain("Compaction checkpoint payload");
+
+    const snapshotResult = await writeOpenClawSnapshot("# Session Snapshot\n\n- user: hello", {
+      workspaceDir,
+      date: "2026-02-26",
+      slug: "reset-after-compaction",
+    });
+    expect(snapshotResult.route.absolutePath).toBe(
+      join(workspaceDir, "memory", "snapshots", "2026-02-26", "reset-after-compaction.md"),
+    );
+    const snapshotContent = readFileSync(snapshotResult.route.absolutePath, "utf-8");
+    expect(snapshotContent).toContain("# Session Snapshot");
+    expect(snapshotContent).toContain("- user: hello");
   });
 });
