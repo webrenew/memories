@@ -1,9 +1,9 @@
 # RFC: Agent Memory Lifecycle (Session + Long-Term + OpenClaw File Mode)
 
-- Status: Proposed
+- Status: Implemented
 - Authors: memories team
 - Created: 2026-02-26
-- Target release: phased rollout over 7 phases
+- Target release: phased rollout over 7 phases (completed 2026-02-26)
 
 ## Summary
 
@@ -333,8 +333,8 @@ Write triggers:
 - [x] Phase 6 PRs (6.1-6.3)
 - [x] PR-7.1 `feat(obs): lifecycle metrics, compaction loss metrics, contradiction trend metrics` (merged: #306, 2026-02-26)
 - [x] PR-7.2 `feat(eval): replay/eval harness for memory extraction and compaction quality` (merged: #307, 2026-02-26)
-- [ ] PR-7.3 `chore(rollout): default-on flags, deprecate legacy paths, finalize docs` (in progress: codex/phase7-3-rollout-default-on)
-- [ ] Phase 7 PRs (7.1-7.3)
+- [x] PR-7.3 `chore(rollout): default-on flags, deprecate legacy paths, finalize docs` (merged: #309, 2026-02-26)
+- [x] Phase 7 PRs (7.1-7.3)
 
 ## Phase Gates and Acceptance
 
