@@ -294,6 +294,7 @@ describe("/api/orgs/[orgId]/members", () => {
     expect(body.members).toHaveLength(1)
     expect(body.members[0].role).toBe("owner")
     expect(body.members[0].user.email).toBe("charles@webrenew.io")
+    expect(body.members[0].user.avatar_url).toContain("gravatar.com/avatar/")
     expect(body.members[0].last_login_at).toBe("2026-02-12T10:00:00.000Z")
     expect(body.members[0].memory_count).toBe(0)
     expect(body.members[0].user_memory_count).toBe(0)

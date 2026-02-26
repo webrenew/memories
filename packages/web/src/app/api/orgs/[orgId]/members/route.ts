@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { logOrgAuditEvent } from "@/lib/org-audit"
 import { removeTeamSeat } from "@/lib/stripe/teams"
 import { createClient as createTurso } from "@libsql/client"
+import { createHash } from "node:crypto"
 import { NextResponse } from "next/server"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, updateMemberRoleSchema } from "@/lib/validations"
@@ -63,6 +64,13 @@ function extractLastSignInAt(authUser: AuthUserRow): string | null {
   }
 
   return null
+}
+
+function buildGravatarUrl(email: string): string {
+  const hash = createHash("md5")
+    .update(email.trim().toLowerCase())
+    .digest("hex")
+  return `https://www.gravatar.com/avatar/${hash}?d=identicon&s=96`
 }
 
 function isMissingColumnError(error: unknown, columnName: string): boolean {
@@ -300,6 +308,12 @@ export async function GET(
   const normalizedMembers = memberRows.map((member) => {
     const foundUser = usersById.get(member.user_id)
     const memberUserIdKey = normalizeUserIdKey(member.user_id)
+    const email = foundUser?.email ?? `${member.user_id}@unknown.local`
+    const avatarUrl =
+      typeof foundUser?.avatar_url === "string" && foundUser.avatar_url.trim().length > 0
+        ? foundUser.avatar_url
+        : buildGravatarUrl(email)
+
     return {
       id: member.id,
       role: member.role,
@@ -309,9 +323,9 @@ export async function GET(
       user_memory_count: memberUserIdKey ? userScopedMemoryCounts.get(memberUserIdKey) ?? 0 : 0,
       user: {
         id: foundUser?.id ?? member.user_id,
-        email: foundUser?.email ?? `${member.user_id}@unknown.local`,
+        email,
         name: foundUser?.name ?? null,
-        avatar_url: foundUser?.avatar_url ?? null,
+        avatar_url: avatarUrl,
       },
     }
   })

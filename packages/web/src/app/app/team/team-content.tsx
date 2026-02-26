@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import {
@@ -40,6 +40,10 @@ function roleIcon(role: string) {
   }
 }
 
+const MEMBER_PAGE_SIZE = 10
+const MEMBER_ROLE_FILTERS = ["all", "owner", "admin", "member"] as const
+type MemberRoleFilter = (typeof MEMBER_ROLE_FILTERS)[number]
+
 export function TeamContent({ 
   organizations, 
   currentOrgId,
@@ -55,6 +59,14 @@ export function TeamContent({
     return organizations.some((org) => org.id === currentOrgId) ? currentOrgId : null
   })
   const [members, setMembers] = useState<Member[]>([])
+  const [memberSearch, setMemberSearch] = useState("")
+  const [memberRoleFilter, setMemberRoleFilter] = useState<MemberRoleFilter>("all")
+  const [memberPage, setMemberPage] = useState(1)
+  const [selectedMemberUserIds, setSelectedMemberUserIds] = useState<string[]>([])
+  const [bulkActionInFlight, setBulkActionInFlight] = useState(false)
+  const [memberActionError, setMemberActionError] = useState<string | null>(null)
+  const [memberActionSuccess, setMemberActionSuccess] = useState<string | null>(null)
+  const [bulkRoleValue, setBulkRoleValue] = useState<"member" | "admin">("member")
   const [invites, setInvites] = useState<Invite[]>([])
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [auditError, setAuditError] = useState<string | null>(null)
@@ -107,6 +119,61 @@ export function TeamContent({
   const selectedOrgRecordDomain = selectedOrgRecord?.domain_auto_join_domain
   const isOwner = selectedOrg?.role === "owner"
   const isAdmin = selectedOrg?.role === "admin" || isOwner
+  const canManageMember = useCallback(
+    (member: Member) => isAdmin && member.role !== "owner" && member.user.id !== userId,
+    [isAdmin, userId]
+  )
+
+  const filteredMembers = useMemo(() => {
+    const searchQuery = memberSearch.trim().toLowerCase()
+    return members.filter((member) => {
+      if (memberRoleFilter !== "all" && member.role !== memberRoleFilter) {
+        return false
+      }
+      if (!searchQuery) {
+        return true
+      }
+
+      const searchHaystack = [
+        member.user.name ?? "",
+        member.user.email,
+        member.user.id,
+      ]
+        .join(" ")
+        .toLowerCase()
+
+      return searchHaystack.includes(searchQuery)
+    })
+  }, [memberRoleFilter, memberSearch, members])
+
+  const memberPageCount = Math.max(1, Math.ceil(filteredMembers.length / MEMBER_PAGE_SIZE))
+  const pagedMembers = useMemo(() => {
+    const start = (memberPage - 1) * MEMBER_PAGE_SIZE
+    return filteredMembers.slice(start, start + MEMBER_PAGE_SIZE)
+  }, [filteredMembers, memberPage])
+
+  const visibleSelectableMemberIds = useMemo(
+    () => pagedMembers.filter(canManageMember).map((member) => member.user.id),
+    [pagedMembers, canManageMember]
+  )
+
+  const allVisibleSelectableMembersSelected =
+    visibleSelectableMemberIds.length > 0 &&
+    visibleSelectableMemberIds.every((memberUserId) => selectedMemberUserIds.includes(memberUserId))
+
+  const selectedMemberIds = useMemo(
+    () => selectedMemberUserIds.filter((memberUserId) => members.some((member) => member.user.id === memberUserId)),
+    [members, selectedMemberUserIds]
+  )
+
+  const selectedManageableMemberIds = useMemo(
+    () => selectedMemberIds.filter((memberUserId) => {
+      const member = members.find((row) => row.user.id === memberUserId)
+      return member ? canManageMember(member) : false
+    }),
+    [canManageMember, members, selectedMemberIds]
+  )
+
   const parsedRepoAllowList = parseListField(repoAllowListText)
   const parsedRepoBlockList = parseListField(repoBlockListText)
   const parsedBranchFilters = parseListField(branchFiltersText)
@@ -273,6 +340,33 @@ export function TeamContent({
   }, [organizations, selectedOrgId])
 
   useEffect(() => {
+    setMemberSearch("")
+    setMemberRoleFilter("all")
+    setMemberPage(1)
+    setSelectedMemberUserIds([])
+    setMemberActionError(null)
+    setMemberActionSuccess(null)
+  }, [selectedOrgId])
+
+  useEffect(() => {
+    setMemberPage(1)
+  }, [memberSearch, memberRoleFilter])
+
+  useEffect(() => {
+    if (memberPage <= memberPageCount) return
+    setMemberPage(memberPageCount)
+  }, [memberPage, memberPageCount])
+
+  useEffect(() => {
+    setSelectedMemberUserIds((previous) =>
+      previous.filter((memberUserId) => {
+        const member = members.find((row) => row.user.id === memberUserId)
+        return member ? canManageMember(member) : false
+      })
+    )
+  }, [canManageMember, members])
+
+  useEffect(() => {
     if (!selectedOrgRecordId) return
     setDomainAutoJoinEnabled(Boolean(selectedOrgRecordDomainEnabled))
     setDomainAutoJoinDomain(selectedOrgRecordDomain ?? "")
@@ -334,19 +428,25 @@ export function TeamContent({
     }
   }
 
-  async function removeMember(memberUserId: string) {
-    if (!confirm("Are you sure you want to remove this member?")) return
-    
+  async function requestMemberRemoval(memberUserId: string): Promise<{ ok: true } | { ok: false; error: string }> {
     try {
       const res = await fetch(`/api/orgs/${selectedOrgId}/members?userId=${memberUserId}`, {
         method: "DELETE",
       })
-      
-      if (res.ok && selectedOrgId) {
-        fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
+
+      if (res.ok) {
+        return { ok: true }
       }
-    } catch (e) {
-      console.error(e)
+
+      const body = await res.json().catch(() => ({}))
+      const errorMessage =
+        typeof body?.error === "string"
+          ? body.error
+          : `Failed to remove member (${res.status})`
+      return { ok: false, error: errorMessage }
+    } catch (error) {
+      console.error(error)
+      return { ok: false, error: "Failed to remove member" }
     }
   }
 
@@ -361,20 +461,178 @@ export function TeamContent({
     }
   }
 
-  async function updateRole(memberUserId: string, newRole: string) {
+  async function removeMember(memberUserId: string) {
+    if (!confirm("Are you sure you want to remove this member?")) return
+
+    setMemberActionError(null)
+    setMemberActionSuccess(null)
+    const result = await requestMemberRemoval(memberUserId)
+    if (!result.ok) {
+      setMemberActionError(result.error)
+      return
+    }
+
+    setSelectedMemberUserIds((previous) => previous.filter((id) => id !== memberUserId))
+    setMemberActionSuccess("Member removed.")
+    if (selectedOrgId) {
+      fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
+    }
+  }
+
+  async function requestRoleUpdate(
+    memberUserId: string,
+    newRole: "member" | "admin"
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
     try {
       const res = await fetch(`/api/orgs/${selectedOrgId}/members`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: memberUserId, role: newRole }),
       })
-      
-      if (res.ok && selectedOrgId) {
-        fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
+
+      if (res.ok) {
+        return { ok: true }
       }
-    } catch (e) {
-      console.error(e)
+
+      const body = await res.json().catch(() => ({}))
+      const errorMessage =
+        typeof body?.error === "string"
+          ? body.error
+          : `Failed to update member role (${res.status})`
+      return { ok: false, error: errorMessage }
+    } catch (error) {
+      console.error(error)
+      return { ok: false, error: "Failed to update member role" }
     }
+  }
+
+  async function updateRole(memberUserId: string, newRole: "member" | "admin") {
+    setMemberActionError(null)
+    setMemberActionSuccess(null)
+    const result = await requestRoleUpdate(memberUserId, newRole)
+    if (!result.ok) {
+      setMemberActionError(result.error)
+      return
+    }
+
+    setMemberActionSuccess("Member role updated.")
+    if (selectedOrgId) {
+      fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
+    }
+  }
+
+  function toggleMemberSelection(memberUserId: string) {
+    setSelectedMemberUserIds((previous) =>
+      previous.includes(memberUserId)
+        ? previous.filter((id) => id !== memberUserId)
+        : [...previous, memberUserId]
+    )
+  }
+
+  function toggleVisibleMemberSelection() {
+    if (visibleSelectableMemberIds.length === 0) return
+
+    setSelectedMemberUserIds((previous) => {
+      if (allVisibleSelectableMembersSelected) {
+        return previous.filter((id) => !visibleSelectableMemberIds.includes(id))
+      }
+
+      const next = new Set(previous)
+      for (const memberUserId of visibleSelectableMemberIds) {
+        next.add(memberUserId)
+      }
+      return Array.from(next)
+    })
+  }
+
+  async function applyBulkRoleChange() {
+    if (!isOwner || selectedManageableMemberIds.length === 0) return
+    if (
+      !confirm(
+        `Change role to ${bulkRoleValue} for ${selectedManageableMemberIds.length} selected member${
+          selectedManageableMemberIds.length === 1 ? "" : "s"
+        }?`
+      )
+    ) {
+      return
+    }
+
+    setBulkActionInFlight(true)
+    setMemberActionError(null)
+    setMemberActionSuccess(null)
+
+    let failures = 0
+    let firstError: string | null = null
+
+    for (const memberUserId of selectedManageableMemberIds) {
+      const result = await requestRoleUpdate(memberUserId, bulkRoleValue)
+      if (!result.ok) {
+        failures += 1
+        firstError = firstError ?? result.error
+      }
+    }
+
+    if (selectedOrgId) {
+      await fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
+    }
+    setSelectedMemberUserIds([])
+    setBulkActionInFlight(false)
+
+    const successCount = selectedManageableMemberIds.length - failures
+    if (failures > 0) {
+      setMemberActionError(
+        `${firstError ?? "Some role updates failed"}. Updated ${successCount} of ${selectedManageableMemberIds.length}.`
+      )
+      return
+    }
+    setMemberActionSuccess(
+      `Updated role for ${successCount} member${successCount === 1 ? "" : "s"}.`
+    )
+  }
+
+  async function removeSelectedMembers() {
+    if (!isAdmin || selectedManageableMemberIds.length === 0) return
+    if (
+      !confirm(
+        `Remove ${selectedManageableMemberIds.length} selected member${
+          selectedManageableMemberIds.length === 1 ? "" : "s"
+        }?`
+      )
+    ) {
+      return
+    }
+
+    setBulkActionInFlight(true)
+    setMemberActionError(null)
+    setMemberActionSuccess(null)
+
+    let failures = 0
+    let firstError: string | null = null
+
+    for (const memberUserId of selectedManageableMemberIds) {
+      const result = await requestMemberRemoval(memberUserId)
+      if (!result.ok) {
+        failures += 1
+        firstError = firstError ?? result.error
+      }
+    }
+
+    if (selectedOrgId) {
+      await fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
+    }
+    setSelectedMemberUserIds([])
+    setBulkActionInFlight(false)
+
+    const successCount = selectedManageableMemberIds.length - failures
+    if (failures > 0) {
+      setMemberActionError(
+        `${firstError ?? "Some members could not be removed"}. Removed ${successCount} of ${selectedManageableMemberIds.length}.`
+      )
+      return
+    }
+    setMemberActionSuccess(
+      `Removed ${successCount} member${successCount === 1 ? "" : "s"}.`
+    )
   }
 
   async function saveDomainAutoJoinSettings() {
@@ -922,10 +1180,100 @@ export function TeamContent({
 
               {/* Members List */}
               <div className="border border-border bg-card/20">
-                <div className="p-4 border-b border-border">
-                  <h3 className="font-semibold">Members</h3>
+                <div className="p-4 border-b border-border space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-semibold">Members</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Showing {filteredMembers.length} of {members.length}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                    <input
+                      type="text"
+                      value={memberSearch}
+                      onChange={(event) => setMemberSearch(event.target.value)}
+                      placeholder="Search by name, email, or user id"
+                      className="w-full md:flex-1 px-3 py-2 bg-muted/30 border border-border text-sm focus:outline-none focus:border-primary"
+                    />
+                    <select
+                      value={memberRoleFilter}
+                      onChange={(event) => setMemberRoleFilter(event.target.value as MemberRoleFilter)}
+                      className="w-full md:w-[160px] px-3 py-2 bg-muted/30 border border-border text-sm focus:outline-none focus:border-primary capitalize"
+                    >
+                      {MEMBER_ROLE_FILTERS.map((role) => (
+                        <option key={role} value={role} className="capitalize">
+                          {role === "all" ? "All Roles" : role}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {memberActionError ? (
+                    <p className="text-xs text-red-400">{memberActionError}</p>
+                  ) : null}
+                  {memberActionSuccess ? (
+                    <p className="text-xs text-emerald-400">{memberActionSuccess}</p>
+                  ) : null}
+
+                  {isAdmin ? (
+                    <div className="border border-border bg-muted/10 px-3 py-2.5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        {selectedManageableMemberIds.length} selected
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isOwner ? (
+                          <>
+                            <select
+                              value={bulkRoleValue}
+                              onChange={(event) => setBulkRoleValue(event.target.value as "member" | "admin")}
+                              disabled={selectedManageableMemberIds.length === 0 || bulkActionInFlight}
+                              className="px-2 py-1 bg-muted/30 border border-border text-xs focus:outline-none disabled:opacity-50"
+                            >
+                              <option value="member">Set Member</option>
+                              <option value="admin">Set Admin</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={applyBulkRoleChange}
+                              disabled={selectedManageableMemberIds.length === 0 || bulkActionInFlight}
+                              className="px-2.5 py-1.5 bg-primary/10 border border-primary/30 text-primary text-xs font-medium hover:bg-primary/20 transition-colors disabled:opacity-50"
+                            >
+                              {bulkActionInFlight ? "Applying..." : "Apply Role"}
+                            </button>
+                          </>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={removeSelectedMembers}
+                          disabled={selectedManageableMemberIds.length === 0 || bulkActionInFlight}
+                          className="px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                        >
+                          {bulkActionInFlight ? "Removing..." : "Remove Selected"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMemberUserIds([])}
+                          disabled={selectedManageableMemberIds.length === 0 || bulkActionInFlight}
+                          className="px-2.5 py-1.5 bg-muted/30 border border-border text-xs font-medium text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-                <div className="hidden md:grid md:grid-cols-[minmax(0,2fr)_130px_220px_220px_auto] gap-3 px-4 py-2 border-b border-border text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                <div className="hidden md:grid md:grid-cols-[36px_minmax(0,2fr)_130px_220px_220px_auto] gap-3 px-4 py-2 border-b border-border text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                  <span className="flex items-center">
+                    <input
+                      type="checkbox"
+                      disabled={visibleSelectableMemberIds.length === 0 || bulkActionInFlight}
+                      checked={allVisibleSelectableMembersSelected}
+                      onChange={toggleVisibleMemberSelection}
+                      className="h-3.5 w-3.5 accent-primary"
+                      aria-label="Select all visible members"
+                    />
+                  </span>
                   <span>Member</span>
                   <span>Role</span>
                   <span>Last Login</span>
@@ -933,105 +1281,159 @@ export function TeamContent({
                   <span className="text-right">Actions</span>
                 </div>
                 <div className="divide-y divide-border">
-                  {members.length === 0 ? (
-                    <div className="p-4 text-sm text-muted-foreground">No members found for this organization yet.</div>
+                  {filteredMembers.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground">
+                      No members match your current search/filter.
+                    </div>
                   ) : (
-                    members.map((member) => (
-                      <div
-                        key={member.id}
-                        className="p-4 grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_130px_220px_220px_auto] gap-3 md:items-center"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          {member.user.avatar_url ? (
+                    pagedMembers.map((member) => {
+                      const manageable = canManageMember(member)
+                      const selected = selectedMemberIds.includes(member.user.id)
+
+                      return (
+                        <div
+                          key={member.id}
+                          className="p-4 grid grid-cols-1 md:grid-cols-[36px_minmax(0,2fr)_130px_220px_220px_auto] gap-3 md:items-center"
+                        >
+                          <div className="hidden md:flex items-center justify-center">
+                            <input
+                              type="checkbox"
+                              disabled={!manageable || bulkActionInFlight}
+                              checked={selected}
+                              onChange={() => toggleMemberSelection(member.user.id)}
+                              className="h-3.5 w-3.5 accent-primary disabled:opacity-40"
+                              aria-label={`Select ${member.user.email}`}
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-3 min-w-0">
                             <Image
-                              src={member.user.avatar_url}
+                              src={member.user.avatar_url || `https://www.gravatar.com/avatar/?d=identicon&s=96`}
                               alt=""
                               width={36}
                               height={36}
                               className="rounded-full border border-border"
                             />
-                          ) : (
-                            <div className="w-9 h-9 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-bold">
-                              {(member.user.name || member.user.email)[0]?.toUpperCase()}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium truncate">
+                                  {member.user.name || member.user.email.split("@")[0]}
+                                  {member.user.id === userId ? (
+                                    <span className="text-xs text-muted-foreground ml-2">(you)</span>
+                                  ) : null}
+                                </p>
+                                {manageable ? (
+                                  <input
+                                    type="checkbox"
+                                    disabled={bulkActionInFlight}
+                                    checked={selected}
+                                    onChange={() => toggleMemberSelection(member.user.id)}
+                                    className="md:hidden h-3.5 w-3.5 accent-primary"
+                                    aria-label={`Select ${member.user.email}`}
+                                  />
+                                ) : null}
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate">{member.user.email}</p>
                             </div>
-                          )}
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">
-                              {member.user.name || member.user.email.split("@")[0]}
-                              {member.user.id === userId && (
-                                <span className="text-xs text-muted-foreground ml-2">(you)</span>
-                              )}
-                            </p>
-                            <p className="text-xs text-muted-foreground truncate">{member.user.email}</p>
                           </div>
-                        </div>
 
-                        <div className="flex md:block items-center gap-2">
-                          <span className="md:hidden text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
-                            Role
-                          </span>
-                          <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-muted/30 border border-border">
-                            {roleIcon(member.role)}
-                            <span className="text-xs capitalize">{member.role}</span>
+                          <div className="flex md:block items-center gap-2">
+                            <span className="md:hidden text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+                              Role
+                            </span>
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-muted/30 border border-border">
+                              {roleIcon(member.role)}
+                              <span className="text-xs capitalize">{member.role}</span>
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="text-xs text-muted-foreground">
-                          <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] mb-1 text-muted-foreground/70">
-                            Last Login
-                          </span>
-                          <span>{formatLastLogin(member.last_login_at)}</span>
-                        </div>
-
-                        <div className="text-xs text-muted-foreground">
-                          <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] mb-1 text-muted-foreground/70">
-                            Memory
-                          </span>
-                          <div className="space-y-0.5">
-                            <p>
-                              Workspace:{" "}
-                              <span className="text-foreground font-medium">
-                                {(member.memory_count ?? 0).toLocaleString()}
-                              </span>
-                            </p>
-                            <p>
-                              User-scoped:{" "}
-                              <span className="text-foreground font-medium">
-                                {(member.user_memory_count ?? 0).toLocaleString()}
-                              </span>
-                            </p>
+                          <div className="text-xs text-muted-foreground">
+                            <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] mb-1 text-muted-foreground/70">
+                              Last Login
+                            </span>
+                            <span>{formatLastLogin(member.last_login_at)}</span>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-1 md:justify-end">
-                          {isAdmin && member.role !== "owner" && member.user.id !== userId ? (
-                            <>
-                              {isOwner && (
-                                <select
-                                  value={member.role}
-                                  onChange={(e) => updateRole(member.user.id, e.target.value)}
-                                  className="px-2 py-1 bg-muted/30 border border-border text-xs focus:outline-none"
+                          <div className="text-xs text-muted-foreground">
+                            <span className="md:hidden block text-[10px] uppercase tracking-[0.16em] mb-1 text-muted-foreground/70">
+                              Memory
+                            </span>
+                            <div className="space-y-0.5">
+                              <p>
+                                Workspace:{" "}
+                                <span className="text-foreground font-medium">
+                                  {(member.memory_count ?? 0).toLocaleString()}
+                                </span>
+                              </p>
+                              <p>
+                                User-scoped:{" "}
+                                <span className="text-foreground font-medium">
+                                  {(member.user_memory_count ?? 0).toLocaleString()}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 md:justify-end">
+                            {manageable ? (
+                              <>
+                                {isOwner ? (
+                                  <select
+                                    value={member.role}
+                                    onChange={(event) =>
+                                      updateRole(member.user.id, event.target.value as "member" | "admin")
+                                    }
+                                    className="px-2 py-1 bg-muted/30 border border-border text-xs focus:outline-none"
+                                    disabled={bulkActionInFlight}
+                                  >
+                                    <option value="member">Member</option>
+                                    <option value="admin">Admin</option>
+                                  </select>
+                                ) : null}
+                                <button
+                                  onClick={() => removeMember(member.user.id)}
+                                  className="p-1.5 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                                  title="Remove member"
+                                  disabled={bulkActionInFlight}
                                 >
-                                  <option value="member">Member</option>
-                                  <option value="admin">Admin</option>
-                                </select>
-                              )}
-                              <button
-                                onClick={() => removeMember(member.user.id)}
-                                className="p-1.5 text-red-400 hover:bg-red-500/10 transition-colors"
-                                title="Remove member"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
+
+                {filteredMembers.length > MEMBER_PAGE_SIZE ? (
+                  <div className="p-3 border-t border-border flex items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      Page {memberPage} of {memberPageCount}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setMemberPage((page) => Math.max(1, page - 1))}
+                        disabled={memberPage <= 1}
+                        className="px-2.5 py-1.5 bg-muted/30 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMemberPage((page) => Math.min(memberPageCount, page + 1))}
+                        disabled={memberPage >= memberPageCount}
+                        className="px-2.5 py-1.5 bg-muted/30 border border-border text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               {/* Pending Invites */}

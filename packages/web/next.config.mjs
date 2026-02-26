@@ -30,6 +30,10 @@ const imageRemotePatterns = [
   },
   {
     protocol: "https",
+    hostname: "www.gravatar.com",
+  },
+  {
+    protocol: "https",
     hostname: "*.googleusercontent.com",
   },
 ];
