@@ -50,6 +50,14 @@ export function isMemoryType(value: string): value is MemoryType {
   return (MEMORY_TYPES as readonly string[]).includes(value);
 }
 
+export type MemoryLayer = "rule" | "working" | "long_term";
+
+export const MEMORY_LAYERS: readonly MemoryLayer[] = ["rule", "working", "long_term"] as const;
+
+export function isMemoryLayer(value: string): value is MemoryLayer {
+  return (MEMORY_LAYERS as readonly string[]).includes(value);
+}
+
 export interface Memory {
   id: string;
   content: string;
@@ -57,6 +65,8 @@ export interface Memory {
   scope: Scope;
   project_id: string | null;
   type: MemoryType;
+  memory_layer: MemoryLayer | null;
+  expires_at: string | null;
   paths: string | null;
   category: string | null;
   metadata: string | null;
@@ -70,6 +80,7 @@ export interface AddMemoryOpts {
   global?: boolean;
   projectId?: string; // Override auto-detected project
   type?: MemoryType; // Memory type (default: 'note')
+  layer?: MemoryLayer; // Memory layer (default: type-aware mapping)
   paths?: string[]; // Glob patterns for path-scoped rules
   category?: string; // Free-form grouping key
   metadata?: Record<string, unknown>; // Extended attributes (stored as JSON)
@@ -83,6 +94,9 @@ interface QueryMemoryOpts {
   globalOnly?: boolean; // Only return global memories (skips project auto-detect)
   types?: MemoryType[]; // Filter by memory types
 }
+
+const DEFAULT_WORKING_MEMORY_TTL_HOURS = 24;
+const WORKING_MEMORY_TTL_ENV_KEYS = ["MEMORIES_WORKING_MEMORY_TTL_HOURS", "MCP_WORKING_MEMORY_TTL_HOURS"] as const;
 
 function normalizeContent(content: string): string {
   const normalized = content.trim();
@@ -116,6 +130,37 @@ function resolvePositiveLimit(limit: number | undefined, fallback: number): numb
   return parsed > 0 ? parsed : fallback;
 }
 
+function addHours(iso: string, hours: number): string {
+  return new Date(new Date(iso).getTime() + hours * 60 * 60 * 1000).toISOString();
+}
+
+function resolveWorkingMemoryTtlHours(): number {
+  for (const key of WORKING_MEMORY_TTL_ENV_KEYS) {
+    const raw = process.env[key];
+    if (!raw) continue;
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_WORKING_MEMORY_TTL_HOURS;
+}
+
+function workingMemoryExpiresAt(nowIso: string): string {
+  return addHours(nowIso, resolveWorkingMemoryTtlHours());
+}
+
+function defaultLayerForType(type: MemoryType): MemoryLayer {
+  return type === "rule" ? "rule" : "long_term";
+}
+
+function buildActiveMemoryFilter(columnPrefix = ""): { clause: string; args: string[] } {
+  return {
+    clause: `${columnPrefix}deleted_at IS NULL AND (${columnPrefix}expires_at IS NULL OR ${columnPrefix}expires_at > ?)`,
+    args: [new Date().toISOString()],
+  };
+}
+
 function toFtsPrefixQuery(query: string): string | null {
   const terms = query
     .trim()
@@ -146,6 +191,8 @@ export async function addMemory(
   const normalizedPaths = normalizeStringList(opts?.paths);
   const tags = normalizedTags?.length ? normalizedTags.join(",") : null;
   const type = opts?.type ?? "note";
+  const layer = opts?.layer ?? defaultLayerForType(type);
+  const expiresAt = layer === "working" ? workingMemoryExpiresAt(new Date().toISOString()) : null;
   const paths = normalizedPaths?.length ? normalizedPaths.join(",") : null;
   const category = opts?.category?.trim() ? opts.category.trim() : null;
   const metadata = opts?.metadata ? JSON.stringify(opts.metadata) : null;
@@ -162,8 +209,8 @@ export async function addMemory(
   }
 
   await db.execute({
-    sql: `INSERT INTO memories (id, content, tags, scope, project_id, type, paths, category, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, normalizedContent, tags, scope, projectId, type, paths, category, metadata],
+    sql: `INSERT INTO memories (id, content, tags, scope, project_id, type, memory_layer, expires_at, paths, category, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, normalizedContent, tags, scope, projectId, type, layer, expiresAt, paths, category, metadata],
   });
 
   // Generate embedding in background (don't block on it)
@@ -200,9 +247,10 @@ async function generateEmbeddingAsync(memoryId: string, content: string): Promis
  */
 export async function getMemoryById(id: string): Promise<Memory | null> {
   const db = await getDb();
+  const activeFilter = buildActiveMemoryFilter();
   const result = await db.execute({
-    sql: `SELECT * FROM memories WHERE id = ? AND deleted_at IS NULL`,
-    args: [id],
+    sql: `SELECT * FROM memories WHERE id = ? AND ${activeFilter.clause}`,
+    args: [id, ...activeFilter.args],
   });
   return result.rows.length > 0 ? (result.rows[0] as unknown as Memory) : null;
 }
@@ -229,14 +277,14 @@ export async function searchMemories(
 
   // Build scope filter
   const scopeConditions: string[] = [];
-  const args: (string | number)[] = [];
+  const queryArgs: (string | number)[] = [];
 
   if (includeGlobal) {
     scopeConditions.push("m.scope = 'global'");
   }
   if (projectId) {
     scopeConditions.push("(m.scope = 'project' AND m.project_id = ?)");
-    args.push(projectId);
+    queryArgs.push(projectId);
   }
 
   // If no scope conditions, return empty (not all memories)
@@ -249,7 +297,7 @@ export async function searchMemories(
   if (opts?.types?.length) {
     const placeholders = opts.types.map(() => "?").join(", ");
     typeFilter = `AND m.type IN (${placeholders})`;
-    args.push(...opts.types);
+    queryArgs.push(...opts.types);
   }
 
   // Use FTS5 for better search with ranking
@@ -258,8 +306,7 @@ export async function searchMemories(
   if (!ftsQuery) {
     return [];
   }
-
-  args.push(limit);
+  const activeFilter = buildActiveMemoryFilter("m.");
 
   try {
     const result = await db.execute({
@@ -268,13 +315,13 @@ export async function searchMemories(
         FROM memories m
         JOIN memories_fts fts ON m.rowid = fts.rowid
         WHERE memories_fts MATCH ?
-          AND m.deleted_at IS NULL
+          AND ${activeFilter.clause}
           AND (${scopeConditions.join(" OR ")})
           ${typeFilter}
         ORDER BY rank ASC, m.created_at DESC
         LIMIT ?
       `,
-      args: [ftsQuery, ...args],
+      args: [ftsQuery, ...activeFilter.args, ...queryArgs, limit],
     });
 
     return result.rows as unknown as Memory[];
@@ -302,8 +349,9 @@ async function searchMemoriesLike(
   const includeGlobal = opts?.includeGlobal ?? true;
   const projectId = opts?.globalOnly ? undefined : (opts?.projectId ?? getProjectId());
 
-  const conditions: string[] = ["deleted_at IS NULL", "content LIKE ?"];
-  const args: (string | number)[] = [`%${normalizedQuery}%`];
+  const activeFilter = buildActiveMemoryFilter();
+  const conditions: string[] = [activeFilter.clause, "content LIKE ?"];
+  const args: (string | number)[] = [...activeFilter.args, `%${normalizedQuery}%`];
 
   const scopeConditions: string[] = [];
   if (includeGlobal) {
@@ -347,8 +395,9 @@ export async function listMemories(opts?: QueryMemoryOpts): Promise<Memory[]> {
   // Skip auto-detect if globalOnly is set
   const projectId = opts?.globalOnly ? undefined : (opts?.projectId ?? getProjectId());
 
-  const conditions: string[] = ["deleted_at IS NULL"];
-  const args: (string | number)[] = [];
+  const activeFilter = buildActiveMemoryFilter();
+  const conditions: string[] = [activeFilter.clause];
+  const args: (string | number)[] = [...activeFilter.args];
 
   // Build scope filter
   const scopeConditions: string[] = [];
@@ -400,8 +449,9 @@ export async function getRules(opts?: { projectId?: string }): Promise<Memory[]>
   const db = await getDb();
   const projectId = opts?.projectId ?? getProjectId();
 
-  const conditions: string[] = ["deleted_at IS NULL", "type = 'rule'"];
-  const args: (string | number)[] = [];
+  const activeFilter = buildActiveMemoryFilter();
+  const conditions: string[] = [activeFilter.clause, "type = 'rule'"];
+  const args: (string | number)[] = [...activeFilter.args];
 
   const scopeConditions: string[] = ["scope = 'global'"];
   if (projectId) {

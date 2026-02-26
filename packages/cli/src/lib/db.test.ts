@@ -21,6 +21,7 @@ const GRAPH_INDEXES = [
 ];
 const REMINDER_TABLES = ["reminders"];
 const REMINDER_INDEXES = ["idx_reminders_scope_project", "idx_reminders_enabled_next"];
+const MEMORY_LIFECYCLE_INDEXES = ["idx_memories_layer_scope_project", "idx_memories_layer_expires"];
 
 const FTS_TRIGGERS = ["memories_ai", "memories_ad", "memories_au"];
 
@@ -61,6 +62,30 @@ describe("db graph migrations", () => {
     }
 
     for (const indexName of REMINDER_INDEXES) {
+      const result = await db.execute({
+        sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
+        args: [indexName],
+      });
+      expect(result.rows.length).toBe(1);
+    }
+  });
+
+  it("creates memory layer/expiry columns and indexes", async () => {
+    const db = await getDb();
+    const tableInfo = await db.execute("PRAGMA table_info(memories)");
+    const columnNames = new Set<string>();
+
+    for (const row of tableInfo.rows) {
+      const name = (row as { name?: unknown }).name;
+      if (typeof name === "string" && name.length > 0) {
+        columnNames.add(name);
+      }
+    }
+
+    expect(columnNames.has("memory_layer")).toBe(true);
+    expect(columnNames.has("expires_at")).toBe(true);
+
+    for (const indexName of MEMORY_LIFECYCLE_INDEXES) {
       const result = await db.execute({
         sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
         args: [indexName],

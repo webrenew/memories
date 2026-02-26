@@ -48,6 +48,29 @@ const FTS_TRIGGER_DEFINITIONS: FtsTriggerDefinition[] = [
   },
 ];
 
+const DEFAULT_WORKING_MEMORY_TTL_HOURS = 24;
+const WORKING_MEMORY_TTL_ENV_KEYS = ["MEMORIES_WORKING_MEMORY_TTL_HOURS", "MCP_WORKING_MEMORY_TTL_HOURS"] as const;
+
+function addHours(iso: string, hours: number): string {
+  return new Date(new Date(iso).getTime() + hours * 60 * 60 * 1000).toISOString();
+}
+
+function resolveWorkingMemoryTtlHours(): number {
+  for (const key of WORKING_MEMORY_TTL_ENV_KEYS) {
+    const raw = process.env[key];
+    if (!raw) continue;
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_WORKING_MEMORY_TTL_HOURS;
+}
+
+function workingMemoryExpiresAt(nowIso: string): string {
+  return addHours(nowIso, resolveWorkingMemoryTtlHours());
+}
+
 function resolveConfigDir(): string {
   return getDataDir();
 }
@@ -158,6 +181,8 @@ async function runMigrations(db: Client): Promise<void> {
       paths TEXT,
       category TEXT,
       metadata TEXT,
+      memory_layer TEXT NOT NULL DEFAULT 'long_term',
+      expires_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT
@@ -207,6 +232,20 @@ async function runMigrations(db: Client): Promise<void> {
     // Column already exists
   }
 
+  // Add memory_layer column if missing (rule|working|long_term)
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN memory_layer TEXT NOT NULL DEFAULT 'long_term'`);
+  } catch {
+    // Column already exists
+  }
+
+  // Add expires_at column if missing (working-memory TTL support)
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN expires_at TEXT`);
+  } catch {
+    // Column already exists
+  }
+
   await db.execute(
     `CREATE TABLE IF NOT EXISTS configs (
       key TEXT PRIMARY KEY,
@@ -238,6 +277,20 @@ async function runMigrations(db: Client): Promise<void> {
   // The triggers above ensure only active records enter the FTS index.
   // Use 'memories doctor --fix' to rebuild if the index gets corrupted.
 
+  // Backfill legacy rows for layer-aware retrieval behavior.
+  await db.execute(
+    `UPDATE memories SET memory_layer = 'rule'
+     WHERE (memory_layer IS NULL OR memory_layer = 'long_term') AND type = 'rule'`
+  );
+  await db.execute(`UPDATE memories SET memory_layer = 'long_term' WHERE memory_layer IS NULL`);
+  const defaultWorkingExpiresAt = workingMemoryExpiresAt(new Date().toISOString());
+  await db.execute({
+    sql: `UPDATE memories
+          SET expires_at = ?
+          WHERE memory_layer = 'working' AND expires_at IS NULL`,
+    args: [defaultWorkingExpiresAt],
+  });
+
   // Index for faster type-based queries (rules are queried frequently)
   try {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type)`);
@@ -247,6 +300,18 @@ async function runMigrations(db: Client): Promise<void> {
 
   try {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_memories_scope_project ON memories(scope, project_id)`);
+  } catch {
+    // Index might already exist
+  }
+
+  try {
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_memories_layer_scope_project ON memories(memory_layer, scope, project_id)`);
+  } catch {
+    // Index might already exist
+  }
+
+  try {
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_memories_layer_expires ON memories(memory_layer, expires_at)`);
   } catch {
     // Index might already exist
   }

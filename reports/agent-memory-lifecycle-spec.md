@@ -306,6 +306,19 @@ Write triggers:
 2. PR-7.2 `feat(eval): replay/eval harness for memory extraction and compaction quality`
 3. PR-7.3 `chore(rollout): default-on flags, deprecate legacy paths, finalize docs`
 
+## Delivery Tracker
+
+- [x] Spec merged: `reports/agent-memory-lifecycle-spec.md` (PR #287, 2026-02-26)
+- [ ] PR-1.1 `feat(cli): add memory_layer + expiry schema parity` (in progress)
+- [ ] PR-1.2 `feat(cli/mcp): layer-aware add/list/search/recall and context modes`
+- [ ] PR-1.3 `test/docs: parity matrix tests and migration notes`
+- [ ] Phase 2 PRs (2.1-2.3)
+- [ ] Phase 3 PRs (3.1-3.3)
+- [ ] Phase 4 PRs (4.1-4.3)
+- [ ] Phase 5 PRs (5.1-5.3)
+- [ ] Phase 6 PRs (6.1-6.3)
+- [ ] Phase 7 PRs (7.1-7.3)
+
 ## Phase Gates and Acceptance
 
 1. Phase 1 gate: CLI and hosted return equivalent `layer` behavior for add/list/search/context.
