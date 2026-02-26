@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, normalize, resolve } from "node:path";
 import { posix } from "node:path";
@@ -64,6 +64,42 @@ export interface ResolveOpenClawMemoryBucketInput {
   memoryLayer?: string | null;
   memoryType?: string | null;
   sourceTrigger?: string | null;
+}
+
+export interface ReadOpenClawBootstrapContextOptions extends ResolveOpenClawWorkspaceOptions {
+  now?: Date | string;
+  maxSemanticLines?: number;
+  maxDailyLines?: number;
+}
+
+export interface OpenClawDailyLogEntry {
+  dateKey: string;
+  path: string;
+  content: string;
+}
+
+export interface OpenClawBootstrapContext {
+  workspace: ResolvedOpenClawWorkspace;
+  contract: OpenClawPathContract;
+  semanticFile: string | null;
+  semanticContent: string | null;
+  dailyLogs: OpenClawDailyLogEntry[];
+}
+
+export interface AppendOpenClawDailyLogOptions extends ResolveOpenClawWorkspaceOptions {
+  date?: Date | string;
+  heading?: string;
+}
+
+export interface OpenClawFileWriteResult {
+  workspace: ResolvedOpenClawWorkspace;
+  contract: OpenClawPathContract;
+  route: OpenClawMemoryFileRoute;
+}
+
+export interface WriteOpenClawSnapshotOptions extends ResolveOpenClawWorkspaceOptions {
+  date?: Date | string;
+  slug: string;
 }
 
 function normalizeWorkspacePathCandidate(
@@ -267,5 +303,171 @@ export function routeOpenClawMemoryFile(input: RouteOpenClawMemoryFileInput): Op
     appendOnly: false,
     dateKey,
     slug,
+  };
+}
+
+function capLines(content: string, maxLines: number): string {
+  const safeMax = Number.isFinite(maxLines) && maxLines > 0 ? Math.trunc(maxLines) : 200;
+  const lines = content.split(/\r?\n/);
+  if (lines.length <= safeMax) {
+    return content.trim();
+  }
+  return `${lines.slice(0, safeMax).join("\n").trim()}\n...`;
+}
+
+async function readFileIfExists(path: string): Promise<string | null> {
+  try {
+    if (!existsSync(path)) return null;
+    return await readFile(path, "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+function resolveBootstrapDateKeys(nowInput?: Date | string): { today: string; yesterday: string } {
+  const now = nowInput ? new Date(nowInput) : new Date();
+  if (Number.isNaN(now.getTime())) {
+    throw new Error("Invalid now value for OpenClaw bootstrap date resolution");
+  }
+
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  return {
+    today: normalizeOpenClawDateKey(now),
+    yesterday: normalizeOpenClawDateKey(yesterday),
+  };
+}
+
+export async function readOpenClawBootstrapContext(
+  opts: ReadOpenClawBootstrapContextOptions = {},
+): Promise<OpenClawBootstrapContext> {
+  const workspace = await resolveOpenClawWorkspaceDirectory(opts);
+  const contract = buildOpenClawPathContract(workspace.workspaceDir);
+  const maxSemanticLines = opts.maxSemanticLines ?? 200;
+  const maxDailyLines = opts.maxDailyLines ?? 200;
+  const { today, yesterday } = resolveBootstrapDateKeys(opts.now);
+
+  let semanticFile: string | null = null;
+  let semanticContent: string | null = null;
+  for (const candidate of contract.semanticMemoryCandidates) {
+    const content = await readFileIfExists(candidate);
+    if (!content || !content.trim()) continue;
+    semanticFile = candidate;
+    semanticContent = capLines(content, maxSemanticLines);
+    break;
+  }
+
+  const dailyLogs: OpenClawDailyLogEntry[] = [];
+  for (const dateKey of [today, yesterday]) {
+    const route = routeOpenClawMemoryFile({
+      contract,
+      kind: "episodic_daily",
+      date: dateKey,
+    });
+    const content = await readFileIfExists(route.absolutePath);
+    if (!content || !content.trim()) continue;
+    dailyLogs.push({
+      dateKey,
+      path: route.absolutePath,
+      content: capLines(content, maxDailyLines),
+    });
+  }
+
+  return {
+    workspace,
+    contract,
+    semanticFile,
+    semanticContent,
+    dailyLogs,
+  };
+}
+
+export function formatOpenClawBootstrapContext(input: OpenClawBootstrapContext): string | null {
+  const sections: string[] = [];
+
+  if (input.semanticContent) {
+    sections.push(
+      [
+        "Semantic memory:",
+        `Source: ${input.semanticFile ?? "unknown"}`,
+        input.semanticContent,
+      ].join("\n"),
+    );
+  }
+
+  for (const daily of input.dailyLogs) {
+    sections.push(
+      [
+        `Daily log (${daily.dateKey}):`,
+        `Source: ${daily.path}`,
+        daily.content,
+      ].join("\n"),
+    );
+  }
+
+  if (sections.length === 0) {
+    return null;
+  }
+
+  return [
+    "OpenClaw bootstrap context.",
+    `Workspace: ${input.contract.workspaceDir}`,
+    ...sections,
+  ].join("\n\n");
+}
+
+export async function appendOpenClawDailyLog(
+  content: string,
+  opts: AppendOpenClawDailyLogOptions = {},
+): Promise<OpenClawFileWriteResult> {
+  const normalizedContent = content.trim();
+  if (!normalizedContent) {
+    throw new Error("OpenClaw daily log content cannot be empty");
+  }
+
+  const workspace = await resolveOpenClawWorkspaceDirectory(opts);
+  const contract = buildOpenClawPathContract(workspace.workspaceDir);
+  const route = routeOpenClawMemoryFile({
+    contract,
+    kind: "episodic_daily",
+    date: opts.date,
+  });
+
+  await mkdir(dirname(route.absolutePath), { recursive: true });
+  const heading = opts.heading?.trim() || `## ${new Date().toISOString()}`;
+  const entry = `${heading}\n\n${normalizedContent}\n\n`;
+  await appendFile(route.absolutePath, entry, "utf-8");
+
+  return {
+    workspace,
+    contract,
+    route,
+  };
+}
+
+export async function writeOpenClawSnapshot(
+  transcriptMd: string,
+  opts: WriteOpenClawSnapshotOptions,
+): Promise<OpenClawFileWriteResult> {
+  const normalizedTranscript = transcriptMd.trim();
+  if (!normalizedTranscript) {
+    throw new Error("OpenClaw snapshot transcript cannot be empty");
+  }
+
+  const workspace = await resolveOpenClawWorkspaceDirectory(opts);
+  const contract = buildOpenClawPathContract(workspace.workspaceDir);
+  const route = routeOpenClawMemoryFile({
+    contract,
+    kind: "snapshot",
+    date: opts.date,
+    slug: opts.slug,
+  });
+
+  await mkdir(dirname(route.absolutePath), { recursive: true });
+  await writeFile(route.absolutePath, `${normalizedTranscript}\n`, "utf-8");
+
+  return {
+    workspace,
+    contract,
+    route,
   };
 }
