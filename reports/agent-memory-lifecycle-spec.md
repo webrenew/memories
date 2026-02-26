@@ -309,7 +309,7 @@ Write triggers:
 ## Delivery Tracker
 
 - [x] Spec merged: `reports/agent-memory-lifecycle-spec.md` (PR #287, 2026-02-26)
-- [ ] PR-1.1 `feat(cli): add memory_layer + expiry schema parity` (open: #288, auto-merge enabled)
+- [x] PR-1.1 `feat(cli): add memory_layer + expiry schema parity` (merged: #288, 2026-02-26)
 - [ ] PR-1.2 `feat(cli/mcp): layer-aware add/list/search/recall and context modes` (in progress)
 - [ ] PR-1.3 `test/docs: parity matrix tests and migration notes`
 - [ ] Phase 2 PRs (2.1-2.3)
