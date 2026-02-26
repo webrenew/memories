@@ -186,6 +186,8 @@ export class MemoriesClient {
             graphLimit: input.graphLimit,
             sessionId: input.sessionId,
             budgetTokens: input.budgetTokens,
+            turnCount: input.turnCount,
+            turnBudget: input.turnBudget,
             includeSessionSummary: input.includeSessionSummary,
             scope: sdkScope,
           })
@@ -201,6 +203,8 @@ export class MemoriesClient {
             graph_limit: input.graphLimit,
             session_id: input.sessionId,
             budget_tokens: input.budgetTokens,
+            turn_count: input.turnCount,
+            turn_budget: input.turnBudget,
             include_session_summary: input.includeSessionSummary,
           })
 

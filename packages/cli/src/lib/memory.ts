@@ -94,6 +94,13 @@ export function isMemorySessionSnapshotTrigger(value: string): value is MemorySe
   return (MEMORY_SESSION_SNAPSHOT_TRIGGERS as readonly string[]).includes(value);
 }
 
+export type CompactionTriggerType = "count" | "time" | "semantic";
+export const COMPACTION_TRIGGER_TYPES: readonly CompactionTriggerType[] = ["count", "time", "semantic"] as const;
+
+export function isCompactionTriggerType(value: string): value is CompactionTriggerType {
+  return (COMPACTION_TRIGGER_TYPES as readonly string[]).includes(value);
+}
+
 export interface Memory {
   id: string;
   content: string;
@@ -144,6 +151,18 @@ export interface MemorySessionSnapshot {
   source_trigger: MemorySessionSnapshotTrigger;
   transcript_md: string;
   message_count: number;
+  created_at: string;
+}
+
+export interface MemoryCompactionEvent {
+  id: string;
+  session_id: string;
+  trigger_type: CompactionTriggerType;
+  reason: string;
+  token_count_before: number | null;
+  turn_count_before: number | null;
+  summary_tokens: number | null;
+  checkpoint_memory_id: string | null;
   created_at: string;
 }
 
@@ -210,6 +229,16 @@ export interface CreateSessionSnapshotOpts {
 
 export interface EndMemorySessionOpts {
   status?: Exclude<MemorySessionStatus, "active">;
+}
+
+export interface WriteAheadCompactionOpts {
+  query?: string;
+  rules: Memory[];
+  memories: Memory[];
+  triggerType?: CompactionTriggerType;
+  reason?: string;
+  tokenCountBefore?: number;
+  turnCountBefore?: number;
 }
 
 const DEFAULT_WORKING_MEMORY_TTL_HOURS = 24;
@@ -308,6 +337,18 @@ function normalizeSessionSlug(input: string): string {
   }
 
   return `snapshot-${Date.now()}`;
+}
+
+function estimateTokensFromText(input: string): number {
+  const text = input.trim();
+  if (!text) return 0;
+  return Math.max(1, Math.ceil(text.length / 4));
+}
+
+function truncateForSummary(input: string, max = 140): string {
+  const trimmed = input.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max).trim()}...`;
 }
 
 function defaultLayerForType(type: MemoryType): MemoryLayer {
@@ -953,6 +994,139 @@ export async function getMemorySessionStatus(sessionId: string): Promise<MemoryS
     latestSnapshotAt: typeof snapshotRow?.latest_at === "string" ? snapshotRow.latest_at : null,
     latestCheckpointId: typeof latestCheckpointRow?.id === "string" ? latestCheckpointRow.id : null,
     latestCheckpointAt: typeof latestCheckpointRow?.created_at === "string" ? latestCheckpointRow.created_at : null,
+  };
+}
+
+export function estimateContextTokenCount(args: { rules: Memory[]; memories: Memory[] }): number {
+  let total = 24;
+
+  for (const rule of args.rules) {
+    total += 8 + estimateTokensFromText(rule.content);
+    if (rule.tags) {
+      total += estimateTokensFromText(rule.tags);
+    }
+  }
+
+  for (const memory of args.memories) {
+    total += 12 + estimateTokensFromText(memory.content);
+    if (memory.tags) {
+      total += estimateTokensFromText(memory.tags);
+    }
+    if (memory.category) {
+      total += estimateTokensFromText(memory.category);
+    }
+  }
+
+  return total;
+}
+
+export async function logMemoryCompactionEvent(input: {
+  sessionId: string;
+  triggerType: CompactionTriggerType;
+  reason: string;
+  tokenCountBefore?: number | null;
+  turnCountBefore?: number | null;
+  summaryTokens?: number | null;
+  checkpointMemoryId?: string | null;
+}): Promise<MemoryCompactionEvent> {
+  const db = await getDb();
+  const session = await getMemorySession(input.sessionId);
+  if (!session) {
+    throw new Error(`Session ${input.sessionId} not found`);
+  }
+
+  const eventId = nanoid(12);
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: `INSERT INTO memory_compaction_events
+          (id, session_id, trigger_type, reason, token_count_before, turn_count_before, summary_tokens, checkpoint_memory_id, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      eventId,
+      input.sessionId,
+      input.triggerType,
+      input.reason.trim(),
+      input.tokenCountBefore ?? null,
+      input.turnCountBefore ?? null,
+      input.summaryTokens ?? null,
+      input.checkpointMemoryId ?? null,
+      now,
+    ],
+  });
+
+  const result = await db.execute({
+    sql: "SELECT * FROM memory_compaction_events WHERE id = ?",
+    args: [eventId],
+  });
+  return result.rows[0] as unknown as MemoryCompactionEvent;
+}
+
+export async function writeAheadCompactionCheckpoint(
+  sessionId: string,
+  opts: WriteAheadCompactionOpts
+): Promise<{
+  checkpointEvent: MemorySessionEvent;
+  compactionEvent: MemoryCompactionEvent;
+  tokenCountBefore: number;
+}> {
+  const tokenCountBefore = opts.tokenCountBefore ?? estimateContextTokenCount({
+    rules: opts.rules,
+    memories: opts.memories,
+  });
+  const triggerType = opts.triggerType ?? "count";
+  const reason =
+    opts.reason?.trim() ||
+    `Context estimated at ${tokenCountBefore} tokens before compaction checkpoint.`;
+
+  const summaryLines: string[] = [
+    "Compaction checkpoint (write-ahead log).",
+    `Trigger: ${triggerType}`,
+    `Reason: ${reason}`,
+  ];
+
+  if (opts.query?.trim()) {
+    summaryLines.push(`Query: ${opts.query.trim()}`);
+  }
+
+  if (opts.rules.length > 0) {
+    const ruleLines = opts.rules
+      .slice(0, 5)
+      .map((rule) => `- ${truncateForSummary(rule.content)}`);
+    summaryLines.push("Rules:");
+    summaryLines.push(...ruleLines);
+  }
+
+  if (opts.memories.length > 0) {
+    const memoryLines = opts.memories
+      .slice(0, 8)
+      .map((memory) => `- [${memory.type}] ${truncateForSummary(memory.content)}`);
+    summaryLines.push("Memories:");
+    summaryLines.push(...memoryLines);
+  }
+
+  const checkpointContent = summaryLines.join("\n");
+  const summaryTokens = estimateTokensFromText(checkpointContent);
+  const checkpointEvent = await checkpointMemorySession(sessionId, checkpointContent, {
+    role: "assistant",
+    kind: "checkpoint",
+    tokenCount: summaryTokens,
+    isMeaningful: true,
+  });
+
+  const compactionEvent = await logMemoryCompactionEvent({
+    sessionId,
+    triggerType,
+    reason,
+    tokenCountBefore,
+    turnCountBefore: opts.turnCountBefore ?? null,
+    summaryTokens,
+    checkpointMemoryId: checkpointEvent.id,
+  });
+
+  return {
+    checkpointEvent,
+    compactionEvent,
+    tokenCountBefore,
   };
 }
 

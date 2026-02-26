@@ -344,6 +344,7 @@ async function runMigrations(db: Client): Promise<void> {
   }
 
   await ensureSessionSchema(db);
+  await ensureCompactionSchema(db);
   await ensureGraphSchema(db);
 
   // Files table for syncing config files (.agents/, .cursor/, .claude/, etc.)
@@ -429,6 +430,27 @@ async function ensureSessionSchema(db: Client): Promise<void> {
   await db.execute(
     `CREATE INDEX IF NOT EXISTS idx_memory_session_snapshots_session
      ON memory_session_snapshots(session_id, created_at)`
+  );
+}
+
+async function ensureCompactionSchema(db: Client): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_compaction_events (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      trigger_type TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      token_count_before INTEGER,
+      turn_count_before INTEGER,
+      summary_tokens INTEGER,
+      checkpoint_memory_id TEXT,
+      created_at TEXT NOT NULL
+    )`
+  );
+
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_compaction_session
+     ON memory_compaction_events(session_id, created_at)`
   );
 }
 

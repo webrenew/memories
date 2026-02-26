@@ -28,6 +28,8 @@ const SESSION_INDEXES = [
   "idx_memory_session_events_session",
   "idx_memory_session_snapshots_session",
 ];
+const COMPACTION_TABLES = ["memory_compaction_events"];
+const COMPACTION_INDEXES = ["idx_memory_compaction_session"];
 
 const FTS_TRIGGERS = ["memories_ai", "memories_ad", "memories_au"];
 
@@ -112,6 +114,26 @@ describe("db graph migrations", () => {
     }
 
     for (const indexName of SESSION_INDEXES) {
+      const result = await db.execute({
+        sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
+        args: [indexName],
+      });
+      expect(result.rows.length).toBe(1);
+    }
+  });
+
+  it("creates memory compaction tables and indexes", async () => {
+    const db = await getDb();
+
+    for (const table of COMPACTION_TABLES) {
+      const result = await db.execute({
+        sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        args: [table],
+      });
+      expect(result.rows.length).toBe(1);
+    }
+
+    for (const indexName of COMPACTION_INDEXES) {
       const result = await db.execute({
         sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
         args: [indexName],
