@@ -175,6 +175,15 @@ export interface SkillFileDeleteInput extends SkillFileScopeOptions {
   path: string
 }
 
+export interface SkillFilePromoteInput extends SkillFileScopeOptions {
+  sessionId: string
+  snapshotId?: string
+  path: string
+  title?: string
+  procedureKey?: string
+  maxSteps?: number
+}
+
 export interface MemoryAddInput {
   content: string
   type?: MemoryType
