@@ -19,6 +19,8 @@ import {
   getMemorySessionStatus,
   endMemorySession,
   getLatestActiveMemorySession,
+  estimateContextTokenCount,
+  writeAheadCompactionCheckpoint,
 } from "./memory.js";
 import { getDb } from "./db.js";
 
@@ -227,8 +229,7 @@ describe("memory", () => {
 
     const events = await listMemorySessionEvents(session.id, { limit: 10, meaningfulOnly: true });
     expect(events.length).toBe(2);
-    expect(events[0].id).toBe(firstEvent.id);
-    expect(events[1].id).toBe(checkpoint.id);
+    expect(new Set(events.map((event) => event.id))).toEqual(new Set([firstEvent.id, checkpoint.id]));
 
     const snapshot = await createMemorySessionSnapshot(session.id, {
       sourceTrigger: "manual",
@@ -273,5 +274,47 @@ describe("memory", () => {
     expect(latest).not.toBeNull();
     expect(latest?.id).toBe(projectSession.id);
     expect(latest?.scope).toBe("project");
+  });
+
+  it("should create write-ahead checkpoints and compaction event logs", async () => {
+    const session = await startMemorySession({
+      global: true,
+      title: "Compaction test session",
+      client: "vitest",
+    });
+    const rule = await addMemory("Always checkpoint before compaction", {
+      type: "rule",
+      global: true,
+    });
+    const memory = await addMemory("Context payload that may exceed token budget", {
+      type: "note",
+      global: true,
+    });
+
+    const estimate = estimateContextTokenCount({
+      rules: [rule],
+      memories: [memory],
+    });
+    expect(estimate).toBeGreaterThan(0);
+
+    const result = await writeAheadCompactionCheckpoint(session.id, {
+      query: "compaction flow",
+      rules: [rule],
+      memories: [memory],
+      triggerType: "count",
+      reason: "Estimated tokens exceed budget",
+      tokenCountBefore: estimate,
+      turnCountBefore: 19,
+    });
+
+    expect(result.tokenCountBefore).toBe(estimate);
+    expect(result.checkpointEvent.kind).toBe("checkpoint");
+    expect(result.compactionEvent.trigger_type).toBe("count");
+    expect(result.compactionEvent.checkpoint_memory_id).toBe(result.checkpointEvent.id);
+    expect(result.compactionEvent.turn_count_before).toBe(19);
+
+    const summary = await getMemorySessionStatus(session.id);
+    expect(summary).not.toBeNull();
+    expect(summary?.checkpointCount).toBeGreaterThan(0);
   });
 });

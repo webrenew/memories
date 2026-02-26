@@ -83,6 +83,20 @@ describe("ensureMemoryUserIdSchema", () => {
     expect(sessionIndexNames.has("idx_memory_session_events_session")).toBe(true)
     expect(sessionIndexNames.has("idx_memory_session_snapshots_session")).toBe(true)
 
+    const compactionTables = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?)",
+      args: ["memory_compaction_events"],
+    })
+    const compactionTableNames = new Set(compactionTables.rows.map((row) => String(row.name)))
+    expect(compactionTableNames.has("memory_compaction_events")).toBe(true)
+
+    const compactionIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN (?)",
+      args: ["idx_memory_compaction_session"],
+    })
+    const compactionIndexNames = new Set(compactionIndexes.rows.map((row) => String(row.name)))
+    expect(compactionIndexNames.has("idx_memory_compaction_session")).toBe(true)
+
     const embeddingJobsMarker = await db.execute({
       sql: "SELECT value FROM memory_schema_state WHERE key = ?",
       args: ["memory_embedding_jobs_v1"],

@@ -16,6 +16,8 @@ import {
   endMemorySession,
   listMemorySessionEvents,
   createMemorySessionSnapshot,
+  estimateContextTokenCount,
+  writeAheadCompactionCheckpoint,
   type MemorySessionEvent,
 } from "../lib/memory.js";
 import {
@@ -59,9 +61,11 @@ Use this at the start of tasks to understand project conventions and recall past
       mode: z.enum(["all", "working", "long_term", "rules_only"]).optional().describe("Context mode (default: all)"),
       session_id: z.string().optional().describe("Optional session identifier for lifecycle-aware callers"),
       budget_tokens: z.number().int().positive().optional().describe("Optional token budget hint for compaction-aware clients"),
+      turn_count: z.number().int().nonnegative().optional().describe("Optional current turn count for count-based compaction checks"),
+      turn_budget: z.number().int().positive().optional().describe("Optional turn-count budget for count-based compaction checks"),
       include_session_summary: z.boolean().optional().describe("Reserved for future snapshot/session summary hydration"),
     },
-    async ({ query, limit, mode }) => {
+    async ({ query, limit, mode, session_id, budget_tokens, turn_count, turn_budget }) => {
       try {
         const { rules, memories } = await getContext(query, {
           projectId: projectId ?? undefined,
@@ -70,6 +74,45 @@ Use this at the start of tasks to understand project conventions and recall past
         });
 
         const parts: string[] = [];
+        let compactionSection: string | null = null;
+
+        if (session_id && (budget_tokens !== undefined || (turn_budget !== undefined && turn_count !== undefined))) {
+          const estimatedTokens = estimateContextTokenCount({ rules, memories });
+          const tokenTriggered = budget_tokens !== undefined && estimatedTokens > budget_tokens;
+          const turnTriggered = turn_budget !== undefined && turn_count !== undefined && turn_count > turn_budget;
+
+          if (tokenTriggered || turnTriggered) {
+            const reason = tokenTriggered
+              ? `Estimated context tokens ${estimatedTokens} exceed budget ${budget_tokens}.`
+              : `Turn count ${turn_count} exceeds budget ${turn_budget}.`;
+
+            try {
+              const wal = await writeAheadCompactionCheckpoint(session_id, {
+                query,
+                rules,
+                memories,
+                triggerType: "count",
+                reason,
+                tokenCountBefore: estimatedTokens,
+                turnCountBefore: turn_count,
+              });
+              compactionSection = [
+                "## Compaction",
+                `Trigger: count`,
+                `Reason: ${reason}`,
+                `Write-ahead checkpoint: ${wal.checkpointEvent.id}`,
+                `Compaction event: ${wal.compactionEvent.id}`,
+              ].join("\n");
+            } catch (error) {
+              compactionSection = [
+                "## Compaction",
+                `Trigger: count`,
+                `Reason: ${reason}`,
+                `Write-ahead checkpoint failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+              ].join("\n");
+            }
+          }
+        }
 
         if (rules.length > 0) {
           parts.push(formatRulesSection(rules));
@@ -77,6 +120,10 @@ Use this at the start of tasks to understand project conventions and recall past
 
         if (memories.length > 0) {
           parts.push(formatMemoriesSection(memories, query ? `Relevant to: "${query}"` : "Recent Memories"));
+        }
+
+        if (compactionSection) {
+          parts.push(compactionSection);
         }
 
         if (parts.length === 0) {
