@@ -9,6 +9,7 @@ import {
   successResponse,
 } from "@/lib/sdk-api/runtime"
 import { scopeSchema } from "@/lib/sdk-api/schemas"
+import { isMemoryProceduralEnabled } from "@/lib/env"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -45,6 +46,21 @@ export async function POST(request: NextRequest): Promise<Response> {
   const authResult = await authenticateApiKey(apiKey, ENDPOINT, requestId)
   if (authResult instanceof NextResponse) {
     return authResult
+  }
+
+  if (!isMemoryProceduralEnabled()) {
+    return errorResponse(
+      ENDPOINT,
+      requestId,
+      apiError({
+        type: "validation_error",
+        code: "MEMORY_PROCEDURAL_DISABLED",
+        message: "Procedural memory promotion is disabled by MEMORY_PROCEDURAL_ENABLED=0.",
+        status: 403,
+        retryable: false,
+        details: { flag: "MEMORY_PROCEDURAL_ENABLED" },
+      })
+    )
   }
 
   let parsedRequest: z.infer<typeof requestSchema>

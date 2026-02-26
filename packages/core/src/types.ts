@@ -1,6 +1,7 @@
 export type MemoryType = "rule" | "decision" | "fact" | "note" | "skill"
 export type MemoryLayer = "rule" | "working" | "long_term"
 export type RetrievalStrategy = "lexical" | "semantic" | "hybrid"
+/** @deprecated Use lexical/hybrid retrieval strategy names instead. */
 export type LegacyContextStrategy = "baseline" | "hybrid_graph"
 export type ContextStrategy = RetrievalStrategy | LegacyContextStrategy
 

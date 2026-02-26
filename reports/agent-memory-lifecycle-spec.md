@@ -311,7 +311,7 @@ Write triggers:
 - [x] Spec merged: `reports/agent-memory-lifecycle-spec.md` (PR #287, 2026-02-26)
 - [x] PR-1.1 `feat(cli): add memory_layer + expiry schema parity` (merged: #288, 2026-02-26)
 - [x] PR-1.2 `feat(cli/mcp): layer-aware add/list/search/recall and context modes` (merged: #290, 2026-02-26)
-- [ ] PR-1.3 `test/docs: parity matrix tests and migration notes` (open: #291, auto-merge enabled)
+- [x] PR-1.3 `test/docs: parity matrix tests and migration notes` (merged: #291, 2026-02-26)
 - [x] PR-2.1 `feat(schema): memory_sessions + events + snapshots` (merged: #292, 2026-02-26)
 - [x] PR-2.2 `feat(cli/mcp): session commands and session tools` (merged: #293, 2026-02-26)
 - [x] PR-2.3 `feat(sdk): /sessions/start|checkpoint|end|snapshot endpoints` (merged: #294, 2026-02-26)
@@ -324,9 +324,16 @@ Write triggers:
 - [x] PR-4.3 `feat(openclaw): DB↔file import/export sync and docs` (merged: #300, 2026-02-26)
 - [x] Phase 4 PRs (4.1-4.3)
 - [x] PR-5.1 `feat(schema): upsert_key + supersession fields + consolidation run table` (merged: #301, 2026-02-26)
-- [ ] PR-5.2 `feat(consolidation): candidate extraction, dedupe, overwrite policy, conflict links` (in progress)
-- [ ] Phase 5 PRs (5.1-5.3)
-- [ ] Phase 6 PRs (6.1-6.3)
+- [x] PR-5.2 `feat(consolidation): candidate extraction, dedupe, overwrite policy, conflict links` (merged: #302, 2026-02-26)
+- [x] PR-5.3 `feat(api/mcp/cli): consolidate endpoint/tool/command and review workflows` (merged: #303, 2026-02-26)
+- [x] Phase 5 PRs (5.1-5.3)
+- [x] PR-6.1 `feat(skill-files): procedural usage metadata and ranking hooks` (merged: #304, 2026-02-26)
+- [x] PR-6.2 `feat(retrieval): procedural-first ranking when intent matches workflows` (merged inside #304, 2026-02-26)
+- [x] PR-6.3 `feat(tooling): promote successful episodes to procedural memory` (merged: #305, 2026-02-26)
+- [x] Phase 6 PRs (6.1-6.3)
+- [x] PR-7.1 `feat(obs): lifecycle metrics, compaction loss metrics, contradiction trend metrics` (merged: #306, 2026-02-26)
+- [x] PR-7.2 `feat(eval): replay/eval harness for memory extraction and compaction quality` (merged: #307, 2026-02-26)
+- [ ] PR-7.3 `chore(rollout): default-on flags, deprecate legacy paths, finalize docs` (in progress: codex/phase7-3-rollout-default-on)
 - [ ] Phase 7 PRs (7.1-7.3)
 
 ## Phase Gates and Acceptance
@@ -369,6 +376,14 @@ Write triggers:
 3. `MEMORY_OPENCLAW_FILE_MODE_ENABLED`
 4. `MEMORY_CONSOLIDATION_ENABLED`
 5. `MEMORY_PROCEDURAL_ENABLED`
+
+Default rollout posture (Phase 7):
+
+1. `MEMORY_SESSION_ENABLED=true`
+2. `MEMORY_COMPACTION_ENABLED=true`
+3. `MEMORY_CONSOLIDATION_ENABLED=true`
+4. `MEMORY_PROCEDURAL_ENABLED=true`
+5. `MEMORY_OPENCLAW_FILE_MODE_ENABLED=false` (still opt-in by design)
 
 ## Risks and Mitigations
 

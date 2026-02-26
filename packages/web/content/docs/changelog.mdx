@@ -3,6 +3,19 @@ title: Changelog
 description: Product and documentation updates.
 ---
 
+## February 26, 2026
+
+- Added memory lifecycle observability endpoint: `GET /api/sdk/v1/management/memory/observability` (lifecycle, compaction, consolidation, contradiction trend metrics + alarms).
+- Added replay/eval harness endpoint: `POST /api/sdk/v1/management/memory/eval/replay` for extraction F1, compaction retention, and trigger-match scoring.
+- Added default-on lifecycle feature flags with explicit endpoint gating:
+  - `MEMORY_SESSION_ENABLED` (sessions API surface)
+  - `MEMORY_COMPACTION_ENABLED` (memory lifecycle observability/eval)
+  - `MEMORY_CONSOLIDATION_ENABLED` (`memories/consolidate`)
+  - `MEMORY_PROCEDURAL_ENABLED` (`skills/files/promote`)
+- Added typed disabled responses for lifecycle flags (`MEMORY_SESSION_DISABLED`, `MEMORY_COMPACTION_DISABLED`, `MEMORY_CONSOLIDATION_DISABLED`, `MEMORY_PROCEDURAL_DISABLED`).
+- Deprecated legacy strategy aliases in `@memories.sh/core` (`baseline`, `hybrid_graph`) with one-time warnings and suppression support via `MEMORIES_SUPPRESS_DEPRECATION_WARNINGS=true`.
+- Updated SDK docs/contract matrix with session, consolidate/promote, and memory management observability/eval routes plus Phase 7 rollout defaults.
+
 ## February 21, 2026
 
 - Added cron reminder support in CLI via `memories reminders` (`add`, `list`, `run`, `enable`, `disable`, `delete`).

@@ -4,6 +4,7 @@ import type {
   ContextGetOptions,
   ContextMode,
   ContextStrategy,
+  LegacyContextStrategy,
   MemoriesErrorData,
   MemoriesResponseEnvelope,
   MemoryRecord,
@@ -57,6 +58,27 @@ export type ContextGetMethod = {
 
 const contextModes = new Set<ContextMode>(["all", "working", "long_term", "rules_only"])
 const contextStrategies = new Set<ContextStrategy>(["lexical", "semantic", "hybrid", "baseline", "hybrid_graph"])
+const legacyStrategyWarningSeen = new Set<LegacyContextStrategy>()
+
+function isLegacyWarningSuppressed(): boolean {
+  if (typeof process === "undefined") return false
+  const value = process.env.MEMORIES_SUPPRESS_DEPRECATION_WARNINGS
+  if (!value) return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on"
+}
+
+function warnLegacyStrategy(strategy: LegacyContextStrategy, replacement: NormalizedRetrievalStrategy): void {
+  if (legacyStrategyWarningSeen.has(strategy) || isLegacyWarningSuppressed()) return
+  legacyStrategyWarningSeen.add(strategy)
+  if (typeof console !== "undefined" && typeof console.warn === "function") {
+    console.warn(`[memories] retrieval strategy "${strategy}" is deprecated. Use "${replacement}" instead.`)
+  }
+}
+
+export function resetLegacyStrategyWarningsForTest(): void {
+  legacyStrategyWarningSeen.clear()
+}
 
 function normalizeOptionalPositiveInt(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -217,8 +239,14 @@ export function normalizeContextMode(mode: unknown): ContextMode {
 
 export function normalizeContextStrategy(strategy: unknown): NormalizedRetrievalStrategy {
   if (typeof strategy === "string" && contextStrategies.has(strategy as ContextStrategy)) {
-    if (strategy === "baseline") return "lexical"
-    if (strategy === "hybrid_graph") return "hybrid"
+    if (strategy === "baseline") {
+      warnLegacyStrategy("baseline", "lexical")
+      return "lexical"
+    }
+    if (strategy === "hybrid_graph") {
+      warnLegacyStrategy("hybrid_graph", "hybrid")
+      return "hybrid"
+    }
     if (strategy === "lexical" || strategy === "semantic" || strategy === "hybrid") {
       return strategy
     }
