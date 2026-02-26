@@ -102,6 +102,10 @@ export interface WriteOpenClawSnapshotOptions extends ResolveOpenClawWorkspaceOp
   slug: string;
 }
 
+export interface WriteOpenClawDailyLogOptions extends ResolveOpenClawWorkspaceOptions {
+  date?: Date | string;
+}
+
 function normalizeWorkspacePathCandidate(
   value: string,
   opts: { homeDir: string; baseDir: string },
@@ -436,6 +440,59 @@ export async function appendOpenClawDailyLog(
   const heading = opts.heading?.trim() || `## ${new Date().toISOString()}`;
   const entry = `${heading}\n\n${normalizedContent}\n\n`;
   await appendFile(route.absolutePath, entry, "utf-8");
+
+  return {
+    workspace,
+    contract,
+    route,
+  };
+}
+
+export async function writeOpenClawDailyLog(
+  content: string,
+  opts: WriteOpenClawDailyLogOptions = {},
+): Promise<OpenClawFileWriteResult> {
+  const normalizedContent = content.trim();
+  if (!normalizedContent) {
+    throw new Error("OpenClaw daily log content cannot be empty");
+  }
+
+  const workspace = await resolveOpenClawWorkspaceDirectory(opts);
+  const contract = buildOpenClawPathContract(workspace.workspaceDir);
+  const route = routeOpenClawMemoryFile({
+    contract,
+    kind: "episodic_daily",
+    date: opts.date,
+  });
+
+  await mkdir(dirname(route.absolutePath), { recursive: true });
+  await writeFile(route.absolutePath, `${normalizedContent}\n`, "utf-8");
+
+  return {
+    workspace,
+    contract,
+    route,
+  };
+}
+
+export async function writeOpenClawSemanticMemory(
+  content: string,
+  opts: ResolveOpenClawWorkspaceOptions = {},
+): Promise<OpenClawFileWriteResult> {
+  const normalizedContent = content.trim();
+  if (!normalizedContent) {
+    throw new Error("OpenClaw semantic memory content cannot be empty");
+  }
+
+  const workspace = await resolveOpenClawWorkspaceDirectory(opts);
+  const contract = buildOpenClawPathContract(workspace.workspaceDir);
+  const route = routeOpenClawMemoryFile({
+    contract,
+    kind: "semantic",
+  });
+
+  await mkdir(dirname(route.absolutePath), { recursive: true });
+  await writeFile(route.absolutePath, `${normalizedContent}\n`, "utf-8");
 
   return {
     workspace,

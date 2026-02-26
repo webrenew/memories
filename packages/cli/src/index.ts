@@ -31,6 +31,7 @@ import { orgCommand } from "./commands/org.js";
 import { remindersCommand } from "./commands/reminders.js";
 import { sessionCommand } from "./commands/session.js";
 import { compactCommand } from "./commands/compact.js";
+import { openclawCommand } from "./commands/openclaw.js";
 import { CLI_VERSION } from "./lib/version.js";
 
 const program = new Command()
@@ -78,6 +79,7 @@ program.addCommand(orgCommand);
 program.addCommand(remindersCommand);
 program.addCommand(sessionCommand);
 program.addCommand(compactCommand);
+program.addCommand(openclawCommand);
 
 // Auth commands
 program.addCommand(loginCommand);
