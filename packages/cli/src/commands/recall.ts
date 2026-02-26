@@ -1,6 +1,14 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { getContext, getRules, type Memory, type MemoryType } from "../lib/memory.js";
+import {
+  getContext,
+  getRules,
+  isContextMode,
+  CONTEXT_MODES,
+  type ContextMode,
+  type Memory,
+  type MemoryType,
+} from "../lib/memory.js";
 import { getProjectId } from "../lib/git.js";
 import * as ui from "../lib/ui.js";
 
@@ -37,22 +45,31 @@ export const recallCommand = new Command("recall")
   .argument("[query]", "Optional search query to find relevant memories")
   .option("-l, --limit <n>", "Max memories to return (excludes rules)", "10")
   .option("-r, --rules-only", "Only return rules")
+  .option("--mode <mode>", "Context mode: all, working, long_term, rules_only", "all")
   .option("-v, --verbose", "Show memory IDs and metadata")
   .option("--json", "Output as JSON (for programmatic use)")
   .action(async (query: string | undefined, opts: { 
     limit: string; 
     rulesOnly?: boolean; 
+    mode?: string;
     verbose?: boolean;
     json?: boolean;
   }) => {
     try {
       const projectId = getProjectId();
+      const modeRaw = opts.mode ?? "all";
+      if (!isContextMode(modeRaw)) {
+        ui.error(`Invalid mode "${modeRaw}". Valid modes: ${CONTEXT_MODES.join(", ")}`);
+        process.exit(1);
+      }
 
-      if (opts.rulesOnly) {
+      const mode: ContextMode = opts.rulesOnly ? "rules_only" : modeRaw;
+
+      if (mode === "rules_only") {
         const rules = await getRules({ projectId: projectId ?? undefined });
         
         if (opts.json) {
-          console.log(JSON.stringify({ rules }, null, 2));
+          console.log(JSON.stringify({ mode, rules, memories: [] }, null, 2));
           return;
         }
 
@@ -72,10 +89,11 @@ export const recallCommand = new Command("recall")
       const { rules, memories } = await getContext(query, {
         projectId: projectId ?? undefined,
         limit: parseInt(opts.limit, 10),
+        mode,
       });
 
       if (opts.json) {
-        console.log(JSON.stringify({ rules, memories }, null, 2));
+        console.log(JSON.stringify({ mode, rules, memories }, null, 2));
         return;
       }
 

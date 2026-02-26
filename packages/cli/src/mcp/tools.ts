@@ -43,12 +43,14 @@ Use this at the start of tasks to understand project conventions and recall past
     {
       query: z.string().optional().describe("What you're working on - used to find relevant memories. Leave empty to get just rules."),
       limit: z.number().optional().describe("Max memories to return (default: 10, rules always included)"),
+      mode: z.enum(["all", "working", "long_term", "rules_only"]).optional().describe("Context mode (default: all)"),
     },
-    async ({ query, limit }) => {
+    async ({ query, limit, mode }) => {
       try {
         const { rules, memories } = await getContext(query, {
           projectId: projectId ?? undefined,
           limit,
+          mode,
         });
 
         const parts: string[] = [];
@@ -96,6 +98,7 @@ Use category to group related memories (e.g., "api", "testing").`,
     {
       content: z.string().describe("The memory content to store"),
       type: z.enum(["rule", "decision", "fact", "note", "skill"]).optional().describe("Memory type (default: note)"),
+      layer: z.enum(["rule", "working", "long_term"]).optional().describe("Memory layer (default: type-based, rule => rule, others => long_term)"),
       tags: z.array(z.string()).optional().describe("Tags to categorize the memory"),
       global: z.boolean().optional().describe("Store as global memory instead of project-scoped"),
       project_id: z.string().optional().describe("Explicit project id (e.g., github.com/org/repo)"),
@@ -103,13 +106,14 @@ Use category to group related memories (e.g., "api", "testing").`,
       category: z.string().optional().describe("Grouping key for organizing memories (e.g., 'api', 'testing')"),
       metadata: z.record(z.string(), z.unknown()).optional().describe("Extended attributes as key-value pairs"),
     },
-    async ({ content, type, tags, global: isGlobal, project_id, paths, category, metadata }) => {
+    async ({ content, type, layer, tags, global: isGlobal, project_id, paths, category, metadata }) => {
       try {
         const scopeOpts = resolveMemoryScopeInput({ global: isGlobal, project_id });
         const memory = await addMemory(content, {
           tags,
           ...scopeOpts,
           type,
+          layer,
           paths,
           category,
           metadata,
@@ -139,14 +143,19 @@ Use category to group related memories (e.g., "api", "testing").`,
     {
       query: z.string().describe("Search query - words are matched with prefix matching"),
       limit: z.number().optional().describe("Maximum number of results (default: 20)"),
+      type: z.enum(["rule", "decision", "fact", "note", "skill"]).optional().describe("Filter by a single memory type"),
       types: z.array(z.enum(["rule", "decision", "fact", "note", "skill"])).optional().describe("Filter by memory types"),
+      layer: z.enum(["rule", "working", "long_term"]).optional().describe("Filter by a single memory layer"),
     },
-    async ({ query, limit, types }) => {
+    async ({ query, limit, type, types, layer }) => {
       try {
+        const resolvedTypes = types?.length ? types : (type ? [type] : undefined);
+        const layers = layer ? [layer] : undefined;
         const memories = await searchMemories(query, {
           limit,
           projectId: projectId ?? undefined,
-          types,
+          types: resolvedTypes,
+          layers,
         });
 
         if (memories.length === 0) {
@@ -217,16 +226,26 @@ Use category to group related memories (e.g., "api", "testing").`,
     "List recent memories. Returns both global and project-scoped memories.",
     {
       limit: z.number().optional().describe("Maximum number of results (default: 50)"),
-      tags: z.array(z.string()).optional().describe("Filter by tags"),
+      tags: z.union([z.array(z.string()), z.string()]).optional().describe("Filter by tags (array or comma-separated string)"),
+      type: z.enum(["rule", "decision", "fact", "note", "skill"]).optional().describe("Filter by a single memory type"),
       types: z.array(z.enum(["rule", "decision", "fact", "note", "skill"])).optional().describe("Filter by memory types"),
+      layer: z.enum(["rule", "working", "long_term"]).optional().describe("Filter by a single memory layer"),
     },
-    async ({ limit, tags, types }) => {
+    async ({ limit, tags, type, types, layer }) => {
       try {
+        const normalizedTags = Array.isArray(tags)
+          ? tags
+          : typeof tags === "string"
+            ? tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+            : undefined;
+        const resolvedTypes = types?.length ? types : (type ? [type] : undefined);
+        const layers = layer ? [layer] : undefined;
         const memories = await listMemories({
           limit,
-          tags,
+          tags: normalizedTags,
           projectId: projectId ?? undefined,
-          types,
+          types: resolvedTypes,
+          layers,
         });
 
         if (memories.length === 0) {

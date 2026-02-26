@@ -15,11 +15,12 @@ describe("list", () => {
     await addMemory("Decision one", { type: "decision", global: true });
     await addMemory("Fact one", { type: "fact", global: true, tags: ["api"] });
     await addMemory("Note one", { type: "note", global: true, tags: ["api", "testing"] });
+    await addMemory("Working scratchpad", { type: "note", layer: "working", global: true, tags: ["wip"] });
   });
 
   it("should list all memories", async () => {
     const memories = await listMemories({ limit: 50 });
-    expect(memories.length).toBe(4);
+    expect(memories.length).toBe(5);
   });
 
   it("should filter by type", async () => {
@@ -40,9 +41,20 @@ describe("list", () => {
 
   it("should filter global-only memories", async () => {
     const global = await listMemories({ limit: 50, globalOnly: true });
-    expect(global.length).toBe(4);
+    expect(global.length).toBe(5);
     for (const m of global) {
       expect(m.scope).toBe("global");
     }
+  });
+
+  it("should filter by layer", async () => {
+    const working = await listMemories({ limit: 50, layers: ["working"] });
+    expect(working.length).toBe(1);
+    expect(working[0].memory_layer).toBe("working");
+
+    const longTerm = await listMemories({ limit: 50, layers: ["long_term"] });
+    expect(longTerm.length).toBeGreaterThan(0);
+    expect(longTerm.every((m) => m.memory_layer === "long_term" || m.memory_layer === null)).toBe(true);
+    expect(longTerm.some((m) => m.memory_layer === "working")).toBe(false);
   });
 });

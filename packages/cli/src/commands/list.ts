@@ -1,6 +1,15 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { listMemories, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
+import {
+  listMemories,
+  isMemoryType,
+  MEMORY_TYPES,
+  isMemoryLayer,
+  MEMORY_LAYERS,
+  type Memory,
+  type MemoryLayer,
+  type MemoryType,
+} from "../lib/memory.js";
 import * as ui from "../lib/ui.js";
 import { getProjectId } from "../lib/git.js";
 
@@ -42,6 +51,7 @@ export const listCommand = new Command("list")
   .option("-l, --limit <n>", "Max results", "50")
   .option("-t, --tags <tags>", "Filter by comma-separated tags")
   .option("--type <type>", "Filter by type: rule, decision, fact, note")
+  .option("--layer <layer>", "Filter by layer: rule, working, long_term")
   .option("-g, --global", "Show only global memories")
   .option("--project-only", "Show only project memories (exclude global)")
   .option("--json", "Output as JSON")
@@ -49,6 +59,7 @@ export const listCommand = new Command("list")
     limit: string; 
     tags?: string; 
     type?: string;
+    layer?: string;
     global?: boolean; 
     projectOnly?: boolean;
     json?: boolean;
@@ -64,6 +75,15 @@ export const listCommand = new Command("list")
           process.exit(1);
         }
         types = [opts.type];
+      }
+
+      let layers: MemoryLayer[] | undefined;
+      if (opts.layer) {
+        if (!isMemoryLayer(opts.layer)) {
+          ui.error(`Invalid layer "${opts.layer}". Valid layers: ${MEMORY_LAYERS.join(", ")}`);
+          process.exit(1);
+        }
+        layers = [opts.layer];
       }
       
       // Determine scope filtering
@@ -86,6 +106,7 @@ export const listCommand = new Command("list")
         limit: parseInt(opts.limit, 10),
         tags,
         types,
+        layers,
         projectId,
         includeGlobal,
         globalOnly,

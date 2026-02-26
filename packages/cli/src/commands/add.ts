@@ -1,6 +1,14 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { addMemory, isMemoryType, MEMORY_TYPES, type MemoryType } from "../lib/memory.js";
+import {
+  addMemory,
+  isMemoryType,
+  MEMORY_TYPES,
+  isMemoryLayer,
+  MEMORY_LAYERS,
+  type MemoryLayer,
+  type MemoryType,
+} from "../lib/memory.js";
 import { readAuth, getApiClient } from "../lib/auth.js";
 import { getTemplate, fillTemplate } from "../lib/templates.js";
 import { getStorageWarnings } from "../lib/storage-health.js";
@@ -18,10 +26,12 @@ export const addCommand = new Command("add")
   .option("--template <name>", "Use a template (run 'memories template list' to see options)")
   .option("--paths <globs>", "Comma-separated glob patterns for path-scoped rules")
   .option("--category <name>", "Grouping key for organizing memories")
+  .option("--layer <layer>", "Memory layer: rule, working, long_term (default based on type)")
   .action(async (contentArg: string | undefined, opts: {
     tags?: string;
     global?: boolean;
     type?: string;
+    layer?: string;
     rule?: boolean;
     decision?: boolean;
     fact?: boolean;
@@ -94,14 +104,23 @@ export const addCommand = new Command("add")
         type = opts.type;
       }
 
+      let layer: MemoryLayer | undefined;
+      if (opts.layer) {
+        if (!isMemoryLayer(opts.layer)) {
+          console.error(chalk.red("✗") + ` Invalid layer "${opts.layer}". Valid layers: ${MEMORY_LAYERS.join(", ")}`);
+          process.exit(1);
+        }
+        layer = opts.layer;
+      }
+
       const paths = opts.paths?.split(",").map((s) => s.trim()).filter(Boolean);
-      const memory = await addMemory(content, { tags, global: opts.global, type, paths, category: opts.category });
+      const memory = await addMemory(content, { tags, global: opts.global, type, layer, paths, category: opts.category });
 
       const typeLabel = type === "rule" ? "Rule" : type === "decision" ? "Decision" : type === "fact" ? "Fact" : type === "skill" ? "Skill" : "Note";
       const scopeInfo = memory.scope === "global" ? "global" : "project";
       
       ui.success(`Stored ${chalk.bold(typeLabel.toLowerCase())} ${chalk.dim(memory.id)}`);
-      ui.dim(`Scope: ${scopeInfo}${tags?.length ? ` • Tags: ${tags.join(", ")}` : ""}`);
+      ui.dim(`Scope: ${scopeInfo} • Layer: ${memory.memory_layer ?? "long_term"}${tags?.length ? ` • Tags: ${tags.join(", ")}` : ""}`);
       
       // Hint about generating rule files
       if (type === "rule") {
