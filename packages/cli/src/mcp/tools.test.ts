@@ -24,9 +24,19 @@ describe("registerCoreTools", () => {
     expect(names).toContain("enable_reminder");
     expect(names).toContain("disable_reminder");
     expect(names).toContain("delete_reminder");
+    expect(names).toContain("start_session");
+    expect(names).toContain("checkpoint_session");
+    expect(names).toContain("end_session");
+    expect(names).toContain("snapshot_session");
 
     expect(schemas.get("get_context")).toHaveProperty("mode");
     expect(schemas.get("add_memory")).toHaveProperty("layer");
+    expect(schemas.get("start_session")).toHaveProperty("project_id");
+    expect(schemas.get("checkpoint_session")).toHaveProperty("session_id");
+    expect(schemas.get("checkpoint_session")).toHaveProperty("kind");
+    expect(schemas.get("end_session")).toHaveProperty("status");
+    expect(schemas.get("snapshot_session")).toHaveProperty("source_trigger");
+    expect(schemas.get("snapshot_session")).toHaveProperty("transcript_md");
 
     // Backward + forward compatibility for core SDK client and existing callers.
     expect(schemas.get("search_memories")).toHaveProperty("type");

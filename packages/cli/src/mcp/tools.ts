@@ -11,6 +11,12 @@ import {
   findMemoriesToForget,
   bulkForgetByIds,
   vacuumMemories,
+  startMemorySession,
+  checkpointMemorySession,
+  endMemorySession,
+  listMemorySessionEvents,
+  createMemorySessionSnapshot,
+  type MemorySessionEvent,
 } from "../lib/memory.js";
 import {
   createReminder,
@@ -27,6 +33,13 @@ import {
   formatMemoriesSection,
   withStorageWarnings,
 } from "./formatters.js";
+
+function buildSnapshotTranscript(sessionId: string, events: MemorySessionEvent[]): string {
+  const body = events
+    .map((event) => `### ${event.role} (${event.kind})\n${event.content}`)
+    .join("\n\n");
+  return `# Session Snapshot\n\nSession ID: ${sessionId}\n\n${body}`;
+}
 
 // ─── Core Tool Registrations ─────────────────────────────────────────────────
 
@@ -75,6 +88,155 @@ Use this at the start of tasks to understand project conventions and recall past
       } catch (error) {
         return {
           content: [{ type: "text", text: `Failed to get context: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: start_session
+  server.tool(
+    "start_session",
+    "Start a new memory session for checkpointing and snapshot workflows.",
+    {
+      title: z.string().optional().describe("Optional session title"),
+      client: z.string().optional().describe("Client name (e.g., codex, cursor, claude-code)"),
+      user_id: z.string().optional().describe("Optional user ID"),
+      metadata: z.record(z.string(), z.unknown()).optional().describe("Optional session metadata"),
+      global: z.boolean().optional().describe("Create as global session"),
+      project_id: z.string().optional().describe("Explicit project id (e.g., github.com/org/repo)"),
+    },
+    async ({ title, client, user_id, metadata, global: isGlobal, project_id }) => {
+      try {
+        const scopeOpts = resolveMemoryScopeInput({ global: isGlobal, project_id });
+        const session = await startMemorySession({
+          ...scopeOpts,
+          title,
+          client,
+          userId: user_id,
+          metadata,
+        });
+
+        return {
+          content: [{ type: "text", text: `Started session ${session.id} (${session.scope}${session.project_id ? `: ${session.project_id}` : ""})` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to start session: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: checkpoint_session
+  server.tool(
+    "checkpoint_session",
+    "Write a checkpoint event into an active session.",
+    {
+      session_id: z.string().describe("Session ID"),
+      content: z.string().describe("Checkpoint content"),
+      role: z.enum(["user", "assistant", "tool"]).optional().describe("Event role (default: assistant)"),
+      kind: z.enum(["message", "checkpoint", "summary", "event"]).optional().describe("Event kind (default: checkpoint)"),
+      token_count: z.number().int().optional().describe("Optional token count"),
+      turn_index: z.number().int().optional().describe("Optional turn index"),
+      is_meaningful: z.boolean().optional().describe("Whether this event is meaningful (default: true)"),
+    },
+    async ({ session_id, content, role, kind, token_count, turn_index, is_meaningful }) => {
+      try {
+        const event = await checkpointMemorySession(session_id, content, {
+          role,
+          kind,
+          tokenCount: token_count,
+          turnIndex: turn_index,
+          isMeaningful: is_meaningful,
+        });
+        return {
+          content: [{ type: "text", text: `Checkpointed session ${event.session_id} with event ${event.id}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to checkpoint session: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: end_session
+  server.tool(
+    "end_session",
+    "End a session and mark it as closed or compacted.",
+    {
+      session_id: z.string().describe("Session ID"),
+      status: z.enum(["closed", "compacted"]).optional().describe("Final status (default: closed)"),
+    },
+    async ({ session_id, status }) => {
+      try {
+        const session = await endMemorySession(session_id, { status });
+        if (!session) {
+          return {
+            content: [{ type: "text", text: `Session ${session_id} not found.` }],
+            isError: true,
+          };
+        }
+        return {
+          content: [{ type: "text", text: `Ended session ${session.id} as ${session.status}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to end session: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: snapshot_session
+  server.tool(
+    "snapshot_session",
+    "Create a raw markdown snapshot from explicit transcript input or recent session events.",
+    {
+      session_id: z.string().describe("Session ID"),
+      source_trigger: z.enum(["new_session", "reset", "manual", "auto_compaction"]).optional().describe("Snapshot trigger source (default: manual)"),
+      slug: z.string().optional().describe("Optional custom slug for snapshot filename"),
+      transcript_md: z.string().optional().describe("Explicit markdown transcript; if omitted, generated from recent events"),
+      message_count: z.number().int().min(1).optional().describe("Number of events to use when transcript_md is omitted (default: 15)"),
+      meaningful_only: z.boolean().optional().describe("When generating from events, include only meaningful events (default: true)"),
+    },
+    async ({ session_id, source_trigger, slug, transcript_md, message_count, meaningful_only }) => {
+      try {
+        let transcript = transcript_md?.trim();
+        let messageCount = message_count ?? 15;
+
+        if (!transcript) {
+          const events = await listMemorySessionEvents(session_id, {
+            limit: message_count ?? 15,
+            meaningfulOnly: meaningful_only !== false,
+          });
+          if (events.length === 0) {
+            return {
+              content: [{ type: "text", text: `No events available for session ${session_id}` }],
+              isError: true,
+            };
+          }
+          transcript = buildSnapshotTranscript(session_id, events);
+          messageCount = events.length;
+        }
+
+        const snapshot = await createMemorySessionSnapshot(session_id, {
+          slug,
+          sourceTrigger: source_trigger,
+          transcriptMd: transcript,
+          messageCount,
+        });
+
+        return {
+          content: [{ type: "text", text: `Created snapshot ${snapshot.id} (${snapshot.slug}) for session ${snapshot.session_id}` }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to create snapshot: ${error instanceof Error ? error.message : "Unknown error"}` }],
           isError: true,
         };
       }
