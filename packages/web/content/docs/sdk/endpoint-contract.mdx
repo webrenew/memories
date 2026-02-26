@@ -32,9 +32,15 @@ https://memories.sh
 | Runtime | `/api/sdk/v1/memories/forget` | `POST` | Bearer API key (`mem_...`) |
 | Runtime | `/api/sdk/v1/memories/bulk-forget` | `POST` | Bearer API key (`mem_...`) |
 | Runtime | `/api/sdk/v1/memories/vacuum` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/memories/consolidate` | `POST` | Bearer API key (`mem_...`) |
 | Runtime | `/api/sdk/v1/skills/files/upsert` | `POST` | Bearer API key (`mem_...`) |
 | Runtime | `/api/sdk/v1/skills/files/list` | `POST` | Bearer API key (`mem_...`) |
 | Runtime | `/api/sdk/v1/skills/files/delete` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/skills/files/promote` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/sessions/start` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/sessions/checkpoint` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/sessions/end` | `POST` | Bearer API key (`mem_...`) |
+| Runtime | `/api/sdk/v1/sessions/{sessionId}/snapshot` | `GET` | Bearer API key (`mem_...`) |
 | Runtime | `/api/sdk/v1/embeddings/models` | `GET` | Bearer API key (`mem_...`) or session |
 | Graph | `/api/sdk/v1/graph/status` | `GET`, `POST` | Bearer API key (`mem_...`) |
 | Graph | `/api/sdk/v1/graph/trace` | `POST` | Bearer API key (`mem_...`) |
@@ -44,6 +50,8 @@ https://memories.sh
 | Management | `/api/sdk/v1/management/embeddings/usage` | `GET` | Bearer API key (`mem_...`) or session |
 | Management | `/api/sdk/v1/management/embeddings/backfill` | `GET`, `POST` | Bearer API key (`mem_...`) or session |
 | Management | `/api/sdk/v1/management/embeddings/observability` | `GET` | Bearer API key (`mem_...`) or session |
+| Management | `/api/sdk/v1/management/memory/observability` | `GET` | Bearer API key (`mem_...`) or session |
+| Management | `/api/sdk/v1/management/memory/eval/replay` | `POST` | Bearer API key (`mem_...`) or session |
 
 Legacy aliases are still available:
 
@@ -213,10 +221,13 @@ Defaults:
 - `graphDepth`: `1`
 - `graphLimit`: `8`
 
-Strategy aliases accepted for backward compatibility:
+Strategy aliases accepted for backward compatibility (deprecated):
 
 - `baseline` → `lexical`
 - `hybrid_graph` → `hybrid`
+
+When aliases are used through `@memories.sh/core`, the client emits a one-time deprecation warning.
+Set `MEMORIES_SUPPRESS_DEPRECATION_WARNINGS=true` to silence those warnings in controlled environments.
 
 Response `data`:
 
@@ -567,6 +578,9 @@ Request is similar to `context/get`, but defaults differ:
 - `strategy` default: policy default (`baseline` for lexical policy, `hybrid_graph` for hybrid policy)
 - `limit` default: `10`
 
+`graph/trace` currently accepts legacy strategy literals (`baseline`, `hybrid_graph`) for direct diagnostics parity.
+Use `context/get` with `lexical|hybrid` in new client integrations.
+
 Response `data` includes:
 
 - `mode`, `includeRules`, `query`
@@ -771,6 +785,81 @@ Response `data` includes:
 - `slos`
 - `alarms[]`
 - `health` (`healthy` | `degraded` | `critical`)
+
+### `GET /api/sdk/v1/management/memory/observability`
+
+Read lifecycle health snapshot for memory creation, compaction, consolidation, and contradiction trends.
+
+Query params:
+
+- `tenantId`
+- `projectId`
+- `userId`
+- `windowHours` (`1..336`)
+
+Response `data` includes:
+
+- `lifecycle` (created/updated/deleted/active/total counts)
+- `compaction` (trigger mix, checkpoint coverage)
+- `consolidation` (run totals + conflict rate)
+- `contradictions` (window totals + daily trend)
+- `alarms[]`
+- `health` (`healthy` | `degraded` | `critical`)
+
+### `POST /api/sdk/v1/management/memory/eval/replay`
+
+Run deterministic replay/eval scoring for extraction quality, compaction retention, and trigger matching.
+
+Request:
+
+```json
+{
+  "tenantId": "acme-prod",
+  "projectId": "github.com/acme/platform",
+  "passCriteria": {
+    "extractionF1": 0.7,
+    "compactionRetention": 0.85,
+    "triggerAccuracy": 0.9,
+    "casePassRatio": 0.85
+  },
+  "scenarios": [
+    {
+      "id": "release-1",
+      "extraction": {
+        "expected": ["Always snapshot before reset"],
+        "observed": ["Always snapshot before reset"]
+      },
+      "trigger": {
+        "expected": "semantic",
+        "observed": "semantic"
+      }
+    }
+  ]
+}
+```
+
+Response `data` includes:
+
+- `scope` (tenant/project/user echo)
+- `summary` (case counts, aggregate scores, pass/warn/fail)
+- `scenarios[]` (per-case extraction/compaction/trigger metrics)
+
+### Memory Lifecycle Feature Flags
+
+Default rollout posture:
+
+- `MEMORY_SESSION_ENABLED=true`
+- `MEMORY_COMPACTION_ENABLED=true`
+- `MEMORY_CONSOLIDATION_ENABLED=true`
+- `MEMORY_PROCEDURAL_ENABLED=true`
+- `MEMORY_OPENCLAW_FILE_MODE_ENABLED=false` (opt-in)
+
+When disabled, affected endpoints return `403` with a typed flag code:
+
+- `MEMORY_SESSION_DISABLED`
+- `MEMORY_COMPACTION_DISABLED`
+- `MEMORY_CONSOLIDATION_DISABLED`
+- `MEMORY_PROCEDURAL_DISABLED`
 
 ## cURL Quick Reference
 

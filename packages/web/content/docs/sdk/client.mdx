@@ -102,7 +102,7 @@ Enable graph-augmented recall per request:
 ```typescript
 const ctx = await client.context.get({
   query: "why did billing alerts spike?",
-  strategy: "hybrid_graph", // or "baseline"
+  strategy: "hybrid", // or "lexical"
   graphDepth: 1,            // 0 | 1 | 2
   graphLimit: 8,            // max graph-expanded memories
   userId: "user_123",
@@ -111,7 +111,7 @@ const ctx = await client.context.get({
 
 console.log(ctx.trace)
 // {
-//   requestedStrategy: "hybrid_graph",
+//   requestedStrategy: "hybrid",
 //   strategy: "baseline" | "hybrid_graph",
 //   rolloutMode: "off" | "shadow" | "canary",
 //   shadowExecuted: boolean,
@@ -124,6 +124,8 @@ console.log(ctx.trace)
 ```
 
 `trace.strategy` is the applied strategy after rollout guardrails. This lets you detect when a hybrid request safely falls back to baseline.
+
+Legacy aliases `baseline` and `hybrid_graph` are still accepted by the client, but they are deprecated and emit a one-time warning. You can silence warnings with `MEMORIES_SUPPRESS_DEPRECATION_WARNINGS=true`.
 
 With graph mapping enabled, hybrid retrieval can surface semantically related memories through `similar_to` edges even when lexical overlap is weak.
 

@@ -273,6 +273,26 @@ export const MCP_MAX_CONNECTIONS_PER_KEY = parsePositiveInt(process.env.MCP_MAX_
 export const MCP_MAX_CONNECTIONS_PER_IP = parsePositiveInt(process.env.MCP_MAX_CONNECTIONS_PER_IP, 20)
 export const MCP_SESSION_IDLE_MS = parsePositiveInt(process.env.MCP_SESSION_IDLE_MS, 15 * 60 * 1000)
 
+export function isMemorySessionEnabled(): boolean {
+  return parseBooleanFlag(process.env.MEMORY_SESSION_ENABLED, true)
+}
+
+export function isMemoryCompactionEnabled(): boolean {
+  return parseBooleanFlag(process.env.MEMORY_COMPACTION_ENABLED, true)
+}
+
+export function isMemoryConsolidationEnabled(): boolean {
+  return parseBooleanFlag(process.env.MEMORY_CONSOLIDATION_ENABLED, true)
+}
+
+export function isMemoryProceduralEnabled(): boolean {
+  return parseBooleanFlag(process.env.MEMORY_PROCEDURAL_ENABLED, true)
+}
+
+export function isMemoryOpenClawFileModeEnabled(): boolean {
+  return parseBooleanFlag(process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED, false)
+}
+
 // ── Graph Features ───────────────────────────────────────────────────
 
 export const GRAPH_MAPPING_ENABLED = parseBooleanFlag(process.env.GRAPH_MAPPING_ENABLED, false)

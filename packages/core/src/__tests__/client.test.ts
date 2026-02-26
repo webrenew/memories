@@ -379,6 +379,7 @@ describe("MemoriesClient", () => {
   })
 
   it("normalizes legacy hybrid_graph to hybrid on SDK context endpoint body", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined)
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       new Response(
         JSON.stringify({
@@ -424,6 +425,9 @@ describe("MemoriesClient", () => {
     expect(parsedBody.strategy).toBe("hybrid")
     expect(parsedBody.graphDepth).toBe(1)
     expect(parsedBody.graphLimit).toBe(8)
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[memories] retrieval strategy "hybrid_graph" is deprecated. Use "hybrid" instead.'
+    )
   })
 
   it("forwards search strategy to SDK memories.search endpoint body", async () => {

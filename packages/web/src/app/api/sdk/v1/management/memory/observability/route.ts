@@ -3,6 +3,7 @@ import { ensureMemoryUserIdSchema } from "@/lib/memory-service/scope"
 import { apiError } from "@/lib/memory-service/tools"
 import { errorResponse, invalidRequestResponse, resolveTursoForScope, successResponse } from "@/lib/sdk-api/runtime"
 import { getMemoryLifecycleObservabilitySnapshot } from "@/lib/memory-service/observability"
+import { isMemoryCompactionEnabled } from "@/lib/env"
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
@@ -38,6 +39,21 @@ export async function GET(request: NextRequest): Promise<Response> {
     apiKeyMetadataLookupLogContext: "Failed to load API key metadata for memory observability:",
   })
   if (identity instanceof NextResponse) return identity
+
+  if (!isMemoryCompactionEnabled()) {
+    return errorResponse(
+      ENDPOINT,
+      requestId,
+      apiError({
+        type: "validation_error",
+        code: "MEMORY_COMPACTION_DISABLED",
+        message: "Memory lifecycle observability is disabled by MEMORY_COMPACTION_ENABLED=0.",
+        status: 403,
+        retryable: false,
+        details: { flag: "MEMORY_COMPACTION_ENABLED" },
+      })
+    )
+  }
 
   const parsed = querySchema.safeParse(parseQuery(request))
   if (!parsed.success) {
