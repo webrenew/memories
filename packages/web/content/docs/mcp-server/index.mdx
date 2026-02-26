@@ -75,8 +75,10 @@ The local server communicates over stdio and logs diagnostic information to stde
 
 The MCP server exposes:
 
-- **9 core memory tools** — for reading, writing, searching, and managing memories
-- **6 local reminder tools** (`add_reminder`, `list_reminders`, `run_due_reminders`, `enable_reminder`, `disable_reminder`, `delete_reminder`) when running `memories serve` from the CLI
+- **9 hosted core tools** on `https://memories.sh/api/mcp` for reading, writing, searching, and managing memories
+- **5 additional local lifecycle tools** (`start_session`, `checkpoint_session`, `end_session`, `snapshot_session`, `consolidate_memories`) when running `memories serve`
+- **6 local reminder tools** (`add_reminder`, `list_reminders`, `run_due_reminders`, `enable_reminder`, `disable_reminder`, `delete_reminder`) when running `memories serve`
+- **4 local streaming tools** (`start_memory_stream`, `append_memory_chunk`, `finalize_memory_stream`, `cancel_memory_stream`) when running `memories serve`
 - **3 resources** — for accessing rules, recent memories, and project-specific data
 
 See the [Tools Reference](/docs/mcp-server/tools-reference), [Resources Reference](/docs/mcp-server/resources-reference), and [Tenant Routing](/docs/mcp-server/tenant-routing) for complete documentation.

@@ -3,7 +3,7 @@ title: Tools Reference
 description: Complete reference for all MCP tools exposed by the memories.sh server.
 ---
 
-The memories.sh MCP server exposes 9 core memory tools. The local CLI MCP server (`memories serve`) also adds 6 reminder tools.
+The hosted memories.sh MCP endpoint exposes 9 tenant-routed core tools. The local CLI MCP server (`memories serve`) extends that surface with 5 lifecycle tools, 6 reminder tools, and 4 streaming tools.
 
 <Callout>
 SaaS apps that already call SDK endpoints (`/api/sdk/v1/*`) do not need these MCP tools unless they serve MCP-native clients.
@@ -14,6 +14,11 @@ Scope model for MCP arguments:
 - `tenant_id` = AI SDK Project (security/database boundary)
 - `user_id` = end-user scope inside `tenant_id`
 - `project_id` = optional repo context filter (not auth boundary)
+
+Availability notes:
+
+- Hosted MCP (`https://memories.sh/api/mcp`) supports the tenant-routed core toolset documented here.
+- Local CLI MCP (`memories serve`) includes additional lifecycle, reminder, and streaming tools.
 
 ## get_context
 
@@ -26,6 +31,18 @@ The primary tool for AI agents. Returns all active rules (with path and category
 | `user_id` | `string` | No | End-user scope identifier inside `tenant_id` |
 | `tenant_id` | `string` | No | AI SDK Project identifier for security/database routing |
 | `limit` | `number` | No | Max memories to return (default: 5) |
+| `retrieval_strategy` | `string` | No | Hosted MCP graph strategy: `baseline` or `hybrid_graph` |
+| `graph_depth` | `number` | No | Hosted MCP graph traversal depth (`0`, `1`, `2`) |
+| `graph_limit` | `number` | No | Hosted MCP max graph-expanded memories |
+| `mode` | `string` | No | Local CLI only: `all`, `working`, `long_term`, `rules_only` |
+| `session_id` | `string` | No | Local CLI only: session identifier for lifecycle-aware retrieval |
+| `budget_tokens` | `number` | No | Local CLI only: context token budget hint |
+| `turn_count` | `number` | No | Local CLI only: current turn count |
+| `turn_budget` | `number` | No | Local CLI only: turn-count budget |
+| `last_activity_at` | `string` | No | Local CLI only: ISO timestamp for inactivity-trigger checks |
+| `inactivity_threshold_minutes` | `number` | No | Local CLI only: inactivity threshold for time-trigger checks |
+| `task_completed` | `boolean` | No | Local CLI only: semantic completion hint for checkpointing |
+| `include_session_summary` | `boolean` | No | Local CLI only: reserved summary hydration flag |
 
 ```json
 {
@@ -39,6 +56,8 @@ The primary tool for AI agents. Returns all active rules (with path and category
 ```
 
 Returns all rules first (including path scope and category when set), followed by relevant search results. Uses FTS5 with BM25 ranking for the search query, falling back to LIKE matching for databases without FTS support. When hybrid graph retrieval is enabled, semantically similar memories may be added via graph `similar_to` edges, and conflict/refinement links may be traversed via `contradicts` / `supersedes` edges when LLM extraction is enabled.
+
+When local `memories serve` callers provide `session_id` and compaction hints (`budget_tokens`, `turn_budget`/`turn_count`, inactivity fields, or `task_completed`), `get_context` may emit a compaction section and perform write-ahead checkpointing before destructive compaction.
 
 If returned memories include contradiction links, the response also includes a `conflicts[]` array with pair IDs, confidence, explanation text, and a suggestion for clarification.
 
@@ -65,6 +84,123 @@ Example `structuredContent` conflict payload fragment:
       "strategy": "hybrid_graph",
       "conflictCount": 1
     }
+  }
+}
+```
+
+## start_session (local CLI only)
+
+Start a new session for checkpointing and snapshot workflows.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `title` | `string` | No | Optional session title |
+| `client` | `string` | No | Client label (for example `codex`, `cursor`) |
+| `user_id` | `string` | No | Optional user identifier |
+| `metadata` | `object` | No | Optional session metadata object |
+| `global` | `boolean` | No | Start as global session |
+| `project_id` | `string` | No | Explicit project identifier |
+
+```json
+{
+  "name": "start_session",
+  "arguments": {
+    "title": "Refactor auth middleware",
+    "client": "codex",
+    "project_id": "github.com/webrenew/memories"
+  }
+}
+```
+
+## checkpoint_session (local CLI only)
+
+Append an event/checkpoint to an active session.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `session_id` | `string` | Yes | Session ID |
+| `content` | `string` | Yes | Event content |
+| `role` | `string` | No | `user`, `assistant`, or `tool` (default: `assistant`) |
+| `kind` | `string` | No | `message`, `checkpoint`, `summary`, or `event` (default: `checkpoint`) |
+| `token_count` | `number` | No | Optional token count for this event |
+| `turn_index` | `number` | No | Optional turn index |
+| `is_meaningful` | `boolean` | No | Whether event is meaningful (default: `true`) |
+
+```json
+{
+  "name": "checkpoint_session",
+  "arguments": {
+    "session_id": "sess_123",
+    "content": "User approved migration strategy",
+    "kind": "summary",
+    "token_count": 320
+  }
+}
+```
+
+## end_session (local CLI only)
+
+Close a session when task context is complete.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `session_id` | `string` | Yes | Session ID |
+| `status` | `string` | No | Final status: `closed` or `compacted` (default: `closed`) |
+
+```json
+{
+  "name": "end_session",
+  "arguments": {
+    "session_id": "sess_123",
+    "status": "compacted"
+  }
+}
+```
+
+## snapshot_session (local CLI only)
+
+Create a raw markdown snapshot from explicit transcript text or recent session events.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `session_id` | `string` | Yes | Session ID |
+| `source_trigger` | `string` | No | `new_session`, `reset`, `manual`, or `auto_compaction` (default: `manual`) |
+| `slug` | `string` | No | Optional snapshot slug |
+| `transcript_md` | `string` | No | Explicit transcript markdown |
+| `message_count` | `number` | No | Event count when transcript is generated (default: `15`) |
+| `meaningful_only` | `boolean` | No | Include only meaningful events when generating transcript (default: `true`) |
+
+```json
+{
+  "name": "snapshot_session",
+  "arguments": {
+    "session_id": "sess_123",
+    "source_trigger": "reset",
+    "message_count": 15
+  }
+}
+```
+
+## consolidate_memories (local CLI only)
+
+Run consolidation to merge duplicates, supersede stale truths, and write consolidation audit rows.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `types` | `string[]` | No | Memory types to include (`rule`, `decision`, `fact`, `note`, `skill`) |
+| `include_global` | `boolean` | No | Include global memories (default: `true`) |
+| `global_only` | `boolean` | No | Restrict to global memories only |
+| `project_id` | `string` | No | Explicit project identifier |
+| `dry_run` | `boolean` | No | Preview only; do not mutate rows |
+| `model` | `string` | No | Optional model identifier for audit metadata |
+
+```json
+{
+  "name": "consolidate_memories",
+  "arguments": {
+    "types": ["rule", "decision", "fact"],
+    "project_id": "github.com/webrenew/memories",
+    "dry_run": true
   }
 }
 ```
@@ -314,3 +450,45 @@ Delete a reminder by ID.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | `string` | Yes | Reminder ID |
+
+## Local CLI Streaming Tools
+
+<Callout type="info">
+Streaming tools are available in local CLI MCP (`memories serve`) only.
+</Callout>
+
+### start_memory_stream
+
+Start a stream collector for chunked content.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `type` | `string` | No | Memory type (`rule`, `decision`, `fact`, `note`, `skill`) |
+| `tags` | `string[]` | No | Tags for the resulting memory |
+| `global` | `boolean` | No | Store as global memory |
+| `project_id` | `string` | No | Explicit project identifier |
+
+### append_memory_chunk
+
+Append a chunk to an active stream.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `stream_id` | `string` | Yes | Stream ID from `start_memory_stream` |
+| `chunk` | `string` | Yes | Chunk content |
+
+### finalize_memory_stream
+
+Finalize stream and create the memory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `stream_id` | `string` | Yes | Stream ID from `start_memory_stream` |
+
+### cancel_memory_stream
+
+Cancel stream and discard buffered chunks.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `stream_id` | `string` | Yes | Stream ID to cancel |
