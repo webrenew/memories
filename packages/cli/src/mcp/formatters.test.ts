@@ -14,6 +14,8 @@ function makeMemory(overrides: Partial<Memory> = {}): Memory {
     type: "rule",
     scope: "project",
     project_id: "github.com/org/repo",
+    memory_layer: "rule",
+    expires_at: null,
     tags: null,
     paths: null,
     category: null,
