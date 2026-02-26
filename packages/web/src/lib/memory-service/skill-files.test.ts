@@ -7,6 +7,7 @@ import { ensureMemoryUserIdSchema } from "./scope-schema"
 import {
   listSkillFilesPayload,
   markSkillFilesUsedPayload,
+  promoteSnapshotToSkillFilePayload,
   upsertSkillFilePayload,
 } from "./skill-files"
 
@@ -152,5 +153,49 @@ describe("skill-files procedural metadata", () => {
 
     expect(Number(rows.rows[0]?.usage_count ?? 0)).toBe(1)
     expect(String(rows.rows[0]?.last_used_at ?? "")).toBe("2026-02-26T02:00:00.000Z")
+  })
+
+  it("promotes a session snapshot into a procedural skill file", async () => {
+    const db = await setupDb("memories-skill-files-promote")
+    await db.execute({
+      sql: `INSERT INTO memory_sessions
+            (id, scope, project_id, user_id, client, status, title, started_at, last_activity_at, ended_at, metadata)
+            VALUES (?, 'project', ?, ?, ?, 'active', ?, ?, ?, NULL, NULL)`,
+      args: [
+        "sess_1",
+        "github.com/acme/platform",
+        "user-1",
+        "codex",
+        "Incident recovery",
+        "2026-02-26T00:00:00.000Z",
+        "2026-02-26T00:00:00.000Z",
+      ],
+    })
+    await db.execute({
+      sql: `INSERT INTO memory_session_snapshots
+            (id, session_id, slug, source_trigger, transcript_md, message_count, created_at)
+            VALUES (?, ?, ?, 'manual', ?, 4, ?)`,
+      args: [
+        "snap_1",
+        "sess_1",
+        "incident-recovery",
+        "# Session Snapshot\n\n### user (message)\nInvestigate outage\n\n### assistant (message)\nCheck logs and rollback if needed",
+        "2026-02-26T00:10:00.000Z",
+      ],
+    })
+
+    const promoted = await promoteSnapshotToSkillFilePayload({
+      turso: db,
+      sessionId: "sess_1",
+      path: "skills/incident/recovery.md",
+      projectId: "github.com/acme/platform",
+      userId: "user-1",
+      nowIso: "2026-02-26T00:20:00.000Z",
+    })
+
+    expect(promoted.data.created).toBe(true)
+    expect(promoted.data.skillFile.procedureKey).toBe("incident-recovery")
+    expect(promoted.data.skillFile.content).toContain("## Workflow Steps")
+    expect(promoted.data.source.snapshotId).toBe("snap_1")
   })
 })
