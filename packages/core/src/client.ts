@@ -164,6 +164,7 @@ export class MemoriesClient {
         : await this.callTool("get_context", {
             query: input.query,
             limit: input.limit,
+            mode: input.mode,
             project_id: input.projectId,
             user_id: input.userId,
             tenant_id: input.tenantId,

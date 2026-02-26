@@ -310,9 +310,10 @@ Write triggers:
 
 - [x] Spec merged: `reports/agent-memory-lifecycle-spec.md` (PR #287, 2026-02-26)
 - [x] PR-1.1 `feat(cli): add memory_layer + expiry schema parity` (merged: #288, 2026-02-26)
-- [ ] PR-1.2 `feat(cli/mcp): layer-aware add/list/search/recall and context modes` (in progress)
-- [ ] PR-1.3 `test/docs: parity matrix tests and migration notes`
-- [ ] Phase 2 PRs (2.1-2.3)
+- [x] PR-1.2 `feat(cli/mcp): layer-aware add/list/search/recall and context modes` (merged: #290, 2026-02-26)
+- [ ] PR-1.3 `test/docs: parity matrix tests and migration notes` (open: #291, auto-merge enabled)
+- [ ] PR-2.1 `feat(schema): memory_sessions + events + snapshots` (in progress)
+- [ ] Phase 2 PRs (2.2-2.3)
 - [ ] Phase 3 PRs (3.1-3.3)
 - [ ] Phase 4 PRs (4.1-4.3)
 - [ ] Phase 5 PRs (5.1-5.3)
@@ -328,6 +329,29 @@ Write triggers:
 5. Phase 5 gate: duplicate preference updates collapse to one current truth with audit trail.
 6. Phase 6 gate: procedural retrieval improves first-action success in workflow benchmark tasks.
 7. Phase 7 gate: dashboard SLOs green for 14 days before default-on.
+
+## Phase 1 Parity Matrix and Migration Notes
+
+### Parity Matrix (CLI + MCP transport contracts)
+
+| Surface | Input | Expected behavior |
+| --- | --- | --- |
+| `memories add` / `add_memory` | `layer=working` | Stores `memory_layer='working'` and assigns `expires_at` based on configured TTL |
+| `memories list` / `list_memories` | `layer=long_term` | Returns only active long-term memories (rules/working excluded) |
+| `memories search` / `search_memories` | `layer=working` | Returns only active working memories (FTS + fallback parity) |
+| `memories recall` / `get_context` | `mode=rules_only` | Returns rules and zero memories |
+| `memories recall` / `get_context` | `mode=working` | Returns rules + working memories only |
+| `memories recall` / `get_context` | `mode=long_term` | Returns rules + long-term memories only |
+
+### Migration Notes
+
+1. Local DB migration introduces `memory_layer` + `expires_at` and backfills legacy rows for deterministic layer behavior.
+2. Working-memory TTL defaults to 24h with env override precedence:
+   `MEMORIES_WORKING_MEMORY_TTL_HOURS` then `MCP_WORKING_MEMORY_TTL_HOURS`.
+3. CLI and MCP interfaces are backward compatible for type filters (`type` and `types`) and tags input (`list_memories.tags` accepts array or comma-separated string).
+4. Validation command set for Phase 1 gate:
+   - `pnpm -C packages/cli test src/lib/memory.test.ts src/commands/list.test.ts src/commands/search.test.ts src/commands/recall.test.ts src/mcp/tools.test.ts`
+   - `pnpm -C packages/core test src/__tests__/mcp-parity-matrix.test.ts`
 
 ## Feature Flags
 
