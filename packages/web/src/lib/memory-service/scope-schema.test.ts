@@ -48,12 +48,24 @@ describe("ensureMemoryUserIdSchema", () => {
     expect(columnNames.has("user_id")).toBe(true)
     expect(columnNames.has("memory_layer")).toBe(true)
     expect(columnNames.has("expires_at")).toBe(true)
+    expect(columnNames.has("upsert_key")).toBe(true)
+    expect(columnNames.has("source_session_id")).toBe(true)
+    expect(columnNames.has("superseded_by")).toBe(true)
+    expect(columnNames.has("superseded_at")).toBe(true)
+    expect(columnNames.has("confidence")).toBe(true)
+    expect(columnNames.has("last_confirmed_at")).toBe(true)
 
     const marker = await db.execute({
       sql: "SELECT value FROM memory_schema_state WHERE key = ?",
       args: ["memory_user_id_v1"],
     })
     expect(String(marker.rows[0]?.value ?? "")).toBe("1")
+
+    const consolidationMarker = await db.execute({
+      sql: "SELECT value FROM memory_schema_state WHERE key = ?",
+      args: ["memory_consolidation_v1"],
+    })
+    expect(String(consolidationMarker.rows[0]?.value ?? "")).toBe("1")
 
     const embeddingsMarker = await db.execute({
       sql: "SELECT value FROM memory_schema_state WHERE key = ?",
@@ -96,6 +108,22 @@ describe("ensureMemoryUserIdSchema", () => {
     })
     const compactionIndexNames = new Set(compactionIndexes.rows.map((row) => String(row.name)))
     expect(compactionIndexNames.has("idx_memory_compaction_session")).toBe(true)
+
+    const consolidationTable = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?)",
+      args: ["memory_consolidation_runs"],
+    })
+    const consolidationTableNames = new Set(consolidationTable.rows.map((row) => String(row.name)))
+    expect(consolidationTableNames.has("memory_consolidation_runs")).toBe(true)
+
+    const consolidationIndexes = await db.execute({
+      sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN (?, ?, ?)",
+      args: ["idx_memories_upsert_key", "idx_memories_source_session", "idx_memories_upsert_live"],
+    })
+    const consolidationIndexNames = new Set(consolidationIndexes.rows.map((row) => String(row.name)))
+    expect(consolidationIndexNames.has("idx_memories_upsert_key")).toBe(true)
+    expect(consolidationIndexNames.has("idx_memories_source_session")).toBe(true)
+    expect(consolidationIndexNames.has("idx_memories_upsert_live")).toBe(true)
 
     const embeddingJobsMarker = await db.execute({
       sql: "SELECT value FROM memory_schema_state WHERE key = ?",
