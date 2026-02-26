@@ -65,6 +65,17 @@ memories files apply --global
 | [`forget`](/docs/cli/forget) | Soft-delete memories by ID or bulk filter |
 | [`tag`](/docs/cli/tag) | Bulk tag and untag operations |
 | [`reminders`](/docs/cli/reminders) | Manage cron-based reminders (`add`, `list`, `run`, `enable`, `disable`, `delete`) |
+| [`stale`](/docs/cli/stale) | Find stale memories with superseded/conflict filters |
+| [`review`](/docs/cli/review) | Interactively keep/delete stale memories |
+
+### Lifecycle Commands
+
+| Command | Description |
+|---------|-------------|
+| [`session`](/docs/cli/session) | Manage explicit memory session lifecycle (`start`, `checkpoint`, `status`, `end`, `snapshot`) |
+| [`compact`](/docs/cli/compact) | Run inactivity compaction worker for active sessions |
+| [`consolidate`](/docs/cli/consolidate) | Merge duplicates and supersede outdated memories |
+| [`openclaw memory`](/docs/cli/openclaw-memory) | Read/write OpenClaw semantic, daily, and snapshot files |
 
 ### Generation Commands
 

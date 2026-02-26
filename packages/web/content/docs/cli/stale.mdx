@@ -1,0 +1,35 @@
+---
+title: memories stale
+description: Find stale memories by age, superseded status, and conflict links.
+---
+
+```bash
+memories stale [options]
+```
+
+List memories that have not been updated recently and optionally filter by type, supersession state, and contradiction links.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--days <n>` | Staleness threshold in days (default: `90`) |
+| `--type <type>` | Filter by type: `rule`, `decision`, `fact`, `note` |
+| `--include-superseded` | Include already superseded memories |
+| `--superseded-only` | Only show superseded memories |
+| `--conflicts-only` | Only show memories with `contradicts` links |
+| `--json` | Output as JSON |
+
+## Examples
+
+```bash
+memories stale
+memories stale --days 30 --type rule
+memories stale --superseded-only --conflicts-only
+memories stale --json
+```
+
+## Notes
+
+- `--include-superseded` and `--superseded-only` are mutually exclusive.
+- The command prints up to 30 rows in table-like output, then suggests running `memories review`.
