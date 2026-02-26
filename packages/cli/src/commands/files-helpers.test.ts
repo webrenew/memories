@@ -70,4 +70,25 @@ describe("files-helpers scanTarget", () => {
     expect(files).toHaveLength(1);
     expect(files[0].path).toBe(".agents/commands/review.md");
   });
+
+  it("scans nested OpenClaw memory files recursively", async () => {
+    const baseDir = mkdtempSync(join(tmpdir(), "memories-files-openclaw-scan-"));
+    const dailyDir = join(baseDir, ".openclaw", "workspace", "memory", "daily");
+    const snapshotDir = join(baseDir, ".openclaw", "workspace", "memory", "snapshots", "2026-02-26");
+    mkdirSync(dailyDir, { recursive: true });
+    mkdirSync(snapshotDir, { recursive: true });
+    writeFileSync(join(dailyDir, "2026-02-26.md"), "# daily");
+    writeFileSync(join(snapshotDir, "phase-4-1.md"), "# snapshot");
+
+    const files = await scanTarget(baseDir, {
+      dir: ".openclaw/workspace/memory",
+      pattern: /\.md$/,
+      recurse: true,
+    });
+    const paths = files.map((file) => file.path).sort();
+    expect(paths).toEqual([
+      ".openclaw/workspace/memory/daily/2026-02-26.md",
+      ".openclaw/workspace/memory/snapshots/2026-02-26/phase-4-1.md",
+    ]);
+  });
 });
