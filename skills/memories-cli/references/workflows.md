@@ -9,6 +9,8 @@ Multi-step recipes for common memories.sh tasks.
 - [Cross-Machine Sync](#cross-machine-sync)
 - [Migration from Existing Tools](#migration-from-existing-tools)
 - [Team Knowledge Base](#team-knowledge-base)
+- [Session Lifecycle + Compaction](#session-lifecycle--compaction)
+- [OpenClaw File Memory Mode](#openclaw-file-memory-mode)
 - [Maintenance & Cleanup](#maintenance--cleanup)
 - [Git Hook Automation](#git-hook-automation)
 - [Semantic Search Setup](#semantic-search-setup)
@@ -148,6 +150,60 @@ memories generate
 
 ---
 
+## Session Lifecycle + Compaction
+
+Use explicit sessions when a task spans many turns and may trigger context compaction.
+
+```bash
+# 1. Start session
+memories session start --title "checkout timeout incident" --client codex
+
+# 2. Add checkpoints during execution
+memories session checkpoint <session-id> "User confirmed issue happens after OAuth callback" --kind message
+memories session checkpoint <session-id> "Root cause narrowed to callback timeout + retry burst" --kind summary --token-count 420
+
+# 3. Inspect current session status
+memories session status <session-id>
+
+# 4. Run inactivity compaction worker (batch-safe)
+memories compact run --inactivity-minutes 60 --limit 25 --event-window 8
+
+# 5. End session and create explicit snapshot when needed
+memories session end <session-id> --status compacted
+memories session snapshot <session-id> --trigger manual
+```
+
+---
+
+## OpenClaw File Memory Mode
+
+Operate deterministic OpenClaw memory files (`memory.md`, daily logs, snapshots) alongside DB memory.
+
+```bash
+# 1. Bootstrap semantic + recent episodic context
+memories openclaw memory bootstrap
+
+# 2. Flush recent meaningful session events to today's daily log
+memories openclaw memory flush <session-id> --messages 15
+
+# 3. Create snapshot file + DB snapshot
+memories openclaw memory snapshot <session-id> --trigger reset
+
+# 4. Sync DB and OpenClaw files both directions
+memories openclaw memory sync --direction both
+```
+
+Automation-friendly JSON output:
+
+```bash
+memories openclaw memory bootstrap --json
+memories openclaw memory flush <session-id> --json
+memories openclaw memory snapshot <session-id> --json
+memories openclaw memory sync --direction both --json
+```
+
+---
+
 ## Maintenance & Cleanup
 
 Regular maintenance to keep memories relevant.
@@ -158,6 +214,10 @@ memories stale --days 90
 
 # Interactive review — keep, delete, or skip each
 memories review
+
+# Supersession/conflict-focused cleanup
+memories stale --superseded-only --conflicts-only
+memories review --superseded-only --conflicts-only
 
 # Check for issues
 memories doctor

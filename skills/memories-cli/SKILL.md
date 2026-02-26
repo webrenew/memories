@@ -1,6 +1,6 @@
 ---
 name: memories-cli
-description: "CLI reference and workflows for memories.sh — the persistent memory layer for AI agents. Use when: (1) Running memories CLI commands to add, search, edit, or manage memories, (2) Setting up memories.sh in a new project (memories init), (3) Generating AI tool config files (CLAUDE.md, .cursor/rules, etc.), (4) Importing existing rules from AI tools (memories ingest), (5) Managing cloud sync, embeddings, git hooks, or reminders, (6) Troubleshooting with memories doctor, (7) Working with memory templates, links, history, tags, or reminder schedules."
+description: "CLI reference and workflows for memories.sh — the persistent memory layer for AI agents. Use when: (1) Running memories CLI commands to add, search, edit, or manage memories, (2) Managing lifecycle workflows (session/checkpoint/compaction/consolidation/OpenClaw memory files), (3) Setting up memories.sh in a new project (memories init), (4) Generating AI tool config files (CLAUDE.md, .cursor/rules, etc.), (5) Importing existing rules from AI tools (memories ingest), (6) Managing cloud sync, embeddings, git hooks, or reminders, (7) Troubleshooting with memories doctor, (8) Working with memory templates, links, history, tags, or reminder schedules."
 ---
 
 # memories-cli
@@ -31,6 +31,10 @@ memories init                      # Initialize in current project
 | `memories generate` | Generate AI tool config files |
 | `memories prompt` | Generate a system prompt |
 | `memories serve` | Start MCP server |
+| `memories session <subcommand>` | Manage explicit sessions (`start`, `checkpoint`, `status`, `end`, `snapshot`) |
+| `memories compact run` | Run inactivity compaction worker |
+| `memories consolidate run` | Merge duplicates and supersede stale truths |
+| `memories openclaw memory <subcommand>` | OpenClaw file-mode workflows (`bootstrap`, `flush`, `snapshot`, `sync`) |
 | `memories reminders` | Manage cron reminders (`add`, `list`, `run`, `enable`, `disable`, `delete`) |
 
 ## Core Workflows
@@ -96,12 +100,45 @@ memories config model <model-name>        # Change embedding model
 ```bash
 memories doctor                           # Diagnose issues
 memories stats                            # Memory statistics
-memories stale --days 90                  # Find stale memories
-memories review                           # Interactive cleanup
+memories stale --days 90 --conflicts-only # Find stale conflicting memories
+memories review --superseded-only         # Interactive superseded cleanup
 memories validate                         # Check memory integrity
 ```
 
-### 8. Reminders
+### 8. Session Lifecycle + Compaction
+
+```bash
+# Start session
+memories session start --title "checkout timeout triage" --client codex
+
+# Add checkpoints as work progresses
+memories session checkpoint <session-id> "Root cause narrowed to auth callback timeout" --kind summary
+
+# Run inactivity compaction worker (batch job)
+memories compact run --inactivity-minutes 60 --limit 25
+
+# End session and optionally snapshot
+memories session end <session-id> --status closed
+memories session snapshot <session-id> --trigger manual
+```
+
+### 9. Consolidation + OpenClaw Memory Files
+
+```bash
+# Preview consolidation impact first
+memories consolidate run --types rule,decision,fact --dry-run
+
+# Apply consolidation
+memories consolidate run --types rule,decision,fact
+
+# OpenClaw memory file workflows
+memories openclaw memory bootstrap
+memories openclaw memory flush <session-id>
+memories openclaw memory snapshot <session-id> --trigger reset
+memories openclaw memory sync --direction both
+```
+
+### 10. Reminders
 
 ```bash
 memories reminders add "0 9 * * 1-5" "Review open TODOs"

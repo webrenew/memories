@@ -7,6 +7,7 @@ Complete reference for all `memories` CLI commands.
 - [Core Commands](#core-commands)
 - [Query Commands](#query-commands)
 - [Management Commands](#management-commands)
+- [Lifecycle Commands](#lifecycle-commands)
 - [Advanced Commands](#advanced-commands)
 - [Reminders](#reminders)
 - [Auth Commands](#auth-commands)
@@ -194,6 +195,106 @@ Start the MCP server.
 
 ---
 
+## Lifecycle Commands
+
+### `memories session <subcommand>`
+
+Manage explicit memory sessions.
+
+#### `memories session start`
+
+Start a new session.
+
+**Options:**
+- `--title <title>` — Session title
+- `--client <client>` — Client label (default: `cli`)
+- `--user-id <id>` — Optional user identifier
+- `--metadata <json>` — Session metadata JSON object
+- `-g, --global` — Create as global session
+- `--project-id <id>` — Explicit project id
+- `--json` — JSON output
+
+#### `memories session checkpoint <session-id> <content...>`
+
+Write a session event/checkpoint.
+
+**Options:**
+- `--role <role>` — `user`, `assistant`, `tool` (default: `assistant`)
+- `--kind <kind>` — `message`, `checkpoint`, `summary`, `event` (default: `checkpoint`)
+- `--token-count <n>` — Optional token count
+- `--turn-index <n>` — Optional turn index
+- `--not-meaningful` — Mark event as non-meaningful
+- `--json` — JSON output
+
+#### `memories session status [session-id]`
+
+Read status for a specific session or latest active session.
+
+#### `memories session end <session-id>`
+
+End an active session.
+
+**Options:**
+- `--status <status>` — `closed` or `compacted` (default: `closed`)
+- `--json` — JSON output
+
+#### `memories session snapshot <session-id>`
+
+Create a raw session snapshot from transcript input or recent events.
+
+**Options:**
+- `--trigger <trigger>` — `new_session`, `reset`, `manual`, `auto_compaction`
+- `--slug <slug>` — Optional snapshot slug
+- `-m, --messages <n>` — Number of events (default: `15`)
+- `--include-noise` — Include non-meaningful events
+- `--transcript <markdown>` — Explicit transcript markdown
+- `--json` — JSON output
+
+### `memories compact run`
+
+Run inactivity compaction worker for active sessions.
+
+**Options:**
+- `--inactivity-minutes <n>` — Inactivity threshold minutes (default: `60`)
+- `--limit <n>` — Max sessions to process (default: `25`)
+- `--event-window <n>` — Meaningful event window for checkpoint summaries (default: `8`)
+- `--json` — JSON output
+
+### `memories consolidate run`
+
+Consolidate duplicate memories and supersede outdated entries.
+
+**Options:**
+- `--types <types>` — Comma-separated types (default: `rule,decision,fact,note`)
+- `--project-id <id>` — Explicit project id
+- `--global-only` — Restrict to global scope
+- `--no-include-global` — Exclude global memories for project-scoped run
+- `--dry-run` — Preview only
+- `--model <name>` — Optional model label for audit metadata
+- `--json` — JSON output
+
+### `memories openclaw memory <subcommand>`
+
+Manage OpenClaw file-mode memory (`memory.md`, daily logs, snapshots).
+
+#### `bootstrap`
+- Reads semantic memory + today/yesterday daily logs.
+- Options: `--workspace <path>`, `--json`
+
+#### `flush <session-id>`
+- Appends recent meaningful session events to today's daily log.
+- Options: `-m, --messages <n>`, `--workspace <path>`, `--json`
+
+#### `snapshot <session-id>`
+- Writes DB snapshot + OpenClaw snapshot file.
+- Options: `--trigger <trigger>`, `--slug <slug>`, `-m, --messages <n>`, `--workspace <path>`, `--json`
+
+#### `sync`
+- Import/export DB <-> OpenClaw memory files.
+- Options: `--direction <import|export|both>`, `--workspace <path>`, `--json`
+
+---
+
 ## Reminders
 
 ### `memories reminders add <cron> <message...>`
@@ -278,11 +379,20 @@ Find memories not updated within threshold.
 **Options:**
 - `--days <n>` — Staleness threshold (default: 90)
 - `--type <type>` — Filter by type
+- `--include-superseded` — Include superseded memories
+- `--superseded-only` — Only superseded memories
+- `--conflicts-only` — Only memories with contradiction links
 - `--json` — JSON output
 
 ### `memories review`
 
 Interactive review of stale memories. Options per memory: keep, delete, skip, quit.
+
+**Options:**
+- `--days <n>` — Staleness threshold (default: 90)
+- `--include-superseded` — Include superseded memories
+- `--superseded-only` — Only superseded memories
+- `--conflicts-only` — Only memories with contradiction links
 
 ### `memories link <id1> <id2>`
 
