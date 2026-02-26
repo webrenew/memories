@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -256,6 +256,52 @@ describe("memory", () => {
     );
   });
 
+  it("should checkpoint openclaw bootstrap context into new sessions when file mode is enabled", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "memories-openclaw-session-bootstrap-"));
+    const dailyDir = join(workspaceDir, "memory", "daily");
+    mkdirSync(dailyDir, { recursive: true });
+
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    writeFileSync(join(workspaceDir, "memory.md"), "Prefer deterministic migration plans.");
+    writeFileSync(join(dailyDir, `${today}.md`), "## Today\n- Started phase 4.2");
+    writeFileSync(join(dailyDir, `${yesterday}.md`), "## Yesterday\n- Merged phase 4.1");
+
+    const previousMode = process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+    const previousWorkspace = process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+    process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = "1";
+    process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = workspaceDir;
+
+    try {
+      const session = await startMemorySession({
+        global: true,
+        title: "OpenClaw bootstrap session",
+      });
+
+      const events = await listMemorySessionEvents(session.id, {
+        limit: 10,
+        meaningfulOnly: false,
+      });
+      const bootstrapEvent = events.find((event) => event.kind === "summary" && event.role === "tool");
+
+      expect(bootstrapEvent).toBeDefined();
+      expect(bootstrapEvent?.content).toContain("OpenClaw bootstrap context.");
+      expect(bootstrapEvent?.content).toContain("Prefer deterministic migration plans.");
+      expect(bootstrapEvent?.content).toContain("Daily log (");
+    } finally {
+      if (previousMode === undefined) {
+        delete process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+      } else {
+        process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = previousMode;
+      }
+      if (previousWorkspace === undefined) {
+        delete process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+      } else {
+        process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = previousWorkspace;
+      }
+    }
+  });
+
   it("should resolve latest active session for project scope", async () => {
     await startMemorySession({ global: true, title: "Global session A" });
     const projectSession = await startMemorySession({
@@ -317,6 +363,97 @@ describe("memory", () => {
     const summary = await getMemorySessionStatus(session.id);
     expect(summary).not.toBeNull();
     expect(summary?.checkpointCount).toBeGreaterThan(0);
+  });
+
+  it("should flush pre-compaction checkpoints to openclaw daily logs when file mode is enabled", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "memories-openclaw-compaction-"));
+    const previousMode = process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+    const previousWorkspace = process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+    process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = "1";
+    process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = workspaceDir;
+
+    try {
+      const session = await startMemorySession({
+        global: true,
+        title: "Compaction to daily log",
+        client: "vitest",
+      });
+      const rule = await addMemory("Always include a changelog link", {
+        type: "rule",
+        global: true,
+      });
+      const memory = await addMemory("Pending migration risks for file mode", {
+        type: "note",
+        global: true,
+      });
+
+      const result = await writeAheadCompactionCheckpoint(session.id, {
+        query: "phase 4.2 compaction flush",
+        rules: [rule],
+        memories: [memory],
+        triggerType: "count",
+        reason: "Token budget exceeded",
+      });
+
+      expect(result.openClawDailyLogPath).toBeTruthy();
+      expect(result.openClawDailyLogPath && existsSync(result.openClawDailyLogPath)).toBe(true);
+
+      const dailyContent = readFileSync(result.openClawDailyLogPath as string, "utf-8");
+      expect(dailyContent).toContain("Compaction checkpoint");
+      expect(dailyContent).toContain(session.id);
+      expect(dailyContent).toContain(result.compactionEvent.id);
+    } finally {
+      if (previousMode === undefined) {
+        delete process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+      } else {
+        process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = previousMode;
+      }
+      if (previousWorkspace === undefined) {
+        delete process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+      } else {
+        process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = previousWorkspace;
+      }
+    }
+  });
+
+  it("should write reset snapshots to openclaw snapshot files when file mode is enabled", async () => {
+    const workspaceDir = mkdtempSync(join(tmpdir(), "memories-openclaw-snapshot-"));
+    const previousMode = process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+    const previousWorkspace = process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+    process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = "1";
+    process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = workspaceDir;
+
+    try {
+      const session = await startMemorySession({
+        global: true,
+        title: "Snapshot file hook session",
+      });
+
+      const snapshot = await createMemorySessionSnapshot(session.id, {
+        sourceTrigger: "reset",
+        transcriptMd: "# Session Snapshot\n\n### user (message)\nReset now",
+        messageCount: 1,
+      });
+
+      const dateKey = snapshot.created_at.slice(0, 10);
+      const snapshotPath = join(workspaceDir, "memory", "snapshots", dateKey, `${snapshot.slug}.md`);
+      expect(existsSync(snapshotPath)).toBe(true);
+      const snapshotContent = readFileSync(snapshotPath, "utf-8");
+      expect(snapshotContent).toContain("session_id:");
+      expect(snapshotContent).toContain("source_trigger: reset");
+      expect(snapshotContent).toContain("Reset now");
+    } finally {
+      if (previousMode === undefined) {
+        delete process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED;
+      } else {
+        process.env.MEMORY_OPENCLAW_FILE_MODE_ENABLED = previousMode;
+      }
+      if (previousWorkspace === undefined) {
+        delete process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR;
+      } else {
+        process.env.MEMORIES_OPENCLAW_WORKSPACE_DIR = previousWorkspace;
+      }
+    }
   });
 
   it("should compact inactive sessions with the inactivity worker", async () => {

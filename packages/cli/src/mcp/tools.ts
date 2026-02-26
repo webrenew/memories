@@ -135,7 +135,10 @@ Use this at the start of tasks to understand project conventions and recall past
                 `Reason: ${reason}`,
                 `Write-ahead checkpoint: ${wal.checkpointEvent.id}`,
                 `Compaction event: ${wal.compactionEvent.id}`,
-              ].join("\n");
+                wal.openClawDailyLogPath ? `OpenClaw daily log: ${wal.openClawDailyLogPath}` : null,
+              ]
+                .filter((line): line is string => Boolean(line))
+                .join("\n");
             } catch (error) {
               compactionSection = [
                 "## Compaction",

@@ -2,6 +2,13 @@ import { nanoid } from "nanoid";
 import { getDb } from "./db.js";
 import { getProjectId } from "./git.js";
 import { logger } from "./logger.js";
+import {
+  appendOpenClawDailyLog,
+  formatOpenClawBootstrapContext,
+  isOpenClawFileModeEnabled,
+  readOpenClawBootstrapContext,
+  writeOpenClawSnapshot,
+} from "./openclaw-memory.js";
 
 /**
  * Record a history entry for a memory change.
@@ -781,7 +788,30 @@ export async function startMemorySession(opts?: StartMemorySessionOpts): Promise
     args: [id],
   });
 
-  return result.rows[0] as unknown as MemorySession;
+  const session = result.rows[0] as unknown as MemorySession;
+
+  if (isOpenClawFileModeEnabled()) {
+    try {
+      const bootstrapContext = await readOpenClawBootstrapContext();
+      const bootstrapContent = formatOpenClawBootstrapContext(bootstrapContext);
+      if (bootstrapContent) {
+        await checkpointMemorySession(id, bootstrapContent, {
+          role: "tool",
+          kind: "summary",
+          tokenCount: estimateTokensFromText(bootstrapContent),
+          isMeaningful: true,
+        });
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to load OpenClaw bootstrap context for session ${id}: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    }
+  }
+
+  return session;
 }
 
 export async function getMemorySession(sessionId: string): Promise<MemorySession | null> {
@@ -933,7 +963,28 @@ export async function createMemorySessionSnapshot(
     args: [snapshotId],
   });
 
-  return result.rows[0] as unknown as MemorySessionSnapshot;
+  const snapshot = result.rows[0] as unknown as MemorySessionSnapshot;
+
+  if (isOpenClawFileModeEnabled()) {
+    try {
+      const snapshotDocument = [
+        `<!-- session_id: ${sessionId}; source_trigger: ${sourceTrigger}; created_at: ${now} -->`,
+        transcriptMd,
+      ].join("\n\n");
+      await writeOpenClawSnapshot(snapshotDocument, {
+        date: now,
+        slug,
+      });
+    } catch (error) {
+      logger.warn(
+        `Failed to write OpenClaw snapshot file for session ${sessionId}: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    }
+  }
+
+  return snapshot;
 }
 
 export async function endMemorySession(
@@ -1077,6 +1128,7 @@ export async function writeAheadCompactionCheckpoint(
   checkpointEvent: MemorySessionEvent;
   compactionEvent: MemoryCompactionEvent;
   tokenCountBefore: number;
+  openClawDailyLogPath: string | null;
 }> {
   const tokenCountBefore = opts.tokenCountBefore ?? estimateContextTokenCount({
     rules: opts.rules,
@@ -1136,10 +1188,36 @@ export async function writeAheadCompactionCheckpoint(
     checkpointMemoryId: checkpointEvent.id,
   });
 
+  let openClawDailyLogPath: string | null = null;
+  if (isOpenClawFileModeEnabled()) {
+    try {
+      const flushPayload = [
+        `- Session: ${sessionId}`,
+        `- Trigger: ${triggerType}`,
+        `- Reason: ${reason}`,
+        `- Checkpoint event: ${checkpointEvent.id}`,
+        `- Compaction event: ${compactionEvent.id}`,
+        "",
+        checkpointContent,
+      ].join("\n");
+      const flushResult = await appendOpenClawDailyLog(flushPayload, {
+        heading: `## Compaction checkpoint · ${new Date().toISOString()}`,
+      });
+      openClawDailyLogPath = flushResult.route.absolutePath;
+    } catch (error) {
+      logger.warn(
+        `Failed to flush OpenClaw pre-compaction checkpoint for session ${sessionId}: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    }
+  }
+
   return {
     checkpointEvent,
     compactionEvent,
     tokenCountBefore,
+    openClawDailyLogPath,
   };
 }
 
