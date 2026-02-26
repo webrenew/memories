@@ -847,12 +847,17 @@ export async function getLatestActiveMemorySession(opts?: {
     return null;
   }
 
+  const orderBy = projectId
+    ? "CASE WHEN scope = 'project' AND project_id = ? THEN 0 ELSE 1 END, last_activity_at DESC"
+    : "last_activity_at DESC";
+  const orderArgs: string[] = projectId ? [projectId] : [];
+
   const result = await db.execute({
     sql: `SELECT * FROM memory_sessions
           WHERE status = 'active' AND (${scopeClauses.join(" OR ")})
-          ORDER BY last_activity_at DESC
+          ORDER BY ${orderBy}
           LIMIT 1`,
-    args,
+    args: [...args, ...orderArgs],
   });
 
   return result.rows.length > 0 ? (result.rows[0] as unknown as MemorySession) : null;

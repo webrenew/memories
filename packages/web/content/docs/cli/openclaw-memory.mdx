@@ -1,0 +1,78 @@
+---
+title: openclaw memory
+description: Bootstrap, flush, snapshot, and sync OpenClaw file memory with local DB memory.
+---
+
+The `openclaw memory` command group manages OpenClaw memory file mode:
+
+- semantic memory (`memory.md`)
+- append-only daily logs (`memory/daily/YYYY-MM-DD.md`)
+- session snapshots (`memory/snapshots/YYYY-MM-DD/<slug>.md`)
+
+## Commands
+
+### Read bootstrap context
+
+```bash
+memories openclaw memory bootstrap
+```
+
+This reads:
+
+- `memory.md` (semantic memory)
+- today's and yesterday's daily logs
+
+Use JSON output when scripting:
+
+```bash
+memories openclaw memory bootstrap --json
+```
+
+### Flush session events to daily log
+
+```bash
+memories openclaw memory flush <session-id>
+```
+
+Options:
+
+- `-m, --messages <n>` number of meaningful events to include (default `15`)
+- `--workspace <path>` override OpenClaw workspace directory
+
+### Create snapshot file + DB snapshot
+
+```bash
+memories openclaw memory snapshot <session-id> --trigger reset
+```
+
+This writes both:
+
+- DB snapshot row (`memory_session_snapshots`)
+- OpenClaw snapshot file under `memory/snapshots/...`
+
+### Sync DB ↔ OpenClaw files
+
+```bash
+memories openclaw memory sync --direction both
+```
+
+Directions:
+
+- `export` DB -> files
+- `import` files -> DB
+- `both` (default)
+
+Use JSON output for automation:
+
+```bash
+memories openclaw memory sync --direction both --json
+```
+
+## Workspace path resolution
+
+Workspace precedence:
+
+1. `--workspace`
+2. env (`MEMORIES_OPENCLAW_WORKSPACE_DIR`, `OPENCLAW_WORKSPACE_DIR`, `OPENCLAW_WORKSPACE_PATH`)
+3. `~/.openclaw/openclaw.json` (for example `agent.workspace`, `agents.defaults.workspace`)
+4. default `~/.openclaw/workspace`
