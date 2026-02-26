@@ -301,11 +301,34 @@ async function ensureSkillFileSchema(turso: TursoClient): Promise<void> {
       scope TEXT NOT NULL DEFAULT 'global',
       project_id TEXT,
       user_id TEXT,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      last_used_at TEXT,
+      procedure_key TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT
     )`
   )
+
+  const result = await turso.execute("PRAGMA table_info(skill_files)")
+  const columns = new Set(
+    (Array.isArray(result.rows) ? result.rows : [])
+      .map((row) => String((row as { name?: unknown }).name ?? ""))
+      .filter((name) => name.length > 0)
+  )
+
+  if (!columns.has("usage_count")) {
+    await turso.execute("ALTER TABLE skill_files ADD COLUMN usage_count INTEGER NOT NULL DEFAULT 0")
+  }
+  if (!columns.has("last_used_at")) {
+    await turso.execute("ALTER TABLE skill_files ADD COLUMN last_used_at TEXT")
+  }
+  if (!columns.has("procedure_key")) {
+    await turso.execute("ALTER TABLE skill_files ADD COLUMN procedure_key TEXT")
+  }
+
+  await turso.execute("UPDATE skill_files SET usage_count = 0 WHERE usage_count IS NULL")
+
   await turso.execute(
     "CREATE INDEX IF NOT EXISTS idx_skill_files_scope_project_path ON skill_files(scope, project_id, path)"
   )
@@ -314,6 +337,12 @@ async function ensureSkillFileSchema(turso: TursoClient): Promise<void> {
   )
   await turso.execute(
     "CREATE INDEX IF NOT EXISTS idx_skill_files_updated_at ON skill_files(updated_at)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_skill_files_usage ON skill_files(scope, project_id, usage_count DESC, updated_at DESC)"
+  )
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_skill_files_procedure_key ON skill_files(procedure_key)"
   )
 }
 

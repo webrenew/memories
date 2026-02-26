@@ -62,6 +62,9 @@ export const structuredSkillFileSchema = z.object({
   scope: z.string(),
   projectId: z.string().nullable().optional(),
   userId: z.string().nullable().optional(),
+  usageCount: z.number().int().nonnegative().optional(),
+  lastUsedAt: z.string().nullable().optional(),
+  procedureKey: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

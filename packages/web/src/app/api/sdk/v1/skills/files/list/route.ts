@@ -16,6 +16,8 @@ const ENDPOINT = "/api/sdk/v1/skills/files/list"
 
 const requestSchema = z.object({
   limit: z.number().int().positive().max(500).optional(),
+  query: z.string().trim().max(500).optional(),
+  procedureKey: z.string().trim().max(120).optional(),
   scope: scopeSchema,
 })
 
@@ -74,6 +76,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       projectId,
       userId,
       limit: parsedRequest.limit ?? 100,
+      query: parsedRequest.query,
+      procedureKey: parsedRequest.procedureKey,
     })
 
     return successResponse(ENDPOINT, requestId, payload.data)

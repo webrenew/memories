@@ -186,6 +186,9 @@ export function toSkillFileRecord(skillFile: z.infer<typeof structuredSkillFileS
     scope: normalizeMemoryScope(skillFile.scope),
     projectId: skillFile.projectId ?? null,
     userId: skillFile.userId ?? null,
+    usageCount: skillFile.usageCount ?? 0,
+    lastUsedAt: skillFile.lastUsedAt ?? null,
+    procedureKey: skillFile.procedureKey ?? null,
     createdAt: skillFile.createdAt,
     updatedAt: skillFile.updatedAt,
   }

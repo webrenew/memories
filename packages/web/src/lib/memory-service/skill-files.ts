@@ -10,6 +10,9 @@ interface SkillFileRow {
   scope: SkillFileScope
   project_id: string | null
   user_id: string | null
+  usage_count: number | null
+  last_used_at: string | null
+  procedure_key: string | null
   created_at: string
   updated_at: string
 }
@@ -25,6 +28,43 @@ function exactUserScopeFilter(userId: string | null): { clause: string; args: st
   return { clause: "user_id IS NULL", args: [] }
 }
 
+function normalizeProcedureKey(value: string | null | undefined): string | null {
+  if (!value) return null
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120)
+  return normalized || null
+}
+
+function deriveProcedureKeyFromPath(path: string): string | null {
+  const parts = path
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+  const fileName = parts[parts.length - 1]
+  if (!fileName) return null
+  const withoutExt = fileName.replace(/\.[a-z0-9]+$/i, "")
+  return normalizeProcedureKey(withoutExt)
+}
+
+function deriveProcedureKeyFromQuery(query: string | null | undefined): string | null {
+  if (!query) return null
+  const firstLine = query
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0)
+  if (!firstLine) return null
+
+  const seed = firstLine.includes(":")
+    ? firstLine.split(":")[0]
+    : firstLine.split(/\s+/).slice(0, 6).join(" ")
+  return normalizeProcedureKey(seed)
+}
+
 function toStructuredSkillFile(row: SkillFileRow) {
   return {
     id: row.id,
@@ -33,6 +73,9 @@ function toStructuredSkillFile(row: SkillFileRow) {
     scope: row.scope,
     projectId: row.project_id,
     userId: row.user_id,
+    usageCount: typeof row.usage_count === "number" ? row.usage_count : 0,
+    lastUsedAt: row.last_used_at ?? null,
+    procedureKey: row.procedure_key ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -42,6 +85,7 @@ export async function upsertSkillFilePayload(params: {
   turso: TursoClient
   path: string
   content: string
+  procedureKey?: string | null
   projectId?: string | null
   userId: string | null
   nowIso: string
@@ -56,6 +100,7 @@ export async function upsertSkillFilePayload(params: {
   const { turso, path, content, projectId, userId, nowIso } = params
   const normalizedPath = path.trim()
   const normalizedContent = content.trim()
+  const normalizedProcedureKey = normalizeProcedureKey(params.procedureKey) ?? deriveProcedureKeyFromPath(normalizedPath)
 
   if (!normalizedPath) {
     throw new ToolExecutionError(
@@ -111,21 +156,21 @@ export async function upsertSkillFilePayload(params: {
   if (created) {
     await turso.execute({
       sql: `INSERT INTO skill_files (
-              id, path, content, scope, project_id, user_id, created_at, updated_at, deleted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-      args: [id, normalizedPath, normalizedContent, scope, projectId || null, userId, nowIso, nowIso],
+              id, path, content, scope, project_id, user_id, usage_count, last_used_at, procedure_key, created_at, updated_at, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, NULL)`,
+      args: [id, normalizedPath, normalizedContent, scope, projectId || null, userId, normalizedProcedureKey, nowIso, nowIso],
     })
   } else {
     await turso.execute({
       sql: `UPDATE skill_files
-            SET content = ?, updated_at = ?, deleted_at = NULL
+            SET content = ?, procedure_key = ?, updated_at = ?, deleted_at = NULL
             WHERE id = ?`,
-      args: [normalizedContent, nowIso, id],
+      args: [normalizedContent, normalizedProcedureKey, nowIso, id],
     })
   }
 
   const skillFileResult = await turso.execute({
-    sql: `SELECT id, path, content, scope, project_id, user_id, created_at, updated_at
+    sql: `SELECT id, path, content, scope, project_id, user_id, usage_count, last_used_at, procedure_key, created_at, updated_at
           FROM skill_files
           WHERE id = ?
           LIMIT 1`,
@@ -164,6 +209,8 @@ export async function listSkillFilesPayload(params: {
   projectId?: string | null
   userId: string | null
   limit: number
+  query?: string | null
+  procedureKey?: string | null
 }): Promise<{
   text: string
   data: {
@@ -173,9 +220,10 @@ export async function listSkillFilesPayload(params: {
 }> {
   const { turso, projectId, userId, limit } = params
   const normalizedLimit = Math.max(1, Math.min(Math.floor(limit || 50), 500))
+  const rankingProcedureKey = normalizeProcedureKey(params.procedureKey) ?? deriveProcedureKeyFromQuery(params.query)
   const userFilter = buildUserScopeFilter(userId)
 
-  let sql = `SELECT id, path, content, scope, project_id, user_id, created_at, updated_at
+  let sql = `SELECT id, path, content, scope, project_id, user_id, usage_count, last_used_at, procedure_key, created_at, updated_at
              FROM skill_files
              WHERE deleted_at IS NULL
                AND ${userFilter.clause}
@@ -187,12 +235,21 @@ export async function listSkillFilesPayload(params: {
     args.push(projectId)
   }
 
-  sql += `)
-          ORDER BY
-            CASE scope WHEN 'project' THEN 0 ELSE 1 END,
-            updated_at DESC,
-            created_at DESC
-          LIMIT ?`
+  sql += `)`
+
+  const orderByParts = [
+    "CASE scope WHEN 'project' THEN 0 ELSE 1 END",
+  ]
+  if (rankingProcedureKey) {
+    orderByParts.push("CASE WHEN procedure_key = ? THEN 0 WHEN procedure_key LIKE ? THEN 1 ELSE 2 END")
+    args.push(rankingProcedureKey, `${rankingProcedureKey}:%`)
+  }
+  orderByParts.push("COALESCE(usage_count, 0) DESC")
+  orderByParts.push("COALESCE(last_used_at, '') DESC")
+  orderByParts.push("updated_at DESC")
+  orderByParts.push("created_at DESC")
+
+  sql += ` ORDER BY ${orderByParts.join(", ")} LIMIT ?`
   args.push(normalizedLimit)
 
   const result = await turso.execute({ sql, args })
@@ -206,6 +263,32 @@ export async function listSkillFilesPayload(params: {
       count: skillFiles.length,
     },
   }
+}
+
+export async function markSkillFilesUsedPayload(params: {
+  turso: TursoClient
+  ids: string[]
+  userId: string | null
+  nowIso: string
+}): Promise<number> {
+  const { turso, ids, userId, nowIso } = params
+  const normalizedIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+  if (normalizedIds.length === 0) return 0
+
+  const userFilter = exactUserScopeFilter(userId)
+  const placeholders = normalizedIds.map(() => "?").join(", ")
+  const result = await turso.execute({
+    sql: `UPDATE skill_files
+          SET usage_count = COALESCE(usage_count, 0) + 1,
+              last_used_at = ?,
+              updated_at = ?
+          WHERE deleted_at IS NULL
+            AND ${userFilter.clause}
+            AND id IN (${placeholders})`,
+    args: [nowIso, nowIso, ...userFilter.args, ...normalizedIds],
+  })
+
+  return Number(result.rowsAffected ?? 0)
 }
 
 export async function deleteSkillFilePayload(params: {
