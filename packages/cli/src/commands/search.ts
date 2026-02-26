@@ -1,6 +1,15 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { searchMemories, isMemoryType, MEMORY_TYPES, type Memory, type MemoryType } from "../lib/memory.js";
+import {
+  searchMemories,
+  isMemoryType,
+  MEMORY_TYPES,
+  isMemoryLayer,
+  MEMORY_LAYERS,
+  type Memory,
+  type MemoryLayer,
+  type MemoryType,
+} from "../lib/memory.js";
 import * as ui from "../lib/ui.js";
 import { getProjectId } from "../lib/git.js";
 
@@ -25,6 +34,7 @@ export const searchCommand = new Command("search")
   .argument("<query>", "Search query")
   .option("-l, --limit <n>", "Max results", "20")
   .option("--type <type>", "Filter by type: rule, decision, fact, note")
+  .option("--layer <layer>", "Filter by layer: rule, working, long_term")
   .option("-g, --global", "Search only global memories")
   .option("--project-only", "Search only project memories (exclude global)")
   .option("-s, --semantic", "Use semantic (AI) search instead of keyword search")
@@ -32,6 +42,7 @@ export const searchCommand = new Command("search")
   .action(async (query: string, opts: { 
     limit: string; 
     type?: string;
+    layer?: string;
     global?: boolean; 
     projectOnly?: boolean;
     semantic?: boolean;
@@ -46,6 +57,15 @@ export const searchCommand = new Command("search")
           process.exit(1);
         }
         types = [opts.type];
+      }
+
+      let layers: MemoryLayer[] | undefined;
+      if (opts.layer) {
+        if (!isMemoryLayer(opts.layer)) {
+          ui.error(`Invalid layer "${opts.layer}". Valid layers: ${MEMORY_LAYERS.join(", ")}`);
+          process.exit(1);
+        }
+        layers = [opts.layer];
       }
 
       // Determine scope filtering
@@ -79,6 +99,7 @@ export const searchCommand = new Command("search")
             includeGlobal,
             globalOnly,
             types,
+            layers,
           });
           
           if (opts.json) {
@@ -115,6 +136,7 @@ export const searchCommand = new Command("search")
       const memories = await searchMemories(query, {
         limit: parseInt(opts.limit, 10),
         types,
+        layers,
         projectId,
         includeGlobal,
         globalOnly,

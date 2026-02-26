@@ -3,7 +3,7 @@ import { getDb, getConfigDir } from "./db.js";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import type { MemoryType } from "./memory.js";
+import type { MemoryLayer, MemoryType } from "./memory.js";
 import {
   type EmbeddingModel,
   EMBEDDING_MODELS,
@@ -297,6 +297,7 @@ export async function semanticSearch(
     includeGlobal?: boolean;
     globalOnly?: boolean;
     types?: MemoryType[];
+    layers?: MemoryLayer[];
   }
 ): Promise<{ id: string; content: string; score: number }[]> {
   const db = await getDb();
@@ -333,6 +334,27 @@ export async function semanticSearch(
     const placeholders = opts.types.map(() => "?").join(", ");
     sql += ` AND type IN (${placeholders})`;
     args.push(...opts.types);
+  }
+
+  if (opts?.layers?.length) {
+    const clauses: string[] = [];
+    const seen = new Set<MemoryLayer>();
+    for (const layer of opts.layers) {
+      if (seen.has(layer)) continue;
+      seen.add(layer);
+
+      if (layer === "rule") {
+        clauses.push("(memory_layer = 'rule' OR type = 'rule')");
+      } else if (layer === "working") {
+        clauses.push("memory_layer = 'working'");
+      } else if (layer === "long_term") {
+        clauses.push("(memory_layer = 'long_term' OR (memory_layer IS NULL AND type != 'rule'))");
+      }
+    }
+
+    if (clauses.length > 0) {
+      sql += ` AND (${clauses.join(" OR ")})`;
+    }
   }
   
   const result = await db.execute({ sql, args });
