@@ -182,7 +182,15 @@ If `tenantId` is omitted, the request uses the API key owner's active workspace 
 | `tags[]` | max `50` tags, each `1..120` chars |
 | `paths[]` | max `100` paths, each `1..300` chars |
 | `category` | `1..120` chars |
+| `sessionId` (`sessions/*`, `skills/files/promote`) | `1..120` chars |
+| `content` (`sessions/checkpoint`) | `1..16000` chars |
+| `title` (`sessions/start`) | `1..240` chars |
+| `client` (`sessions/start`) | `1..120` chars |
+| `model` (`memories/consolidate`) | `1..160` chars |
 | `path` (`skills/files/*`) | `1..400` chars |
+| `title` (`skills/files/promote`) | `1..200` chars |
+| `procedureKey` (`skills/files/promote`) | `1..120` chars |
+| `maxSteps` (`skills/files/promote`) | integer `3..20` |
 | `content` (`skills/files/upsert`) | `1..120000` chars |
 
 ## Runtime Endpoint Contracts
@@ -460,6 +468,183 @@ Response `data`:
 - `purged`
 - `message`
 
+### `POST /api/sdk/v1/memories/consolidate`
+
+Run consolidation to merge duplicates and supersede stale truths within scope.
+
+Feature gate: `MEMORY_CONSOLIDATION_ENABLED` must be on (`403 MEMORY_CONSOLIDATION_DISABLED` when off).
+
+Request:
+
+```json
+{
+  "types": ["rule", "decision", "fact"],
+  "includeGlobal": true,
+  "globalOnly": false,
+  "dryRun": true,
+  "model": "openai/gpt-5-mini",
+  "scope": {
+    "tenantId": "acme-prod",
+    "userId": "user_123",
+    "projectId": "github.com/acme/platform"
+  }
+}
+```
+
+Response `data`:
+
+- `runId`
+- `message`
+- `run` (`id`, `scope`, `projectId`, `userId`, `inputCount`, `mergedCount`, `supersededCount`, `conflictedCount`, `model`, `createdAt`, `metadata`)
+- `winnerMemoryIds[]`
+- `supersededMemoryIds[]`
+
+Typical endpoint-specific error codes:
+
+- `MEMORY_CONSOLIDATION_DISABLED` (`403`)
+- `INVALID_REQUEST` (`400`) for schema/shape violations
+
+### `POST /api/sdk/v1/sessions/start`
+
+Start a lifecycle session.
+
+Feature gate: `MEMORY_SESSION_ENABLED` must be on (`403 MEMORY_SESSION_DISABLED` when off).
+
+Request:
+
+```json
+{
+  "title": "Auth migration rollout",
+  "client": "codex",
+  "metadata": {
+    "channel": "oncall"
+  },
+  "scope": {
+    "tenantId": "acme-prod",
+    "userId": "user_123",
+    "projectId": "github.com/acme/platform"
+  }
+}
+```
+
+Success status is `201`.
+
+Response `data`:
+
+- `sessionId`
+- `message`
+- `session` (`id`, `scope`, `projectId`, `userId`, `client`, `status`, `title`, `startedAt`, `lastActivityAt`, `endedAt`, `metadata`)
+
+Typical endpoint-specific error codes:
+
+- `MEMORY_SESSION_DISABLED` (`403`)
+- `INVALID_REQUEST` (`400`)
+
+### `POST /api/sdk/v1/sessions/checkpoint`
+
+Append a checkpoint/event to an active session.
+
+Feature gate: `MEMORY_SESSION_ENABLED` must be on (`403 MEMORY_SESSION_DISABLED` when off).
+
+Request:
+
+```json
+{
+  "sessionId": "sess_abc123",
+  "content": "User confirmed we can promote canary after metrics pass.",
+  "role": "assistant",
+  "kind": "summary",
+  "tokenCount": 320,
+  "turnIndex": 8,
+  "isMeaningful": true,
+  "scope": {
+    "tenantId": "acme-prod",
+    "userId": "user_123",
+    "projectId": "github.com/acme/platform"
+  }
+}
+```
+
+Response `data`:
+
+- `sessionId`
+- `eventId`
+- `message`
+- `event` (`id`, `sessionId`, `role`, `kind`, `content`, `tokenCount`, `turnIndex`, `isMeaningful`, `createdAt`)
+
+Typical endpoint-specific error codes:
+
+- `MEMORY_SESSION_DISABLED` (`403`)
+- `SESSION_ID_REQUIRED` (`400`)
+- `SESSION_CONTENT_REQUIRED` (`400`)
+- `SESSION_NOT_FOUND` (`404`)
+- `SESSION_NOT_ACTIVE` (`409`)
+
+### `POST /api/sdk/v1/sessions/end`
+
+End an active session with final status `closed` or `compacted`.
+
+Feature gate: `MEMORY_SESSION_ENABLED` must be on (`403 MEMORY_SESSION_DISABLED` when off).
+
+Request:
+
+```json
+{
+  "sessionId": "sess_abc123",
+  "status": "compacted",
+  "scope": {
+    "tenantId": "acme-prod",
+    "userId": "user_123",
+    "projectId": "github.com/acme/platform"
+  }
+}
+```
+
+Response `data`:
+
+- `sessionId`
+- `message`
+- `session` (same shape as `sessions/start`)
+
+Typical endpoint-specific error codes:
+
+- `MEMORY_SESSION_DISABLED` (`403`)
+- `SESSION_ID_REQUIRED` (`400`)
+- `INVALID_SESSION_STATUS` (`400`)
+- `SESSION_NOT_FOUND` (`404`)
+- `SESSION_NOT_ACTIVE` (`409`)
+
+### `GET /api/sdk/v1/sessions/{sessionId}/snapshot`
+
+Fetch latest snapshot for a session.
+
+Feature gate: `MEMORY_SESSION_ENABLED` must be on (`403 MEMORY_SESSION_DISABLED` when off).
+
+Query params (optional scope routing):
+
+- `tenantId`
+- `userId`
+- `projectId`
+
+Example:
+
+```http
+GET /api/sdk/v1/sessions/sess_abc123/snapshot?tenantId=acme-prod&userId=user_123&projectId=github.com/acme/platform
+Authorization: Bearer mem_xxx
+```
+
+Response `data`:
+
+- `sessionId`
+- `message`
+- `snapshot` (`id`, `sessionId`, `slug`, `sourceTrigger`, `transcriptMd`, `messageCount`, `createdAt`)
+
+Typical endpoint-specific error codes:
+
+- `MEMORY_SESSION_DISABLED` (`403`)
+- `SESSION_NOT_FOUND` (`404`)
+- `SESSION_SNAPSHOT_NOT_FOUND` (`404`)
+
 ### `POST /api/sdk/v1/skills/files/upsert`
 
 Create or update a scoped skill file.
@@ -528,6 +713,49 @@ Response `data`:
 - `path`
 - `deleted: true`
 - `message`
+
+### `POST /api/sdk/v1/skills/files/promote`
+
+Promote a session snapshot into a procedural skill file.
+
+Feature gate: `MEMORY_PROCEDURAL_ENABLED` must be on (`403 MEMORY_PROCEDURAL_DISABLED` when off).
+
+Request:
+
+```json
+{
+  "sessionId": "sess_abc123",
+  "snapshotId": "snap_987",
+  "path": ".agents/skills/oncall-incident/SKILL.md",
+  "title": "On-call incident response procedure",
+  "procedureKey": "incident-response-v1",
+  "maxSteps": 8,
+  "scope": {
+    "tenantId": "acme-prod",
+    "userId": "user_123",
+    "projectId": "github.com/acme/platform"
+  }
+}
+```
+
+Status is:
+
+- `201` when a new skill file is created
+- `200` when an existing file is updated
+
+Response `data`:
+
+- `skillFile`
+- `created`
+- `source` (`sessionId`, `snapshotId`, `snapshotSlug`, `snapshotCreatedAt`)
+- `message`
+
+Typical endpoint-specific error codes:
+
+- `MEMORY_PROCEDURAL_DISABLED` (`403`)
+- `SESSION_ID_REQUIRED` (`400`)
+- `SKILL_FILE_PATH_REQUIRED` (`400`)
+- `SESSION_SNAPSHOT_NOT_FOUND` (`404`)
 
 ## Graph Endpoint Contracts
 
