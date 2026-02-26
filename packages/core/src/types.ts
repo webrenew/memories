@@ -69,6 +69,7 @@ export interface ContextResult {
   memories: MemoryRecord[]
   conflicts?: ConflictPair[]
   skillFiles?: SkillFileRecord[]
+  session?: ContextSessionState
   trace?: {
     requestedStrategy?: ContextStrategy
     strategy: ContextStrategy
@@ -98,6 +99,19 @@ export interface ContextResult {
   raw: string
 }
 
+export type CompactionTriggerType = "count" | "time" | "semantic"
+
+export interface ContextSessionState {
+  sessionId: string | null
+  estimatedTokens: number
+  budgetTokens: number | null
+  turnCount: number | null
+  turnBudget: number | null
+  compactionRequired: boolean
+  triggerHint: CompactionTriggerType | null
+  reason: string
+}
+
 export type ContextMode = "all" | "working" | "long_term" | "rules_only"
 
 export interface ContextGetOptions {
@@ -111,6 +125,14 @@ export interface ContextGetOptions {
   strategy?: ContextStrategy
   graphDepth?: 0 | 1 | 2
   graphLimit?: number
+  sessionId?: string
+  budgetTokens?: number
+  turnCount?: number
+  turnBudget?: number
+  lastActivityAt?: string
+  inactivityThresholdMinutes?: number
+  taskCompleted?: boolean
+  includeSessionSummary?: boolean
 }
 
 export interface ContextGetInput extends ContextGetOptions {

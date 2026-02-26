@@ -1,6 +1,7 @@
 export { MemoriesClient, MemoriesClientError } from "./client"
 export { buildSystemPrompt } from "./system-prompt"
 export { parseContextResponse, parseMemoryListResponse } from "./parsers"
+export { estimateContextTokens, evaluateCompactionTrigger, hasCompactionSignals } from "./compaction"
 export type { MemoriesClientOptions } from "./client"
 export type {
   BuildSystemPromptInput,
@@ -10,7 +11,9 @@ export type {
   ContextMode,
   ContextStrategy,
   ContextGetOptions,
+  ContextSessionState,
   ContextResult,
+  CompactionTriggerType,
   MemoriesErrorData,
   MemoriesErrorType,
   MemoriesResponseEnvelope,
