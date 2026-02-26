@@ -86,6 +86,26 @@ Optional reminder setup:
 memories reminders add "0 9 * * 1-5" "OpenClaw refresh: run generate + skills copy + files apply"
 ```
 
+### 4) Sync DB memory and OpenClaw file memory
+
+```bash
+# Bidirectional sync between DB rows and OpenClaw memory files
+memories openclaw memory sync --direction both
+```
+
+Useful focused operations:
+
+```bash
+# Read semantic + recent episodic bootstrap context
+memories openclaw memory bootstrap
+
+# Flush recent meaningful session events to today's daily log
+memories openclaw memory flush <session-id>
+
+# Write a raw snapshot file from session events
+memories openclaw memory snapshot <session-id> --trigger reset
+```
+
 ## Important Notes
 
 - OpenClaw docs define a full workspace contract (`AGENTS`, `SOUL`, `TOOLS`, `IDENTITY`, `USER`, `HEARTBEAT`, `BOOTSTRAP`, `BOOT`, and memory files).

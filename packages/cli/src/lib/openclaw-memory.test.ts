@@ -16,6 +16,8 @@ import {
   resolveOpenClawMemoryBucket,
   resolveOpenClawWorkspaceDirectory,
   routeOpenClawMemoryFile,
+  writeOpenClawDailyLog,
+  writeOpenClawSemanticMemory,
   writeOpenClawSnapshot,
 } from "./openclaw-memory.js";
 
@@ -197,5 +199,18 @@ describe("openclaw-memory", () => {
     const snapshotContent = readFileSync(snapshotResult.route.absolutePath, "utf-8");
     expect(snapshotContent).toContain("# Session Snapshot");
     expect(snapshotContent).toContain("- user: hello");
+
+    const overwriteDaily = await writeOpenClawDailyLog("# Daily Export\n\n- from DB", {
+      workspaceDir,
+      date: "2026-02-26",
+    });
+    expect(overwriteDaily.route.absolutePath).toBe(join(workspaceDir, "memory", "daily", "2026-02-26.md"));
+    expect(readFileSync(overwriteDaily.route.absolutePath, "utf-8")).toContain("# Daily Export");
+
+    const semantic = await writeOpenClawSemanticMemory("# Semantic Memory\n\n- Rule A", {
+      workspaceDir,
+    });
+    expect(semantic.route.absolutePath).toBe(join(workspaceDir, "memory.md"));
+    expect(readFileSync(semantic.route.absolutePath, "utf-8")).toContain("- Rule A");
   });
 });
