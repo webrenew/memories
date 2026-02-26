@@ -21,6 +21,7 @@ import {
   getLatestActiveMemorySession,
   estimateContextTokenCount,
   writeAheadCompactionCheckpoint,
+  runInactivityCompactionWorker,
 } from "./memory.js";
 import { getDb } from "./db.js";
 
@@ -316,5 +317,37 @@ describe("memory", () => {
     const summary = await getMemorySessionStatus(session.id);
     expect(summary).not.toBeNull();
     expect(summary?.checkpointCount).toBeGreaterThan(0);
+  });
+
+  it("should compact inactive sessions with the inactivity worker", async () => {
+    const session = await startMemorySession({
+      global: true,
+      title: "Inactive session",
+      client: "vitest",
+    });
+    await checkpointMemorySession(session.id, "Old activity", {
+      role: "assistant",
+      kind: "message",
+    });
+
+    const db = await getDb();
+    await db.execute({
+      sql: "UPDATE memory_sessions SET last_activity_at = ? WHERE id = ?",
+      args: ["2020-01-01T00:00:00.000Z", session.id],
+    });
+
+    const result = await runInactivityCompactionWorker({
+      inactivityMinutes: 30,
+      limit: 10,
+      eventWindow: 5,
+    });
+
+    expect(result.scanned).toBeGreaterThan(0);
+    expect(result.compacted).toBeGreaterThan(0);
+    expect(result.failures).toEqual([]);
+
+    const updated = await getMemorySessionStatus(session.id);
+    expect(updated?.session.status).toBe("compacted");
+    expect(updated?.checkpointCount).toBeGreaterThan(0);
   });
 });

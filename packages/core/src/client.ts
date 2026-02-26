@@ -188,6 +188,9 @@ export class MemoriesClient {
             budgetTokens: input.budgetTokens,
             turnCount: input.turnCount,
             turnBudget: input.turnBudget,
+            lastActivityAt: input.lastActivityAt,
+            inactivityThresholdMinutes: input.inactivityThresholdMinutes,
+            taskCompleted: input.taskCompleted,
             includeSessionSummary: input.includeSessionSummary,
             scope: sdkScope,
           })
@@ -205,6 +208,9 @@ export class MemoriesClient {
             budget_tokens: input.budgetTokens,
             turn_count: input.turnCount,
             turn_budget: input.turnBudget,
+            last_activity_at: input.lastActivityAt,
+            inactivity_threshold_minutes: input.inactivityThresholdMinutes,
+            task_completed: input.taskCompleted,
             include_session_summary: input.includeSessionSummary,
           })
 
