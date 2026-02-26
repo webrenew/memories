@@ -63,9 +63,23 @@ Use this at the start of tasks to understand project conventions and recall past
       budget_tokens: z.number().int().positive().optional().describe("Optional token budget hint for compaction-aware clients"),
       turn_count: z.number().int().nonnegative().optional().describe("Optional current turn count for count-based compaction checks"),
       turn_budget: z.number().int().positive().optional().describe("Optional turn-count budget for count-based compaction checks"),
+      last_activity_at: z.string().optional().describe("ISO timestamp of last session activity for inactivity-trigger checks"),
+      inactivity_threshold_minutes: z.number().int().positive().optional().describe("Inactivity threshold in minutes for time-trigger checks"),
+      task_completed: z.boolean().optional().describe("Semantic completion hint to trigger checkpointing after task completion"),
       include_session_summary: z.boolean().optional().describe("Reserved for future snapshot/session summary hydration"),
     },
-    async ({ query, limit, mode, session_id, budget_tokens, turn_count, turn_budget }) => {
+    async ({
+      query,
+      limit,
+      mode,
+      session_id,
+      budget_tokens,
+      turn_count,
+      turn_budget,
+      last_activity_at,
+      inactivity_threshold_minutes,
+      task_completed,
+    }) => {
       try {
         const { rules, memories } = await getContext(query, {
           projectId: projectId ?? undefined,
@@ -76,29 +90,48 @@ Use this at the start of tasks to understand project conventions and recall past
         const parts: string[] = [];
         let compactionSection: string | null = null;
 
-        if (session_id && (budget_tokens !== undefined || (turn_budget !== undefined && turn_count !== undefined))) {
+        if (session_id) {
           const estimatedTokens = estimateContextTokenCount({ rules, memories });
           const tokenTriggered = budget_tokens !== undefined && estimatedTokens > budget_tokens;
           const turnTriggered = turn_budget !== undefined && turn_count !== undefined && turn_count > turn_budget;
+          const parsedLastActivity = last_activity_at ? new Date(last_activity_at) : null;
+          const inactivityTriggered = Boolean(
+            parsedLastActivity &&
+            !Number.isNaN(parsedLastActivity.getTime()) &&
+            inactivity_threshold_minutes !== undefined &&
+            Date.now() - parsedLastActivity.getTime() >= inactivity_threshold_minutes * 60 * 1000
+          );
+          const semanticTriggered = task_completed === true;
 
+          let triggerType: "count" | "time" | "semantic" | null = null;
+          let reason = "";
           if (tokenTriggered || turnTriggered) {
-            const reason = tokenTriggered
+            triggerType = "count";
+            reason = tokenTriggered
               ? `Estimated context tokens ${estimatedTokens} exceed budget ${budget_tokens}.`
               : `Turn count ${turn_count} exceeds budget ${turn_budget}.`;
+          } else if (inactivityTriggered) {
+            triggerType = "time";
+            reason = `Session inactive beyond ${inactivity_threshold_minutes} minute threshold.`;
+          } else if (semanticTriggered) {
+            triggerType = "semantic";
+            reason = "Caller signaled task completion.";
+          }
 
+          if (triggerType) {
             try {
               const wal = await writeAheadCompactionCheckpoint(session_id, {
                 query,
                 rules,
                 memories,
-                triggerType: "count",
+                triggerType,
                 reason,
                 tokenCountBefore: estimatedTokens,
                 turnCountBefore: turn_count,
               });
               compactionSection = [
                 "## Compaction",
-                `Trigger: count`,
+                `Trigger: ${triggerType}`,
                 `Reason: ${reason}`,
                 `Write-ahead checkpoint: ${wal.checkpointEvent.id}`,
                 `Compaction event: ${wal.compactionEvent.id}`,
@@ -106,7 +139,7 @@ Use this at the start of tasks to understand project conventions and recall past
             } catch (error) {
               compactionSection = [
                 "## Compaction",
-                `Trigger: count`,
+                `Trigger: ${triggerType}`,
                 `Reason: ${reason}`,
                 `Write-ahead checkpoint failed: ${error instanceof Error ? error.message : "Unknown error"}`,
               ].join("\n");

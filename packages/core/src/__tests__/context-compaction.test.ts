@@ -67,6 +67,9 @@ describe("context compaction integration", () => {
       budgetTokens: 10,
       turnCount: 15,
       turnBudget: 12,
+      lastActivityAt: "2026-02-25T23:00:00.000Z",
+      inactivityThresholdMinutes: 30,
+      taskCompleted: false,
     })
 
     expect(context.session).toBeDefined()
@@ -77,6 +80,9 @@ describe("context compaction integration", () => {
     const rpcArgs = extractRpcArgs(fetchMock)
     expect(rpcArgs.session_id).toBe("sess_123")
     expect(rpcArgs.budget_tokens).toBe(10)
+    expect(rpcArgs.last_activity_at).toBe("2026-02-25T23:00:00.000Z")
+    expect(rpcArgs.inactivity_threshold_minutes).toBe(30)
+    expect(rpcArgs.task_completed).toBe(false)
   })
 
   it("preserves server-provided session state from SDK envelopes", async () => {

@@ -239,6 +239,15 @@ export interface WriteAheadCompactionOpts {
   reason?: string;
   tokenCountBefore?: number;
   turnCountBefore?: number;
+  checkpointContent?: string;
+}
+
+export interface InactivityCompactionWorkerResult {
+  inactivityMinutes: number;
+  scanned: number;
+  checkpointed: number;
+  compacted: number;
+  failures: Array<{ sessionId: string; error: string }>;
 }
 
 const DEFAULT_WORKING_MEMORY_TTL_HOURS = 24;
@@ -1078,33 +1087,37 @@ export async function writeAheadCompactionCheckpoint(
     opts.reason?.trim() ||
     `Context estimated at ${tokenCountBefore} tokens before compaction checkpoint.`;
 
-  const summaryLines: string[] = [
-    "Compaction checkpoint (write-ahead log).",
-    `Trigger: ${triggerType}`,
-    `Reason: ${reason}`,
-  ];
+  let checkpointContent = opts.checkpointContent?.trim();
+  if (!checkpointContent) {
+    const summaryLines: string[] = [
+      "Compaction checkpoint (write-ahead log).",
+      `Trigger: ${triggerType}`,
+      `Reason: ${reason}`,
+    ];
 
-  if (opts.query?.trim()) {
-    summaryLines.push(`Query: ${opts.query.trim()}`);
+    if (opts.query?.trim()) {
+      summaryLines.push(`Query: ${opts.query.trim()}`);
+    }
+
+    if (opts.rules.length > 0) {
+      const ruleLines = opts.rules
+        .slice(0, 5)
+        .map((rule) => `- ${truncateForSummary(rule.content)}`);
+      summaryLines.push("Rules:");
+      summaryLines.push(...ruleLines);
+    }
+
+    if (opts.memories.length > 0) {
+      const memoryLines = opts.memories
+        .slice(0, 8)
+        .map((memory) => `- [${memory.type}] ${truncateForSummary(memory.content)}`);
+      summaryLines.push("Memories:");
+      summaryLines.push(...memoryLines);
+    }
+
+    checkpointContent = summaryLines.join("\n");
   }
 
-  if (opts.rules.length > 0) {
-    const ruleLines = opts.rules
-      .slice(0, 5)
-      .map((rule) => `- ${truncateForSummary(rule.content)}`);
-    summaryLines.push("Rules:");
-    summaryLines.push(...ruleLines);
-  }
-
-  if (opts.memories.length > 0) {
-    const memoryLines = opts.memories
-      .slice(0, 8)
-      .map((memory) => `- [${memory.type}] ${truncateForSummary(memory.content)}`);
-    summaryLines.push("Memories:");
-    summaryLines.push(...memoryLines);
-  }
-
-  const checkpointContent = summaryLines.join("\n");
   const summaryTokens = estimateTokensFromText(checkpointContent);
   const checkpointEvent = await checkpointMemorySession(sessionId, checkpointContent, {
     role: "assistant",
@@ -1127,6 +1140,75 @@ export async function writeAheadCompactionCheckpoint(
     checkpointEvent,
     compactionEvent,
     tokenCountBefore,
+  };
+}
+
+export async function runInactivityCompactionWorker(opts?: {
+  inactivityMinutes?: number;
+  limit?: number;
+  eventWindow?: number;
+}): Promise<InactivityCompactionWorkerResult> {
+  const db = await getDb();
+  const inactivityMinutes = resolvePositiveLimit(opts?.inactivityMinutes, 60);
+  const limit = resolvePositiveLimit(opts?.limit, 25);
+  const eventWindow = resolvePositiveLimit(opts?.eventWindow, 8);
+  const cutoffIso = new Date(Date.now() - inactivityMinutes * 60 * 1000).toISOString();
+
+  const result = await db.execute({
+    sql: `SELECT id
+          FROM memory_sessions
+          WHERE status = 'active' AND last_activity_at <= ?
+          ORDER BY last_activity_at ASC
+          LIMIT ?`,
+    args: [cutoffIso, limit],
+  });
+
+  const sessionIds = result.rows
+    .map((row) => (typeof row.id === "string" ? row.id : null))
+    .filter((value): value is string => Boolean(value));
+
+  const failures: Array<{ sessionId: string; error: string }> = [];
+  let checkpointed = 0;
+
+  for (const sessionId of sessionIds) {
+    try {
+      const recentEvents = await listMemorySessionEvents(sessionId, {
+        limit: eventWindow,
+        meaningfulOnly: true,
+      });
+      const eventSummary = recentEvents.length > 0
+        ? recentEvents.map((event) => `- [${event.role}/${event.kind}] ${truncateForSummary(event.content, 200)}`).join("\n")
+        : "- No meaningful events recorded before inactivity checkpoint.";
+
+      await writeAheadCompactionCheckpoint(sessionId, {
+        triggerType: "time",
+        reason: `Session inactive for at least ${inactivityMinutes} minutes.`,
+        rules: [],
+        memories: [],
+        checkpointContent: [
+          "Compaction checkpoint (inactivity worker).",
+          `Reason: Session inactive for at least ${inactivityMinutes} minutes.`,
+          "Recent meaningful events:",
+          eventSummary,
+        ].join("\n"),
+      });
+
+      await endMemorySession(sessionId, { status: "compacted" });
+      checkpointed += 1;
+    } catch (error) {
+      failures.push({
+        sessionId,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  return {
+    inactivityMinutes,
+    scanned: sessionIds.length,
+    checkpointed,
+    compacted: checkpointed,
+    failures,
   };
 }
 
