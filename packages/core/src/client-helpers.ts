@@ -58,6 +58,30 @@ export type ContextGetMethod = {
 const contextModes = new Set<ContextMode>(["all", "working", "long_term", "rules_only"])
 const contextStrategies = new Set<ContextStrategy>(["lexical", "semantic", "hybrid", "baseline", "hybrid_graph"])
 
+function normalizeOptionalPositiveInt(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined
+  }
+  const normalized = Math.floor(value)
+  return normalized > 0 ? normalized : undefined
+}
+
+function normalizeOptionalNonNegativeInt(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined
+  }
+  const normalized = Math.floor(value)
+  return normalized >= 0 ? normalized : undefined
+}
+
+function normalizeOptionalIsoDate(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const parsed = new Date(trimmed)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
+}
+
 export function errorTypeForStatus(status: number): MemoriesErrorData["type"] {
   if (status === 400) return "validation_error"
   if (status === 401 || status === 403) return "auth_error"
@@ -233,6 +257,17 @@ export function normalizeContextInput(
 
   return {
     ...fromObject,
+    sessionId: typeof fromObject.sessionId === "string" && fromObject.sessionId.trim()
+      ? fromObject.sessionId.trim()
+      : undefined,
+    budgetTokens: normalizeOptionalPositiveInt(fromObject.budgetTokens),
+    turnCount: normalizeOptionalNonNegativeInt(fromObject.turnCount),
+    turnBudget: normalizeOptionalPositiveInt(fromObject.turnBudget),
+    lastActivityAt: normalizeOptionalIsoDate(fromObject.lastActivityAt),
+    inactivityThresholdMinutes: normalizeOptionalPositiveInt(fromObject.inactivityThresholdMinutes),
+    taskCompleted: typeof fromObject.taskCompleted === "boolean" ? fromObject.taskCompleted : undefined,
+    includeSessionSummary:
+      typeof fromObject.includeSessionSummary === "boolean" ? fromObject.includeSessionSummary : undefined,
     mode: normalizeContextMode(fromObject.mode),
     strategy: normalizeContextStrategy(fromObject.strategy),
     graphDepth: normalizeGraphDepth(fromObject.graphDepth),
