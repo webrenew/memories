@@ -122,6 +122,80 @@ const response = await anthropic.messages.create({
 })
 ```
 
+## Lifecycle Workflow (Session + Consolidation)
+
+`MemoriesClient` already supports budget/session-aware retrieval through `context.get()`. Session lifecycle write endpoints (`/sessions/*`) and consolidation (`/memories/consolidate`) are currently called through SDK HTTP routes.
+
+```typescript
+import { MemoriesClient } from "@memories.sh/core"
+
+const apiKey = process.env.MEMORIES_API_KEY!
+const baseUrl = "https://memories.sh"
+const scope = {
+  tenantId: "acme-prod",
+  userId: "user_123",
+  projectId: "github.com/acme/platform",
+}
+
+const client = new MemoriesClient({
+  apiKey,
+  tenantId: scope.tenantId,
+  userId: scope.userId,
+})
+
+async function sdkPost(path: string, body: Record<string, unknown>) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`SDK request failed: ${res.status}`)
+  return res.json()
+}
+
+const started = await sdkPost("/api/sdk/v1/sessions/start", {
+  title: "Checkout timeout investigation",
+  client: "my-agent",
+  scope,
+})
+const sessionId = started.data.sessionId as string
+
+const context = await client.context.get({
+  query: "Find likely timeout root causes",
+  projectId: scope.projectId,
+  sessionId,
+  budgetTokens: 6000,
+  turnCount: 4,
+  turnBudget: 24,
+  lastActivityAt: new Date().toISOString(),
+  inactivityThresholdMinutes: 45,
+})
+
+await sdkPost("/api/sdk/v1/sessions/checkpoint", {
+  sessionId,
+  content: `Captured ${context.memories.length} relevant memories`,
+  kind: "summary",
+  scope,
+})
+
+await sdkPost("/api/sdk/v1/memories/consolidate", {
+  types: ["rule", "decision", "fact"],
+  dryRun: true,
+  scope,
+})
+
+await sdkPost("/api/sdk/v1/sessions/end", {
+  sessionId,
+  status: "closed",
+  scope,
+})
+```
+
+If you need explicit raw snapshot creation in the same flow, use local CLI/MCP lifecycle tools (`memories session snapshot` or `snapshot_session`) and then consume `/api/sdk/v1/sessions/{sessionId}/snapshot`.
+
 ## Management APIs (Copy-Paste)
 
 ### `MemoriesClient.management.*`

@@ -95,6 +95,87 @@ Legacy signature remains supported:
 await client.context.get("auth", { projectId: "github.com/acme/platform", limit: 20 })
 ```
 
+### Session Lifecycle Pattern
+
+`MemoriesClient` exposes session-aware retrieval fields on `context.get()`, but session lifecycle writes are currently HTTP endpoint calls (`/api/sdk/v1/sessions/*`).
+
+```typescript
+import { MemoriesClient } from "@memories.sh/core"
+
+const apiKey = process.env.MEMORIES_API_KEY!
+const baseUrl = "https://memories.sh"
+const scope = {
+  tenantId: "acme-prod",
+  userId: "user_123",
+  projectId: "github.com/acme/platform",
+}
+
+const client = new MemoriesClient({
+  apiKey,
+  tenantId: scope.tenantId,
+  userId: scope.userId,
+})
+
+async function sdkPost(path: string, body: Record<string, unknown>) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`SDK request failed: ${res.status}`)
+  return res.json()
+}
+
+async function sdkGet(path: string) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  })
+  if (!res.ok) throw new Error(`SDK request failed: ${res.status}`)
+  return res.json()
+}
+
+const started = await sdkPost("/api/sdk/v1/sessions/start", {
+  title: "Investigate checkout timeout",
+  client: "my-agent",
+  scope,
+})
+const sessionId = started.data.sessionId as string
+
+const ctx = await client.context.get({
+  query: "checkout timeout investigation",
+  projectId: scope.projectId,
+  sessionId,
+  budgetTokens: 6000,
+  turnCount: 3,
+  turnBudget: 24,
+  lastActivityAt: new Date().toISOString(),
+  inactivityThresholdMinutes: 45,
+})
+
+await sdkPost("/api/sdk/v1/sessions/checkpoint", {
+  sessionId,
+  content: `Recalled ${ctx.memories.length} memories`,
+  kind: "summary",
+  scope,
+})
+
+await sdkPost("/api/sdk/v1/sessions/end", {
+  sessionId,
+  status: "closed",
+  scope,
+})
+
+// Optional: read latest snapshot if one was created by lifecycle hooks
+const snapshot = await sdkGet(
+  `/api/sdk/v1/sessions/${sessionId}/snapshot?tenantId=${scope.tenantId}&userId=${scope.userId}&projectId=${encodeURIComponent(scope.projectId)}`
+)
+```
+
+If you require explicit snapshot creation in this flow, create it via local CLI/MCP (`memories session snapshot` or `snapshot_session`) and then read it through the SDK endpoint above.
+
 ### Hybrid Retrieval Usage
 
 Enable graph-augmented recall per request:
@@ -222,6 +303,32 @@ const result = await client.memories.vacuum()
 console.log(result.purged) // number of permanently removed records
 ```
 
+### Consolidation Run (HTTP Endpoint)
+
+Consolidation currently runs through the SDK endpoint (`/api/sdk/v1/memories/consolidate`).
+
+```typescript
+const consolidate = await fetch("https://memories.sh/api/sdk/v1/memories/consolidate", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.MEMORIES_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    types: ["rule", "decision", "fact"],
+    dryRun: true,
+    scope: {
+      tenantId: "acme-prod",
+      userId: "user_123",
+      projectId: "github.com/acme/platform",
+    },
+  }),
+})
+
+const consolidateJson = await consolidate.json()
+console.log(consolidateJson.data.runId, consolidateJson.data.run)
+```
+
 ### `client.buildSystemPrompt(context)`
 
 Format rules and memories into a system prompt block.
@@ -345,6 +452,18 @@ const skillFiles = await client.skills.listFiles({
 
 await client.skills.deleteFile({
   path: ".agents/skills/review/SKILL.md",
+  tenantId: "acme-prod",
+  userId: "user_123",
+  projectId: "github.com/acme/platform",
+})
+
+await client.skills.promoteFromSession({
+  sessionId: "sess_abc123",
+  snapshotId: "snap_987", // optional; latest snapshot is used when omitted
+  path: ".agents/skills/incident-response/SKILL.md",
+  title: "Incident response procedure",
+  procedureKey: "incident-response-v1",
+  maxSteps: 8,
   tenantId: "acme-prod",
   userId: "user_123",
   projectId: "github.com/acme/platform",

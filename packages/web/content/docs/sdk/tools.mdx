@@ -5,6 +5,8 @@ description: memoriesTools() gives LLMs direct access to read and write memory.
 
 For agent loops where the LLM should actively manage its own memory, use `memoriesTools()`. This gives the model tools to get context, store memories, search, edit, list, and forget.
 
+`memoriesTools()` currently focuses on memory + skill-file CRUD. Session lifecycle endpoints (`/sessions/*`) and consolidation (`/memories/consolidate`) are called directly via SDK HTTP routes from your backend.
+
 ## Tool Bundle
 
 ```typescript
@@ -92,6 +94,22 @@ const { text } = await generateText({
 
 Fetches rules and relevant memories for a query. The primary "read" tool.
 
+You can pass lifecycle/compaction hints through the same tool input:
+
+```typescript
+const ctx = await getContext({ tenantId: "acme-prod" })({
+  query: "summarize checkout timeout findings",
+  projectId: "github.com/acme/platform",
+  sessionId: "sess_abc123",
+  budgetTokens: 6000,
+  turnCount: 5,
+  turnBudget: 24,
+  lastActivityAt: new Date().toISOString(),
+  inactivityThresholdMinutes: 45,
+  taskCompleted: false,
+})
+```
+
 ### `storeMemory(config?)`
 
 Stores a new memory. Accepts `content`, `type`, `tags`, and `paths`.
@@ -119,6 +137,60 @@ Bulk soft-delete memories matching filters. Accepts `types`, `tags`, `olderThanD
 ### `vacuumMemories(config?)`
 
 Permanently purge all soft-deleted memories to reclaim storage space.
+
+## Lifecycle Writes via SDK HTTP
+
+Use direct SDK endpoint calls for session lifecycle and consolidation flows:
+
+```typescript
+const apiKey = process.env.MEMORIES_API_KEY!
+const baseUrl = "https://memories.sh"
+const scope = {
+  tenantId: "acme-prod",
+  userId: "user_123",
+  projectId: "github.com/acme/platform",
+}
+
+async function sdkPost(path: string, body: Record<string, unknown>) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`SDK request failed: ${res.status}`)
+  return res.json()
+}
+
+const started = await sdkPost("/api/sdk/v1/sessions/start", {
+  title: "Investigate timeout",
+  client: "agent-loop",
+  scope,
+})
+
+await sdkPost("/api/sdk/v1/sessions/checkpoint", {
+  sessionId: started.data.sessionId,
+  content: "Captured checkpoint from tool loop",
+  kind: "summary",
+  scope,
+})
+
+await sdkPost("/api/sdk/v1/memories/consolidate", {
+  types: ["rule", "decision", "fact"],
+  dryRun: true,
+  scope,
+})
+
+await sdkPost("/api/sdk/v1/sessions/end", {
+  sessionId: started.data.sessionId,
+  status: "closed",
+  scope,
+})
+```
+
+For explicit snapshot creation in local/dev agents, use CLI/MCP lifecycle tools (`memories session snapshot` or `snapshot_session`), then read snapshots through `/api/sdk/v1/sessions/{sessionId}/snapshot`.
 
 ## System Prompt Helper
 
