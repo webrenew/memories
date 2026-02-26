@@ -29,6 +29,40 @@ interface OrganizationTursoRow {
 interface AuthUserRow {
   id: string
   last_sign_in_at?: string | null
+  user_metadata?: Record<string, unknown> | null
+  app_metadata?: Record<string, unknown> | null
+  identities?: Array<{ last_sign_in_at?: string | null } | null> | null
+}
+
+function normalizeUserIdKey(userId: unknown): string | null {
+  if (typeof userId !== "string") return null
+  const normalized = userId.trim().toLowerCase()
+  return normalized.length > 0 ? normalized : null
+}
+
+function asTimestamp(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null
+}
+
+function extractLastSignInAt(authUser: AuthUserRow): string | null {
+  const candidates: Array<unknown> = [
+    authUser.last_sign_in_at,
+    authUser.user_metadata?.last_sign_in_at,
+    authUser.app_metadata?.last_sign_in_at,
+  ]
+
+  if (Array.isArray(authUser.identities)) {
+    for (const identity of authUser.identities) {
+      candidates.push(identity?.last_sign_in_at)
+    }
+  }
+
+  for (const candidate of candidates) {
+    const timestamp = asTimestamp(candidate)
+    if (timestamp) return timestamp
+  }
+
+  return null
 }
 
 function isMissingColumnError(error: unknown, columnName: string): boolean {
@@ -49,14 +83,22 @@ async function listLastLoginByUserId(
   userIds: string[],
 ): Promise<Map<string, string | null>> {
   const output = new Map<string, string | null>()
-  const remaining = new Set(userIds)
-  if (remaining.size === 0) return output
+  const unresolvedByKey = new Map<string, string>()
+  for (const userId of userIds) {
+    const key = normalizeUserIdKey(userId)
+    if (!key) {
+      output.set(userId, null)
+      continue
+    }
+    unresolvedByKey.set(key, userId)
+  }
+  if (unresolvedByKey.size === 0) return output
 
   let page = 1
-  const perPage = Math.min(1000, Math.max(100, remaining.size))
+  const perPage = Math.min(1000, Math.max(100, unresolvedByKey.size))
   const maxPages = 25
 
-  for (let i = 0; i < maxPages && remaining.size > 0; i += 1) {
+  for (let i = 0; i < maxPages && unresolvedByKey.size > 0; i += 1) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage })
     if (error) {
       console.warn("Failed to list auth users for login timestamps:", error.message)
@@ -67,9 +109,12 @@ async function listLastLoginByUserId(
     if (users.length === 0) break
 
     for (const authUser of users) {
-      if (!remaining.has(authUser.id)) continue
-      output.set(authUser.id, authUser.last_sign_in_at ?? null)
-      remaining.delete(authUser.id)
+      const key = normalizeUserIdKey(authUser.id)
+      if (!key) continue
+      const requestedUserId = unresolvedByKey.get(key)
+      if (!requestedUserId) continue
+      output.set(requestedUserId, extractLastSignInAt(authUser))
+      unresolvedByKey.delete(key)
     }
 
     if (users.length < perPage) break
@@ -78,9 +123,21 @@ async function listLastLoginByUserId(
     page += 1
   }
 
-  // Any unresolved IDs remain null instead of forcing per-user lookups (avoids N+1).
-  for (const missing of remaining) {
-    output.set(missing, null)
+  // Fallback per-user lookups for unresolved members. This keeps the common path
+  // batched while preventing "Never" for members that were outside paged listUsers windows.
+  for (const unresolvedUserId of unresolvedByKey.values()) {
+    const { data, error } = await admin.auth.admin.getUserById(unresolvedUserId)
+    if (error) {
+      console.warn("Failed to resolve auth user by id for login timestamp:", {
+        userId: unresolvedUserId,
+        error: error.message,
+      })
+      output.set(unresolvedUserId, null)
+      continue
+    }
+
+    const authUser = (data?.user ?? null) as AuthUserRow | null
+    output.set(unresolvedUserId, authUser ? extractLastSignInAt(authUser) : null)
   }
 
   return output
@@ -210,18 +267,30 @@ export async function GET(
 
       workspaceMemoryCount = Number(workspaceCountResult.rows[0]?.count ?? 0)
 
+      const normalizedUserIdSql = "LOWER(TRIM(CAST(user_id AS TEXT)))"
       const userCountResult = await turso
         .execute(
-          "SELECT user_id, COUNT(*) as count FROM memories WHERE deleted_at IS NULL AND user_id IS NOT NULL GROUP BY user_id"
+          `SELECT ${normalizedUserIdSql} as user_id, COUNT(*) as count
+           FROM memories
+           WHERE deleted_at IS NULL
+             AND user_id IS NOT NULL
+             AND TRIM(CAST(user_id AS TEXT)) <> ''
+           GROUP BY ${normalizedUserIdSql}`
         )
         .catch(() =>
-          turso.execute("SELECT user_id, COUNT(*) as count FROM memories WHERE user_id IS NOT NULL GROUP BY user_id")
+          turso.execute(
+            `SELECT ${normalizedUserIdSql} as user_id, COUNT(*) as count
+             FROM memories
+             WHERE user_id IS NOT NULL
+               AND TRIM(CAST(user_id AS TEXT)) <> ''
+             GROUP BY ${normalizedUserIdSql}`
+          )
         )
 
       for (const row of userCountResult.rows) {
-        const rowUserId = typeof row.user_id === "string" ? row.user_id : null
-        if (!rowUserId) continue
-        userScopedMemoryCounts.set(rowUserId, Number(row.count ?? 0))
+        const rowUserIdKey = normalizeUserIdKey(row.user_id)
+        if (!rowUserIdKey) continue
+        userScopedMemoryCounts.set(rowUserIdKey, Number(row.count ?? 0))
       }
     } catch (error) {
       console.error("Failed to load org member memory stats:", { orgId, error })
@@ -230,13 +299,14 @@ export async function GET(
 
   const normalizedMembers = memberRows.map((member) => {
     const foundUser = usersById.get(member.user_id)
+    const memberUserIdKey = normalizeUserIdKey(member.user_id)
     return {
       id: member.id,
       role: member.role,
       joined_at: member.created_at ?? null,
       last_login_at: lastLoginByUserId.get(member.user_id) ?? null,
       memory_count: workspaceMemoryCount,
-      user_memory_count: userScopedMemoryCounts.get(member.user_id) ?? 0,
+      user_memory_count: memberUserIdKey ? userScopedMemoryCounts.get(memberUserIdKey) ?? 0 : 0,
       user: {
         id: foundUser?.id ?? member.user_id,
         email: foundUser?.email ?? `${member.user_id}@unknown.local`,
