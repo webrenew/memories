@@ -193,4 +193,52 @@ describe("session payload helpers", () => {
       },
     })
   })
+
+  it("rejects ending a session that is already closed", async () => {
+    const db = await setupDb("memory-session-double-end")
+    const start = await startSessionPayload({
+      turso: db,
+      args: {},
+      projectId: "github.com/acme/memories",
+      userId: "user-1",
+      nowIso: "2026-02-26T03:00:00.000Z",
+    })
+
+    await endSessionPayload({
+      turso: db,
+      args: {
+        sessionId: start.data.sessionId,
+        status: "closed",
+      },
+      projectId: "github.com/acme/memories",
+      userId: "user-1",
+      nowIso: "2026-02-26T03:01:00.000Z",
+    })
+
+    await expect(
+      endSessionPayload({
+        turso: db,
+        args: {
+          sessionId: start.data.sessionId,
+          status: "compacted",
+        },
+        projectId: "github.com/acme/memories",
+        userId: "user-1",
+        nowIso: "2026-02-26T03:02:00.000Z",
+      })
+    ).rejects.toMatchObject({
+      detail: {
+        code: "SESSION_NOT_ACTIVE",
+      },
+    })
+
+    const result = await db.execute({
+      sql: "SELECT status, ended_at FROM memory_sessions WHERE id = ? LIMIT 1",
+      args: [start.data.sessionId],
+    })
+    expect(result.rows[0]).toMatchObject({
+      status: "closed",
+      ended_at: "2026-02-26T03:01:00.000Z",
+    })
+  })
 })
