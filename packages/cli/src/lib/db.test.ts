@@ -21,7 +21,13 @@ const GRAPH_INDEXES = [
 ];
 const REMINDER_TABLES = ["reminders"];
 const REMINDER_INDEXES = ["idx_reminders_scope_project", "idx_reminders_enabled_next"];
-const MEMORY_LIFECYCLE_INDEXES = ["idx_memories_layer_scope_project", "idx_memories_layer_expires"];
+const MEMORY_LIFECYCLE_INDEXES = [
+  "idx_memories_layer_scope_project",
+  "idx_memories_layer_expires",
+  "idx_memories_upsert_key",
+  "idx_memories_source_session",
+  "idx_memories_upsert_live",
+];
 const SESSION_TABLES = ["memory_sessions", "memory_session_events", "memory_session_snapshots"];
 const SESSION_INDEXES = [
   "idx_memory_sessions_scope",
@@ -30,6 +36,7 @@ const SESSION_INDEXES = [
 ];
 const COMPACTION_TABLES = ["memory_compaction_events"];
 const COMPACTION_INDEXES = ["idx_memory_compaction_session"];
+const CONSOLIDATION_TABLES = ["memory_consolidation_runs"];
 
 const FTS_TRIGGERS = ["memories_ai", "memories_ad", "memories_au"];
 
@@ -90,8 +97,15 @@ describe("db graph migrations", () => {
       }
     }
 
+    expect(columnNames.has("user_id")).toBe(true);
     expect(columnNames.has("memory_layer")).toBe(true);
     expect(columnNames.has("expires_at")).toBe(true);
+    expect(columnNames.has("upsert_key")).toBe(true);
+    expect(columnNames.has("source_session_id")).toBe(true);
+    expect(columnNames.has("superseded_by")).toBe(true);
+    expect(columnNames.has("superseded_at")).toBe(true);
+    expect(columnNames.has("confidence")).toBe(true);
+    expect(columnNames.has("last_confirmed_at")).toBe(true);
 
     for (const indexName of MEMORY_LIFECYCLE_INDEXES) {
       const result = await db.execute({
@@ -137,6 +151,18 @@ describe("db graph migrations", () => {
       const result = await db.execute({
         sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
         args: [indexName],
+      });
+      expect(result.rows.length).toBe(1);
+    }
+  });
+
+  it("creates memory consolidation tables", async () => {
+    const db = await getDb();
+
+    for (const table of CONSOLIDATION_TABLES) {
+      const result = await db.execute({
+        sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        args: [table],
       });
       expect(result.rows.length).toBe(1);
     }

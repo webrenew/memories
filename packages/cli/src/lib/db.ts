@@ -177,12 +177,19 @@ async function runMigrations(db: Client): Promise<void> {
       tags TEXT,
       scope TEXT NOT NULL DEFAULT 'global',
       project_id TEXT,
+      user_id TEXT,
       type TEXT NOT NULL DEFAULT 'note',
       paths TEXT,
       category TEXT,
       metadata TEXT,
       memory_layer TEXT NOT NULL DEFAULT 'long_term',
       expires_at TEXT,
+      upsert_key TEXT,
+      source_session_id TEXT,
+      superseded_by TEXT,
+      superseded_at TEXT,
+      confidence REAL NOT NULL DEFAULT 1.0,
+      last_confirmed_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       deleted_at TEXT
@@ -199,6 +206,13 @@ async function runMigrations(db: Client): Promise<void> {
   // Add project_id column if missing (migration for existing DBs)
   try {
     await db.execute(`ALTER TABLE memories ADD COLUMN project_id TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  // Add user_id column if missing
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN user_id TEXT`);
   } catch {
     // Column already exists
   }
@@ -242,6 +256,43 @@ async function runMigrations(db: Client): Promise<void> {
   // Add expires_at column if missing (working-memory TTL support)
   try {
     await db.execute(`ALTER TABLE memories ADD COLUMN expires_at TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  // Add consolidation/supersession columns if missing
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN upsert_key TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN source_session_id TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN superseded_by TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN superseded_at TEXT`);
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0`);
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    await db.execute(`ALTER TABLE memories ADD COLUMN last_confirmed_at TEXT`);
   } catch {
     // Column already exists
   }
@@ -290,6 +341,7 @@ async function runMigrations(db: Client): Promise<void> {
           WHERE memory_layer = 'working' AND expires_at IS NULL`,
     args: [defaultWorkingExpiresAt],
   });
+  await db.execute("UPDATE memories SET confidence = 1.0 WHERE confidence IS NULL");
 
   // Index for faster type-based queries (rules are queried frequently)
   try {
@@ -312,6 +364,28 @@ async function runMigrations(db: Client): Promise<void> {
 
   try {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_memories_layer_expires ON memories(memory_layer, expires_at)`);
+  } catch {
+    // Index might already exist
+  }
+
+  try {
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_memories_upsert_key ON memories(scope, project_id, type, upsert_key)`);
+  } catch {
+    // Index might already exist
+  }
+
+  try {
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_memories_source_session ON memories(source_session_id)`);
+  } catch {
+    // Index might already exist
+  }
+
+  try {
+    await db.execute(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_upsert_live
+       ON memories(scope, project_id, user_id, type, upsert_key)
+       WHERE upsert_key IS NOT NULL AND deleted_at IS NULL AND superseded_at IS NULL`
+    );
   } catch {
     // Index might already exist
   }
@@ -345,6 +419,7 @@ async function runMigrations(db: Client): Promise<void> {
 
   await ensureSessionSchema(db);
   await ensureCompactionSchema(db);
+  await ensureConsolidationSchema(db);
   await ensureGraphSchema(db);
 
   // Files table for syncing config files (.agents/, .cursor/, .claude/, etc.)
@@ -451,6 +526,24 @@ async function ensureCompactionSchema(db: Client): Promise<void> {
   await db.execute(
     `CREATE INDEX IF NOT EXISTS idx_memory_compaction_session
      ON memory_compaction_events(session_id, created_at)`
+  );
+}
+
+async function ensureConsolidationSchema(db: Client): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_consolidation_runs (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL,
+      project_id TEXT,
+      user_id TEXT,
+      input_count INTEGER NOT NULL,
+      merged_count INTEGER NOT NULL,
+      superseded_count INTEGER NOT NULL,
+      conflicted_count INTEGER NOT NULL,
+      model TEXT,
+      created_at TEXT NOT NULL,
+      metadata TEXT
+    )`
   );
 }
 

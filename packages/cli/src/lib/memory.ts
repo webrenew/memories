@@ -114,9 +114,16 @@ export interface Memory {
   tags: string | null;
   scope: Scope;
   project_id: string | null;
+  user_id?: string | null;
   type: MemoryType;
   memory_layer: MemoryLayer | null;
   expires_at: string | null;
+  upsert_key?: string | null;
+  source_session_id?: string | null;
+  superseded_by?: string | null;
+  superseded_at?: string | null;
+  confidence?: number | null;
+  last_confirmed_at?: string | null;
   paths: string | null;
   category: string | null;
   metadata: string | null;
