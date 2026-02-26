@@ -216,6 +216,26 @@ async function ensureSessionSchema(turso: TursoClient): Promise<void> {
   )
 }
 
+async function ensureCompactionSchema(turso: TursoClient): Promise<void> {
+  await turso.execute(
+    `CREATE TABLE IF NOT EXISTS memory_compaction_events (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      trigger_type TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      token_count_before INTEGER,
+      turn_count_before INTEGER,
+      summary_tokens INTEGER,
+      checkpoint_memory_id TEXT,
+      created_at TEXT NOT NULL
+    )`
+  )
+
+  await turso.execute(
+    "CREATE INDEX IF NOT EXISTS idx_memory_compaction_session ON memory_compaction_events(session_id, created_at)"
+  )
+}
+
 // ─── Skill File Schema ────────────────────────────────────────────────────────
 
 async function ensureSkillFileSchema(turso: TursoClient): Promise<void> {
@@ -494,6 +514,7 @@ export async function ensureMemoryUserIdSchema(
   }
 
   await ensureSessionSchema(turso)
+  await ensureCompactionSchema(turso)
   await ensureGraphSchema(turso)
   await ensureSkillFileSchema(turso)
   await ensureEmbeddingSchema(turso)

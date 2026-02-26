@@ -32,6 +32,8 @@ describe("registerCoreTools", () => {
     expect(schemas.get("get_context")).toHaveProperty("mode");
     expect(schemas.get("get_context")).toHaveProperty("session_id");
     expect(schemas.get("get_context")).toHaveProperty("budget_tokens");
+    expect(schemas.get("get_context")).toHaveProperty("turn_count");
+    expect(schemas.get("get_context")).toHaveProperty("turn_budget");
     expect(schemas.get("add_memory")).toHaveProperty("layer");
     expect(schemas.get("start_session")).toHaveProperty("project_id");
     expect(schemas.get("checkpoint_session")).toHaveProperty("session_id");
