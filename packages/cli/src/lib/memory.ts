@@ -197,6 +197,10 @@ export interface AddMemoryOpts {
   projectId?: string; // Override auto-detected project
   type?: MemoryType; // Memory type (default: 'note')
   layer?: MemoryLayer; // Memory layer (default: type-aware mapping)
+  upsertKey?: string; // Deterministic key for overwrite-style updates
+  sourceSessionId?: string; // Session provenance for extraction/consolidation
+  confidence?: number; // Confidence score (0..1)
+  lastConfirmedAt?: string; // ISO timestamp for freshness tracking
   paths?: string[]; // Glob patterns for path-scoped rules
   category?: string; // Free-form grouping key
   metadata?: Record<string, unknown>; // Extended attributes (stored as JSON)
@@ -262,6 +266,35 @@ export interface InactivityCompactionWorkerResult {
   checkpointed: number;
   compacted: number;
   failures: Array<{ sessionId: string; error: string }>;
+}
+
+export interface MemoryConsolidationRun {
+  id: string;
+  scope: Scope;
+  project_id: string | null;
+  user_id: string | null;
+  input_count: number;
+  merged_count: number;
+  superseded_count: number;
+  conflicted_count: number;
+  model: string | null;
+  created_at: string;
+  metadata: string | null;
+}
+
+export interface ConsolidateMemoriesOpts {
+  projectId?: string;
+  includeGlobal?: boolean;
+  globalOnly?: boolean;
+  types?: MemoryType[];
+  dryRun?: boolean;
+  model?: string;
+}
+
+export interface ConsolidateMemoriesResult {
+  run: MemoryConsolidationRun;
+  supersededMemoryIds: string[];
+  winnerMemoryIds: string[];
 }
 
 const DEFAULT_WORKING_MEMORY_TTL_HOURS = 24;
@@ -374,6 +407,44 @@ function truncateForSummary(input: string, max = 140): string {
   return `${trimmed.slice(0, max).trim()}...`;
 }
 
+function normalizeUpsertKey(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9:_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+  return normalized || null;
+}
+
+function deriveUpsertKey(memory: Pick<Memory, "type" | "content" | "category">): string | null {
+  const fromCategory = normalizeUpsertKey(memory.category ?? undefined);
+  if (fromCategory) {
+    return `${memory.type}:${fromCategory}`;
+  }
+
+  const sourceLine = memory.content
+    .split(/\r?\n/)
+    .find((line) => line.trim().length > 0);
+  if (!sourceLine) return null;
+
+  const prefix = sourceLine.includes(":")
+    ? sourceLine.split(":")[0]
+    : sourceLine.split(/\s+/).slice(0, 6).join(" ");
+
+  const normalizedPrefix = normalizeUpsertKey(prefix);
+  if (!normalizedPrefix) return null;
+  return `${memory.type}:${normalizedPrefix}`;
+}
+
+function normalizeConfidence(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 1;
+  const bounded = Math.max(0, Math.min(1, Number(value)));
+  return Number.isFinite(bounded) ? bounded : 1;
+}
+
 function defaultLayerForType(type: MemoryType): MemoryLayer {
   return type === "rule" ? "rule" : "long_term";
 }
@@ -438,13 +509,18 @@ export async function addMemory(
 ): Promise<Memory> {
   const db = await getDb();
   const id = nanoid(12);
+  const nowIso = new Date().toISOString();
   const normalizedContent = normalizeContent(content);
   const normalizedTags = normalizeStringList(opts?.tags);
   const normalizedPaths = normalizeStringList(opts?.paths);
   const tags = normalizedTags?.length ? normalizedTags.join(",") : null;
   const type = opts?.type ?? "note";
   const layer = opts?.layer ?? defaultLayerForType(type);
-  const expiresAt = layer === "working" ? workingMemoryExpiresAt(new Date().toISOString()) : null;
+  const expiresAt = layer === "working" ? workingMemoryExpiresAt(nowIso) : null;
+  const upsertKey = normalizeUpsertKey(opts?.upsertKey);
+  const sourceSessionId = opts?.sourceSessionId?.trim() || null;
+  const confidence = normalizeConfidence(opts?.confidence);
+  const lastConfirmedAt = opts?.lastConfirmedAt?.trim() || (upsertKey ? nowIso : null);
   const paths = normalizedPaths?.length ? normalizedPaths.join(",") : null;
   const category = opts?.category?.trim() ? opts.category.trim() : null;
   const metadata = opts?.metadata ? JSON.stringify(opts.metadata) : null;
@@ -460,9 +536,87 @@ export async function addMemory(
     }
   }
 
+  if (upsertKey) {
+    const existingResult = await db.execute({
+      sql: `SELECT *
+            FROM memories
+            WHERE scope = ?
+              AND type = ?
+              AND upsert_key = ?
+              AND deleted_at IS NULL
+              AND superseded_at IS NULL
+              AND ((project_id IS NULL AND ? IS NULL) OR project_id = ?)
+            LIMIT 1`,
+      args: [scope, type, upsertKey, projectId, projectId],
+    });
+    if (existingResult.rows.length > 0) {
+      const existing = existingResult.rows[0] as unknown as Memory;
+      await recordMemoryHistory(existing, "updated");
+
+      await db.execute({
+        sql: `UPDATE memories
+              SET content = ?,
+                  tags = ?,
+                  memory_layer = ?,
+                  expires_at = ?,
+                  upsert_key = ?,
+                  source_session_id = ?,
+                  confidence = ?,
+                  last_confirmed_at = ?,
+                  paths = ?,
+                  category = ?,
+                  metadata = ?,
+                  updated_at = datetime('now')
+              WHERE id = ?`,
+        args: [
+          normalizedContent,
+          tags,
+          layer,
+          expiresAt,
+          upsertKey,
+          sourceSessionId,
+          confidence,
+          lastConfirmedAt,
+          paths,
+          category,
+          metadata,
+          existing.id,
+        ],
+      });
+
+      generateEmbeddingAsync(existing.id, normalizedContent);
+      const updated = await db.execute({
+        sql: `SELECT * FROM memories WHERE id = ?`,
+        args: [existing.id],
+      });
+      return updated.rows[0] as unknown as Memory;
+    }
+  }
+
   await db.execute({
-    sql: `INSERT INTO memories (id, content, tags, scope, project_id, type, memory_layer, expires_at, paths, category, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, normalizedContent, tags, scope, projectId, type, layer, expiresAt, paths, category, metadata],
+    sql: `INSERT INTO memories (
+            id, content, tags, scope, project_id, user_id, type, memory_layer, expires_at,
+            upsert_key, source_session_id, confidence, last_confirmed_at,
+            paths, category, metadata
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id,
+      normalizedContent,
+      tags,
+      scope,
+      projectId,
+      null,
+      type,
+      layer,
+      expiresAt,
+      upsertKey,
+      sourceSessionId,
+      confidence,
+      lastConfirmedAt,
+      paths,
+      category,
+      metadata,
+    ],
   });
 
   // Generate embedding in background (don't block on it)
@@ -1299,6 +1453,203 @@ export async function runInactivityCompactionWorker(opts?: {
     checkpointed,
     compacted: checkpointed,
     failures,
+  };
+}
+
+async function ensureMemoryLinksTable(): Promise<void> {
+  const db = await getDb();
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS memory_links (
+      id TEXT PRIMARY KEY,
+      source_id TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      link_type TEXT NOT NULL DEFAULT 'related',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_links_source ON memory_links(source_id)`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_links_target ON memory_links(target_id)`);
+}
+
+async function ensureMemoryLink(sourceId: string, targetId: string, linkType: "supersedes" | "contradicts"): Promise<void> {
+  const db = await getDb();
+  const existing = await db.execute({
+    sql: `SELECT id FROM memory_links
+          WHERE source_id = ? AND target_id = ? AND link_type = ?
+          LIMIT 1`,
+    args: [sourceId, targetId, linkType],
+  });
+  if (existing.rows.length > 0) {
+    return;
+  }
+
+  await db.execute({
+    sql: `INSERT INTO memory_links (id, source_id, target_id, link_type, created_at)
+          VALUES (?, ?, ?, ?, ?)`,
+    args: [nanoid(12), sourceId, targetId, linkType, new Date().toISOString()],
+  });
+}
+
+function normalizeComparableContent(content: string): string {
+  return content.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function parseTimestamp(value: string | null | undefined): number {
+  if (!value) return 0;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+export async function consolidateMemories(opts: ConsolidateMemoriesOpts = {}): Promise<ConsolidateMemoriesResult> {
+  const db = await getDb();
+  const includeGlobal = opts.includeGlobal ?? true;
+  const projectId = opts.globalOnly ? undefined : (opts.projectId ?? getProjectId());
+  const types = opts.types && opts.types.length > 0
+    ? opts.types
+    : (["rule", "decision", "fact", "note"] as MemoryType[]);
+  const nowIso = new Date().toISOString();
+
+  const scopeClauses: string[] = [];
+  const args: (string | number)[] = [];
+  if (includeGlobal) {
+    scopeClauses.push("scope = 'global'");
+  }
+  if (projectId) {
+    scopeClauses.push("(scope = 'project' AND project_id = ?)");
+    args.push(projectId);
+  }
+  if (scopeClauses.length === 0) {
+    scopeClauses.push("scope = 'global' AND 1 = 0");
+  }
+
+  const typePlaceholders = types.map(() => "?").join(", ");
+  const result = await db.execute({
+    sql: `SELECT *
+          FROM memories
+          WHERE deleted_at IS NULL
+            AND superseded_at IS NULL
+            AND (${scopeClauses.join(" OR ")})
+            AND type IN (${typePlaceholders})`,
+    args: [...args, ...types],
+  });
+  const candidates = result.rows as unknown as Memory[];
+
+  const groups = new Map<string, Memory[]>();
+  const winnerMemoryIds: string[] = [];
+  const supersededMemoryIds: string[] = [];
+
+  for (const memory of candidates) {
+    const upsertKey = normalizeUpsertKey(memory.upsert_key ?? undefined) ?? deriveUpsertKey(memory);
+    if (!upsertKey) continue;
+
+    const groupKey = `${memory.scope}|${memory.project_id ?? "global"}|${memory.type}|${upsertKey}`;
+    const list = groups.get(groupKey) ?? [];
+    list.push(memory);
+    groups.set(groupKey, list);
+
+    if (!opts.dryRun && !memory.upsert_key) {
+      await db.execute({
+        sql: "UPDATE memories SET upsert_key = ?, updated_at = datetime('now') WHERE id = ?",
+        args: [upsertKey, memory.id],
+      });
+    }
+  }
+
+  let mergedCount = 0;
+  let conflictedCount = 0;
+
+  if (!opts.dryRun) {
+    await ensureMemoryLinksTable();
+  }
+
+  for (const [groupKey, group] of groups) {
+    if (group.length <= 1) continue;
+
+    const groupParts = groupKey.split("|");
+    const upsertKey = groupParts[groupParts.length - 1];
+    const sorted = [...group].sort((a, b) => {
+      const updatedDiff = parseTimestamp(b.updated_at) - parseTimestamp(a.updated_at);
+      if (updatedDiff !== 0) return updatedDiff;
+      return parseTimestamp(b.created_at) - parseTimestamp(a.created_at);
+    });
+    const winner = sorted[0];
+    const losers = sorted.slice(1);
+    mergedCount += 1;
+    winnerMemoryIds.push(winner.id);
+
+    if (!opts.dryRun) {
+      await db.execute({
+        sql: `UPDATE memories
+              SET upsert_key = ?, confidence = COALESCE(confidence, 1.0), last_confirmed_at = COALESCE(last_confirmed_at, ?), updated_at = datetime('now')
+              WHERE id = ?`,
+        args: [upsertKey, nowIso, winner.id],
+      });
+    }
+
+    for (const loser of losers) {
+      const conflicting = normalizeComparableContent(loser.content) !== normalizeComparableContent(winner.content);
+      if (conflicting) {
+        conflictedCount += 1;
+      }
+      supersededMemoryIds.push(loser.id);
+
+      if (opts.dryRun) continue;
+
+      await db.execute({
+        sql: `UPDATE memories
+              SET superseded_by = ?, superseded_at = ?, upsert_key = ?, updated_at = datetime('now')
+              WHERE id = ?`,
+        args: [winner.id, nowIso, upsertKey, loser.id],
+      });
+      await ensureMemoryLink(winner.id, loser.id, "supersedes");
+      if (conflicting) {
+        await ensureMemoryLink(winner.id, loser.id, "contradicts");
+      }
+    }
+  }
+
+  const run: MemoryConsolidationRun = {
+    id: nanoid(12),
+    scope: projectId ? "project" : "global",
+    project_id: projectId ?? null,
+    user_id: null,
+    input_count: candidates.length,
+    merged_count: mergedCount,
+    superseded_count: supersededMemoryIds.length,
+    conflicted_count: conflictedCount,
+    model: opts.model ?? null,
+    created_at: nowIso,
+    metadata: JSON.stringify({
+      dryRun: Boolean(opts.dryRun),
+      includeGlobal,
+      types,
+      candidateGroups: groups.size,
+    }),
+  };
+
+  await db.execute({
+    sql: `INSERT INTO memory_consolidation_runs
+          (id, scope, project_id, user_id, input_count, merged_count, superseded_count, conflicted_count, model, created_at, metadata)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      run.id,
+      run.scope,
+      run.project_id,
+      run.user_id,
+      run.input_count,
+      run.merged_count,
+      run.superseded_count,
+      run.conflicted_count,
+      run.model,
+      run.created_at,
+      run.metadata,
+    ],
+  });
+
+  return {
+    run,
+    supersededMemoryIds,
+    winnerMemoryIds,
   };
 }
 

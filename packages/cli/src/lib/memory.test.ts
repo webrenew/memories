@@ -22,6 +22,7 @@ import {
   estimateContextTokenCount,
   writeAheadCompactionCheckpoint,
   runInactivityCompactionWorker,
+  consolidateMemories,
 } from "./memory.js";
 import { getDb } from "./db.js";
 
@@ -206,6 +207,91 @@ describe("memory", () => {
     });
     expect(both.some((m) => m.scope === "global")).toBe(true);
     expect(both.some((m) => m.scope === "project")).toBe(true);
+  });
+
+  it("should overwrite an existing live memory when upsertKey matches", async () => {
+    const upsertKey = `prefs-editor-${Date.now()}`;
+    const first = await addMemory("Preferred editor: vim", {
+      global: true,
+      type: "note",
+      upsertKey,
+      sourceSessionId: "session-a",
+      confidence: 0.6,
+    });
+
+    const second = await addMemory("Preferred editor: neovim", {
+      global: true,
+      type: "note",
+      upsertKey,
+      sourceSessionId: "session-b",
+      confidence: 0.95,
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(second.content).toBe("Preferred editor: neovim");
+    expect(second.upsert_key).toBe(upsertKey);
+    expect(second.source_session_id).toBe("session-b");
+    expect(second.confidence).toBe(0.95);
+  });
+
+  it("should consolidate duplicate memories and add supersession/conflict links", async () => {
+    const token = `consolidate-${Date.now()}`;
+    const older = await addMemory(`UI theme preference: dark (${token})`, {
+      global: true,
+      type: "note",
+      category: token,
+    });
+    const newer = await addMemory(`UI theme preference: light (${token})`, {
+      global: true,
+      type: "note",
+      category: token,
+    });
+
+    const db = await getDb();
+    await db.execute({
+      sql: "UPDATE memories SET updated_at = ? WHERE id = ?",
+      args: ["2020-01-01T00:00:00.000Z", older.id],
+    });
+    await db.execute({
+      sql: "UPDATE memories SET updated_at = ? WHERE id = ?",
+      args: ["2026-02-26T00:00:00.000Z", newer.id],
+    });
+
+    const run = await consolidateMemories({
+      globalOnly: true,
+      types: ["note"],
+      model: "heuristic-v1",
+    });
+
+    expect(run.run.input_count).toBeGreaterThan(0);
+    expect(run.run.merged_count).toBeGreaterThan(0);
+    expect(run.supersededMemoryIds).toContain(older.id);
+    expect(run.winnerMemoryIds).toContain(newer.id);
+    expect(run.run.conflicted_count).toBeGreaterThan(0);
+
+    const olderRow = await db.execute({
+      sql: "SELECT superseded_by, superseded_at, upsert_key FROM memories WHERE id = ?",
+      args: [older.id],
+    });
+    expect(String(olderRow.rows[0]?.superseded_by ?? "")).toBe(newer.id);
+    expect(String(olderRow.rows[0]?.superseded_at ?? "")).not.toBe("");
+    expect(String(olderRow.rows[0]?.upsert_key ?? "")).toContain(token);
+
+    const links = await db.execute({
+      sql: `SELECT link_type
+            FROM memory_links
+            WHERE source_id = ? AND target_id = ?`,
+      args: [newer.id, older.id],
+    });
+    const linkTypes = new Set(links.rows.map((row) => String((row as { link_type?: unknown }).link_type ?? "")));
+    expect(linkTypes.has("supersedes")).toBe(true);
+    expect(linkTypes.has("contradicts")).toBe(true);
+
+    const consolidationRunRow = await db.execute({
+      sql: "SELECT id FROM memory_consolidation_runs WHERE id = ?",
+      args: [run.run.id],
+    });
+    expect(consolidationRunRow.rows.length).toBe(1);
   });
 
   it("should support session lifecycle operations", async () => {
