@@ -6,7 +6,20 @@ import { tmpdir } from "node:os";
 // Use a temp directory so tests never hit sync
 process.env.MEMORIES_DATA_DIR = mkdtempSync(join(tmpdir(), "memories-test-"));
 
-import { addMemory, searchMemories, listMemories, forgetMemory, getMemoryById } from "./memory.js";
+import {
+  addMemory,
+  searchMemories,
+  listMemories,
+  forgetMemory,
+  getMemoryById,
+  startMemorySession,
+  checkpointMemorySession,
+  listMemorySessionEvents,
+  createMemorySessionSnapshot,
+  getMemorySessionStatus,
+  endMemorySession,
+  getLatestActiveMemorySession,
+} from "./memory.js";
 import { getDb } from "./db.js";
 
 describe("memory", () => {
@@ -190,5 +203,75 @@ describe("memory", () => {
     });
     expect(both.some((m) => m.scope === "global")).toBe(true);
     expect(both.some((m) => m.scope === "project")).toBe(true);
+  });
+
+  it("should support session lifecycle operations", async () => {
+    const session = await startMemorySession({
+      global: true,
+      title: "Lifecycle test session",
+      client: "vitest",
+    });
+    expect(session.status).toBe("active");
+
+    const firstEvent = await checkpointMemorySession(session.id, "Initial user message", {
+      role: "user",
+      kind: "message",
+      turnIndex: 1,
+      tokenCount: 18,
+    });
+    expect(firstEvent.session_id).toBe(session.id);
+    expect(firstEvent.kind).toBe("message");
+
+    const checkpoint = await checkpointMemorySession(session.id, "Checkpointed key details");
+    expect(checkpoint.kind).toBe("checkpoint");
+
+    const events = await listMemorySessionEvents(session.id, { limit: 10, meaningfulOnly: true });
+    expect(events.length).toBe(2);
+    expect(events[0].id).toBe(firstEvent.id);
+    expect(events[1].id).toBe(checkpoint.id);
+
+    const snapshot = await createMemorySessionSnapshot(session.id, {
+      sourceTrigger: "manual",
+      transcriptMd: "# Snapshot\n\n- user: Initial message\n- assistant: Checkpointed key details",
+      messageCount: events.length,
+    });
+    expect(snapshot.session_id).toBe(session.id);
+    expect(snapshot.message_count).toBe(2);
+
+    const summary = await getMemorySessionStatus(session.id);
+    expect(summary).not.toBeNull();
+    expect(summary?.eventCount).toBe(2);
+    expect(summary?.checkpointCount).toBe(1);
+    expect(summary?.snapshotCount).toBe(1);
+    expect(summary?.latestCheckpointId).toBe(checkpoint.id);
+
+    const closed = await endMemorySession(session.id, { status: "closed" });
+    expect(closed?.status).toBe("closed");
+    expect(closed?.ended_at).toBeTruthy();
+
+    await expect(checkpointMemorySession(session.id, "Should fail after close")).rejects.toThrow(
+      `Cannot checkpoint session ${session.id} because it is closed`
+    );
+  });
+
+  it("should resolve latest active session for project scope", async () => {
+    await startMemorySession({ global: true, title: "Global session A" });
+    const projectSession = await startMemorySession({
+      projectId: "github.com/acme/memories",
+      title: "Project session",
+    });
+    await checkpointMemorySession(projectSession.id, "project activity", {
+      kind: "event",
+      role: "assistant",
+    });
+
+    const latest = await getLatestActiveMemorySession({
+      projectId: "github.com/acme/memories",
+      includeGlobal: true,
+    });
+
+    expect(latest).not.toBeNull();
+    expect(latest?.id).toBe(projectSession.id);
+    expect(latest?.scope).toBe("project");
   });
 });

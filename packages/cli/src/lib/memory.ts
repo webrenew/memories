@@ -66,6 +66,34 @@ export function isContextMode(value: string): value is ContextMode {
   return (CONTEXT_MODES as readonly string[]).includes(value);
 }
 
+export type MemorySessionStatus = "active" | "compacted" | "closed";
+export const MEMORY_SESSION_STATUSES: readonly MemorySessionStatus[] = ["active", "compacted", "closed"] as const;
+
+export function isMemorySessionStatus(value: string): value is MemorySessionStatus {
+  return (MEMORY_SESSION_STATUSES as readonly string[]).includes(value);
+}
+
+export type MemorySessionRole = "user" | "assistant" | "tool";
+export const MEMORY_SESSION_ROLES: readonly MemorySessionRole[] = ["user", "assistant", "tool"] as const;
+
+export function isMemorySessionRole(value: string): value is MemorySessionRole {
+  return (MEMORY_SESSION_ROLES as readonly string[]).includes(value);
+}
+
+export type MemorySessionEventKind = "message" | "checkpoint" | "summary" | "event";
+export const MEMORY_SESSION_EVENT_KINDS: readonly MemorySessionEventKind[] = ["message", "checkpoint", "summary", "event"] as const;
+
+export function isMemorySessionEventKind(value: string): value is MemorySessionEventKind {
+  return (MEMORY_SESSION_EVENT_KINDS as readonly string[]).includes(value);
+}
+
+export type MemorySessionSnapshotTrigger = "new_session" | "reset" | "manual" | "auto_compaction";
+export const MEMORY_SESSION_SNAPSHOT_TRIGGERS: readonly MemorySessionSnapshotTrigger[] = ["new_session", "reset", "manual", "auto_compaction"] as const;
+
+export function isMemorySessionSnapshotTrigger(value: string): value is MemorySessionSnapshotTrigger {
+  return (MEMORY_SESSION_SNAPSHOT_TRIGGERS as readonly string[]).includes(value);
+}
+
 export interface Memory {
   id: string;
   content: string;
@@ -81,6 +109,53 @@ export interface Memory {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+export interface MemorySession {
+  id: string;
+  scope: Scope;
+  project_id: string | null;
+  user_id: string | null;
+  client: string | null;
+  status: MemorySessionStatus;
+  title: string | null;
+  started_at: string;
+  last_activity_at: string;
+  ended_at: string | null;
+  metadata: string | null;
+}
+
+export interface MemorySessionEvent {
+  id: string;
+  session_id: string;
+  role: MemorySessionRole;
+  kind: MemorySessionEventKind;
+  content: string;
+  token_count: number | null;
+  turn_index: number | null;
+  is_meaningful: number;
+  created_at: string;
+}
+
+export interface MemorySessionSnapshot {
+  id: string;
+  session_id: string;
+  slug: string;
+  source_trigger: MemorySessionSnapshotTrigger;
+  transcript_md: string;
+  message_count: number;
+  created_at: string;
+}
+
+export interface MemorySessionStatusSummary {
+  session: MemorySession;
+  eventCount: number;
+  checkpointCount: number;
+  snapshotCount: number;
+  latestEventAt: string | null;
+  latestCheckpointId: string | null;
+  latestCheckpointAt: string | null;
+  latestSnapshotAt: string | null;
 }
 
 export interface AddMemoryOpts {
@@ -102,6 +177,39 @@ interface QueryMemoryOpts {
   globalOnly?: boolean; // Only return global memories (skips project auto-detect)
   types?: MemoryType[]; // Filter by memory types
   layers?: MemoryLayer[]; // Filter by memory layers
+}
+
+export interface StartMemorySessionOpts {
+  global?: boolean;
+  projectId?: string;
+  userId?: string;
+  client?: string;
+  title?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SessionCheckpointOpts {
+  role?: MemorySessionRole;
+  kind?: MemorySessionEventKind;
+  tokenCount?: number;
+  turnIndex?: number;
+  isMeaningful?: boolean;
+}
+
+export interface SessionEventListOpts {
+  limit?: number;
+  meaningfulOnly?: boolean;
+}
+
+export interface CreateSessionSnapshotOpts {
+  slug?: string;
+  sourceTrigger?: MemorySessionSnapshotTrigger;
+  transcriptMd: string;
+  messageCount: number;
+}
+
+export interface EndMemorySessionOpts {
+  status?: Exclude<MemorySessionStatus, "active">;
 }
 
 const DEFAULT_WORKING_MEMORY_TTL_HOURS = 24;
@@ -171,6 +279,35 @@ function resolveWorkingMemoryTtlHours(): number {
 
 function workingMemoryExpiresAt(nowIso: string): string {
   return addHours(nowIso, resolveWorkingMemoryTtlHours());
+}
+
+function coerceCount(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function normalizeSessionSlug(input: string): string {
+  const normalized = input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+
+  if (normalized) {
+    return normalized;
+  }
+
+  return `snapshot-${Date.now()}`;
 }
 
 function defaultLayerForType(type: MemoryType): MemoryLayer {
@@ -561,6 +698,262 @@ export async function getContext(
   }
 
   return { rules, memories };
+}
+
+export async function startMemorySession(opts?: StartMemorySessionOpts): Promise<MemorySession> {
+  const db = await getDb();
+  const id = nanoid(12);
+  const now = new Date().toISOString();
+
+  let scope: Scope = "global";
+  let projectId: string | null = null;
+
+  if (!opts?.global) {
+    projectId = opts?.projectId ?? getProjectId();
+    if (projectId) {
+      scope = "project";
+    }
+  }
+
+  const userId = opts?.userId?.trim() ? opts.userId.trim() : null;
+  const client = opts?.client?.trim() ? opts.client.trim() : null;
+  const title = opts?.title?.trim() ? opts.title.trim() : null;
+  const metadata = opts?.metadata ? JSON.stringify(opts.metadata) : null;
+
+  await db.execute({
+    sql: `INSERT INTO memory_sessions (id, scope, project_id, user_id, client, status, title, started_at, last_activity_at, ended_at, metadata)
+          VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, NULL, ?)`,
+    args: [id, scope, projectId, userId, client, title, now, now, metadata],
+  });
+
+  const result = await db.execute({
+    sql: "SELECT * FROM memory_sessions WHERE id = ?",
+    args: [id],
+  });
+
+  return result.rows[0] as unknown as MemorySession;
+}
+
+export async function getMemorySession(sessionId: string): Promise<MemorySession | null> {
+  const db = await getDb();
+  const result = await db.execute({
+    sql: "SELECT * FROM memory_sessions WHERE id = ?",
+    args: [sessionId],
+  });
+  return result.rows.length > 0 ? (result.rows[0] as unknown as MemorySession) : null;
+}
+
+export async function getLatestActiveMemorySession(opts?: {
+  projectId?: string;
+  includeGlobal?: boolean;
+}): Promise<MemorySession | null> {
+  const db = await getDb();
+  const includeGlobal = opts?.includeGlobal ?? true;
+  const projectId = opts?.projectId ?? getProjectId();
+
+  const scopeClauses: string[] = [];
+  const args: string[] = [];
+
+  if (includeGlobal) {
+    scopeClauses.push("scope = 'global'");
+  }
+
+  if (projectId) {
+    scopeClauses.push("(scope = 'project' AND project_id = ?)");
+    args.push(projectId);
+  }
+
+  if (scopeClauses.length === 0) {
+    return null;
+  }
+
+  const result = await db.execute({
+    sql: `SELECT * FROM memory_sessions
+          WHERE status = 'active' AND (${scopeClauses.join(" OR ")})
+          ORDER BY last_activity_at DESC
+          LIMIT 1`,
+    args,
+  });
+
+  return result.rows.length > 0 ? (result.rows[0] as unknown as MemorySession) : null;
+}
+
+export async function checkpointMemorySession(
+  sessionId: string,
+  content: string,
+  opts?: SessionCheckpointOpts
+): Promise<MemorySessionEvent> {
+  const db = await getDb();
+  const session = await getMemorySession(sessionId);
+  if (!session) {
+    throw new Error(`Session ${sessionId} not found`);
+  }
+
+  if (session.status !== "active") {
+    throw new Error(`Cannot checkpoint session ${sessionId} because it is ${session.status}`);
+  }
+
+  const now = new Date().toISOString();
+  const normalizedContent = normalizeContent(content);
+  const role = opts?.role ?? "assistant";
+  const kind = opts?.kind ?? "checkpoint";
+  const tokenCount = opts?.tokenCount ?? null;
+  const turnIndex = opts?.turnIndex ?? null;
+  const isMeaningful = opts?.isMeaningful === false ? 0 : 1;
+  const eventId = nanoid(12);
+
+  await db.execute({
+    sql: `INSERT INTO memory_session_events
+          (id, session_id, role, kind, content, token_count, turn_index, is_meaningful, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [eventId, sessionId, role, kind, normalizedContent, tokenCount, turnIndex, isMeaningful, now],
+  });
+
+  await db.execute({
+    sql: "UPDATE memory_sessions SET last_activity_at = ? WHERE id = ?",
+    args: [now, sessionId],
+  });
+
+  const result = await db.execute({
+    sql: "SELECT * FROM memory_session_events WHERE id = ?",
+    args: [eventId],
+  });
+
+  return result.rows[0] as unknown as MemorySessionEvent;
+}
+
+export async function listMemorySessionEvents(
+  sessionId: string,
+  opts?: SessionEventListOpts
+): Promise<MemorySessionEvent[]> {
+  const db = await getDb();
+  const limit = resolvePositiveLimit(opts?.limit, 15);
+  const conditions: string[] = ["session_id = ?"];
+  const args: (string | number)[] = [sessionId];
+
+  if (opts?.meaningfulOnly) {
+    conditions.push("is_meaningful = 1");
+  }
+
+  const result = await db.execute({
+    sql: `SELECT * FROM (
+            SELECT * FROM memory_session_events
+            WHERE ${conditions.join(" AND ")}
+            ORDER BY created_at DESC
+            LIMIT ?
+          )
+          ORDER BY created_at ASC`,
+    args: [...args, limit],
+  });
+
+  return result.rows as unknown as MemorySessionEvent[];
+}
+
+export async function createMemorySessionSnapshot(
+  sessionId: string,
+  opts: CreateSessionSnapshotOpts
+): Promise<MemorySessionSnapshot> {
+  const db = await getDb();
+  const session = await getMemorySession(sessionId);
+  if (!session) {
+    throw new Error(`Session ${sessionId} not found`);
+  }
+
+  const now = new Date().toISOString();
+  const snapshotId = nanoid(12);
+  const sourceTrigger = opts.sourceTrigger ?? "manual";
+  const slug = normalizeSessionSlug(opts.slug ?? `${sourceTrigger}-${now}`);
+  const transcriptMd = normalizeContent(opts.transcriptMd);
+  const messageCount = Math.max(0, Math.trunc(opts.messageCount));
+
+  await db.execute({
+    sql: `INSERT INTO memory_session_snapshots
+          (id, session_id, slug, source_trigger, transcript_md, message_count, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [snapshotId, sessionId, slug, sourceTrigger, transcriptMd, messageCount, now],
+  });
+
+  await db.execute({
+    sql: "UPDATE memory_sessions SET last_activity_at = ? WHERE id = ?",
+    args: [now, sessionId],
+  });
+
+  const result = await db.execute({
+    sql: "SELECT * FROM memory_session_snapshots WHERE id = ?",
+    args: [snapshotId],
+  });
+
+  return result.rows[0] as unknown as MemorySessionSnapshot;
+}
+
+export async function endMemorySession(
+  sessionId: string,
+  opts?: EndMemorySessionOpts
+): Promise<MemorySession | null> {
+  const db = await getDb();
+  const existing = await getMemorySession(sessionId);
+  if (!existing) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const status = opts?.status ?? "closed";
+  await db.execute({
+    sql: "UPDATE memory_sessions SET status = ?, ended_at = ?, last_activity_at = ? WHERE id = ?",
+    args: [status, now, now, sessionId],
+  });
+
+  const result = await db.execute({
+    sql: "SELECT * FROM memory_sessions WHERE id = ?",
+    args: [sessionId],
+  });
+
+  return result.rows[0] as unknown as MemorySession;
+}
+
+export async function getMemorySessionStatus(sessionId: string): Promise<MemorySessionStatusSummary | null> {
+  const db = await getDb();
+  const session = await getMemorySession(sessionId);
+  if (!session) {
+    return null;
+  }
+
+  const eventStats = await db.execute({
+    sql: "SELECT COUNT(*) AS count, MAX(created_at) AS latest_at FROM memory_session_events WHERE session_id = ?",
+    args: [sessionId],
+  });
+  const snapshotStats = await db.execute({
+    sql: "SELECT COUNT(*) AS count, MAX(created_at) AS latest_at FROM memory_session_snapshots WHERE session_id = ?",
+    args: [sessionId],
+  });
+  const checkpointStats = await db.execute({
+    sql: "SELECT COUNT(*) AS count FROM memory_session_events WHERE session_id = ? AND kind = 'checkpoint'",
+    args: [sessionId],
+  });
+  const latestCheckpoint = await db.execute({
+    sql: `SELECT id, created_at
+          FROM memory_session_events
+          WHERE session_id = ? AND kind = 'checkpoint'
+          ORDER BY created_at DESC
+          LIMIT 1`,
+    args: [sessionId],
+  });
+
+  const eventRow = eventStats.rows[0];
+  const snapshotRow = snapshotStats.rows[0];
+  const checkpointRow = checkpointStats.rows[0];
+  const latestCheckpointRow = latestCheckpoint.rows[0];
+
+  return {
+    session,
+    eventCount: coerceCount(eventRow?.count),
+    checkpointCount: coerceCount(checkpointRow?.count),
+    snapshotCount: coerceCount(snapshotRow?.count),
+    latestEventAt: typeof eventRow?.latest_at === "string" ? eventRow.latest_at : null,
+    latestSnapshotAt: typeof snapshotRow?.latest_at === "string" ? snapshotRow.latest_at : null,
+    latestCheckpointId: typeof latestCheckpointRow?.id === "string" ? latestCheckpointRow.id : null,
+    latestCheckpointAt: typeof latestCheckpointRow?.created_at === "string" ? latestCheckpointRow.created_at : null,
+  };
 }
 
 /**
