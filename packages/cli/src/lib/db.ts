@@ -343,6 +343,7 @@ async function runMigrations(db: Client): Promise<void> {
     // Index might already exist
   }
 
+  await ensureSessionSchema(db);
   await ensureGraphSchema(db);
 
   // Files table for syncing config files (.agents/, .cursor/, .claude/, etc.)
@@ -372,6 +373,63 @@ async function runMigrations(db: Client): Promise<void> {
   } catch {
     // Index might already exist
   }
+}
+
+async function ensureSessionSchema(db: Client): Promise<void> {
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_sessions (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL DEFAULT 'global',
+      project_id TEXT,
+      user_id TEXT,
+      client TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      title TEXT,
+      started_at TEXT NOT NULL,
+      last_activity_at TEXT NOT NULL,
+      ended_at TEXT,
+      metadata TEXT
+    )`
+  );
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_session_events (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      content TEXT NOT NULL,
+      token_count INTEGER,
+      turn_index INTEGER,
+      is_meaningful INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    )`
+  );
+
+  await db.execute(
+    `CREATE TABLE IF NOT EXISTS memory_session_snapshots (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      source_trigger TEXT NOT NULL,
+      transcript_md TEXT NOT NULL,
+      message_count INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    )`
+  );
+
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_sessions_scope
+     ON memory_sessions(scope, project_id, user_id, status)`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_session_events_session
+     ON memory_session_events(session_id, created_at)`
+  );
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_memory_session_snapshots_session
+     ON memory_session_snapshots(session_id, created_at)`
+  );
 }
 
 async function createFtsTable(db: Client): Promise<void> {

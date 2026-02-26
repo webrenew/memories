@@ -22,6 +22,12 @@ const GRAPH_INDEXES = [
 const REMINDER_TABLES = ["reminders"];
 const REMINDER_INDEXES = ["idx_reminders_scope_project", "idx_reminders_enabled_next"];
 const MEMORY_LIFECYCLE_INDEXES = ["idx_memories_layer_scope_project", "idx_memories_layer_expires"];
+const SESSION_TABLES = ["memory_sessions", "memory_session_events", "memory_session_snapshots"];
+const SESSION_INDEXES = [
+  "idx_memory_sessions_scope",
+  "idx_memory_session_events_session",
+  "idx_memory_session_snapshots_session",
+];
 
 const FTS_TRIGGERS = ["memories_ai", "memories_ad", "memories_au"];
 
@@ -86,6 +92,26 @@ describe("db graph migrations", () => {
     expect(columnNames.has("expires_at")).toBe(true);
 
     for (const indexName of MEMORY_LIFECYCLE_INDEXES) {
+      const result = await db.execute({
+        sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
+        args: [indexName],
+      });
+      expect(result.rows.length).toBe(1);
+    }
+  });
+
+  it("creates memory session tables and indexes", async () => {
+    const db = await getDb();
+
+    for (const table of SESSION_TABLES) {
+      const result = await db.execute({
+        sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        args: [table],
+      });
+      expect(result.rows.length).toBe(1);
+    }
+
+    for (const indexName of SESSION_INDEXES) {
       const result = await db.execute({
         sql: "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
         args: [indexName],
