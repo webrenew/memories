@@ -18,6 +18,7 @@ import {
   createMemorySessionSnapshot,
   estimateContextTokenCount,
   writeAheadCompactionCheckpoint,
+  consolidateMemories,
   type MemorySessionEvent,
 } from "../lib/memory.js";
 import {
@@ -323,6 +324,57 @@ Use this at the start of tasks to understand project conventions and recall past
       } catch (error) {
         return {
           content: [{ type: "text", text: `Failed to create snapshot: ${error instanceof Error ? error.message : "Unknown error"}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool: consolidate_memories
+  server.tool(
+    "consolidate_memories",
+    "Consolidate duplicate memories, supersede outdated entries, and record a consolidation audit run.",
+    {
+      types: z.array(z.enum(["rule", "decision", "fact", "note", "skill"])).optional().describe("Memory types to include"),
+      include_global: z.boolean().optional().describe("Include global memories (default: true)"),
+      global_only: z.boolean().optional().describe("Restrict consolidation to global memories only"),
+      project_id: z.string().optional().describe("Explicit project id (e.g., github.com/org/repo)"),
+      dry_run: z.boolean().optional().describe("Preview consolidation effects without mutating rows"),
+      model: z.string().optional().describe("Optional model identifier to record in consolidation audit metadata"),
+    },
+    async ({ types, include_global, global_only, project_id, dry_run, model }) => {
+      try {
+        const scopeOpts = resolveMemoryScopeInput({ global: global_only, project_id });
+        const resolvedProjectId = scopeOpts.global ? undefined : (scopeOpts.projectId ?? (projectId ?? undefined));
+        const result = await consolidateMemories({
+          projectId: resolvedProjectId,
+          includeGlobal: include_global,
+          globalOnly: global_only,
+          types,
+          dryRun: dry_run,
+          model: model?.trim() || undefined,
+        });
+
+        const lines = [
+          `${dry_run ? "Dry-run " : ""}consolidation run ${result.run.id}`,
+          `input=${result.run.input_count}`,
+          `merged=${result.run.merged_count}`,
+          `superseded=${result.run.superseded_count}`,
+          `conflicts=${result.run.conflicted_count}`,
+        ];
+        if (result.winnerMemoryIds.length > 0) {
+          lines.push(`winners=${result.winnerMemoryIds.join(",")}`);
+        }
+        if (result.supersededMemoryIds.length > 0) {
+          lines.push(`superseded_ids=${result.supersededMemoryIds.join(",")}`);
+        }
+
+        return {
+          content: [{ type: "text", text: lines.join("\n") }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: `Failed to consolidate memories: ${error instanceof Error ? error.message : "Unknown error"}` }],
           isError: true,
         };
       }

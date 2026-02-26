@@ -12,6 +12,7 @@ const {
   mockForgetMemoryPayload,
   mockBulkForgetMemoriesPayload,
   mockVacuumMemoriesPayload,
+  mockConsolidateMemoriesPayload,
   mockRecordSdkEmbeddingMeterEvent,
   mockCountEmbeddingInputTokens,
   mockDeriveEmbeddingProviderFromModelId,
@@ -28,6 +29,7 @@ const {
   mockForgetMemoryPayload: vi.fn(),
   mockBulkForgetMemoriesPayload: vi.fn(),
   mockVacuumMemoriesPayload: vi.fn(),
+  mockConsolidateMemoriesPayload: vi.fn(),
   mockRecordSdkEmbeddingMeterEvent: vi.fn(),
   mockCountEmbeddingInputTokens: vi.fn(),
   mockDeriveEmbeddingProviderFromModelId: vi.fn(),
@@ -78,6 +80,7 @@ vi.mock("@/lib/memory-service/mutations", () => ({
   forgetMemoryPayload: mockForgetMemoryPayload,
   bulkForgetMemoriesPayload: mockBulkForgetMemoriesPayload,
   vacuumMemoriesPayload: mockVacuumMemoriesPayload,
+  consolidateMemoriesPayload: mockConsolidateMemoriesPayload,
 }))
 
 vi.mock("@/lib/memory-service/queries", () => ({
@@ -108,6 +111,7 @@ import { POST as editPOST } from "../edit/route"
 import { POST as forgetPOST } from "../forget/route"
 import { POST as bulkForgetPOST } from "../bulk-forget/route"
 import { POST as vacuumPOST } from "../vacuum/route"
+import { POST as consolidatePOST } from "../consolidate/route"
 import { GET as healthGET } from "../../health/route"
 import { ToolExecutionError, apiError } from "@/lib/memory-service/tools"
 
@@ -221,6 +225,29 @@ describe("/api/sdk/v1/memories/*", () => {
       data: {
         purged: 5,
         message: "Vacuumed 5 soft-deleted memories",
+      },
+    })
+
+    mockConsolidateMemoriesPayload.mockResolvedValue({
+      text: "Dry-run consolidation run run_1 completed",
+      data: {
+        runId: "run_1",
+        message: "Dry-run consolidation run run_1 completed",
+        run: {
+          id: "run_1",
+          scope: "project",
+          projectId: "github.com/acme/platform",
+          userId: "end-user-1",
+          inputCount: 4,
+          mergedCount: 1,
+          supersededCount: 1,
+          conflictedCount: 1,
+          model: "gpt-5-mini",
+          createdAt: "2026-02-26T00:00:00.000Z",
+          metadata: { dryRun: true },
+        },
+        winnerMemoryIds: ["mem_1"],
+        supersededMemoryIds: ["mem_2"],
       },
     })
 
@@ -670,6 +697,42 @@ describe("/api/sdk/v1/memories/*", () => {
     expect(body.ok).toBe(true)
     expect(body.data.purged).toBe(0)
     expect(body.data.message).toContain("No soft-deleted")
+  })
+
+  it("consolidate returns run summary envelope", async () => {
+    const response = await consolidatePOST(
+      makePost(
+        "/api/sdk/v1/memories/consolidate",
+        {
+          dryRun: true,
+          includeGlobal: true,
+          types: ["rule", "fact"],
+          model: "gpt-5-mini",
+          scope: {
+            projectId: "github.com/acme/platform",
+            userId: "end-user-1",
+          },
+        },
+        VALID_API_KEY
+      )
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.ok).toBe(true)
+    expect(body.data.runId).toBe("run_1")
+    expect(mockConsolidateMemoriesPayload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "github.com/acme/platform",
+        userId: "end-user-1",
+        args: expect.objectContaining({
+          dryRun: true,
+          includeGlobal: true,
+          types: ["rule", "fact"],
+          model: "gpt-5-mini",
+        }),
+      })
+    )
   })
 
   it("vacuum returns 401 without API key", async () => {

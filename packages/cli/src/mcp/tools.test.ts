@@ -28,6 +28,7 @@ describe("registerCoreTools", () => {
     expect(names).toContain("checkpoint_session");
     expect(names).toContain("end_session");
     expect(names).toContain("snapshot_session");
+    expect(names).toContain("consolidate_memories");
 
     expect(schemas.get("get_context")).toHaveProperty("mode");
     expect(schemas.get("get_context")).toHaveProperty("session_id");
@@ -44,6 +45,9 @@ describe("registerCoreTools", () => {
     expect(schemas.get("end_session")).toHaveProperty("status");
     expect(schemas.get("snapshot_session")).toHaveProperty("source_trigger");
     expect(schemas.get("snapshot_session")).toHaveProperty("transcript_md");
+    expect(schemas.get("consolidate_memories")).toHaveProperty("types");
+    expect(schemas.get("consolidate_memories")).toHaveProperty("dry_run");
+    expect(schemas.get("consolidate_memories")).toHaveProperty("project_id");
 
     // Backward + forward compatibility for core SDK client and existing callers.
     expect(schemas.get("search_memories")).toHaveProperty("type");
