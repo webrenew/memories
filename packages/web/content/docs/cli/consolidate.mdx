@@ -1,0 +1,36 @@
+---
+title: memories consolidate
+description: Merge duplicate memories and supersede outdated entries.
+---
+
+```bash
+memories consolidate run [options]
+```
+
+Consolidation scans memories for overlaps and contradictions, merges duplicates, and marks outdated memories as superseded.
+
+## `memories consolidate run`
+
+| Option | Description |
+|--------|-------------|
+| `--types <types>` | Comma-separated memory types to include (default: `rule,decision,fact,note`) |
+| `--project-id <id>` | Explicit project ID (defaults to current git project) |
+| `--global-only` | Restrict consolidation to global memories |
+| `--no-include-global` | Exclude global memories from project-scoped runs |
+| `--dry-run` | Preview consolidation without mutating rows |
+| `--model <name>` | Optional model identifier for audit metadata |
+| `--json` | Output as JSON |
+
+## Examples
+
+```bash
+memories consolidate run
+memories consolidate run --types rule,decision --dry-run
+memories consolidate run --project-id github.com/webrenew/memories --no-include-global
+memories consolidate run --global-only --model openai/gpt-5-mini --json
+```
+
+## Notes
+
+- `--global-only` ignores `--project-id` when both are passed.
+- Use `--dry-run` to inspect merged/superseded/conflicted counts before applying.

@@ -1,0 +1,32 @@
+---
+title: memories compact
+description: Run inactivity compaction worker routines for active sessions.
+---
+
+```bash
+memories compact run [options]
+```
+
+Run background compaction for active sessions based on inactivity thresholds.
+
+## `memories compact run`
+
+| Option | Description |
+|--------|-------------|
+| `--inactivity-minutes <n>` | Session inactivity threshold in minutes (default: `60`) |
+| `--limit <n>` | Maximum sessions to process per run (default: `25`) |
+| `--event-window <n>` | Number of recent meaningful events included in checkpoint summaries (default: `8`) |
+| `--json` | Output as JSON |
+
+## Examples
+
+```bash
+memories compact run
+memories compact run --inactivity-minutes 30 --limit 50 --event-window 12
+memories compact run --json
+```
+
+## Notes
+
+- This worker scans active sessions and compacts those past the inactivity threshold.
+- JSON output includes scan/compaction counts and any per-session failures.

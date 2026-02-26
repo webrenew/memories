@@ -1,0 +1,93 @@
+---
+title: memories session
+description: Manage explicit memory sessions and session snapshots.
+---
+
+```bash
+memories session <subcommand> [options]
+```
+
+Use `memories session` (alias: `memories sessions`) to manage a lifecycle-aware conversation session. This command group supports start, checkpoint, status, end, and snapshot operations.
+
+## Subcommands
+
+### `memories session start`
+
+Start a new session.
+
+| Option | Description |
+|--------|-------------|
+| `--title <title>` | Session title |
+| `--client <client>` | Client name (default: `cli`) |
+| `--user-id <id>` | Optional user identifier |
+| `--metadata <json>` | JSON object metadata |
+| `-g, --global` | Create a global session |
+| `--project-id <id>` | Explicit project ID (`github.com/org/repo`) |
+| `--json` | Output as JSON |
+
+```bash
+memories session start --title "Checkout refactor" --client codex
+memories session start --global --metadata '{"channel":"support"}'
+```
+
+### `memories session checkpoint <session-id> <content...>`
+
+Add an event/checkpoint to a session.
+
+| Option | Description |
+|--------|-------------|
+| `--role <role>` | Event role: `user`, `assistant`, `tool` (default: `assistant`) |
+| `--kind <kind>` | Event kind: `message`, `checkpoint`, `summary`, `event` (default: `checkpoint`) |
+| `--token-count <n>` | Optional token count for this event |
+| `--turn-index <n>` | Optional turn index |
+| `--not-meaningful` | Mark event as non-meaningful |
+| `--json` | Output as JSON |
+
+```bash
+memories session checkpoint sess_123 "User confirmed the rollout plan"
+memories session checkpoint sess_123 "Compaction preflush checkpoint" --kind summary --token-count 420
+```
+
+### `memories session status [session-id]`
+
+Show status for a specific session or latest active session.
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Output as JSON |
+
+```bash
+memories session status
+memories session status sess_123 --json
+```
+
+### `memories session end <session-id>`
+
+End a session.
+
+| Option | Description |
+|--------|-------------|
+| `--status <status>` | Final status: `closed` or `compacted` (default: `closed`) |
+| `--json` | Output as JSON |
+
+```bash
+memories session end sess_123 --status compacted
+```
+
+### `memories session snapshot <session-id>`
+
+Create a session snapshot row from transcript text or recent events.
+
+| Option | Description |
+|--------|-------------|
+| `--trigger <trigger>` | Snapshot trigger: `new_session`, `reset`, `manual`, `auto_compaction` (default: `manual`) |
+| `--slug <slug>` | Optional snapshot slug override |
+| `-m, --messages <n>` | Number of events to include when transcript is generated (default: `15`) |
+| `--include-noise` | Include non-meaningful events in generated snapshot |
+| `--transcript <markdown>` | Explicit transcript markdown |
+| `--json` | Output as JSON |
+
+```bash
+memories session snapshot sess_123 --trigger reset
+memories session snapshot sess_123 --transcript "# Session Snapshot\n\n..."
+```

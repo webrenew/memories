@@ -1,0 +1,38 @@
+---
+title: memories review
+description: Interactively review and clean up stale memories.
+---
+
+```bash
+memories review [options]
+```
+
+Run an interactive stale-memory review loop. For each candidate, choose to keep, delete, skip, or quit.
+
+## Options
+
+| Option | Description |
+|--------|-------------|
+| `--days <n>` | Staleness threshold in days (default: `90`) |
+| `--include-superseded` | Include already superseded memories |
+| `--superseded-only` | Only review superseded memories |
+| `--conflicts-only` | Only review memories with `contradicts` links |
+
+## Interaction Controls
+
+- `k` keep memory and mark as reviewed (`updated_at` touched)
+- `d` soft-delete memory
+- `s` skip memory
+- `q` quit review loop
+
+## Examples
+
+```bash
+memories review
+memories review --days 120 --superseded-only
+memories review --conflicts-only
+```
+
+## Related
+
+- Use [`stale`](/docs/cli/stale) for non-interactive filtering and JSON output.
