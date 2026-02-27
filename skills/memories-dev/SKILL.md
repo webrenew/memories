@@ -1,6 +1,6 @@
 ---
 name: memories-dev
-description: "Developer guide for contributing to and extending the memories.sh codebase. Use when: (1) Understanding the memories.sh architecture and how packages connect, (2) Adding new CLI commands or MCP tools, (3) Modifying the memory storage layer (SQLite/libSQL), (4) Working on the web dashboard (Next.js/Supabase), (5) Adding new generation targets for AI tools, (6) Extending cloud sync or embeddings functionality, (7) Debugging build, test, or deployment issues in the monorepo."
+description: "Developer guide for contributing to and extending the memories.sh codebase. Use when: (1) Understanding the memories.sh architecture and lifecycle model, (2) Adding new CLI commands or MCP tools, (3) Modifying the memory storage layer (SQLite/libSQL), (4) Working on the web dashboard (Next.js/Supabase), (5) Adding new generation targets for AI tools, (6) Extending cloud sync, session compaction, or embeddings functionality, (7) Debugging build, test, or deployment issues in the monorepo."
 ---
 
 # memories-dev
@@ -36,13 +36,17 @@ memories/
 ```
 db.ts (SQLite/libSQL, migrations, FTS5)
   ↓
-memory.ts (CRUD, search, context, streaming)
+memory.ts (CRUD, context, lifecycle sessions, compaction, consolidation, streaming)
+  ↑          ↑            ↑
+openclaw-memory.ts   reminders.ts   embeddings.ts (Xenova/Transformers, cosine similarity)
   ↑          ↑
-git.ts    embeddings.ts (Xenova/Transformers, cosine similarity)
+git.ts    openclaw.ts command bridge
   ↓
 Commands ← auth.ts, turso.ts, config.ts, setup.ts
   ↓
 MCP Server (stdio + StreamableHTTP transports)
+  ↳ registerCoreTools (core + lifecycle + consolidation + reminders)
+  ↳ registerStreamingTools (SSE chunk pipelines)
 ```
 
 ### Key Lib Files
@@ -50,7 +54,8 @@ MCP Server (stdio + StreamableHTTP transports)
 | File | Purpose |
 |------|---------|
 | `db.ts` | SQLite via libSQL. Schema migrations, FTS5 triggers, `getDb()` singleton |
-| `memory.ts` | All memory operations: add, search, list, forget, update, getContext, getRules, streaming |
+| `memory.ts` | Memory operations: add/search/list/forget/update, `getContext`, sessions, compaction checkpoints, consolidation, streaming |
+| `openclaw-memory.ts` | OpenClaw file-mode contract (`memory.md`, daily logs, snapshots), workspace path resolution, read/write helpers |
 | `embeddings.ts` | Local embeddings via Xenova/Transformers. `generateEmbedding()`, cosine similarity |
 | `git.ts` | `getProjectId()` — derives project ID from git remote URL |
 | `auth.ts` | Cloud auth token storage, device code flow helpers |
@@ -69,6 +74,19 @@ SQLite with FTS5 full-text search:
 - **memory_embeddings** — Vector storage: memory_id, embedding (JSON float array), model
 - **memory_links** — Bidirectional links: id1, id2, link_type
 - **memory_history** — Version tracking: memory_id, version, content, tags, change_type
+- **memory_sessions** — Explicit session state (scope, status, last activity, metadata)
+- **memory_session_events** — Session turn/checkpoint/event log with meaningful flag
+- **memory_session_snapshots** — Raw markdown transcript snapshots keyed by trigger/slug
+- **memory_compaction_events** — Write-ahead compaction audit trail
+- **memory_consolidation_runs** — Consolidation run metadata and counts
+
+### Lifecycle Model (Current)
+
+1. **Session start**: `startMemorySession()` creates `memory_sessions` row and can preload OpenClaw bootstrap context when file mode is enabled.
+2. **Checkpointing**: `checkpointMemorySession()` records meaningful events in `memory_session_events`.
+3. **Compaction guard**: `writeAheadCompactionCheckpoint()` writes a checkpoint before destructive context compaction and logs `memory_compaction_events`.
+4. **Snapshots**: `createMemorySessionSnapshot()` stores raw markdown snapshots in DB and optionally mirrors to OpenClaw snapshot files.
+5. **Consolidation**: `consolidateMemories()` merges duplicates/supersedes stale entries and records `memory_consolidation_runs`.
 
 ## Adding a New CLI Command
 
@@ -98,7 +116,7 @@ program.addCommand(myCommand);
 
 ## Adding a New MCP Tool
 
-Edit `packages/cli/src/mcp/index.ts`:
+Edit `packages/cli/src/mcp/tools.ts` (and `streaming-tools.ts` for chunked ingestion):
 
 ```typescript
 server.tool(
@@ -117,6 +135,10 @@ server.tool(
 ```
 
 Parameters use Zod schemas. Return `{ isError: true }` for errors.
+
+Notes:
+- Register in `registerCoreTools()` for standard/lifecycle tools.
+- Keep cloud-vs-local behavior explicit when adding tools that rely on local-only tables or file paths.
 
 ## Adding a New Generation Target
 
