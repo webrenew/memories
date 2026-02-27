@@ -1216,7 +1216,7 @@ export function TeamContent({
                     <p className="text-xs text-emerald-400">{memberActionSuccess}</p>
                   ) : null}
 
-                  {isAdmin ? (
+                  {isAdmin && (selectedManageableMemberIds.length > 0 || bulkActionInFlight) ? (
                     <div className="border border-border bg-muted/10 px-3 py-2.5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <p className="text-xs text-muted-foreground">
                         {selectedManageableMemberIds.length} selected
@@ -1475,7 +1475,7 @@ export function TeamContent({
                   ) : auditEvents.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground">No audit events yet.</div>
                   ) : (
-                    <div className="divide-y divide-border max-h-[420px] overflow-y-auto">
+                    <div className="divide-y divide-border">
                       {auditEvents.map((event) => {
                         const actorLabel =
                           event.actor?.name ||
