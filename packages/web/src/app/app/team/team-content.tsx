@@ -43,6 +43,8 @@ function roleIcon(role: string) {
 const MEMBER_PAGE_SIZE = 10
 const MEMBER_ROLE_FILTERS = ["all", "owner", "admin", "member"] as const
 type MemberRoleFilter = (typeof MEMBER_ROLE_FILTERS)[number]
+const MEMBER_DESKTOP_GRID_CLASS =
+  "md:grid-cols-[36px_minmax(0,2fr)_130px_220px_220px_170px]"
 
 export function TeamContent({ 
   organizations, 
@@ -1263,7 +1265,7 @@ export function TeamContent({
                     </div>
                   ) : null}
                 </div>
-                <div className="hidden md:grid md:grid-cols-[36px_minmax(0,2fr)_130px_220px_220px_auto] gap-3 px-4 py-2 border-b border-border text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                <div className={`hidden md:grid ${MEMBER_DESKTOP_GRID_CLASS} gap-3 px-4 py-2 border-b border-border text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70`}>
                   <span className="flex items-center">
                     <input
                       type="checkbox"
@@ -1293,7 +1295,7 @@ export function TeamContent({
                       return (
                         <div
                           key={member.id}
-                          className="p-4 grid grid-cols-1 md:grid-cols-[36px_minmax(0,2fr)_130px_220px_220px_auto] gap-3 md:items-center"
+                          className={`p-4 grid grid-cols-1 ${MEMBER_DESKTOP_GRID_CLASS} gap-3 md:items-center`}
                         >
                           <div className="hidden md:flex items-center justify-center">
                             <input
