@@ -56,6 +56,43 @@ Optional reminder run:
 memories reminders run
 ```
 
+## Path C: Lifecycle memory workflow (`openclaw memory`)
+
+Use this when managing session memory continuity across compaction, `/new`, or `/reset`.
+
+```bash
+# 0) Optional: create or inspect active lifecycle session
+memories session start --title "OpenClaw task" --client codex
+memories session status
+
+# 1) Bootstrap semantic memory + today/yesterday daily logs
+memories openclaw memory bootstrap
+
+# 2) Pre-compaction checkpoint flush into daily log
+memories openclaw memory flush <session-id> --messages 15
+
+# 3) Raw snapshot at boundary events (/new or /reset)
+memories openclaw memory snapshot <session-id> --trigger reset
+
+# 4) Reconcile DB and OpenClaw files
+memories openclaw memory sync --direction both
+```
+
+Trigger mapping:
+- Session start/new conversation: `bootstrap`
+- Near token/turn budget or inactivity compaction: `flush`
+- `/new`, `/reset`, explicit archive handoff: `snapshot --trigger new_session|reset|manual|auto_compaction`
+- Cross-device edits or drift reconciliation: `sync --direction import|export|both`
+
+Automation-friendly JSON output:
+
+```bash
+memories openclaw memory bootstrap --json
+memories openclaw memory flush <session-id> --json
+memories openclaw memory snapshot <session-id> --trigger reset --json
+memories openclaw memory sync --direction both --json
+```
+
 ## Expected workspace artifacts
 
 - `~/.openclaw/workspace/AGENTS.md`
@@ -87,6 +124,10 @@ ls -la ~/.openclaw/workspace/skills
 
 # Generated skills exist locally (if expected)
 ls -la .agents/skills
+
+# OpenClaw file-mode memory artifacts
+ls -la ~/.openclaw/workspace/memory/daily
+ls -la ~/.openclaw/workspace/memory/snapshots
 ```
 
 ## Troubleshooting
@@ -108,4 +149,5 @@ ls -la .agents/skills
 
 ### Stale runtime behavior
 
-- Re-run Path B in order from the correct project directory.
+- Re-run Path C in order for lifecycle memory continuity issues.
+- Re-run Path B for workspace contract drift (AGENTS/skills/config) issues.
