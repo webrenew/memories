@@ -2,9 +2,16 @@
 
 Complete reference for all memories.sh MCP tools.
 
+Hosted MCP provides tenant-routed core memory tools. Local CLI MCP (`memories serve`) additionally provides lifecycle, reminder, and streaming tools.
+
 ## Table of Contents
 
 - [get_context](#get_context)
+- [start_session (local)](#start_session-local)
+- [checkpoint_session (local)](#checkpoint_session-local)
+- [end_session (local)](#end_session-local)
+- [snapshot_session (local)](#snapshot_session-local)
+- [consolidate_memories (local)](#consolidate_memories-local)
 - [add_memory](#add_memory)
 - [search_memories](#search_memories)
 - [get_rules](#get_rules)
@@ -27,12 +34,23 @@ Complete reference for all memories.sh MCP tools.
 | `query` | string | No | — | What you're working on — used to find relevant memories |
 | `project_id` | string | No | — | Project identifier (e.g., `github.com/user/repo`) for project-specific rules |
 | `limit` | number | No | 5 | Max memories to return (rules always included) |
+| `mode` | string | No | `all` | Local CLI MCP only: `all`, `working`, `long_term`, `rules_only` |
+| `session_id` | string | No | — | Local CLI MCP only: session identifier |
+| `budget_tokens` | number | No | — | Local CLI MCP only: token budget hint |
+| `turn_count` | number | No | — | Local CLI MCP only: current turn count |
+| `turn_budget` | number | No | — | Local CLI MCP only: turn budget |
+| `last_activity_at` | string | No | — | Local CLI MCP only: ISO timestamp for inactivity checks |
+| `inactivity_threshold_minutes` | number | No | — | Local CLI MCP only: inactivity threshold |
+| `task_completed` | boolean | No | — | Local CLI MCP only: semantic completion hint |
+| `include_session_summary` | boolean | No | — | Local CLI MCP only: reserved summary hydration flag |
 
 **Returns:** Markdown with `## Project Rules` and `## Global Rules` sections + `## Relevant Memories` section. Uses FTS5 with BM25 ranking (LIKE fallback for older databases).
 
 When contradiction edges are present in returned memories, `structuredContent.data.conflicts[]` is included with `memoryAId`, `memoryBId`, `edgeType`, `confidence`, `explanation`, and `suggestion`.
 
 **When to use:** At the start of any task. Call with no query to get just rules.
+
+With local lifecycle hints (`session_id`, budget/turn/inactivity/task fields), `get_context` can trigger write-ahead compaction checkpointing and return compaction details.
 
 ```
 get_context({ query: "database migration" })
@@ -61,6 +79,78 @@ Conflict example (structured payload fragment):
   }
 }
 ```
+
+---
+
+## start_session (local)
+
+Start a lifecycle session in local CLI MCP.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `title` | string | No | — | Optional session title |
+| `client` | string | No | — | Client name (`codex`, `cursor`, etc.) |
+| `user_id` | string | No | — | Optional user identifier |
+| `metadata` | object | No | — | Optional session metadata object |
+| `global` | boolean | No | `false` | Global session instead of project-scoped |
+| `project_id` | string | No | — | Explicit project identifier |
+
+---
+
+## checkpoint_session (local)
+
+Write an event/checkpoint to an active local session.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `session_id` | string | Yes | — | Session ID |
+| `content` | string | Yes | — | Event content |
+| `role` | string | No | `assistant` | `user`, `assistant`, `tool` |
+| `kind` | string | No | `checkpoint` | `message`, `checkpoint`, `summary`, `event` |
+| `token_count` | number | No | — | Optional token count |
+| `turn_index` | number | No | — | Optional turn index |
+| `is_meaningful` | boolean | No | `true` | Mark event meaningful/non-meaningful |
+
+---
+
+## end_session (local)
+
+End a local session.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `session_id` | string | Yes | — | Session ID |
+| `status` | string | No | `closed` | Final status: `closed` or `compacted` |
+
+---
+
+## snapshot_session (local)
+
+Create a raw snapshot from transcript input or recent local session events.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `session_id` | string | Yes | — | Session ID |
+| `source_trigger` | string | No | `manual` | `new_session`, `reset`, `manual`, `auto_compaction` |
+| `slug` | string | No | — | Optional custom slug |
+| `transcript_md` | string | No | — | Explicit transcript markdown |
+| `message_count` | number | No | `15` | Event count when transcript is generated |
+| `meaningful_only` | boolean | No | `true` | Use only meaningful events during generation |
+
+---
+
+## consolidate_memories (local)
+
+Run consolidation in local CLI MCP to merge duplicates and supersede stale truths.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `types` | string[] | No | `["rule","decision","fact","note"]` | Included memory types |
+| `include_global` | boolean | No | `true` | Include global memories |
+| `global_only` | boolean | No | `false` | Restrict to global memories only |
+| `project_id` | string | No | — | Explicit project identifier |
+| `dry_run` | boolean | No | `false` | Preview only, no mutations |
+| `model` | string | No | — | Optional model label for audit metadata |
 
 ---
 

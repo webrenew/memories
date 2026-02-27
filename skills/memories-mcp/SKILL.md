@@ -1,6 +1,6 @@
 ---
 name: memories-mcp
-description: "MCP server integration for memories.sh — the persistent memory layer for AI agents. Use when: (1) Configuring the memories.sh MCP server for any client (Claude Code, Cursor, Windsurf, VS Code, v0, Claude Desktop, OpenCode, Factory), (2) Using MCP tools to store, search, retrieve memories, or manage reminder schedules, (3) Understanding get_context vs search_memories vs list_memories, (4) Working with streaming memory tools for SSE content, (5) Troubleshooting MCP connection issues, (6) Choosing between cloud MCP (HTTP) and local MCP (stdio) transports."
+description: "MCP server integration for memories.sh — the persistent memory layer for AI agents. Use when: (1) Configuring the memories.sh MCP server for any client (Claude Code, Cursor, Windsurf, VS Code, v0, Claude Desktop, OpenCode, Factory), (2) Using MCP tools to store, search, retrieve memories, run lifecycle session workflows, or manage reminders, (3) Understanding get_context vs search_memories vs list_memories, (4) Working with streaming memory tools for SSE content, (5) Troubleshooting MCP connection issues, (6) Choosing between cloud MCP (HTTP) and local MCP (stdio) transports."
 ---
 
 # memories-mcp
@@ -37,6 +37,22 @@ get_context({ query: "authentication flow" })
 
 Leave `query` empty to get just rules. Use `limit` to control memory count (default: 10).
 
+For lifecycle-aware callers on local CLI MCP, pass compaction/session hints:
+
+```
+get_context({
+  query: "checkout timeout",
+  session_id: "sess_123",
+  budget_tokens: 6000,
+  turn_count: 6,
+  turn_budget: 24,
+  last_activity_at: "2026-02-26T23:00:00.000Z",
+  inactivity_threshold_minutes: 45
+})
+```
+
+These hints let the server trigger write-ahead checkpointing before destructive compaction.
+
 When relationship extraction is enabled server-side, `get_context` may also return `conflicts[]` for contradiction-linked memories. Treat these as clarification prompts before taking irreversible actions.
 
 ## Tool Selection Guide
@@ -53,6 +69,11 @@ When relationship extraction is enabled server-side, `get_context` may also retu
 | Remove a memory | `forget_memory` | Soft-delete (recoverable) |
 | Bulk remove memories | `bulk_forget_memories` | Filtered mass soft-delete by type, tags, age, pattern |
 | Reclaim storage | `vacuum_memories` | Permanently purge all soft-deleted records |
+| Start lifecycle session (local) | `start_session` | Begin explicit session tracking |
+| Persist turn checkpoint (local) | `checkpoint_session` | Save meaningful event/checkpoint |
+| End session (local) | `end_session` | Close or compact active session |
+| Read/create session snapshot (local) | `snapshot_session` | Capture raw transcript snapshot |
+| Run consolidation (local) | `consolidate_memories` | Merge duplicates and supersede stale truths |
 | Add reminder (local) | `add_reminder` | Create cron-based reminder in local CLI DB |
 | Run reminders (local) | `run_due_reminders` | Emit due reminders and advance schedule |
 | Manage reminders (local) | `list_reminders`, `enable_reminder`, `disable_reminder`, `delete_reminder` | Inspect and control reminder lifecycle |
@@ -83,6 +104,16 @@ For collecting content from SSE sources (v0 artifacts, streaming responses):
 3. `finalize_memory_stream({ stream_id })` → creates memory + triggers embedding
 4. `cancel_memory_stream({ stream_id })` → discard if aborted
 
+## Lifecycle Tools (Local CLI MCP)
+
+These tools are currently available when running `memories serve` locally:
+
+1. `start_session({ title?, client?, user_id?, metadata?, global?, project_id? })`
+2. `checkpoint_session({ session_id, content, role?, kind?, token_count?, turn_index?, is_meaningful? })`
+3. `end_session({ session_id, status? })`
+4. `snapshot_session({ session_id, source_trigger?, slug?, transcript_md?, message_count?, meaningful_only? })`
+5. `consolidate_memories({ types?, include_global?, global_only?, project_id?, dry_run?, model? })`
+
 ## MCP Resources
 
 For clients that support MCP resources:
@@ -101,7 +132,7 @@ For clients that support MCP resources:
 | **HTTP/SSE** | v0, web-based agents, remote | `memories serve --sse --port 3030` |
 | **Cloud** | No local install, cross-device | `https://memories.sh/api/mcp` + `Authorization: Bearer KEY` |
 
-Reminder tools are local CLI MCP only (`memories serve`).
+Local-only tools: lifecycle + reminders + streaming. Hosted MCP focuses on tenant-routed core memory tools.
 
 ## Reference Files
 
