@@ -26,7 +26,7 @@ const layers: {
     label: "MCP",
     pkg: "memories serve",
     description:
-      "7 tools, FTS5 search, real-time access for browser-based agents and MCP clients.",
+      "Hosted MCP exposes tenant-routed core memory tools; local memories serve adds lifecycle, reminder, and streaming tools.",
     accent: false,
     href: "/docs/mcp-server",
   },
