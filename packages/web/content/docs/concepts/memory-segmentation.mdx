@@ -1,6 +1,6 @@
 ---
 title: Memory Segmentation
-description: How memories.sh separates session, semantic, episodic, and procedural memory so context survives resets and compaction.
+description: An agent-agnostic memory architecture that separates session, semantic, episodic, and procedural memory for reliable long-running workflows.
 ---
 
 <Callout>
@@ -9,113 +9,135 @@ Types describe the kind of memory (`rule`, `decision`, `fact`, `note`, `skill`).
 Segmentation describes where memory lives across the lifecycle (session, semantic, episodic, procedural).
 </Callout>
 
-## Why Segmentation Exists
+## Why Segmentation Matters
 
-Agent context fails when all history is treated as one blob. memories.sh segments memory so each store has one job:
+LLM agents are stateless between calls. If all memory is treated as one flat transcript, quality degrades as context grows.
 
-- **Session memory** for active work
-- **Semantic memory** for durable truths
-- **Episodic memory** for chronological history
-- **Procedural memory** for repeatable workflows
+Segmentation fixes this by giving each memory lane one clear job:
 
-## The Segmented Stores
+- **Session memory**: active working context
+- **Semantic memory**: durable truths and preferences
+- **Episodic memory**: chronological history and boundary snapshots
+- **Procedural memory**: reusable workflows and playbooks
 
-### 1) Session Memory (working context)
+This model is agent-agnostic. It works whether you use CLI tools, MCP clients, SDK-based apps, or custom harnesses.
 
-Use explicit sessions for long-running tasks:
+## The Four Memory Lanes
 
-```bash
-memories session start --title "Auth refactor" --client codex
-memories session checkpoint <session-id> "User approved rollout plan"
-memories session status <session-id>
-```
+### 1) Session Memory (working set)
 
-Session memory tracks active conversation state and supports checkpoints and snapshots before boundaries like reset or compaction.
+Use for the current task: recent turns, active goals, and boundary checkpoints.
 
-### 2) Long-term Semantic Memory (stable truths)
+Properties:
 
-Store durable facts, preferences, and rules in semantic memory:
+- high read frequency during an active task
+- bounded size (subject to compaction)
+- explicitly checkpointed before destructive boundaries
 
-- CLI/local database memory records
-- OpenClaw `memory.md` for deterministic file-mode semantic context
+### 2) Semantic Memory (durable truths)
 
-Semantic memory should stay concise and current. Use consolidation/edits to avoid contradictory duplicates.
+Use for stable, re-usable truth: standards, constraints, architecture decisions, durable preferences.
 
-### 3) Long-term Episodic Memory (history)
+Properties:
 
-Store chronological events in append-friendly logs:
+- concise and current
+- overwrite/supersede when truth changes
+- injected consistently in retrieval
 
-- OpenClaw daily logs: `memory/daily/YYYY-MM-DD.md`
-- Session snapshots: `memory/snapshots/YYYY-MM-DD/<slug>.md`
+### 3) Episodic Memory (timeline fidelity)
 
-Episodic memory is where timeline and fidelity live. Use it when you need what happened, not just the final truth.
+Use for history: what happened, when it happened, and task boundary snapshots.
 
-### 4) Procedural Memory (how-to patterns)
+Properties:
 
-Procedural memory captures reusable workflows and successful operating patterns:
+- append-oriented
+- optimized for chronology and handoffs
+- can preserve raw high-fidelity slices when needed
 
-- Skills and workflow artifacts
-- Retrieval signals for intent-matched workflow recall
+### 4) Procedural Memory (reusable workflows)
 
-Use procedural memory for repeatable tasks like release checklists, incident response, or migration runbooks.
+Use for repeatable execution patterns: checklists, runbooks, escalation flows, and successful routines.
+
+Properties:
+
+- intent-matched retrieval
+- promoted from successful repeated episodes
+- improves first-action quality on recurring work
 
 ## Compaction and Lifecycle Triggers
 
-Compaction is context compression with checkpoints to avoid losing important state.
+Compaction compresses session context so work can continue inside finite context windows.
+Good compaction is checkpoint-first, not loss-first.
 
 | Trigger | When it fires | Typical mechanism |
 |--------|----------------|-------------------|
-| Count-based | Token/turn budget is near limit | Session checkpoint + snapshot |
-| Time-based | Session inactive past threshold | `memories compact run` |
-| Event-based | Task boundary (`/new`, `/reset`, handoff) | Snapshot with explicit trigger |
+| Count-based | Token/turn budget near limit | Checkpoint + compact |
+| Time-based | Session inactive past threshold | Background compaction worker |
+| Event-based | Task boundary (reset/handoff/complete) | Boundary snapshot + close/rollover |
 
-Examples:
+Reference flow:
+
+1. Retrieve context with session hints (token/turn/inactivity state).
+2. If compaction is required, write a checkpoint first.
+3. Compact session context.
+4. Continue with refreshed context.
+5. On boundary events, persist a snapshot.
+
+## Routing Guide: What Goes Where
+
+| Memory content | Primary lane | Why |
+|---------------|--------------|-----|
+| Active task steps | Session | Immediate continuity |
+| Stable rule or preference | Semantic | Durable and always relevant |
+| Timeline event/milestone | Episodic | Chronological audit and handoff fidelity |
+| Repeatable checklist/runbook | Procedural | Reuse on intent match |
+| Contradictory old truth | Semantic (superseded) | Preserve one current truth |
+
+## Update and Consolidation Rules
+
+Segmentation only works if memory can evolve.
+
+- **Filter** before writing: not every turn is memory-worthy.
+- **Consolidate** duplicates: merge equivalent entries.
+- **Overwrite/supersede** stale semantic truth: avoid stacking contradictions.
+- **Promote** repeated successful patterns into procedural memory.
+
+## Agent-Agnostic Implementation Pattern
+
+You can implement this model with many stacks (database-first, file-first, hybrid). The core contract is the same:
+
+1. Define lane boundaries (session, semantic, episodic, procedural).
+2. Define write triggers (count/time/event/explicit user intent).
+3. Define retrieval policy (which lanes are always injected vs query-driven).
+4. Define consolidation policy (merge, supersede, conflict handling).
+5. Define observability (compaction rate, contradiction trend, retrieval quality).
+
+## Optional File-Mode Mapping
+
+If you prefer human-readable files (for git workflows), map the same lanes to files:
 
 ```bash
-memories compact run --inactivity-minutes 60
-memories session snapshot <session-id> --trigger auto_compaction
-memories session snapshot <session-id> --trigger reset
+# semantic
+memory.md
+
+# episodic daily timeline
+memory/daily/YYYY-MM-DD.md
+
+# boundary snapshots
+memory/snapshots/YYYY-MM-DD/<slug>.md
 ```
-
-## OpenClaw File-Mode Flow
-
-Use deterministic file operations around session boundaries:
-
-```bash
-# 1) Read semantic + recent episodic context
-memories openclaw memory bootstrap
-
-# 2) Flush meaningful events before compaction/reset
-memories openclaw memory flush <session-id>
-
-# 3) Write DB snapshot + file snapshot
-memories openclaw memory snapshot <session-id> --trigger reset
-
-# 4) Keep DB and files aligned
-memories openclaw memory sync --direction both
-```
-
-## What Goes Where
-
-| Memory content | Best store | Why |
-|---------------|------------|-----|
-| Durable coding standards | Semantic (`rule`) | Must always be injected |
-| Stable project constraints | Semantic (`fact`/`decision`) | High-value truth over time |
-| Conversation milestones | Session checkpoints | Keeps active task coherent |
-| End-of-task transcript slice | Snapshot (episodic) | Preserves high-fidelity boundary state |
-| Daily work chronology | Daily logs (episodic) | Append-only timeline for recall |
-| Repeatable runbook/process | Procedural (skills/workflows) | Reuse successful patterns |
 
 ## Anti-patterns
 
 - Storing full raw transcripts in semantic memory
 - Treating all memory as one flat list
 - Letting conflicting semantic entries stack without consolidation
-- Skipping pre-compaction/session-boundary checkpoints
+- Skipping checkpoint writes before compaction
+- Using only one trigger type (count/time/event) for all workloads
 
 ## Next Steps
 
 - [Memory Types](/docs/concepts/memory-types)
 - [memories session](/docs/cli/session)
 - [memories compact](/docs/cli/compact)
-- [openclaw memory](/docs/cli/openclaw-memory)
+- [openclaw memory](/docs/cli/openclaw-memory) (optional file-mode implementation)
