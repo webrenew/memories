@@ -12,12 +12,12 @@ const cliSteps = [
   {
     cmd: "memories add",
     arg: '"prefer functional components"',
-    note: "Stored to local SQLite database",
+    note: "Stored in local semantic memory",
   },
   {
     cmd: "memories recall",
     arg: '"auth flow"',
-    note: "3 memories matched by semantic similarity",
+    note: "Layered recall: rules + session + long-term matches",
   },
   {
     cmd: "memories generate",
@@ -35,7 +35,7 @@ const mcpSteps = [
   {
     tool: "get_context",
     params: '{ query: "auth flow" }',
-    note: "FTS5-ranked rules + relevant memories",
+    note: "Returns layered context with session and long-term memory",
   },
   {
     tool: "get_rules",
@@ -56,6 +56,21 @@ const sdkCodeLines: SyntaxLine[] = [
   { tokens: [{ text: "// Rules + memories auto-injected into every prompt", style: "comment" }] },
 ];
 
+const memoryLanes = [
+  {
+    title: "Session",
+    detail: "Active working context with checkpoints and boundary snapshots.",
+  },
+  {
+    title: "Long-term",
+    detail: "Semantic truths plus episodic daily logs and raw snapshots.",
+  },
+  {
+    title: "Procedural",
+    detail: "Reusable workflows recalled when task intent matches.",
+  },
+];
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export function HowItWorks(): React.JSX.Element {
@@ -73,20 +88,20 @@ export function HowItWorks(): React.JSX.Element {
   const tabContent = {
     cli: {
       heading: "Three commands. That's it.",
-      description: "Store context, recall it anywhere, and generate configs for any tool—all from your terminal.",
+      description: "Capture session checkpoints, recall layered context, and generate native configs for every agent tool from one CLI.",
       cardTitle: "Store, recall, generate",
-      cardDescription: "Local SQLite database. Works offline. Syncs when you want it to.",
+      cardDescription: "Session lifecycle + long-term semantic, episodic, and procedural memory in local SQLite.",
     },
     mcp: {
       heading: "MCP when you need it.",
-      description: "For browser-based agents like v0, bolt.new, and Lovable—or any MCP client that can't run the CLI—7 tools with FTS5 search give full access to your memory store.",
+      description: "For browser-based agents like v0, bolt.new, and Lovable—or any MCP client that can't run the CLI—7 tools expose the same segmented memory lifecycle.",
       cardTitle: "Direct agent fallback",
-      cardDescription: "Same 7 tools as CLI. FTS5 search, path-scoped rules, skills, and full field support.",
+      cardDescription: "Same 7 tools as CLI: layered recall, lifecycle sessions, and path-scoped memory operations.",
       endpoint: "https://memories.sh/api/mcp",
     },
     sdk: {
       heading: "Two lines. Memory everywhere.",
-      description: <>Wrap any model with <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded">memoriesMiddleware()</code>. Rules and context auto-inject into every prompt—no tool calls, no prompt engineering.</>,
+      description: <>Wrap any model with <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded">memoriesMiddleware()</code>. Segmented context auto-injects into prompts—session state, durable truths, and relevant workflows.</>,
       cardTitle: "AI SDK middleware",
       cardDescription: <><code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded">@memories.sh/ai-sdk</code> — composable middleware for the Vercel AI SDK. Stack with logging, guardrails, caching.</>,
     },
@@ -221,6 +236,25 @@ export function HowItWorks(): React.JSX.Element {
               <p className="text-base sm:text-lg text-muted-foreground max-w-md leading-relaxed">
                 {tabContent[activeTab].description}
               </p>
+
+              <div className="mt-7 w-full max-w-xl rounded-xl border border-border bg-card/40 p-4 sm:p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary/80" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    Segmented Lifecycle
+                  </span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {memoryLanes.map((lane) => (
+                    <div key={lane.title} className="rounded-lg border border-border bg-background/40 p-3">
+                      <div className="font-mono text-[11px] uppercase tracking-[0.15em] text-foreground mb-1">
+                        {lane.title}
+                      </div>
+                      <p className="text-xs leading-relaxed text-muted-foreground">{lane.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </motion.div>
 
             {/* Spacer to push card down */}

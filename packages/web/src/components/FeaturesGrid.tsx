@@ -40,22 +40,22 @@ const FeatureIcon = ({ index }: { index: number }) => {
 export function FeaturesGrid(): React.JSX.Element {
   const features = [
     {
-      title: "Durable Local State",
-      detail: "Rules and context live in a local SQLite store with embeddings, so agent state persists even offline.",
-      metric: "Always available",
-      docsUrl: "/docs/concepts/memory-types"
+      title: "Segmented Memory Architecture",
+      detail: "Separate session working context from long-term semantic, episodic, and procedural memory so agents stop mixing timelines with durable truths.",
+      metric: "4 memory lanes",
+      docsUrl: "/docs/concepts/memory-segmentation"
     },
     {
-      title: "Semantic Recall",
-      detail: "Search by meaning, not just keywords. Query 'auth issues' and find JWT validation rules, session handling, and OAuth flows.",
-      metric: "768-dim vectors",
+      title: "Compaction-Safe Checkpoints",
+      detail: "Write checkpoints and snapshots before context boundaries so important state survives reset, inactivity, and token pressure.",
+      metric: "Boundary-safe",
+      docsUrl: "/docs/cli/session"
+    },
+    {
+      title: "Session + Long-Term Recall",
+      detail: "Recall merges always-on rules with relevant session and long-term memories, so answers stay consistent across long tasks.",
+      metric: "Layered context",
       docsUrl: "/docs/cli/recall"
-    },
-    {
-      title: "Local Embeddings",
-      detail: "Runs a 100MB embedding model (gte-base) entirely on your CPU via ONNX. No API calls, no data leaves your machine.",
-      metric: "100% private",
-      docsUrl: "/docs/cli/embed"
     },
     {
       title: "Tool-Native Output",
@@ -64,10 +64,10 @@ export function FeaturesGrid(): React.JSX.Element {
       docsUrl: "/docs/cli/generate"
     },
     {
-      title: "Scoped Memory",
-      detail: "CLI uses global + git project scopes with path rules. SDK uses tenantId as the security/database boundary, userId as end-user scope, and projectId as an optional repo filter.",
-      metric: "Right context",
-      docsUrl: "/docs/concepts/scopes"
+      title: "Deterministic OpenClaw File Mode",
+      detail: "Run bootstrap, flush, and snapshot against memory.md, daily logs, and raw snapshots for git-friendly lifecycle continuity.",
+      metric: "bootstrap/flush/snapshot",
+      docsUrl: "/docs/cli/openclaw-memory"
     },
     {
       title: "Portable State",
@@ -100,10 +100,10 @@ export function FeaturesGrid(): React.JSX.Element {
               <span className="font-mono text-[12px] leading-[100%] tracking-[-0.015rem] uppercase text-muted-foreground">Core Features</span>
             </div>
             <h2 className="font-mono font-normal text-2xl sm:text-4xl text-foreground">
-              <ScrambleText text="Built for durable state" delayMs={200} />
+              <ScrambleText text="Built for segmented memory" delayMs={200} />
             </h2>
             <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl leading-relaxed">
-              Everything you need to make agent context persist—locally by default, synced when you choose.
+              Lifecycle-aware memory for real agent work: session continuity, compaction safety, and long-term retrieval that stays coherent.
             </p>
           </div>
   
