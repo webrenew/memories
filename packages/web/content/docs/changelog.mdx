@@ -3,6 +3,24 @@ title: Changelog
 description: Product and documentation updates.
 ---
 
+## February 28, 2026
+
+- Launched segmented memory lifecycle messaging across docs and homepage:
+  - Session memory (working context)
+  - Semantic memory (durable truths/preferences)
+  - Episodic memory (daily logs + raw snapshots)
+  - Procedural memory (reusable workflows)
+- Added new Concepts guide: [Memory Segmentation](/docs/concepts/memory-segmentation), including trigger patterns, compaction guidance, and storage routing.
+- Updated homepage copy to foreground lifecycle segmentation, compaction-safe checkpointing, and deterministic OpenClaw memory flow.
+- Updated Getting Started + README guidance with explicit lifecycle commands:
+  - `memories session start|checkpoint|snapshot|end`
+  - `memories compact run`
+  - `memories openclaw memory bootstrap|flush|snapshot|sync`
+- Expanded integration docs with lifecycle-first operational patterns:
+  - SDK: budget/session hints + checkpoint-first flow
+  - MCP: lifecycle sequence for long-running sessions
+  - OpenClaw: deterministic bootstrap → flush → snapshot → sync routine
+
 ## February 26, 2026
 
 - Added memory lifecycle observability endpoint: `GET /api/sdk/v1/management/memory/observability` (lifecycle, compaction, consolidation, contradiction trend metrics + alarms).
