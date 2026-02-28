@@ -62,8 +62,12 @@ const memoryLanes = [
     detail: "Active working context with checkpoints and boundary snapshots.",
   },
   {
-    title: "Long-term",
-    detail: "Semantic truths plus episodic daily logs and raw snapshots.",
+    title: "Semantic",
+    detail: "Durable truths and stable project knowledge that stay consistent over time.",
+  },
+  {
+    title: "Episodic",
+    detail: "Timeline logs and snapshots that preserve what happened and when.",
   },
   {
     title: "Procedural",
