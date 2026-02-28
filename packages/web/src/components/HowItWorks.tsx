@@ -96,7 +96,7 @@ export function HowItWorks(): React.JSX.Element {
       heading: "MCP when you need it.",
       description: "For browser-based agents like v0, bolt.new, and Lovable—or any MCP client that can't run the CLI—hosted MCP exposes tenant-routed core memory tools with layered recall.",
       cardTitle: "Direct agent fallback",
-      cardDescription: "Hosted endpoint: core memory tools. Local `memories serve`: adds lifecycle, reminder, and streaming tools.",
+      cardDescription: <>Hosted endpoint: core memory tools. Local <code className="font-mono text-[0.9em] text-foreground/80 bg-muted px-1.5 py-0.5 rounded">memories serve</code>: adds lifecycle, reminder, and streaming tools.</>,
       endpoint: "https://memories.sh/api/mcp",
     },
     sdk: {
