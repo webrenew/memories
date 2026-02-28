@@ -126,6 +126,12 @@ const response = await anthropic.messages.create({
 
 `MemoriesClient` already supports budget/session-aware retrieval through `context.get()`. Session lifecycle write endpoints (`/sessions/*`) and consolidation (`/memories/consolidate`) are currently called through SDK HTTP routes.
 
+<Callout>
+When you pass lifecycle hints (`sessionId`, token/turn budgets, inactivity fields), `context.get()`
+can return a `session` block with `compactionRequired` and `triggerHint` so your app can checkpoint
+before context boundaries.
+</Callout>
+
 ```typescript
 import { MemoriesClient } from "@memories.sh/core"
 
@@ -174,12 +180,21 @@ const context = await client.context.get({
   inactivityThresholdMinutes: 45,
 })
 
-await sdkPost("/api/sdk/v1/sessions/checkpoint", {
-  sessionId,
-  content: `Captured ${context.memories.length} relevant memories`,
-  kind: "summary",
-  scope,
-})
+if (context.session?.compactionRequired) {
+  await sdkPost("/api/sdk/v1/sessions/checkpoint", {
+    sessionId,
+    content: `Pre-compaction checkpoint (${context.session.triggerHint ?? "unspecified"} trigger)`,
+    kind: "summary",
+    scope,
+  })
+} else {
+  await sdkPost("/api/sdk/v1/sessions/checkpoint", {
+    sessionId,
+    content: `Captured ${context.memories.length} relevant memories`,
+    kind: "summary",
+    scope,
+  })
+}
 
 await sdkPost("/api/sdk/v1/memories/consolidate", {
   types: ["rule", "decision", "fact"],
@@ -195,6 +210,14 @@ await sdkPost("/api/sdk/v1/sessions/end", {
 ```
 
 If you need explicit raw snapshot creation in the same flow, use local CLI/MCP lifecycle tools (`memories session snapshot` or `snapshot_session`) and then consume `/api/sdk/v1/sessions/{sessionId}/snapshot`.
+
+Recommended lifecycle order:
+
+1. Start session (`/sessions/start`)
+2. Repeated `context.get()` with lifecycle hints
+3. Checkpoint before compaction-boundary turns
+4. Optional raw snapshot on reset/handoff boundary
+5. End session (`/sessions/end`)
 
 ## Management APIs (Copy-Paste)
 

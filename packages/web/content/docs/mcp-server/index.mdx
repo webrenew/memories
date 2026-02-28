@@ -82,3 +82,15 @@ The MCP server exposes:
 - **3 resources** — for accessing rules, recent memories, and project-specific data
 
 See the [Tools Reference](/docs/mcp-server/tools-reference), [Resources Reference](/docs/mcp-server/resources-reference), and [Tenant Routing](/docs/mcp-server/tenant-routing) for complete documentation.
+
+## Lifecycle-Aware MCP Pattern
+
+For long sessions, treat MCP reads/writes as a lifecycle sequence instead of one-off calls:
+
+1. `start_session` (local CLI MCP) to open a tracked session.
+2. `get_context` with `session_id` + compaction hints (`budget_tokens`, `turn_count`, `turn_budget`, inactivity fields).
+3. If compaction is signaled, call `checkpoint_session` before boundary operations.
+4. On reset/handoff boundaries, persist a raw transcript slice via `snapshot_session`.
+5. `end_session` when the task closes.
+
+The hosted MCP endpoint focuses on tenant-routed core memory tools. Local lifecycle tools are exposed when running `memories serve`.
