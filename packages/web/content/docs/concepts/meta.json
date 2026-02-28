@@ -2,6 +2,7 @@
   "title": "Concepts",
   "pages": [
     "memory-types",
+    "memory-segmentation",
     "scopes",
     "project-detection",
     "generation-targets",

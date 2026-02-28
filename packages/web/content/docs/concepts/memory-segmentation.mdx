@@ -1,0 +1,121 @@
+---
+title: Memory Segmentation
+description: How memories.sh separates session, semantic, episodic, and procedural memory so context survives resets and compaction.
+---
+
+<Callout>
+Memory segmentation is a second axis on top of [Memory Types](/docs/concepts/memory-types).
+Types describe the kind of memory (`rule`, `decision`, `fact`, `note`, `skill`).
+Segmentation describes where memory lives across the lifecycle (session, semantic, episodic, procedural).
+</Callout>
+
+## Why Segmentation Exists
+
+Agent context fails when all history is treated as one blob. memories.sh segments memory so each store has one job:
+
+- **Session memory** for active work
+- **Semantic memory** for durable truths
+- **Episodic memory** for chronological history
+- **Procedural memory** for repeatable workflows
+
+## The Segmented Stores
+
+### 1) Session Memory (working context)
+
+Use explicit sessions for long-running tasks:
+
+```bash
+memories session start --title "Auth refactor" --client codex
+memories session checkpoint <session-id> "User approved rollout plan"
+memories session status <session-id>
+```
+
+Session memory tracks active conversation state and supports checkpoints and snapshots before boundaries like reset or compaction.
+
+### 2) Long-term Semantic Memory (stable truths)
+
+Store durable facts, preferences, and rules in semantic memory:
+
+- CLI/local database memory records
+- OpenClaw `memory.md` for deterministic file-mode semantic context
+
+Semantic memory should stay concise and current. Use consolidation/edits to avoid contradictory duplicates.
+
+### 3) Long-term Episodic Memory (history)
+
+Store chronological events in append-friendly logs:
+
+- OpenClaw daily logs: `memory/daily/YYYY-MM-DD.md`
+- Session snapshots: `memory/snapshots/YYYY-MM-DD/<slug>.md`
+
+Episodic memory is where timeline and fidelity live. Use it when you need what happened, not just the final truth.
+
+### 4) Procedural Memory (how-to patterns)
+
+Procedural memory captures reusable workflows and successful operating patterns:
+
+- Skills and workflow artifacts
+- Retrieval signals for intent-matched workflow recall
+
+Use procedural memory for repeatable tasks like release checklists, incident response, or migration runbooks.
+
+## Compaction and Lifecycle Triggers
+
+Compaction is context compression with checkpoints to avoid losing important state.
+
+| Trigger | When it fires | Typical mechanism |
+|--------|----------------|-------------------|
+| Count-based | Token/turn budget is near limit | Session checkpoint + snapshot |
+| Time-based | Session inactive past threshold | `memories compact run` |
+| Event-based | Task boundary (`/new`, `/reset`, handoff) | Snapshot with explicit trigger |
+
+Examples:
+
+```bash
+memories compact run --inactivity-minutes 60
+memories session snapshot <session-id> --trigger auto_compaction
+memories session snapshot <session-id> --trigger reset
+```
+
+## OpenClaw File-Mode Flow
+
+Use deterministic file operations around session boundaries:
+
+```bash
+# 1) Read semantic + recent episodic context
+memories openclaw memory bootstrap
+
+# 2) Flush meaningful events before compaction/reset
+memories openclaw memory flush <session-id>
+
+# 3) Write DB snapshot + file snapshot
+memories openclaw memory snapshot <session-id> --trigger reset
+
+# 4) Keep DB and files aligned
+memories openclaw memory sync --direction both
+```
+
+## What Goes Where
+
+| Memory content | Best store | Why |
+|---------------|------------|-----|
+| Durable coding standards | Semantic (`rule`) | Must always be injected |
+| Stable project constraints | Semantic (`fact`/`decision`) | High-value truth over time |
+| Conversation milestones | Session checkpoints | Keeps active task coherent |
+| End-of-task transcript slice | Snapshot (episodic) | Preserves high-fidelity boundary state |
+| Daily work chronology | Daily logs (episodic) | Append-only timeline for recall |
+| Repeatable runbook/process | Procedural (skills/workflows) | Reuse successful patterns |
+
+## Anti-patterns
+
+- Storing full raw transcripts in semantic memory
+- Treating all memory as one flat list
+- Letting conflicting semantic entries stack without consolidation
+- Skipping pre-compaction/session-boundary checkpoints
+
+## Next Steps
+
+- [Memory Types](/docs/concepts/memory-types)
+- [memories session](/docs/cli/session)
+- [memories compact](/docs/cli/compact)
+- [openclaw memory](/docs/cli/openclaw-memory)
