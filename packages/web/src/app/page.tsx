@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic";
 import { TopNav } from "@/components/TopNav";
 import { Hero } from "@/components/Hero";
+import { MemorySegmentationSection } from "@/components/MemorySegmentationSection";
 import { FeaturesGrid } from "@/components/FeaturesGrid";
 import { SDKSection } from "@/components/SDKSection";
 import { Integrations } from "@/components/Integrations";
@@ -58,6 +59,7 @@ export default function Home() {
       
       <main className="relative text-[15px] leading-7">
         <Hero />
+        <MemorySegmentationSection />
         <HowItWorks />
         <FeaturesGrid />
         <SDKSection />

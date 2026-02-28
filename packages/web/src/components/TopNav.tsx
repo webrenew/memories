@@ -16,6 +16,7 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
+  { href: { sectionId: "memory-segmentation" }, label: "Memory" },
   { href: { sectionId: "how-it-works" }, label: "How" },
   { href: { sectionId: "features" }, label: "Features" },
   { href: { sectionId: "api" }, label: "API" },
