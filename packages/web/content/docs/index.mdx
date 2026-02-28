@@ -87,6 +87,24 @@ memories search "how to handle user login" --semantic
 
 The semantic search model runs entirely locally — no API calls, no data leaves your machine.
 
+## Memory Segmentation Lifecycle
+
+memories.sh now separates memory by lifecycle role, not just type:
+
+- **Session memory** for active working context
+- **Semantic memory** for stable truths and preferences
+- **Episodic memory** for daily logs and raw snapshots
+- **Procedural memory** for reusable workflows
+
+This keeps context coherent across long tasks, reset boundaries, and compaction windows.
+
+Explore the lifecycle model:
+
+- [Memory Segmentation](/docs/concepts/memory-segmentation)
+- [memories session](/docs/cli/session)
+- [memories compact](/docs/cli/compact)
+- [openclaw memory](/docs/cli/openclaw-memory)
+
 ## Sync Config Files
 
 Beyond memories, sync your entire AI tool setup:
@@ -105,6 +123,7 @@ This syncs files from `.agents/`, `.claude/`, `.cursor/`, `.codex/`, and other t
 
 - [Getting Started](/docs/getting-started) — Full installation and setup guide
 - [Starter Apps Quickstart](/docs/starter-apps-quickstart) — Run add/search/context in under 10 minutes
+- [Memory Segmentation](/docs/concepts/memory-segmentation) — Session + long-term memory lifecycle
 - [CLI Reference](/docs/cli) — Complete command documentation
 - [MCP Server](/docs/mcp-server) — Fallback for real-time agent access
 - [Files Sync](/docs/cli/files) — Sync config files across machines
