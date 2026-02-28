@@ -93,18 +93,29 @@ memories reminders add "0 9 * * 1-5" "OpenClaw refresh: run generate + skills co
 memories openclaw memory sync --direction both
 ```
 
-Useful focused operations:
+### Deterministic lifecycle sequence (recommended)
+
+Use this order around session boundaries:
 
 ```bash
-# Read semantic + recent episodic bootstrap context
+# 1) Read semantic + recent episodic bootstrap context
 memories openclaw memory bootstrap
 
-# Flush recent meaningful session events to today's daily log
+# 2) Flush recent meaningful session events to today's daily log
 memories openclaw memory flush <session-id>
 
-# Write a raw snapshot file from session events
+# 3) Write a raw snapshot file from session events
 memories openclaw memory snapshot <session-id> --trigger reset
+
+# 4) Keep DB rows and files aligned
+memories openclaw memory sync --direction both
 ```
+
+Trigger guidance:
+
+- Near compaction or inactivity thresholds: run `flush`
+- On `/new`, `/reset`, or handoff boundaries: run `snapshot --trigger new_session|reset|manual|auto_compaction`
+- Run `sync` after lifecycle writes when multiple devices/workspaces may read the same memory files
 
 ## Important Notes
 
