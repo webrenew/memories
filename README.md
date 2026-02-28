@@ -69,6 +69,7 @@ memories generate
 
 - **One store, every tool** — add a memory once, generate native configs for 8+ tools
 - **Local-first** — SQLite at `~/.config/memories/local.db`, works fully offline
+- **Segmented lifecycle memory** — separate session, semantic, episodic, and procedural memory for stronger continuity
 - **Path-scoped rules** — `--paths "src/api/**"` becomes `paths:` in Claude, `globs:` in Cursor
 - **Skills** — define reusable agent workflows following the [Agent Skills](https://agentskills.io) standard
 - **`.agents/` canonical directory** — tool-agnostic intermediate format, checked into git
@@ -105,6 +106,36 @@ memories add --fact "Deploy target is Vercel with Edge Functions"   # Concrete p
 memories add "Legacy API deprecated Q3 2026"                       # General notes (default)
 memories add --type skill "..." --category deploy                  # Reusable agent workflows
 ```
+
+## Memory Segmentation Lifecycle
+
+memories.sh uses two complementary axes:
+
+1. **Type**: `rule`, `decision`, `fact`, `note`, `skill` (what kind of memory it is)
+2. **Lifecycle segment**: session, semantic, episodic, procedural (where memory lives over time)
+
+Session and lifecycle commands:
+
+```bash
+# Explicit session lifecycle
+memories session start --title "Checkout refactor"
+memories session checkpoint <session-id> "Pre-compaction checkpoint"
+memories session snapshot <session-id> --trigger auto_compaction
+
+# Inactivity compaction worker
+memories compact run --inactivity-minutes 60
+
+# OpenClaw file-mode lifecycle (semantic + daily + snapshots)
+memories openclaw memory bootstrap
+memories openclaw memory flush <session-id>
+memories openclaw memory snapshot <session-id> --trigger reset
+```
+
+Learn more:
+- [Memory Segmentation](https://memories.sh/docs/concepts/memory-segmentation)
+- [memories session](https://memories.sh/docs/cli/session)
+- [memories compact](https://memories.sh/docs/cli/compact)
+- [openclaw memory](https://memories.sh/docs/cli/openclaw-memory)
 
 ## Generation Pipeline
 
@@ -184,6 +215,9 @@ Use `global: true` for user-wide memories (do not send both `global` and `projec
 | `memories search <query>` | Full-text search (`--semantic` for embeddings) |
 | `memories list` | List memories with optional filters |
 | `memories recall` | Get context-aware memories for the current project |
+| `memories session <subcommand>` | Manage explicit session lifecycle (`start`, `checkpoint`, `status`, `end`, `snapshot`) |
+| `memories compact run` | Run inactivity compaction worker for active sessions |
+| `memories openclaw memory <subcommand>` | Read/write OpenClaw semantic, daily, and snapshot files |
 | `memories generate [target]` | Generate native config files |
 | `memories ingest [source]` | Import from existing rule files |
 | `memories diff` | Compare generated output against existing files |
