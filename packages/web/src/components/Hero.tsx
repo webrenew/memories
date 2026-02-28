@@ -191,7 +191,7 @@ export function Hero(): React.JSX.Element {
             </motion.h1>
 
             <motion.p variants={itemVariants} className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl leading-relaxed font-light">
-              Durable state for coding agents and a TypeScript SDK for AI apps. Store rules, recall context, and wire memory into any LLM—local-first, sync when you need it.
+              Segment agent memory by lifecycle: session context, semantic truths, episodic logs, and procedural workflows. Recall what matters and generate native configs for every tool.
             </motion.p>
 
             <CopyCommand />
@@ -241,12 +241,12 @@ export function Hero(): React.JSX.Element {
                     Recent Context
                   </div>
                   {[
-                    "Use Tailwind for all UI components",
-                    "Prefer zod over joi for validation",
-                    "Keep auth logic in /lib/auth.ts",
+                    { text: "Use Tailwind for all UI components", lane: "Semantic" },
+                    { text: "Checkpoint saved before auto compaction", lane: "Episodic" },
+                    { text: "Release checklist skill promoted after successful runs", lane: "Procedural" },
                   ].map((item, index) => (
                     <motion.div 
-                      key={item} 
+                      key={item.text}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ 
@@ -256,15 +256,15 @@ export function Hero(): React.JSX.Element {
                       }}
                       className="flex items-center justify-between gap-4 rounded-md border border-border bg-foreground/5 px-3 py-2 text-xs text-foreground/80"
                     >
-                      <span>{item}</span>
-                      <span className="text-[10px] uppercase tracking-[0.2em] text-accent-secondary">Stored</span>
+                      <span>{item.text}</span>
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-accent-secondary">{item.lane}</span>
                     </motion.div>
                   ))}
                 </div>
 
                 <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.25em] font-bold text-muted-foreground">
                   <span className="h-1 w-1 rounded-full bg-accent-secondary" />
-                  Recall and generate configs in one command
+                  Segment, recall, and generate in one flow
                 </div>
               </div>
             </motion.div>
