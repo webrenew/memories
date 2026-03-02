@@ -184,7 +184,7 @@ describe("/api/orgs/[orgId]/github-capture/settings", () => {
         }
 
         return {
-          insert: vi.fn(() => ({
+          upsert: vi.fn(() => ({
             select: vi.fn(() => ({
               single: vi.fn().mockResolvedValue({ data: insertedRow, error: null }),
             })),
@@ -283,7 +283,7 @@ describe("/api/orgs/[orgId]/github-capture/settings", () => {
         }
 
         return {
-          insert: vi.fn(() => ({
+          upsert: vi.fn(() => ({
             select: vi.fn(() => ({
               single: vi.fn().mockResolvedValue({
                 data: null,

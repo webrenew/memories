@@ -137,22 +137,8 @@ describe("/api/orgs", () => {
     it("should create organization with unique slug", async () => {
       mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
 
-      let orgCallCount = 0
       mockAdminFrom.mockImplementation((table: string) => {
         if (table === "organizations") {
-          orgCallCount += 1
-          if (orgCallCount === 1) {
-            // Slug uniqueness check
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-                }),
-              }),
-            }
-          }
-
-          // Create org
           return {
             insert: vi.fn().mockReturnValue({
               select: vi.fn().mockReturnValue({
@@ -202,18 +188,58 @@ describe("/api/orgs", () => {
       expect(body.upgradeUrl).toBe("/app/upgrade?plan=growth&source=org-created")
     })
 
-    it("should return 500 when slug uniqueness check fails", async () => {
+    it("should retry slug generation when insert hits duplicate slug", async () => {
       mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
+      const insertedSlugs: string[] = []
+
+      let insertCount = 0
 
       mockAdminFrom.mockImplementation((table: string) => {
         if (table === "organizations") {
           return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                maybeSingle: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: { message: "DB read failed" },
+            insert: vi.fn((payload: { slug: string }) => {
+              insertedSlugs.push(payload.slug)
+              insertCount += 1
+              if (insertCount === 1) {
+                return {
+                  select: vi.fn().mockReturnValue({
+                    single: vi.fn().mockResolvedValue({
+                      data: null,
+                      error: {
+                        code: "23505",
+                        message: "duplicate key value violates unique constraint",
+                      },
+                    }),
+                  }),
+                }
+              }
+
+              return {
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { id: "org-new", name: "New Team", slug: payload.slug },
+                    error: null,
+                  }),
                 }),
+              }
+            }),
+            delete: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          }
+        }
+
+        if (table === "org_members") {
+          return {
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          }
+        }
+
+        if (table === "users") {
+          return {
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                is: vi.fn().mockResolvedValue({ error: null }),
               }),
             }),
           }
@@ -229,28 +255,17 @@ describe("/api/orgs", () => {
       })
 
       const response = await POST(request)
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(201)
       const body = await response.json()
-      expect(body.error).toBe("Failed to create organization")
+      expect(body.organization.slug).toBe("new-team-1")
+      expect(insertedSlugs).toEqual(["new-team", "new-team-1"])
     })
 
     it("should return 500 when organization insert fails", async () => {
       mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
 
-      let orgCallCount = 0
       mockAdminFrom.mockImplementation((table: string) => {
         if (table === "organizations") {
-          orgCallCount += 1
-          if (orgCallCount === 1) {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-                }),
-              }),
-            }
-          }
-
           return {
             insert: vi.fn().mockReturnValue({
               select: vi.fn().mockReturnValue({
@@ -281,35 +296,17 @@ describe("/api/orgs", () => {
     it("should return 500 when owner membership insert fails", async () => {
       mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
 
-      let orgCallCount = 0
       mockAdminFrom.mockImplementation((table: string) => {
         if (table === "organizations") {
-          orgCallCount += 1
-
-          if (orgCallCount === 1) {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-                }),
-              }),
-            }
-          }
-
-          if (orgCallCount === 2) {
-            return {
-              insert: vi.fn().mockReturnValue({
-                select: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({
-                    data: { id: "org-new", name: "New Team", slug: "new-team" },
-                    error: null,
-                  }),
-                }),
-              }),
-            }
-          }
-
           return {
+            insert: vi.fn().mockReturnValue({
+              select: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { id: "org-new", name: "New Team", slug: "new-team" },
+                  error: null,
+                }),
+              }),
+            }),
             delete: vi.fn().mockReturnValue({
               eq: vi.fn().mockResolvedValue({ error: null }),
             }),
