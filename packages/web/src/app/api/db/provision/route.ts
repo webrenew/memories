@@ -12,6 +12,12 @@ type SaveCredentialsResult =
   | { ok: true; alreadyProvisioned: true; url: string }
   | { ok: false; error: unknown }
 
+type ProvisionLockTarget =
+  | { ownerType: "organization"; ownerKey: string; ownerOrgId: string; ownerUserId: null }
+  | { ownerType: "user"; ownerKey: string; ownerOrgId: null; ownerUserId: string }
+
+const PROVISION_LOCK_STALE_MS = 15 * 60 * 1000
+
 function applyNullFilter(query: {
   is?: (column: string, value: unknown) => unknown
   eq?: (column: string, value: unknown) => unknown
@@ -38,6 +44,127 @@ async function runClaimQuery(claimQuery: unknown): Promise<{ data: unknown; erro
     return { data: null, error: fallback.error }
   }
   return { data: { id: "claimed" }, error: null }
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : ""
+  if (code === "23505") return true
+
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return message.includes("duplicate key")
+}
+
+function isMissingTableError(error: unknown, tableName: string): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return (
+    message.includes(tableName.toLowerCase()) &&
+    (message.includes("does not exist") || message.includes("could not find the table"))
+  )
+}
+
+function buildProvisionLockTarget(params: {
+  ownerType: "organization" | "user"
+  orgId: string | null
+  userId: string
+}): ProvisionLockTarget {
+  if (params.ownerType === "organization") {
+    if (!params.orgId) {
+      throw new Error("Organization id missing while building provision lock target")
+    }
+    return {
+      ownerType: "organization",
+      ownerKey: `org:${params.orgId}`,
+      ownerOrgId: params.orgId,
+      ownerUserId: null,
+    }
+  }
+
+  return {
+    ownerType: "user",
+    ownerKey: `user:${params.userId}`,
+    ownerOrgId: null,
+    ownerUserId: params.userId,
+  }
+}
+
+async function clearStaleProvisionLock(
+  admin: ReturnType<typeof createAdminClient>,
+  lockTarget: ProvisionLockTarget,
+): Promise<{ error: unknown }> {
+  const staleBeforeIso = new Date(Date.now() - PROVISION_LOCK_STALE_MS).toISOString()
+  const { error } = await admin
+    .from("workspace_db_provision_locks")
+    .delete()
+    .eq("owner_key", lockTarget.ownerKey)
+    .lt("created_at", staleBeforeIso)
+
+  return { error }
+}
+
+async function acquireProvisionLock(params: {
+  admin: ReturnType<typeof createAdminClient>
+  lockTarget: ProvisionLockTarget
+  userId: string
+}): Promise<{ acquired: boolean; error: unknown }> {
+  const { admin, lockTarget, userId } = params
+
+  const staleCleanup = await clearStaleProvisionLock(admin, lockTarget)
+  if (staleCleanup.error) {
+    return { acquired: false, error: staleCleanup.error }
+  }
+
+  const { data, error } = await admin
+    .from("workspace_db_provision_locks")
+    .insert({
+      owner_key: lockTarget.ownerKey,
+      owner_type: lockTarget.ownerType,
+      owner_org_id: lockTarget.ownerOrgId,
+      owner_user_id: lockTarget.ownerUserId,
+      locked_by_user_id: userId,
+    })
+    .select("owner_key")
+    .maybeSingle()
+
+  if (error) {
+    if (isUniqueViolation(error)) {
+      return { acquired: false, error: null }
+    }
+    return { acquired: false, error }
+  }
+
+  return { acquired: Boolean(data), error: null }
+}
+
+async function releaseProvisionLock(params: {
+  admin: ReturnType<typeof createAdminClient>
+  lockTarget: ProvisionLockTarget
+  userId: string
+}): Promise<void> {
+  const { admin, lockTarget, userId } = params
+  const { error } = await admin
+    .from("workspace_db_provision_locks")
+    .delete()
+    .eq("owner_key", lockTarget.ownerKey)
+    .eq("locked_by_user_id", userId)
+
+  if (error && !isMissingTableError(error, "workspace_db_provision_locks")) {
+    console.warn("Failed to release workspace DB provision lock:", {
+      lockOwnerKey: lockTarget.ownerKey,
+      lockedByUserId: userId,
+      error,
+    })
+  }
 }
 
 async function saveProvisionedCredentials(params: {
@@ -187,10 +314,67 @@ export async function POST(request: Request): Promise<Response> {
     )
   }
 
+  const lockTarget = buildProvisionLockTarget({
+    ownerType: context.ownerType,
+    orgId: context.orgId ?? null,
+    userId: auth.userId,
+  })
+  const lockResult = await acquireProvisionLock({
+    admin,
+    lockTarget,
+    userId: auth.userId,
+  })
+
+  if (lockResult.error) {
+    if (isMissingTableError(lockResult.error, "workspace_db_provision_locks")) {
+      return NextResponse.json(
+        { error: "Provisioning locks are not available yet. Run the latest database migration first." },
+        { status: 503 }
+      )
+    }
+    console.error("Failed to acquire workspace provisioning lock:", {
+      error: lockResult.error,
+      ownerType: lockTarget.ownerType,
+      ownerKey: lockTarget.ownerKey,
+      userId: auth.userId,
+    })
+    return NextResponse.json(
+      { error: "Failed to start provisioning" },
+      { status: 500 }
+    )
+  }
+
+  if (!lockResult.acquired) {
+    const latestContext = await resolveWorkspaceContext(admin, auth.userId, {
+      fallbackToUserWithoutOrgCredentials: false,
+    })
+    if (latestContext?.hasDatabase && latestContext.turso_db_url && latestContext.turso_db_token) {
+      return NextResponse.json({
+        url: latestContext.turso_db_url,
+        provisioned: false,
+      })
+    }
+
+    return NextResponse.json(
+      { error: "Provisioning is already in progress for this workspace" },
+      { status: 409 }
+    )
+  }
+
   const tursoOrg = getTursoOrgSlug()
   let createdDbName: string | null = null
 
   try {
+    const latestContext = await resolveWorkspaceContext(admin, auth.userId, {
+      fallbackToUserWithoutOrgCredentials: false,
+    })
+    if (latestContext?.hasDatabase && latestContext.turso_db_url && latestContext.turso_db_token) {
+      return NextResponse.json({
+        url: latestContext.turso_db_url,
+        provisioned: false,
+      })
+    }
+
     // Create a new Turso database
     const db = await createDatabase(tursoOrg)
     createdDbName = db.name
@@ -255,5 +439,11 @@ export async function POST(request: Request): Promise<Response> {
       { error: "Failed to provision database" },
       { status: 500 }
     )
+  } finally {
+    await releaseProvisionLock({
+      admin,
+      lockTarget,
+      userId: auth.userId,
+    })
   }
 }
