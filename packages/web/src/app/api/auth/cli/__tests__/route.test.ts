@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mockGetUser = vi.fn()
 const mockAdminFrom = vi.fn()
+const mockAdminRpc = vi.fn()
 const mockAdminGetUserById = vi.fn()
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -13,6 +14,7 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
     from: mockAdminFrom,
+    rpc: mockAdminRpc,
     auth: { admin: { getUserById: mockAdminGetUserById } },
   })),
 }))
@@ -178,16 +180,19 @@ describe("POST /api/auth/cli", () => {
 
     it("stores auth code and expiry for authenticated user", async () => {
       mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
-      const eq = vi.fn().mockResolvedValue({ error: null })
-      const update = vi.fn().mockReturnValue({ eq })
-      mockAdminFrom.mockReturnValue({ update })
+      mockAdminRpc.mockResolvedValue({ data: "updated", error: null })
 
       const response = await POST(makeRequest({ action: "approve", code: VALID_CODE }))
       expect(response.status).toBe(200)
-
-      const payload = update.mock.calls[0]?.[0]
-      expect(payload.cli_auth_code).toBe(VALID_CODE)
-      expect(typeof payload.cli_auth_expires_at).toBe("string")
+      expect(mockAdminRpc).toHaveBeenCalledWith(
+        "approve_cli_auth_code_atomic",
+        expect.objectContaining({
+          p_user_id: "user-1",
+          p_code: VALID_CODE,
+        })
+      )
+      const approvePayload = mockAdminRpc.mock.calls[0]?.[1]
+      expect(typeof approvePayload?.p_expires_at).toBe("string")
     })
   })
 })

@@ -5,6 +5,21 @@ import { checkRateLimit, getClientIp, publicRateLimit } from "@/lib/rate-limit"
 import { parseBody, cliAuthPollSchema, cliAuthApproveSchema } from "@/lib/validations"
 import { CLI_AUTH_CODE_TTL_MS, generateCliToken, hashCliToken } from "@/lib/cli-token"
 
+function isMissingFunctionError(error: unknown, functionName: string): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+  const fn = functionName.toLowerCase()
+
+  return (
+    message.includes(fn) &&
+    (message.includes("does not exist") ||
+      message.includes("function") ||
+      message.includes("could not find"))
+  )
+}
+
 export async function POST(request: Request): Promise<Response> {
   const rateLimited = await checkRateLimit(publicRateLimit, getClientIp(request))
   if (rateLimited) return rateLimited
@@ -102,14 +117,34 @@ export async function POST(request: Request): Promise<Response> {
 
     const expiresAt = new Date(Date.now() + CLI_AUTH_CODE_TTL_MS).toISOString()
 
-    // Save auth code and expiry to user's row.
     const admin = createAdminClient()
-    const { error } = await admin
-      .from("users")
-      .update({ cli_auth_code: parsed.data.code, cli_auth_expires_at: expiresAt })
-      .eq("id", user.id)
+    const { data: approveResult, error: approveError } = await admin.rpc("approve_cli_auth_code_atomic", {
+      p_user_id: user.id,
+      p_code: parsed.data.code,
+      p_expires_at: expiresAt,
+    })
 
-    if (error) {
+    if (approveError) {
+      if (isMissingFunctionError(approveError, "approve_cli_auth_code_atomic")) {
+        return NextResponse.json(
+          { error: "CLI auth approve guard is not available yet. Run the latest database migration first." },
+          { status: 503 }
+        )
+      }
+      return NextResponse.json(
+        { error: "Failed to create token" },
+        { status: 500 }
+      )
+    }
+
+    if (approveResult === "code_in_use") {
+      return NextResponse.json(
+        { error: "Another CLI login request is already pending for this account. Complete it or wait for expiry." },
+        { status: 409 }
+      )
+    }
+
+    if (approveResult !== "updated") {
       return NextResponse.json(
         { error: "Failed to create token" },
         { status: 500 }

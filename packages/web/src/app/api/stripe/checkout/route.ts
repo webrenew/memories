@@ -1,6 +1,7 @@
 import { authenticateRequest } from "@/lib/auth"
 import { getStripe } from "@/lib/stripe"
 import { NextResponse } from "next/server"
+import { setTimeout as delay } from "node:timers/promises"
 import { checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import { parseBody, checkoutSchema } from "@/lib/validations"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -13,6 +14,189 @@ import {
 
 function jsonError(message: string, status: number, code: string) {
   return NextResponse.json({ error: message, code }, { status })
+}
+
+type StripeCustomerLockTarget =
+  | { ownerType: "user"; ownerKey: string; ownerUserId: string; ownerOrgId: null }
+  | { ownerType: "organization"; ownerKey: string; ownerUserId: null; ownerOrgId: string }
+
+const STRIPE_CUSTOMER_LOCK_STALE_MS = 15 * 60 * 1000
+const STRIPE_CUSTOMER_LOCK_WAIT_ATTEMPTS = 8
+const STRIPE_CUSTOMER_LOCK_WAIT_MS = 250
+
+function isUniqueViolation(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : ""
+  if (code === "23505") return true
+
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return message.includes("duplicate key")
+}
+
+function isMissingTableError(error: unknown, tableName: string): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return (
+    message.includes(tableName.toLowerCase()) &&
+    (message.includes("does not exist") || message.includes("could not find the table"))
+  )
+}
+
+function buildStripeCustomerLockTarget(params: {
+  ownerType: "user" | "organization"
+  userId?: string
+  orgId?: string
+}): StripeCustomerLockTarget {
+  if (params.ownerType === "organization") {
+    if (!params.orgId) {
+      throw new Error("Organization id is required for stripe customer provisioning lock")
+    }
+    return {
+      ownerType: "organization",
+      ownerKey: `org:${params.orgId}`,
+      ownerUserId: null,
+      ownerOrgId: params.orgId,
+    }
+  }
+
+  if (!params.userId) {
+    throw new Error("User id is required for stripe customer provisioning lock")
+  }
+  return {
+    ownerType: "user",
+    ownerKey: `user:${params.userId}`,
+    ownerUserId: params.userId,
+    ownerOrgId: null,
+  }
+}
+
+async function clearStaleStripeCustomerLock(
+  admin: ReturnType<typeof createAdminClient>,
+  lockTarget: StripeCustomerLockTarget,
+): Promise<{ error: unknown }> {
+  const staleBeforeIso = new Date(Date.now() - STRIPE_CUSTOMER_LOCK_STALE_MS).toISOString()
+  const { error } = await admin
+    .from("stripe_customer_provision_locks")
+    .delete()
+    .eq("owner_key", lockTarget.ownerKey)
+    .lt("created_at", staleBeforeIso)
+
+  return { error }
+}
+
+async function acquireStripeCustomerLock(params: {
+  admin: ReturnType<typeof createAdminClient>
+  lockTarget: StripeCustomerLockTarget
+  actorUserId: string
+}): Promise<{ acquired: boolean; error: unknown }> {
+  const { admin, lockTarget, actorUserId } = params
+
+  const staleCleanup = await clearStaleStripeCustomerLock(admin, lockTarget)
+  if (staleCleanup.error) {
+    return { acquired: false, error: staleCleanup.error }
+  }
+
+  const { data, error } = await admin
+    .from("stripe_customer_provision_locks")
+    .insert({
+      owner_key: lockTarget.ownerKey,
+      owner_type: lockTarget.ownerType,
+      owner_user_id: lockTarget.ownerUserId,
+      owner_org_id: lockTarget.ownerOrgId,
+      locked_by_user_id: actorUserId,
+    })
+    .select("owner_key")
+    .maybeSingle()
+
+  if (error) {
+    if (isUniqueViolation(error)) {
+      return { acquired: false, error: null }
+    }
+    return { acquired: false, error }
+  }
+
+  return { acquired: Boolean(data), error: null }
+}
+
+async function releaseStripeCustomerLock(params: {
+  admin: ReturnType<typeof createAdminClient>
+  lockTarget: StripeCustomerLockTarget
+  actorUserId: string
+}): Promise<void> {
+  const { admin, lockTarget, actorUserId } = params
+
+  const { error } = await admin
+    .from("stripe_customer_provision_locks")
+    .delete()
+    .eq("owner_key", lockTarget.ownerKey)
+    .eq("locked_by_user_id", actorUserId)
+
+  if (error && !isMissingTableError(error, "stripe_customer_provision_locks")) {
+    console.warn("Failed to release stripe customer provisioning lock:", {
+      lockOwnerKey: lockTarget.ownerKey,
+      actorUserId,
+      error,
+    })
+  }
+}
+
+async function waitForUserCustomerId(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string
+): Promise<string | null> {
+  for (let attempt = 0; attempt < STRIPE_CUSTOMER_LOCK_WAIT_ATTEMPTS; attempt += 1) {
+    const { data: refreshed, error } = await admin
+      .from("users")
+      .select("stripe_customer_id")
+      .eq("id", userId)
+      .single()
+
+    if (error) {
+      console.error("Failed while waiting for user stripe customer id:", error)
+      return null
+    }
+
+    const customerId = refreshed?.stripe_customer_id ?? null
+    if (customerId) return customerId
+
+    await delay(STRIPE_CUSTOMER_LOCK_WAIT_MS)
+  }
+
+  return null
+}
+
+async function waitForOrganizationCustomerId(
+  admin: ReturnType<typeof createAdminClient>,
+  orgId: string
+): Promise<string | null> {
+  for (let attempt = 0; attempt < STRIPE_CUSTOMER_LOCK_WAIT_ATTEMPTS; attempt += 1) {
+    const { data: refreshed, error } = await admin
+      .from("organizations")
+      .select("stripe_customer_id")
+      .eq("id", orgId)
+      .single()
+
+    if (error) {
+      console.error("Failed while waiting for organization stripe customer id:", error)
+      return null
+    }
+
+    const customerId = refreshed?.stripe_customer_id ?? null
+    if (customerId) return customerId
+
+    await delay(STRIPE_CUSTOMER_LOCK_WAIT_MS)
+  }
+
+  return null
 }
 
 async function getOrCreateUserCustomerId(
@@ -34,7 +218,46 @@ async function getOrCreateUserCustomerId(
   let customerId = profile?.stripe_customer_id
   if (customerId) return customerId
 
+  const lockTarget = buildStripeCustomerLockTarget({
+    ownerType: "user",
+    userId,
+  })
+
+  const lockResult = await acquireStripeCustomerLock({
+    admin,
+    lockTarget,
+    actorUserId: userId,
+  })
+
+  if (lockResult.error) {
+    if (!isMissingTableError(lockResult.error, "stripe_customer_provision_locks")) {
+      console.error("Failed to acquire user stripe customer lock:", {
+        userId,
+        error: lockResult.error,
+      })
+      return null
+    }
+  }
+
+  if (!lockResult.error && !lockResult.acquired) {
+    return await waitForUserCustomerId(admin, userId)
+  }
+
   try {
+    const { data: refreshedProfile, error: refreshedProfileError } = await admin
+      .from("users")
+      .select("stripe_customer_id, email")
+      .eq("id", userId)
+      .single()
+
+    if (refreshedProfileError) {
+      console.error("Failed to refresh user billing customer before create:", refreshedProfileError)
+      return null
+    }
+
+    customerId = refreshedProfile?.stripe_customer_id ?? null
+    if (customerId) return customerId
+
     const customerEmail = profile?.email || email || undefined
     const customer = await getStripe().customers.create(
       {
@@ -47,27 +270,40 @@ async function getOrCreateUserCustomerId(
     )
     customerId = customer.id
 
-    await admin
+    const persistResult = await admin
       .from("users")
       .update({ stripe_customer_id: customerId })
       .eq("id", userId)
+      .is("stripe_customer_id", null)
+      .select("stripe_customer_id")
+      .maybeSingle()
+
+    if (persistResult.error) {
+      console.error("Failed to persist user stripe customer id:", persistResult.error)
+    }
   } catch (error) {
     console.error("Failed to create Stripe customer for user:", error)
-    const { data: refreshed } = await admin
-      .from("users")
-      .select("stripe_customer_id")
-      .eq("id", userId)
-      .single()
-
-    customerId = refreshed?.stripe_customer_id
+  } finally {
+    await releaseStripeCustomerLock({
+      admin,
+      lockTarget,
+      actorUserId: userId,
+    })
   }
 
-  return customerId ?? null
+  const { data: refreshed } = await admin
+    .from("users")
+    .select("stripe_customer_id")
+    .eq("id", userId)
+    .single()
+
+  return refreshed?.stripe_customer_id ?? customerId ?? null
 }
 
 async function getOrCreateOrganizationCustomerId(
   admin: ReturnType<typeof createAdminClient>,
-  orgId: string
+  orgId: string,
+  actorUserId: string
 ): Promise<string | null> {
   const { data: org, error: orgError } = await admin
     .from("organizations")
@@ -83,10 +319,50 @@ async function getOrCreateOrganizationCustomerId(
   let customerId = org?.stripe_customer_id
   if (customerId) return customerId
 
+  const lockTarget = buildStripeCustomerLockTarget({
+    ownerType: "organization",
+    orgId,
+  })
+
+  const lockResult = await acquireStripeCustomerLock({
+    admin,
+    lockTarget,
+    actorUserId,
+  })
+
+  if (lockResult.error) {
+    if (!isMissingTableError(lockResult.error, "stripe_customer_provision_locks")) {
+      console.error("Failed to acquire org stripe customer lock:", {
+        orgId,
+        actorUserId,
+        error: lockResult.error,
+      })
+      return null
+    }
+  }
+
+  if (!lockResult.error && !lockResult.acquired) {
+    return await waitForOrganizationCustomerId(admin, orgId)
+  }
+
   try {
+    const { data: refreshedOrg, error: refreshedOrgError } = await admin
+      .from("organizations")
+      .select("stripe_customer_id, name")
+      .eq("id", orgId)
+      .single()
+
+    if (refreshedOrgError) {
+      console.error("Failed to refresh organization billing customer before create:", refreshedOrgError)
+      return null
+    }
+
+    customerId = refreshedOrg?.stripe_customer_id ?? null
+    if (customerId) return customerId
+
     const customer = await getStripe().customers.create(
       {
-        name: org?.name ?? undefined,
+        name: refreshedOrg?.name ?? org?.name ?? undefined,
         metadata: {
           workspace_owner_type: "organization",
           workspace_org_id: orgId,
@@ -98,22 +374,34 @@ async function getOrCreateOrganizationCustomerId(
     )
     customerId = customer.id
 
-    await admin
+    const persistResult = await admin
       .from("organizations")
       .update({ stripe_customer_id: customerId })
       .eq("id", orgId)
+      .is("stripe_customer_id", null)
+      .select("stripe_customer_id")
+      .maybeSingle()
+
+    if (persistResult.error) {
+      console.error("Failed to persist organization stripe customer id:", persistResult.error)
+    }
   } catch (error) {
     console.error("Failed to create Stripe customer for organization:", error)
-    const { data: refreshed } = await admin
-      .from("organizations")
-      .select("stripe_customer_id")
-      .eq("id", orgId)
-      .single()
-
-    customerId = refreshed?.stripe_customer_id
+  } finally {
+    await releaseStripeCustomerLock({
+      admin,
+      lockTarget,
+      actorUserId,
+    })
   }
 
-  return customerId ?? null
+  const { data: refreshed } = await admin
+    .from("organizations")
+    .select("stripe_customer_id")
+    .eq("id", orgId)
+    .single()
+
+  return refreshed?.stripe_customer_id ?? customerId ?? null
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -170,7 +458,7 @@ export async function POST(request: Request): Promise<Response> {
     if (!workspace.orgId) {
       return jsonError("Failed to resolve organization workspace", 500, "ORG_WORKSPACE_RESOLUTION_FAILED")
     }
-    customerId = await getOrCreateOrganizationCustomerId(admin, workspace.orgId)
+    customerId = await getOrCreateOrganizationCustomerId(admin, workspace.orgId, auth.userId)
   } else {
     customerId = await getOrCreateUserCustomerId(admin, auth.userId, auth.email)
   }

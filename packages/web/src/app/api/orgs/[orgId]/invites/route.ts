@@ -369,18 +369,14 @@ export async function DELETE(
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
   }
 
-  const { data: inviteToRevoke } = await supabase
-    .from("org_invites")
-    .select("id, email, role")
-    .eq("id", inviteId)
-    .eq("org_id", orgId)
-    .maybeSingle()
-
-  const { error } = await supabase
+  const { data: revokedInvite, error } = await supabase
     .from("org_invites")
     .delete()
     .eq("id", inviteId)
     .eq("org_id", orgId)
+    .is("accepted_at", null)
+    .select("id, email, role")
+    .maybeSingle()
 
   if (error) {
     console.error("Failed to delete org invite row:", {
@@ -392,17 +388,45 @@ export async function DELETE(
     return NextResponse.json({ error: "Failed to revoke invite" }, { status: 500 })
   }
 
-  if (inviteToRevoke) {
+  if (!revokedInvite) {
+    const { data: inviteState, error: inviteStateError } = await supabase
+      .from("org_invites")
+      .select("accepted_at")
+      .eq("id", inviteId)
+      .eq("org_id", orgId)
+      .maybeSingle()
+
+    if (inviteStateError) {
+      console.error("Failed to resolve invite revoke state:", {
+        error: inviteStateError,
+        orgId,
+        userId: user.id,
+        inviteId,
+      })
+      return NextResponse.json({ error: "Failed to revoke invite" }, { status: 500 })
+    }
+
+    if (inviteState?.accepted_at) {
+      return NextResponse.json(
+        { error: "Invite was already accepted and cannot be revoked" },
+        { status: 409 }
+      )
+    }
+
+    return NextResponse.json({ error: "Invite not found" }, { status: 404 })
+  }
+
+  if (revokedInvite) {
     await logOrgAuditEvent({
       client: supabase,
       orgId,
       actorUserId: user.id,
       action: "org_invite_revoked",
       targetType: "invite",
-      targetId: inviteToRevoke.id,
-      targetLabel: inviteToRevoke.email,
+      targetId: revokedInvite.id,
+      targetLabel: revokedInvite.email,
       metadata: {
-        role: inviteToRevoke.role,
+        role: revokedInvite.role,
       },
     })
   }
