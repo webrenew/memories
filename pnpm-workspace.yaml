@@ -7,4 +7,6 @@ ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
 
-onlyBuiltDependencies: esbuild
+onlyBuiltDependencies:
+  - esbuild
+  - "@sentry/cli"
