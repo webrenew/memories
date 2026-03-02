@@ -4,6 +4,7 @@ const {
   mockConstructEvent,
   mockListLineItems,
   mockRetrieveSubscription,
+  mockRpc,
   mockUsersUpdate,
   mockUsersEq,
   mockOrganizationsUpdate,
@@ -12,6 +13,7 @@ const {
   mockConstructEvent: vi.fn(),
   mockListLineItems: vi.fn(),
   mockRetrieveSubscription: vi.fn(),
+  mockRpc: vi.fn(),
   mockUsersUpdate: vi.fn(),
   mockUsersEq: vi.fn(),
   mockOrganizationsUpdate: vi.fn(),
@@ -28,6 +30,7 @@ vi.mock("@/lib/stripe", () => ({
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
+    rpc: mockRpc,
     from: vi.fn((table: string) => {
       if (table === "users") {
         return { update: mockUsersUpdate }
@@ -60,6 +63,7 @@ function makeWebhookRequest(body: string, signature = "sig_test"): Request {
 describe("POST /api/stripe/webhook", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockRpc.mockResolvedValue({ data: "claimed", error: null })
     mockUsersEq.mockResolvedValue({ error: null })
     mockOrganizationsEq.mockResolvedValue({ error: null })
     mockUsersUpdate.mockReturnValue({ eq: mockUsersEq })
@@ -91,6 +95,8 @@ describe("POST /api/stripe/webhook", () => {
 
   it("updates organization billing on org checkout completion", async () => {
     mockConstructEvent.mockReturnValue({
+      id: "evt_org_checkout_1",
+      created: 1_709_000_001,
       type: "checkout.session.completed",
       data: {
         object: {
@@ -121,10 +127,19 @@ describe("POST /api/stripe/webhook", () => {
     )
     expect(mockOrganizationsEq).toHaveBeenCalledWith("id", "org-1")
     expect(mockUsersUpdate).not.toHaveBeenCalled()
+    expect(mockRpc).toHaveBeenCalledWith("claim_stripe_webhook_event", {
+      p_event_id: "evt_org_checkout_1",
+      p_event_type: "checkout.session.completed",
+      p_event_created_at: new Date(1_709_000_001 * 1000).toISOString(),
+      p_scope_type: "customer",
+      p_scope_key: "cus_org_123",
+    })
   })
 
   it("updates user plan on personal checkout completion", async () => {
     mockConstructEvent.mockReturnValue({
+      id: "evt_user_checkout_1",
+      created: 1_709_000_002,
       type: "checkout.session.completed",
       data: {
         object: {
@@ -154,6 +169,8 @@ describe("POST /api/stripe/webhook", () => {
 
   it("maps growth checkout completion to growth plan", async () => {
     mockConstructEvent.mockReturnValue({
+      id: "evt_user_growth_1",
+      created: 1_709_000_003,
       type: "checkout.session.completed",
       data: {
         object: {
@@ -183,6 +200,8 @@ describe("POST /api/stripe/webhook", () => {
 
   it("updates team subscription status with org billing identifiers", async () => {
     mockConstructEvent.mockReturnValue({
+      id: "evt_sub_update_1",
+      created: 1_709_000_004,
       type: "customer.subscription.updated",
       data: {
         object: {
@@ -210,11 +229,88 @@ describe("POST /api/stripe/webhook", () => {
 
   it("returns 200 for unhandled event type", async () => {
     mockConstructEvent.mockReturnValue({
+      id: "evt_unhandled_1",
+      created: 1_709_000_005,
       type: "payment_intent.created",
       data: { object: {} },
     })
 
     const response = await POST(makeWebhookRequest("{}"))
     expect(response.status).toBe(200)
+  })
+
+  it("returns 200 and skips writes when event is duplicate", async () => {
+    mockRpc.mockResolvedValue({ data: "duplicate", error: null })
+    mockConstructEvent.mockReturnValue({
+      id: "evt_dup_1",
+      created: 1_709_000_006,
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_org_dup",
+          customer: "cus_org_123",
+          subscription: "sub_org_123",
+          metadata: {
+            workspace_owner_type: "organization",
+            workspace_org_id: "org-1",
+          },
+        },
+      },
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockListLineItems).not.toHaveBeenCalled()
+    expect(mockUsersUpdate).not.toHaveBeenCalled()
+    expect(mockOrganizationsUpdate).not.toHaveBeenCalled()
+  })
+
+  it("returns 200 and skips writes when event is stale", async () => {
+    mockRpc.mockResolvedValue({ data: "stale", error: null })
+    mockConstructEvent.mockReturnValue({
+      id: "evt_stale_1",
+      created: 1_709_000_007,
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub_team_123",
+          customer: "cus_org_123",
+          status: "past_due",
+          metadata: { type: "team_seats", org_id: "org-1" },
+          items: { data: [{ price: { id: "price_team_monthly" } }] },
+        },
+      },
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockOrganizationsUpdate).not.toHaveBeenCalled()
+    expect(mockUsersUpdate).not.toHaveBeenCalled()
+  })
+
+  it("returns 503 when webhook guard migration is missing", async () => {
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: 'function public.claim_stripe_webhook_event does not exist' },
+    })
+    mockConstructEvent.mockReturnValue({
+      id: "evt_missing_guard_1",
+      created: 1_709_000_008,
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub_team_123",
+          customer: "cus_org_123",
+          status: "active",
+          metadata: { type: "team_seats", org_id: "org-1" },
+          items: { data: [{ price: { id: "price_team_monthly" } }] },
+        },
+      },
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(503)
+    expect(mockOrganizationsUpdate).not.toHaveBeenCalled()
+    expect(mockUsersUpdate).not.toHaveBeenCalled()
   })
 })

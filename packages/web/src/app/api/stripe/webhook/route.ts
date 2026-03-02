@@ -11,6 +11,7 @@ import {
 } from "@/lib/env"
 
 type StripeBillingPlan = "individual" | "team" | "growth"
+type WebhookScope = { type: "customer" | "organization" | "user"; key: string }
 
 const MANAGED_PRICE_IDS = getStripeManagedPriceIds()
 const INDIVIDUAL_PRICE_IDS = getStripeIndividualPriceIds()
@@ -52,6 +53,86 @@ function planForActiveUserSubscription(plan: StripeBillingPlan | null): "individ
 
 function planForActiveOrgSubscription(plan: StripeBillingPlan | null): "team" | "growth" {
   return plan === "growth" ? "growth" : "team"
+}
+
+function isMissingFunctionError(error: unknown, functionName: string): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+  const fn = functionName.toLowerCase()
+
+  return (
+    message.includes(fn) &&
+    (message.includes("does not exist") ||
+      message.includes("function") ||
+      message.includes("could not find"))
+  )
+}
+
+function normalizeEventCreatedAt(created: number): string {
+  return new Date(created * 1000).toISOString()
+}
+
+function deriveWebhookScope(event: Stripe.Event): WebhookScope | null {
+  switch (event.type) {
+    case "checkout.session.completed": {
+      const session = event.data.object as Stripe.Checkout.Session
+      const customerId = typeof session.customer === "string" ? session.customer : null
+      if (customerId) return { type: "customer", key: customerId }
+
+      const orgId = session.metadata?.workspace_org_id
+      if (orgId) return { type: "organization", key: orgId }
+
+      const userId = session.metadata?.supabase_user_id
+      if (userId) return { type: "user", key: userId }
+      return null
+    }
+    case "customer.subscription.updated":
+    case "customer.subscription.deleted": {
+      const subscription = event.data.object as Stripe.Subscription
+      const customerId = typeof subscription.customer === "string" ? subscription.customer : null
+      return customerId ? { type: "customer", key: customerId } : null
+    }
+    case "invoice.payment_failed":
+    case "invoice.marked_uncollectible": {
+      const invoice = event.data.object as Stripe.Invoice
+      const customerId = typeof invoice.customer === "string" ? invoice.customer : null
+      return customerId ? { type: "customer", key: customerId } : null
+    }
+    default:
+      return null
+  }
+}
+
+async function claimWebhookEvent(
+  supabase: ReturnType<typeof createAdminClient>,
+  event: Stripe.Event,
+  scope: WebhookScope | null
+): Promise<"claimed" | "duplicate" | "stale" | "missing_function" | "error"> {
+  const functionName = "claim_stripe_webhook_event"
+  const { data: claimResult, error: claimError } = await supabase.rpc(functionName, {
+    p_event_id: event.id,
+    p_event_type: event.type,
+    p_event_created_at: normalizeEventCreatedAt(event.created),
+    p_scope_type: scope?.type ?? null,
+    p_scope_key: scope?.key ?? null,
+  })
+
+  if (claimError) {
+    if (isMissingFunctionError(claimError, functionName)) {
+      return "missing_function"
+    }
+    console.error("Failed to claim Stripe webhook event:", claimError)
+    return "error"
+  }
+
+  if (claimResult === "duplicate" || claimResult === "stale" || claimResult === "claimed") {
+    return claimResult
+  }
+
+  console.error("Unexpected Stripe webhook claim result:", claimResult)
+  return "error"
 }
 
 async function updateUserPlan(
@@ -100,7 +181,7 @@ async function updateOrgSubscriptionStatus(
   } else if (options.stripeSubscriptionId) {
     updates.stripe_subscription_id = options.stripeSubscriptionId
   }
-  
+
   const { error } = await supabase
     .from("organizations")
     .update(updates)
@@ -134,6 +215,21 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const supabase = createAdminClient()
+  const scope = deriveWebhookScope(event)
+  const claimStatus = await claimWebhookEvent(supabase, event, scope)
+  if (claimStatus === "missing_function") {
+    return NextResponse.json(
+      { error: "Stripe webhook ordering guard is not available yet. Run the latest database migration first." },
+      { status: 503 }
+    )
+  }
+  if (claimStatus === "duplicate" || claimStatus === "stale") {
+    return NextResponse.json({ received: true })
+  }
+  if (claimStatus !== "claimed") {
+    return NextResponse.json({ error: "Webhook guard check failed" }, { status: 500 })
+  }
+
   let ok = true
 
   switch (event.type) {
