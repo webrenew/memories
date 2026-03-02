@@ -12,7 +12,7 @@ export function MemoryCard({
 }: {
   memory: Memory
   onDelete: (id: string) => void
-  onUpdate: (id: string, content: string) => void
+  onUpdate: (id: string, content: string, updatedAt: string) => void
   onFilterByProject?: (scope: string) => void
 }): React.JSX.Element {
   const [isDeleting, setIsDeleting] = useState(false)
@@ -20,6 +20,7 @@ export function MemoryCard({
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(memory.content)
   const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -42,19 +43,38 @@ export function MemoryCard({
     if (!editContent.trim() || editContent === memory.content) {
       setIsEditing(false)
       setEditContent(memory.content)
+      setSaveError(null)
       return
     }
 
+    setSaveError(null)
     setIsSaving(true)
     try {
       const res = await fetch("/api/memories", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: memory.id, content: editContent.trim() }),
+        body: JSON.stringify({
+          id: memory.id,
+          content: editContent.trim(),
+          expectedUpdatedAt: memory.updated_at,
+        }),
       })
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        onUpdate(memory.id, editContent.trim())
+        const updatedAt =
+          data && typeof data === "object" && "updatedAt" in data && typeof data.updatedAt === "string"
+            ? data.updatedAt
+            : new Date().toISOString()
+        onUpdate(memory.id, editContent.trim(), updatedAt)
         setIsEditing(false)
+      } else if (res.status === 409) {
+        const message =
+          data && typeof data === "object" && "error" in data && typeof data.error === "string"
+            ? data.error
+            : "This memory changed in another session. Refresh and try again."
+        setSaveError(message)
+      } else {
+        setSaveError("Failed to save memory")
       }
     } finally {
       setIsSaving(false)
@@ -125,6 +145,7 @@ export function MemoryCard({
                 onClick={() => {
                   setIsEditing(false)
                   setEditContent(memory.content)
+                  setSaveError(null)
                 }}
                 className="p-1.5 text-muted-foreground hover:text-foreground transition-all"
                 title="Cancel"
@@ -151,7 +172,10 @@ export function MemoryCard({
           ) : (
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
               <button
-                onClick={() => setIsEditing(true)}
+                onClick={() => {
+                  setIsEditing(true)
+                  setSaveError(null)
+                }}
                 className="p-1.5 text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-all"
                 title="Edit"
               >
@@ -169,13 +193,16 @@ export function MemoryCard({
         </div>
       </div>
       {isEditing ? (
-        <textarea
-          value={editContent}
-          onChange={(e) => setEditContent(e.target.value)}
-          className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary/50 resize-none"
-          rows={3}
-          autoFocus
-        />
+        <div className="space-y-2">
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-primary/50 resize-none"
+            rows={3}
+            autoFocus
+          />
+          {saveError ? <p className="text-xs text-red-400">{saveError}</p> : null}
+        </div>
       ) : (
         <p className="text-sm text-foreground/80 leading-relaxed">
           {memory.content}

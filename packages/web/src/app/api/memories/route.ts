@@ -173,7 +173,7 @@ export async function PATCH(request: NextRequest): Promise<Response> {
 
   const parsed = parseBody(updateMemorySchema, await request.json().catch(() => ({})))
   if (!parsed.success) return parsed.response
-  const { id, content, tags, type, paths, category, metadata } = parsed.data
+  const { id, content, expectedUpdatedAt, tags, type, paths, category, metadata } = parsed.data
 
   const context = await resolveActiveMemoryContext(supabase, user.id)
   if (!context?.turso_db_url || !context?.turso_db_token) {
@@ -215,13 +215,43 @@ export async function PATCH(request: NextRequest): Promise<Response> {
       updateArgs.push(metadata ?? null)
     }
 
+    let sql = `UPDATE memories SET ${updates.join(", ")} WHERE id = ? AND deleted_at IS NULL`
     updateArgs.push(id)
-    await turso.execute({
-      sql: `UPDATE memories SET ${updates.join(", ")} WHERE id = ? AND deleted_at IS NULL`,
+    if (expectedUpdatedAt) {
+      sql += " AND updated_at = ?"
+      updateArgs.push(expectedUpdatedAt)
+    }
+
+    const updateResult = await turso.execute({
+      sql,
       args: updateArgs,
     })
 
-    return NextResponse.json({ success: true })
+    const rowsAffected =
+      typeof updateResult.rowsAffected === "number" ? updateResult.rowsAffected : 1
+    if (rowsAffected === 0) {
+      const currentRow = await turso.execute({
+        sql: "SELECT id, updated_at FROM memories WHERE id = ? AND deleted_at IS NULL",
+        args: [id],
+      })
+      const rows = Array.isArray(currentRow.rows) ? currentRow.rows : []
+      const current = rows[0] as { updated_at?: string } | undefined
+
+      if (current) {
+        return NextResponse.json(
+          {
+            error: "Memory was updated by another session. Refresh and retry your edit.",
+            code: "MEMORY_UPDATE_CONFLICT",
+            updatedAt: typeof current.updated_at === "string" ? current.updated_at : null,
+          },
+          { status: 409 }
+        )
+      }
+
+      return NextResponse.json({ error: "Memory not found" }, { status: 404 })
+    }
+
+    return NextResponse.json({ success: true, updatedAt: now })
   } catch (err) {
     console.error("Failed to update memory:", err)
     return NextResponse.json({ error: "Failed to update memory" }, { status: 500 })

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import { Copy, RefreshCw, Trash2, Key, Eye, EyeOff, Check } from "lucide-react"
 import { TenantDatabaseMappingsSection } from "@/components/dashboard/TenantDatabaseMappingsSection"
 import { extractErrorMessage } from "@/lib/client-errors"
@@ -86,14 +86,33 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
   const [copiedEndpoint, setCopiedEndpoint] = useState(false)
   const [copiedHeader, setCopiedHeader] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const keysRef = useRef<ApiKeySummary[]>([])
+  const keyFetchRequestIdRef = useRef(0)
+  const keyMutationInFlightRef = useRef(false)
+
+  const applyKeySummaries = useCallback((nextKeys: ApiKeySummary[]) => {
+    keysRef.current = nextKeys
+    setKeys(nextKeys)
+    const nextPrimary = nextKeys.find((item) => !item.isExpired) ?? nextKeys[0] ?? null
+    setActiveKeyCount(nextKeys.filter((item) => !item.isExpired).length)
+    setHasKey(nextKeys.length > 0)
+    setKeyPreview(nextPrimary?.keyPreview ?? null)
+    setCreatedAt(nextPrimary?.createdAt ?? null)
+    setExpiresAt(nextPrimary?.expiresAt ?? null)
+    setIsExpired(nextPrimary?.isExpired ?? false)
+  }, [])
 
   const fetchKey = useCallback(async () => {
+    const requestId = ++keyFetchRequestIdRef.current
     try {
       setError(null)
       const res = await fetch("/api/mcp/key")
       const payload = await res.json().catch(() => null)
       if (!res.ok) {
         throw new Error(extractErrorMessage(payload, `Failed to fetch API key metadata (HTTP ${res.status})`))
+      }
+      if (requestId !== keyFetchRequestIdRef.current || keyMutationInFlightRef.current) {
+        return
       }
 
       const data = (payload ?? {}) as KeyMetadataResponse
@@ -120,34 +139,43 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
           ? parsedKeys.filter((item) => !item.isExpired).length
           : (data.activeKeyCount ?? (data.hasKey && !data.isExpired ? 1 : 0))
 
-      setHasKey(computedHasKey)
-      setKeys(parsedKeys)
-      setActiveKeyCount(computedActiveCount)
-      setKeyPreview(data.keyPreview || primaryKey?.keyPreview || null)
-      setCreatedAt(data.createdAt || primaryKey?.createdAt || null)
-      setExpiresAt(data.expiresAt || primaryKey?.expiresAt || null)
-      setIsExpired(
-        primaryKey
-          ? primaryKey.isExpired
-          : Boolean(data.isExpired)
-      )
+      if (parsedKeys.length > 0) {
+        applyKeySummaries(parsedKeys)
+      } else {
+        keysRef.current = []
+        setKeys([])
+        setHasKey(computedHasKey)
+        setActiveKeyCount(computedActiveCount)
+        setKeyPreview(data.keyPreview || primaryKey?.keyPreview || null)
+        setCreatedAt(data.createdAt || primaryKey?.createdAt || null)
+        setExpiresAt(data.expiresAt || primaryKey?.expiresAt || null)
+        setIsExpired(
+          primaryKey
+            ? primaryKey.isExpired
+            : Boolean(data.isExpired)
+        )
+      }
       setApiKey(null)
       setShowKey(false)
       setGeneratedKeyId(null)
       setExpiryInput(isoToLocalInputValue((data.expiresAt || primaryKey?.expiresAt) ?? null))
     } catch (err) {
+      if (requestId !== keyFetchRequestIdRef.current) return
       console.error("Failed to fetch API key:", err)
       setError("Failed to fetch API key metadata")
     } finally {
-      setLoading(false)
+      if (requestId === keyFetchRequestIdRef.current) {
+        setLoading(false)
+      }
     }
-  }, [])
+  }, [applyKeySummaries])
 
   useEffect(() => {
     void fetchKey()
   }, [fetchKey])
 
   async function generateKey() {
+    if (keyMutationInFlightRef.current) return
     if (!expiryInput) {
       setError("Select an expiry date and time.")
       return
@@ -159,6 +187,8 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
       return
     }
 
+    keyMutationInFlightRef.current = true
+    keyFetchRequestIdRef.current += 1
     setLoading(true)
     const startedAt = performance.now()
     recordClientWorkflowEvent({
@@ -203,17 +233,11 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
           expiresAt: nextExpiresAt,
           isExpired: false,
         }
-        const nextKeys = [nextSummary, ...keys.filter((item) => item.id !== nextSummary.id)]
+        const nextKeys = [nextSummary, ...keysRef.current.filter((item) => item.id !== nextSummary.id)]
         setApiKey(data.apiKey)
         setShowKey(true)
         setGeneratedKeyId(nextKeyId)
-        setHasKey(true)
-        setKeys(nextKeys)
-        setActiveKeyCount(nextKeys.filter((item) => !item.isExpired).length)
-        setKeyPreview(nextSummary.keyPreview)
-        setCreatedAt(nextCreatedAt)
-        setExpiresAt(nextExpiresAt)
-        setIsExpired(false)
+        applyKeySummaries(nextKeys)
       }
       recordClientWorkflowEvent({
         workflow: "api_key_generate",
@@ -231,17 +255,21 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
         message,
       })
     } finally {
+      keyMutationInFlightRef.current = false
       setLoading(false)
     }
   }
 
   async function revokeKey(keyId?: string) {
+    if (keyMutationInFlightRef.current) return
     const isSingleKeyRevoke = typeof keyId === "string" && keyId.length > 0
     if (!confirm(isSingleKeyRevoke
       ? "Revoke this API key? Any client using it will stop working."
       : "Revoke all API keys? Any tools using them will stop working.")) {
       return
     }
+    keyMutationInFlightRef.current = true
+    keyFetchRequestIdRef.current += 1
     setLoading(true)
     const startedAt = performance.now()
     recordClientWorkflowEvent({
@@ -260,23 +288,17 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
       }
 
       if (isSingleKeyRevoke) {
-        const nextKeys = keys.filter((item) => item.id !== keyId)
-        const nextPrimary = nextKeys.find((item) => !item.isExpired) ?? nextKeys[0] ?? null
+        const nextKeys = keysRef.current.filter((item) => item.id !== keyId)
         if (generatedKeyId === keyId) {
           setApiKey(null)
           setShowKey(false)
           setGeneratedKeyId(null)
         }
-        setKeys(nextKeys)
-        setActiveKeyCount(nextKeys.filter((item) => !item.isExpired).length)
-        setHasKey(nextKeys.length > 0)
-        setKeyPreview(nextPrimary?.keyPreview ?? null)
-        setCreatedAt(nextPrimary?.createdAt ?? null)
-        setExpiresAt(nextPrimary?.expiresAt ?? null)
-        setIsExpired(nextPrimary?.isExpired ?? false)
+        applyKeySummaries(nextKeys)
       } else {
         setApiKey(null)
         setGeneratedKeyId(null)
+        keysRef.current = []
         setHasKey(false)
         setKeys([])
         setActiveKeyCount(0)
@@ -304,6 +326,7 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
         message,
       })
     } finally {
+      keyMutationInFlightRef.current = false
       setLoading(false)
     }
   }

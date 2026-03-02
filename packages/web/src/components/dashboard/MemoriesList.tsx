@@ -12,15 +12,15 @@ export function MemoriesList({
 }: {
   memories: Memory[]
   onDeleteMemory?: (id: string) => void
-  onUpdateMemory?: (id: string, content: string) => void
+  onUpdateMemory?: (id: string, content: string, updatedAt: string) => void
   onFilterByProject?: (scope: string) => void
 }): React.JSX.Element | null {
   const handleDelete = (id: string) => {
     onDeleteMemory?.(id)
   }
 
-  const handleUpdate = (id: string, content: string) => {
-    onUpdateMemory?.(id, content)
+  const handleUpdate = (id: string, content: string, updatedAt: string) => {
+    onUpdateMemory?.(id, content, updatedAt)
   }
 
   if (memories.length === 0) {

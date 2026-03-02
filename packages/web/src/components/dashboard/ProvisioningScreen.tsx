@@ -3,13 +3,35 @@
 import React, { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 
+const PROVISION_REQUEST_ID_STORAGE_KEY = "memories:db-provision:request-id"
+
+function getProvisionRequestId(): string {
+  if (typeof window === "undefined") {
+    return crypto.randomUUID()
+  }
+
+  const existing = window.sessionStorage.getItem(PROVISION_REQUEST_ID_STORAGE_KEY)
+  if (existing) return existing
+
+  const next = crypto.randomUUID()
+  window.sessionStorage.setItem(PROVISION_REQUEST_ID_STORAGE_KEY, next)
+  return next
+}
+
+function clearProvisionRequestId(): void {
+  if (typeof window === "undefined") return
+  window.sessionStorage.removeItem(PROVISION_REQUEST_ID_STORAGE_KEY)
+}
+
 export function ProvisioningScreen(): React.JSX.Element {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const provisioningRef = useRef(false)
+  const requestIdRef = useRef<string>(getProvisionRequestId())
 
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
 
     async function provision() {
       // Prevent duplicate calls (React strict mode, fast re-mounts)
@@ -17,16 +39,25 @@ export function ProvisioningScreen(): React.JSX.Element {
       provisioningRef.current = true
 
       try {
-        const res = await fetch("/api/db/provision", { method: "POST" })
+        const res = await fetch("/api/db/provision", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestId: requestIdRef.current }),
+          signal: controller.signal,
+        })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
           throw new Error(data.error ?? "Provisioning failed")
         }
 
+        clearProvisionRequestId()
         if (!cancelled) {
           router.refresh()
         }
       } catch (err) {
+        if (controller.signal.aborted) {
+          return
+        }
         if (!cancelled) {
           provisioningRef.current = false
           setError(
@@ -40,6 +71,7 @@ export function ProvisioningScreen(): React.JSX.Element {
 
     return () => {
       cancelled = true
+      controller.abort()
     }
   }, [router])
 

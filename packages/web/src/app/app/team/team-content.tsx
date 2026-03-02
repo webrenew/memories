@@ -96,6 +96,7 @@ export function TeamContent({
   const [createError, setCreateError] = useState<string | null>(null)
   const [newOrgName, setNewOrgName] = useState("")
   const isMountedRef = useRef(true)
+  const selectedOrgIdRef = useRef<string | null>(selectedOrgId)
   const orgDataRequestIdRef = useRef(0)
 
   useEffect(() => {
@@ -103,6 +104,10 @@ export function TeamContent({
       isMountedRef.current = false
     }
   }, [])
+
+  useEffect(() => {
+    selectedOrgIdRef.current = selectedOrgId
+  }, [selectedOrgId])
 
   useEffect(() => {
     if (!currentOrgId) {
@@ -202,7 +207,7 @@ export function TeamContent({
     const includeCaptureSettings = options?.includeCaptureSettings ?? false
     const requestId = ++orgDataRequestIdRef.current
     const shouldIgnore = () =>
-      !isMountedRef.current || requestId !== orgDataRequestIdRef.current
+      !isMountedRef.current || requestId !== orgDataRequestIdRef.current || selectedOrgIdRef.current !== orgId
 
     setLoading(true)
     try {
@@ -436,9 +441,12 @@ export function TeamContent({
     }
   }
 
-  async function requestMemberRemoval(memberUserId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  async function requestMemberRemoval(
+    memberUserId: string,
+    orgId: string
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
     try {
-      const res = await fetch(`/api/orgs/${selectedOrgId}/members?userId=${memberUserId}`, {
+      const res = await fetch(`/api/orgs/${orgId}/members?userId=${memberUserId}`, {
         method: "DELETE",
       })
 
@@ -459,40 +467,48 @@ export function TeamContent({
   }
 
   async function revokeInvite(inviteId: string) {
+    const orgId = selectedOrgId
+    if (!orgId) return
+    const includeAudit = isAdmin
     try {
-      await fetch(`/api/orgs/${selectedOrgId}/invites?inviteId=${inviteId}`, {
+      await fetch(`/api/orgs/${orgId}/invites?inviteId=${inviteId}`, {
         method: "DELETE",
       })
-      if (selectedOrgId) fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
+      if (selectedOrgIdRef.current !== orgId) return
+      await fetchOrgData(orgId, { includeAudit, includeCaptureSettings: includeAudit })
     } catch (e) {
       console.error(e)
     }
   }
 
   async function removeMember(memberUserId: string) {
+    const orgId = selectedOrgId
+    if (!orgId) return
+    const includeAudit = isAdmin
     if (!confirm("Are you sure you want to remove this member?")) return
 
     setMemberActionError(null)
     setMemberActionSuccess(null)
-    const result = await requestMemberRemoval(memberUserId)
+    const result = await requestMemberRemoval(memberUserId, orgId)
     if (!result.ok) {
+      if (selectedOrgIdRef.current !== orgId) return
       setMemberActionError(result.error)
       return
     }
 
+    if (selectedOrgIdRef.current !== orgId) return
     setSelectedMemberUserIds((previous) => previous.filter((id) => id !== memberUserId))
     setMemberActionSuccess("Member removed.")
-    if (selectedOrgId) {
-      fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
-    }
+    await fetchOrgData(orgId, { includeAudit, includeCaptureSettings: includeAudit })
   }
 
   async function requestRoleUpdate(
     memberUserId: string,
-    newRole: "member" | "admin"
+    newRole: "member" | "admin",
+    orgId: string
   ): Promise<{ ok: true } | { ok: false; error: string }> {
     try {
-      const res = await fetch(`/api/orgs/${selectedOrgId}/members`, {
+      const res = await fetch(`/api/orgs/${orgId}/members`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: memberUserId, role: newRole }),
@@ -515,18 +531,21 @@ export function TeamContent({
   }
 
   async function updateRole(memberUserId: string, newRole: "member" | "admin") {
+    const orgId = selectedOrgId
+    if (!orgId) return
+    const includeAudit = isAdmin
     setMemberActionError(null)
     setMemberActionSuccess(null)
-    const result = await requestRoleUpdate(memberUserId, newRole)
+    const result = await requestRoleUpdate(memberUserId, newRole, orgId)
     if (!result.ok) {
+      if (selectedOrgIdRef.current !== orgId) return
       setMemberActionError(result.error)
       return
     }
 
+    if (selectedOrgIdRef.current !== orgId) return
     setMemberActionSuccess("Member role updated.")
-    if (selectedOrgId) {
-      fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
-    }
+    await fetchOrgData(orgId, { includeAudit, includeCaptureSettings: includeAudit })
   }
 
   function toggleMemberSelection(memberUserId: string) {
@@ -554,11 +573,14 @@ export function TeamContent({
   }
 
   async function applyBulkRoleChange() {
-    if (!isOwner || selectedManageableMemberIds.length === 0) return
+    const orgId = selectedOrgId
+    const includeAudit = isAdmin
+    const memberIds = [...selectedManageableMemberIds]
+    if (!orgId || !isOwner || memberIds.length === 0) return
     if (
       !confirm(
-        `Change role to ${bulkRoleValue} for ${selectedManageableMemberIds.length} selected member${
-          selectedManageableMemberIds.length === 1 ? "" : "s"
+        `Change role to ${bulkRoleValue} for ${memberIds.length} selected member${
+          memberIds.length === 1 ? "" : "s"
         }?`
       )
     ) {
@@ -568,42 +590,46 @@ export function TeamContent({
     setBulkActionInFlight(true)
     setMemberActionError(null)
     setMemberActionSuccess(null)
+    try {
+      let failures = 0
+      let firstError: string | null = null
 
-    let failures = 0
-    let firstError: string | null = null
-
-    for (const memberUserId of selectedManageableMemberIds) {
-      const result = await requestRoleUpdate(memberUserId, bulkRoleValue)
-      if (!result.ok) {
-        failures += 1
-        firstError = firstError ?? result.error
+      for (const memberUserId of memberIds) {
+        const result = await requestRoleUpdate(memberUserId, bulkRoleValue, orgId)
+        if (!result.ok) {
+          failures += 1
+          firstError = firstError ?? result.error
+        }
       }
-    }
 
-    if (selectedOrgId) {
-      await fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
-    }
-    setSelectedMemberUserIds([])
-    setBulkActionInFlight(false)
+      if (selectedOrgIdRef.current !== orgId) return
+      await fetchOrgData(orgId, { includeAudit, includeCaptureSettings: includeAudit })
+      setSelectedMemberUserIds([])
 
-    const successCount = selectedManageableMemberIds.length - failures
-    if (failures > 0) {
-      setMemberActionError(
-        `${firstError ?? "Some role updates failed"}. Updated ${successCount} of ${selectedManageableMemberIds.length}.`
+      const successCount = memberIds.length - failures
+      if (failures > 0) {
+        setMemberActionError(
+          `${firstError ?? "Some role updates failed"}. Updated ${successCount} of ${memberIds.length}.`
+        )
+        return
+      }
+      setMemberActionSuccess(
+        `Updated role for ${successCount} member${successCount === 1 ? "" : "s"}.`
       )
-      return
+    } finally {
+      setBulkActionInFlight(false)
     }
-    setMemberActionSuccess(
-      `Updated role for ${successCount} member${successCount === 1 ? "" : "s"}.`
-    )
   }
 
   async function removeSelectedMembers() {
-    if (!isAdmin || selectedManageableMemberIds.length === 0) return
+    const orgId = selectedOrgId
+    const includeAudit = isAdmin
+    const memberIds = [...selectedManageableMemberIds]
+    if (!orgId || !isAdmin || memberIds.length === 0) return
     if (
       !confirm(
-        `Remove ${selectedManageableMemberIds.length} selected member${
-          selectedManageableMemberIds.length === 1 ? "" : "s"
+        `Remove ${memberIds.length} selected member${
+          memberIds.length === 1 ? "" : "s"
         }?`
       )
     ) {
@@ -613,38 +639,41 @@ export function TeamContent({
     setBulkActionInFlight(true)
     setMemberActionError(null)
     setMemberActionSuccess(null)
+    try {
+      let failures = 0
+      let firstError: string | null = null
 
-    let failures = 0
-    let firstError: string | null = null
-
-    for (const memberUserId of selectedManageableMemberIds) {
-      const result = await requestMemberRemoval(memberUserId)
-      if (!result.ok) {
-        failures += 1
-        firstError = firstError ?? result.error
+      for (const memberUserId of memberIds) {
+        const result = await requestMemberRemoval(memberUserId, orgId)
+        if (!result.ok) {
+          failures += 1
+          firstError = firstError ?? result.error
+        }
       }
-    }
 
-    if (selectedOrgId) {
-      await fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
-    }
-    setSelectedMemberUserIds([])
-    setBulkActionInFlight(false)
+      if (selectedOrgIdRef.current !== orgId) return
+      await fetchOrgData(orgId, { includeAudit, includeCaptureSettings: includeAudit })
+      setSelectedMemberUserIds([])
 
-    const successCount = selectedManageableMemberIds.length - failures
-    if (failures > 0) {
-      setMemberActionError(
-        `${firstError ?? "Some members could not be removed"}. Removed ${successCount} of ${selectedManageableMemberIds.length}.`
+      const successCount = memberIds.length - failures
+      if (failures > 0) {
+        setMemberActionError(
+          `${firstError ?? "Some members could not be removed"}. Removed ${successCount} of ${memberIds.length}.`
+        )
+        return
+      }
+      setMemberActionSuccess(
+        `Removed ${successCount} member${successCount === 1 ? "" : "s"}.`
       )
-      return
+    } finally {
+      setBulkActionInFlight(false)
     }
-    setMemberActionSuccess(
-      `Removed ${successCount} member${successCount === 1 ? "" : "s"}.`
-    )
   }
 
   async function saveDomainAutoJoinSettings() {
     if (!selectedOrgId || !selectedOrgRecord) return
+    const orgId = selectedOrgId
+    const includeAudit = isAdmin
 
     const nextDomain = domainAutoJoinDomain.trim()
     const currentDomain = (selectedOrgRecord.domain_auto_join_domain ?? "").trim().toLowerCase()
@@ -663,7 +692,7 @@ export function TeamContent({
     setDomainSettingsUpgradeUrl(null)
 
     try {
-      const res = await fetch(`/api/orgs/${selectedOrgId}`, {
+      const res = await fetch(`/api/orgs/${orgId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -674,6 +703,7 @@ export function TeamContent({
 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
+        if (selectedOrgIdRef.current !== orgId) return
         setDomainSettingsError(data.error || "Failed to update domain auto-join settings")
         if (res.status === 402 && typeof data.upgradeUrl === "string") {
           setDomainSettingsUpgradeUrl(data.upgradeUrl)
@@ -681,15 +711,15 @@ export function TeamContent({
         return
       }
 
+      if (selectedOrgIdRef.current !== orgId) return
       setOrgDetails(data.organization ?? null)
       setDomainAutoJoinEnabled(Boolean(data.organization?.domain_auto_join_enabled ?? nextEnabled))
       setDomainAutoJoinDomain(data.organization?.domain_auto_join_domain ?? (nextDomain || ""))
       setDomainSettingsSuccess("Domain auto-join settings updated.")
-      if (selectedOrgId) {
-        fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: isAdmin })
-      }
+      await fetchOrgData(orgId, { includeAudit, includeCaptureSettings: includeAudit })
     } catch (error) {
       console.error("Failed to update domain auto-join settings:", error)
+      if (selectedOrgIdRef.current !== orgId) return
       setDomainSettingsError("Failed to update settings. Please try again.")
     } finally {
       setSavingDomainSettings(false)
@@ -706,6 +736,8 @@ export function TeamContent({
 
   async function saveGithubCaptureSettings() {
     if (!selectedOrgId || !isAdmin) return
+    const orgId = selectedOrgId
+    const includeAudit = isAdmin
     if (allowedEvents.length === 0) {
       setCaptureSettingsError("Select at least one event type to capture.")
       return
@@ -716,7 +748,7 @@ export function TeamContent({
     setCaptureSettingsSuccess(null)
 
     try {
-      const response = await fetch(`/api/orgs/${selectedOrgId}/github-capture/settings`, {
+      const response = await fetch(`/api/orgs/${orgId}/github-capture/settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -732,15 +764,18 @@ export function TeamContent({
 
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
+        if (selectedOrgIdRef.current !== orgId) return
         setCaptureSettingsError(data.error || "Failed to save GitHub capture settings")
         return
       }
 
+      if (selectedOrgIdRef.current !== orgId) return
       setCaptureSettings(data.settings ?? null)
       setCaptureSettingsSuccess("GitHub capture policy updated.")
-      fetchOrgData(selectedOrgId, { includeAudit: isAdmin, includeCaptureSettings: true })
+      await fetchOrgData(orgId, { includeAudit, includeCaptureSettings: true })
     } catch (error) {
       console.error("Failed to update GitHub capture settings:", error)
+      if (selectedOrgIdRef.current !== orgId) return
       setCaptureSettingsError("Failed to save GitHub capture settings")
     } finally {
       setSavingCaptureSettings(false)

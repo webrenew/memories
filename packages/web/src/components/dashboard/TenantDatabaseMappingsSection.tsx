@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AlertTriangle, ChevronDown, ChevronRight, Database, Link2, RefreshCw, Server, Trash2 } from "lucide-react"
 import { extractErrorMessage } from "@/lib/client-errors"
 import { recordClientWorkflowEvent } from "@/lib/client-workflow-debug"
@@ -88,6 +88,8 @@ export function TenantDatabaseMappingsSection({
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const fetchRequestIdRef = useRef(0)
+  const fetchAbortControllerRef = useRef<AbortController | null>(null)
   const isGrowthPlan = workspacePlan === "growth"
 
   const sortedMappings = useMemo(
@@ -97,9 +99,18 @@ export function TenantDatabaseMappingsSection({
 
   const fetchMappings = useCallback(
     async (opts?: { silent?: boolean }) => {
+      const requestId = ++fetchRequestIdRef.current
+      fetchAbortControllerRef.current?.abort()
+      const controller = new AbortController()
+      fetchAbortControllerRef.current = controller
+
       if (!hasApiKey || apiKeyExpired) {
-        setMappings([])
-        setError(null)
+        if (requestId === fetchRequestIdRef.current) {
+          setMappings([])
+          setError(null)
+          setLoading(false)
+          setRefreshing(false)
+        }
         return
       }
 
@@ -111,25 +122,43 @@ export function TenantDatabaseMappingsSection({
 
       try {
         setError(null)
-        const res = await fetch("/api/sdk/v1/management/tenant-overrides")
+        const res = await fetch("/api/sdk/v1/management/tenant-overrides", {
+          signal: controller.signal,
+        })
         const payload = await res.json().catch(() => null)
 
         if (!res.ok) {
           throw new Error(extractErrorMessage(payload, `Failed to load tenant overrides (HTTP ${res.status})`))
         }
 
+        if (requestId !== fetchRequestIdRef.current) return
         const data = ((payload ?? {}) as { data?: TenantListResponse }).data ?? (payload ?? {})
         setMappings(Array.isArray(data.tenantDatabases) ? data.tenantDatabases : [])
       } catch (err) {
+        if (controller.signal.aborted || requestId !== fetchRequestIdRef.current) {
+          return
+        }
         console.error("Failed to fetch tenant overrides:", err)
         setError(err instanceof Error ? err.message : "Failed to load tenant overrides")
       } finally {
-        setLoading(false)
-        setRefreshing(false)
+        if (requestId === fetchRequestIdRef.current) {
+          setLoading(false)
+          setRefreshing(false)
+        }
+        if (fetchAbortControllerRef.current === controller) {
+          fetchAbortControllerRef.current = null
+        }
       }
     },
     [apiKeyExpired, hasApiKey]
   )
+
+  useEffect(() => {
+    return () => {
+      fetchAbortControllerRef.current?.abort()
+      fetchAbortControllerRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     void fetchMappings()

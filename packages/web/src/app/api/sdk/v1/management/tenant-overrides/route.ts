@@ -47,6 +47,9 @@ type TenantRow = {
   last_verified_at: string | null
 }
 
+const TENANT_SELECT_FIELDS =
+  "tenant_id, turso_db_url, turso_db_name, status, mapping_source, metadata, created_at, updated_at, last_verified_at"
+
 async function resolveOwnerScopeKey(
   admin: ReturnType<typeof createAdminClient>,
   userId: string
@@ -195,7 +198,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const { tenantId, mode, metadata } = parsed.data
   const { data: existing, error: existingError } = await admin
     .from("sdk_tenant_databases")
-    .select("tenant_id, turso_db_url, turso_db_name, status, mapping_source, metadata, created_at, updated_at, last_verified_at")
+    .select(TENANT_SELECT_FIELDS)
     .eq("owner_scope_key", billingState.billing.ownerScopeKey)
     .eq("tenant_id", tenantId)
     .maybeSingle()
@@ -221,6 +224,165 @@ export async function POST(request: NextRequest): Promise<Response> {
       provisioned: false,
       mode,
     })
+  }
+
+  let claimUpdatedAt: string | null = null
+  if (mode === "provision") {
+    if (existing?.status === "provisioning") {
+      return errorResponse(
+        ENDPOINT,
+        requestId,
+        apiError({
+          type: "internal_error",
+          code: "TENANT_OVERRIDE_PROVISION_IN_PROGRESS",
+          message: "Tenant override provisioning is already in progress",
+          status: 409,
+          retryable: true,
+        })
+      )
+    }
+
+    const claimStartedAt = new Date().toISOString()
+    const claimPayload = {
+      owner_scope_key: billingState.billing.ownerScopeKey,
+      api_key_hash: identity.apiKeyHash,
+      mapping_source: "override",
+      tenant_id: tenantId,
+      turso_db_url: null,
+      turso_db_token: null,
+      turso_db_name: null,
+      status: "provisioning",
+      metadata: {
+        ...(existing?.metadata ?? {}),
+        ...(metadata ?? {}),
+        provisioningStartedAt: claimStartedAt,
+      },
+      created_by_user_id: identity.userId,
+      billing_owner_type: billingState.billing.ownerType,
+      billing_owner_user_id: billingState.billing.ownerUserId,
+      billing_org_id: billingState.billing.orgId,
+      stripe_customer_id: billingState.billing.stripeCustomerId,
+      updated_at: claimStartedAt,
+      last_verified_at: claimStartedAt,
+    }
+
+    let claimedRow: TenantRow | null = null
+    if (existing) {
+      const { data: claimed, error: claimError } = await admin
+        .from("sdk_tenant_databases")
+        .update(claimPayload)
+        .eq("owner_scope_key", billingState.billing.ownerScopeKey)
+        .eq("tenant_id", tenantId)
+        .eq("updated_at", existing.updated_at)
+        .neq("status", "ready")
+        .select(TENANT_SELECT_FIELDS)
+        .maybeSingle()
+
+      if (claimError) {
+        console.error("Failed to claim tenant override provisioning lock:", claimError)
+        return errorResponse(
+          ENDPOINT,
+          requestId,
+          apiError({
+            type: "internal_error",
+            code: "TENANT_OVERRIDE_CLAIM_FAILED",
+            message: "Failed to start tenant override provisioning",
+            status: 500,
+            retryable: true,
+          })
+        )
+      }
+      claimedRow = (claimed as TenantRow | null) ?? null
+    } else {
+      const { data: claimed, error: claimError } = await admin
+        .from("sdk_tenant_databases")
+        .insert(claimPayload)
+        .select(TENANT_SELECT_FIELDS)
+        .maybeSingle()
+
+      if (claimError) {
+        const conflictCode = typeof claimError === "object" && claimError !== null && "code" in claimError
+          ? String((claimError as { code?: string }).code ?? "")
+          : ""
+        if (conflictCode !== "23505") {
+          console.error("Failed to insert tenant override provisioning claim:", claimError)
+          return errorResponse(
+            ENDPOINT,
+            requestId,
+            apiError({
+              type: "internal_error",
+              code: "TENANT_OVERRIDE_CLAIM_FAILED",
+              message: "Failed to start tenant override provisioning",
+              status: 500,
+              retryable: true,
+            })
+          )
+        }
+      } else {
+        claimedRow = (claimed as TenantRow | null) ?? null
+      }
+    }
+
+    if (!claimedRow) {
+      const { data: latest, error: latestError } = await admin
+        .from("sdk_tenant_databases")
+        .select(TENANT_SELECT_FIELDS)
+        .eq("owner_scope_key", billingState.billing.ownerScopeKey)
+        .eq("tenant_id", tenantId)
+        .maybeSingle()
+
+      if (latestError) {
+        console.error("Failed to resolve latest tenant override after claim conflict:", latestError)
+        return errorResponse(
+          ENDPOINT,
+          requestId,
+          apiError({
+            type: "internal_error",
+            code: "TENANT_OVERRIDE_CLAIM_RESOLVE_FAILED",
+            message: "Failed to resolve tenant override provisioning state",
+            status: 500,
+            retryable: true,
+          })
+        )
+      }
+
+      const latestRow = (latest as TenantRow | null) ?? null
+      if (latestRow?.status === "ready" && latestRow.turso_db_url) {
+        return successResponse(ENDPOINT, requestId, {
+          tenantDatabase: mapTenantRow(latestRow),
+          provisioned: false,
+          mode,
+        })
+      }
+
+      if (latestRow?.status === "provisioning") {
+        return errorResponse(
+          ENDPOINT,
+          requestId,
+          apiError({
+            type: "internal_error",
+            code: "TENANT_OVERRIDE_PROVISION_IN_PROGRESS",
+            message: "Tenant override provisioning is already in progress",
+            status: 409,
+            retryable: true,
+          })
+        )
+      }
+
+      return errorResponse(
+        ENDPOINT,
+        requestId,
+        apiError({
+          type: "internal_error",
+          code: "TENANT_OVERRIDE_CLAIM_RESOLVE_FAILED",
+          message: "Failed to acquire tenant override provisioning lock",
+          status: 500,
+          retryable: true,
+        })
+      )
+    }
+
+    claimUpdatedAt = claimedRow.updated_at
   }
 
   let tursoDbUrl: string
@@ -310,13 +472,60 @@ export async function POST(request: NextRequest): Promise<Response> {
     last_verified_at: now,
   }
 
-  const { data: saved, error: saveError } = await admin
-    .from("sdk_tenant_databases")
-    .upsert(payload, { onConflict: "owner_scope_key,tenant_id" })
-    .select("tenant_id, turso_db_url, turso_db_name, status, mapping_source, metadata, created_at, updated_at, last_verified_at")
-    .single()
+  let saved: TenantRow | null = null
+  let saveError: unknown = null
+  if (mode === "provision" && claimUpdatedAt) {
+    const finalize = await admin
+      .from("sdk_tenant_databases")
+      .update(payload)
+      .eq("owner_scope_key", billingState.billing.ownerScopeKey)
+      .eq("tenant_id", tenantId)
+      .eq("status", "provisioning")
+      .eq("updated_at", claimUpdatedAt)
+      .select(TENANT_SELECT_FIELDS)
+      .maybeSingle()
+
+    saved = (finalize.data as TenantRow | null) ?? null
+    saveError = finalize.error
+  } else {
+    const finalize = await admin
+      .from("sdk_tenant_databases")
+      .upsert(payload, { onConflict: "owner_scope_key,tenant_id" })
+      .select(TENANT_SELECT_FIELDS)
+      .single()
+    saved = (finalize.data as TenantRow | null) ?? null
+    saveError = finalize.error
+  }
 
   if (saveError || !saved) {
+    if (!saveError && mode === "provision" && claimUpdatedAt) {
+      const { data: latest, error: latestError } = await admin
+        .from("sdk_tenant_databases")
+        .select(TENANT_SELECT_FIELDS)
+        .eq("owner_scope_key", billingState.billing.ownerScopeKey)
+        .eq("tenant_id", tenantId)
+        .maybeSingle()
+
+      if (!latestError && latest) {
+        const latestRow = latest as TenantRow
+        if (latestRow.status === "ready" && latestRow.turso_db_url) {
+          if (provisionedDbName) {
+            try {
+              await deleteDatabase(TURSO_ORG, provisionedDbName)
+            } catch (cleanupError) {
+              console.error("Failed to cleanup duplicate tenant override database after lost claim:", cleanupError)
+            }
+          }
+
+          return successResponse(ENDPOINT, requestId, {
+            tenantDatabase: mapTenantRow(latestRow),
+            provisioned: false,
+            mode,
+          })
+        }
+      }
+    }
+
     console.error("Failed to save tenant override mapping:", saveError)
     if (provisionedDbName) {
       try {

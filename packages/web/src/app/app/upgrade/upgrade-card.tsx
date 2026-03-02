@@ -82,17 +82,22 @@ export function UpgradeCard({
   const [billing, setBilling] = useState<BillingInterval>(defaultBilling)
   const [loading, setLoading] = useState(false)
   const autoCheckoutTriggeredRef = useRef(false)
+  const checkoutInFlightRef = useRef(false)
 
   const config = PLAN_CONFIG[plan]
   const amount = billing === "annual" ? config.annualPrice : config.monthlyPrice
 
   const handleSubscribe = useCallback(async () => {
+    if (checkoutInFlightRef.current) return
+    checkoutInFlightRef.current = true
     setLoading(true)
+    let redirected = false
     try {
+      const requestId = crypto.randomUUID()
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ billing, plan }),
+        body: JSON.stringify({ billing, plan, requestId }),
       })
 
       const data = await res.json().catch(() => null)
@@ -110,13 +115,18 @@ export function UpgradeCard({
           : null
 
       if (url) {
+        redirected = true
         window.location.href = url
       } else {
         throw new Error("Checkout URL was not returned")
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to start checkout. Please try again.")
-      setLoading(false)
+    } finally {
+      checkoutInFlightRef.current = false
+      if (!redirected) {
+        setLoading(false)
+      }
     }
   }, [billing, plan])
 
