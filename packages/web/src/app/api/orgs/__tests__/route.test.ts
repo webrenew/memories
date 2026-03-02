@@ -199,6 +199,7 @@ describe("/api/orgs", () => {
       const body = await response.json()
       expect(body.organization.name).toBe("New Team")
       expect(body.organization.slug).toBe("new-team")
+      expect(body.upgradeUrl).toBe("/app/upgrade?plan=growth&source=org-created")
     })
 
     it("should return 500 when slug uniqueness check fails", async () => {
