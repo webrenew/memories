@@ -166,4 +166,14 @@ describe("getClientIp", () => {
     })
     expect(getClientIp(request)).toBe("unknown")
   })
+
+  it("should normalize IPv4-mapped IPv6 proxy header values", () => {
+    process.env.TRUST_PROXY_HEADERS = "true"
+    const request = new Request("https://example.com", {
+      headers: {
+        "x-forwarded-for": "::ffff:203.0.113.7",
+      },
+    })
+    expect(getClientIp(request)).toBe("203.0.113.7")
+  })
 })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateRequest } from "@/lib/auth"
+import { parseRetryAfterSeconds } from "@/lib/http-headers"
 import { apiError } from "@/lib/memory-service/tools"
 import { apiRateLimit, checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
 import { authenticateApiKey, errorResponse, getApiKey } from "@/lib/sdk-api/runtime"
@@ -28,7 +29,7 @@ interface ResolveManagementIdentityOptions {
 }
 
 function rateLimitEnvelopeResponse(endpoint: string, requestId: string, source: NextResponse): NextResponse {
-  const retryAfter = Number(source.headers.get("Retry-After") ?? String(DEFAULT_RETRY_AFTER_SECONDS))
+  const retryAfter = parseRetryAfterSeconds(source.headers.get("Retry-After"), DEFAULT_RETRY_AFTER_SECONDS)
   const response = errorResponse(
     endpoint,
     requestId,
@@ -39,7 +40,7 @@ function rateLimitEnvelopeResponse(endpoint: string, requestId: string, source: 
       status: 429,
       retryable: true,
       details: {
-        retryAfterSeconds: Number.isFinite(retryAfter) ? retryAfter : DEFAULT_RETRY_AFTER_SECONDS,
+        retryAfterSeconds: retryAfter,
       },
     })
   )

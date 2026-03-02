@@ -204,7 +204,15 @@ function normalizeClientIpCandidate(value: string | null | undefined): string | 
   if (!value) return null
   const trimmed = value.trim()
   if (!trimmed) return null
+  const mappedIpv4 = parseIpv4MappedIpv6(trimmed)
+  if (mappedIpv4) return mappedIpv4
   return isValidIpAddress(trimmed) ? trimmed : null
+}
+
+function parseIpv4MappedIpv6(value: string): string | null {
+  if (!value.toLowerCase().startsWith("::ffff:")) return null
+  const mapped = value.slice("::ffff:".length)
+  return isValidIpv4(mapped) ? mapped : null
 }
 
 function isValidIpAddress(value: string): boolean {
