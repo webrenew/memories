@@ -7,6 +7,21 @@ import { parseBody, createInviteSchema } from "@/lib/validations"
 import { getTeamInviteExpiresAt } from "@/lib/team-invites"
 import { getAppUrl, hasResendApiKey } from "@/lib/env"
 
+function isUniqueViolation(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : ""
+  if (code === "23505") return true
+
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return message.includes("duplicate key")
+}
+
 // GET /api/orgs/[orgId]/invites - List pending invites
 export async function GET(
   request: Request,
@@ -183,6 +198,25 @@ export async function POST(
     return NextResponse.json({ error: "Invite already pending for this email" }, { status: 400 })
   }
 
+  const nowIso = new Date().toISOString()
+  const { error: cleanupError } = await supabase
+    .from("org_invites")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("email", email.toLowerCase())
+    .is("accepted_at", null)
+    .lte("expires_at", nowIso)
+
+  if (cleanupError) {
+    console.error("Failed to cleanup expired unaccepted invites before create:", {
+      error: cleanupError,
+      orgId,
+      email: email.toLowerCase(),
+      userId: user.id,
+    })
+    return NextResponse.json({ error: "Failed to create invite" }, { status: 500 })
+  }
+
   // Create invite
   const { data: invite, error } = await supabase
     .from("org_invites")
@@ -197,6 +231,32 @@ export async function POST(
     .single()
 
   if (error) {
+    if (isUniqueViolation(error)) {
+      const { data: concurrentInvite, error: concurrentInviteError } = await supabase
+        .from("org_invites")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("email", email.toLowerCase())
+        .is("accepted_at", null)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle()
+
+      if (concurrentInviteError) {
+        console.error("Failed to resolve concurrent invite create conflict:", {
+          error: concurrentInviteError,
+          orgId,
+          userId: user.id,
+          email: email.toLowerCase(),
+          role,
+        })
+        return NextResponse.json({ error: "Failed to create invite" }, { status: 500 })
+      }
+
+      if (concurrentInvite) {
+        return NextResponse.json({ error: "Invite already pending for this email" }, { status: 400 })
+      }
+    }
+
     console.error("Failed to create org invite row:", {
       error,
       orgId,

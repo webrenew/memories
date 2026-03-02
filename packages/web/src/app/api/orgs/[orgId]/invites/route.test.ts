@@ -411,6 +411,15 @@ describe("/api/orgs/[orgId]/invites POST", () => {
               }),
             }),
           })),
+          delete: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                is: vi.fn().mockReturnValue({
+                  lte: vi.fn().mockResolvedValue({ error: null }),
+                }),
+              }),
+            }),
+          })),
           insert: vi.fn(() => ({
             select: vi.fn(() => ({
               single: vi.fn().mockResolvedValue({

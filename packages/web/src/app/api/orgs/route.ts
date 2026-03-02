@@ -5,6 +5,23 @@ import { NextResponse } from "next/server"
 import { apiRateLimit, checkPreAuthApiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import { parseBody, createOrgSchema } from "@/lib/validations"
 
+const MAX_SLUG_INSERT_RETRIES = 10
+
+function isDuplicateSlugError(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : ""
+  if (code === "23505") return true
+
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return message.includes("duplicate key") && message.includes("slug")
+}
+
 // GET /api/orgs - List user's organizations
 export async function GET(request: Request): Promise<Response> {
   const preAuthRateLimited = await checkPreAuthApiRateLimit(request)
@@ -71,46 +88,46 @@ export async function POST(request: Request): Promise<Response> {
 
   // Generate slug from name
   const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-  let slug = baseSlug
+  let slug = baseSlug || "workspace"
   let counter = 1
 
-  // Check for slug uniqueness
-  while (true) {
-    const { data: existing, error: existingError } = await admin
-      .from("organizations")
-      .select("id")
-      .eq("slug", slug)
-      .maybeSingle()
+  let org: { id: string; name: string; slug: string } | null = null
+  let orgInsertError: unknown = null
 
-    if (existingError) {
-      console.error("Failed to verify organization slug uniqueness:", {
-        error: existingError,
+  for (let attempt = 0; attempt < MAX_SLUG_INSERT_RETRIES; attempt += 1) {
+    const response = await admin
+      .from("organizations")
+      .insert({
+        name,
         slug,
-        userId: auth.userId,
+        owner_id: auth.userId,
       })
-      return NextResponse.json({ error: "Failed to create organization" }, { status: 500 })
+      .select()
+      .single()
+
+    if (!response.error && response.data) {
+      org = response.data as { id: string; name: string; slug: string }
+      orgInsertError = null
+      break
     }
 
-    if (!existing) break
-    slug = `${baseSlug}-${counter++}`
+    if (isDuplicateSlugError(response.error)) {
+      slug = `${baseSlug || "workspace"}-${counter++}`
+      orgInsertError = response.error
+      continue
+    }
+
+    orgInsertError = response.error
+    break
   }
 
-  // Create organization
-  const { data: org, error: orgError } = await admin
-    .from("organizations")
-    .insert({
-      name,
-      slug,
-      owner_id: auth.userId,
-    })
-    .select()
-    .single()
-
-  if (orgError) {
+  if (!org) {
     console.error("Failed to create organization:", {
-      error: orgError,
+      error: orgInsertError,
       userId: auth.userId,
       orgName: name.trim(),
+      slug,
+      retries: MAX_SLUG_INSERT_RETRIES,
     })
     return NextResponse.json({ error: "Failed to create organization" }, { status: 500 })
   }

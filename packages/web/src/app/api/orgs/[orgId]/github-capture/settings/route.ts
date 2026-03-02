@@ -264,12 +264,12 @@ export async function PATCH(
         .single()
     : await supabase
         .from("github_capture_settings")
-        .insert({
+        .upsert({
           target_owner_type: "organization",
           target_org_id: orgId,
           target_user_id: null,
           ...writePayload,
-        })
+        }, { onConflict: "target_owner_type,target_org_id" })
         .select(SETTINGS_SELECT)
         .single()
 
@@ -287,7 +287,7 @@ export async function PATCH(
       error: response.error,
       orgId,
       userId: user.id,
-      method: existingRow ? "PATCH:update" : "PATCH:insert",
+      method: existingRow ? "PATCH:update" : "PATCH:upsert",
       updatedFields: Object.keys(updates).sort(),
     })
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 })

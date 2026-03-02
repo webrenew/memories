@@ -200,12 +200,12 @@ export async function PATCH(request: Request): Promise<Response> {
         .single()
     : await supabase
         .from("github_capture_settings")
-        .insert({
+        .upsert({
           target_owner_type: "user",
           target_user_id: user.id,
           target_org_id: null,
           ...writePayload,
-        })
+        }, { onConflict: "target_owner_type,target_user_id" })
         .select(SETTINGS_SELECT)
         .single()
 
