@@ -1,4 +1,5 @@
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { extractBearerToken, parseRetryAfterSeconds } from "@/lib/http-headers"
 import { hashMcpApiKey, isValidMcpApiKey } from "@/lib/mcp-api-key"
 import { resolveApiKeyOwnerByHash } from "@/lib/mcp-api-key-store"
 import { checkRateLimit, mcpRateLimit } from "@/lib/rate-limit"
@@ -94,11 +95,7 @@ export function legacyErrorResponse(
 }
 
 export function getApiKey(request: NextRequest): string | null {
-  const authHeader = request.headers.get("authorization")
-  if (!authHeader?.startsWith("Bearer ")) {
-    return null
-  }
-  return authHeader.slice(7)
+  return extractBearerToken(request.headers.get("authorization"))
 }
 
 export async function authenticateApiKey(
@@ -123,7 +120,7 @@ export async function authenticateApiKey(
   const apiKeyHash = hashMcpApiKey(apiKey)
   const rateLimited = await checkRateLimit(mcpRateLimit, apiKeyHash)
   if (rateLimited) {
-    const retryAfter = Number(rateLimited.headers.get("Retry-After") ?? "60")
+    const retryAfter = parseRetryAfterSeconds(rateLimited.headers.get("Retry-After"), 60)
     return errorResponse(
       endpoint,
       requestId,
@@ -134,7 +131,7 @@ export async function authenticateApiKey(
         status: 429,
         retryable: true,
         details: {
-          retryAfterSeconds: Number.isFinite(retryAfter) ? retryAfter : 60,
+          retryAfterSeconds: retryAfter,
         },
       })
     )
