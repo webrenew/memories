@@ -162,5 +162,11 @@ export async function POST(request: Request): Promise<Response> {
     },
   })
 
-  return NextResponse.json({ organization: org }, { status: 201 })
+  return NextResponse.json(
+    {
+      organization: org,
+      upgradeUrl: "/app/upgrade?plan=growth&source=org-created",
+    },
+    { status: 201 }
+  )
 }
