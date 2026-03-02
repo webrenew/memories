@@ -31,8 +31,10 @@ export function RulesSection({ initialRules }: { initialRules: Memory[] }): Reac
     setRules((prev) => prev.filter((rule) => rule.id !== id))
   }
 
-  const handleUpdateRule = (id: string, content: string) => {
-    setRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, content } : rule)))
+  const handleUpdateRule = (id: string, content: string, updatedAt: string) => {
+    setRules((prev) =>
+      prev.map((rule) => (rule.id === id ? { ...rule, content, updated_at: updatedAt } : rule))
+    )
   }
 
   // Get unique projects with counts (using project_id, not scope)

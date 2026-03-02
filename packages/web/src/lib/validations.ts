@@ -39,6 +39,7 @@ export const createMemorySchema = z.object({
 export const updateMemorySchema = z.object({
   id: z.string().min(1, "Memory ID required"),
   content: z.string().min(1, "Content required").optional(),
+  expectedUpdatedAt: z.string().datetime().optional(),
   tags: z.string().nullable().optional(),
   type: memoryTypeEnum.optional(),
   paths: z.string().nullable().optional(),
@@ -100,6 +101,7 @@ export const acceptInviteSchema = z.object({
 export const checkoutSchema = z.object({
   billing: z.enum(["monthly", "annual"]).catch("annual"),
   plan: z.enum(["individual", "team", "growth"]).optional(),
+  requestId: z.string().uuid().optional(),
 })
 
 // --- User Profile ---

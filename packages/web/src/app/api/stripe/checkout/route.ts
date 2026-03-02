@@ -138,7 +138,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const parsed = parseBody(checkoutSchema, await request.json().catch(() => ({})))
   if (!parsed.success) return parsed.response
-  const { billing } = parsed.data
+  const { billing, requestId } = parsed.data
 
   const defaultPlan: StripeCheckoutPlan = workspace.ownerType === "organization" ? "team" : "individual"
   const requestedPlan = parsed.data.plan ?? defaultPlan
@@ -228,7 +228,11 @@ export async function POST(request: Request): Promise<Response> {
     }
     sessionPayload.subscription_data = { metadata: subscriptionMetadata }
 
-    const session = await getStripe().checkout.sessions.create(sessionPayload)
+    const session = requestId
+      ? await getStripe().checkout.sessions.create(sessionPayload, {
+          idempotencyKey: `checkout_${auth.userId}_${requestId}`,
+        })
+      : await getStripe().checkout.sessions.create(sessionPayload)
 
     return NextResponse.json({ url: session.url })
   } catch (error) {

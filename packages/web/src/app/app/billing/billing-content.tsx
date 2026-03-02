@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
@@ -110,6 +110,7 @@ export function BillingContent({
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
   const [deleting, setDeleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const checkoutInFlightRef = useRef(false)
   const isPaidPlan = isPaidWorkspacePlan(plan)
   const isPastDue = plan === "past_due"
   const isOrgWorkspace = ownerType === "organization"
@@ -171,10 +172,12 @@ export function BillingContent({
   }
 
   async function handleUpgrade(planChoice: "individual" | "team" | "growth", billing: "monthly" | "annual") {
-    if (!canManageBilling) return
+    if (!canManageBilling || checkoutInFlightRef.current) return
 
+    checkoutInFlightRef.current = true
     setLoading(true)
     setActionError(null)
+    const requestId = crypto.randomUUID()
     const startedAt = performance.now()
     recordClientWorkflowEvent({
       workflow: "billing_checkout",
@@ -185,7 +188,7 @@ export function BillingContent({
       const res = await fetch("/api/stripe/checkout", { 
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ billing, plan: planChoice }),
+        body: JSON.stringify({ billing, plan: planChoice, requestId }),
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
@@ -219,6 +222,7 @@ export function BillingContent({
         details: { billing, plan: planChoice },
       })
     } finally {
+      checkoutInFlightRef.current = false
       setLoading(false)
     }
   }

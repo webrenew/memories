@@ -95,9 +95,9 @@ export function MemoriesSection({
     setMemories((prev) => prev.filter((memory) => memory.id !== id))
   }
 
-  const handleUpdateMemory = (id: string, content: string) => {
+  const handleUpdateMemory = (id: string, content: string, updatedAt: string) => {
     setMemories((prev) =>
-      prev.map((memory) => (memory.id === id ? { ...memory, content } : memory))
+      prev.map((memory) => (memory.id === id ? { ...memory, content, updated_at: updatedAt } : memory))
     )
   }
 
