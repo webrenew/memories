@@ -19,6 +19,7 @@
     },
     "onlyBuiltDependencies": [
       "esbuild",
+      "@sentry/cli",
       "sharp",
       "protobufjs",
       "unrs-resolver"
