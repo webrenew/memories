@@ -61,6 +61,21 @@ function isMissingTableError(error: unknown, tableName: string): boolean {
   )
 }
 
+function isMissingFunctionError(error: unknown, functionName: string): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+  const fn = functionName.toLowerCase()
+
+  return (
+    message.includes(fn) &&
+    (message.includes("does not exist") ||
+      message.includes("function") ||
+      message.includes("could not find"))
+  )
+}
+
 function workspaceCacheBustKey(userId: string): string {
   return `${userId}:${Date.now()}`
 }
@@ -204,70 +219,96 @@ export async function PATCH(request: Request): Promise<Response> {
     ? (parsed.data.current_org_id as string | null)
     : null
 
+  let switchApplied = false
+
   if (switchRequested) {
-    const nextOrgId = parsed.data.current_org_id
+    const { data: switchResult, error: switchError } = await admin.rpc("switch_user_workspace_atomic", {
+      p_user_id: auth.userId,
+      p_next_org_id: switchToOrgId,
+    })
 
-    if (nextOrgId == null) {
-      updates.current_org_id = null
-    } else if (typeof nextOrgId === "string") {
-      const { data: membership, error: membershipError } = await admin
-        .from("org_members")
-        .select("id")
-        .eq("org_id", nextOrgId)
-        .eq("user_id", auth.userId)
-        .maybeSingle()
-
-      if (membershipError) {
-        if (switchStartedAt !== null) {
-          await recordWorkspaceSwitchEvent(admin, {
-            userId: auth.userId,
-            fromOrgId: switchFromOrgId,
-            toOrgId: switchToOrgId,
-            durationMs: Date.now() - switchStartedAt,
-            success: false,
-            errorCode: "membership_lookup_failed",
-          })
-        }
-
-        console.error("Workspace switch membership lookup failed:", {
-          error: membershipError,
-          userId: auth.userId,
-          fromOrgId: switchFromOrgId,
-          toOrgId: switchToOrgId,
-        })
-        return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
-      }
-
-      if (!membership) {
-        if (switchStartedAt !== null) {
-          await recordWorkspaceSwitchEvent(admin, {
-            userId: auth.userId,
-            fromOrgId: switchFromOrgId,
-            toOrgId: switchToOrgId,
-            durationMs: Date.now() - switchStartedAt,
-            success: false,
-            errorCode: "membership_denied",
-          })
-        }
-
+    if (switchError) {
+      if (isMissingFunctionError(switchError, "switch_user_workspace_atomic")) {
         return NextResponse.json(
-          { error: "You are not a member of that organization" },
-          { status: 403 }
+          { error: "Workspace switching is not available yet. Run the latest database migration first." },
+          { status: 503 }
         )
       }
 
-      updates.current_org_id = nextOrgId
+      if (switchStartedAt !== null) {
+        await recordWorkspaceSwitchEvent(admin, {
+          userId: auth.userId,
+          fromOrgId: switchFromOrgId,
+          toOrgId: switchToOrgId,
+          durationMs: Date.now() - switchStartedAt,
+          success: false,
+          errorCode: "switch_rpc_failed",
+        })
+      }
+
+      console.error("Workspace switch RPC failed:", {
+        error: switchError,
+        userId: auth.userId,
+        fromOrgId: switchFromOrgId,
+        toOrgId: switchToOrgId,
+      })
+      return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
     }
+
+    if (switchResult === "membership_denied") {
+      if (switchStartedAt !== null) {
+        await recordWorkspaceSwitchEvent(admin, {
+          userId: auth.userId,
+          fromOrgId: switchFromOrgId,
+          toOrgId: switchToOrgId,
+          durationMs: Date.now() - switchStartedAt,
+          success: false,
+          errorCode: "membership_denied",
+        })
+      }
+
+      return NextResponse.json(
+        { error: "You are not a member of that organization" },
+        { status: 403 }
+      )
+    }
+
+    if (switchResult !== "updated") {
+      if (switchStartedAt !== null) {
+        await recordWorkspaceSwitchEvent(admin, {
+          userId: auth.userId,
+          fromOrgId: switchFromOrgId,
+          toOrgId: switchToOrgId,
+          durationMs: Date.now() - switchStartedAt,
+          success: false,
+          errorCode: "switch_update_failed",
+        })
+      }
+
+      console.error("Workspace switch RPC returned unexpected state:", {
+        userId: auth.userId,
+        fromOrgId: switchFromOrgId,
+        toOrgId: switchToOrgId,
+        result: switchResult,
+      })
+      return NextResponse.json({ error: "Failed to update user" }, { status: 500 })
+    }
+
+    switchApplied = true
   }
 
-  if (Object.keys(updates).length === 0) {
+  if (Object.keys(updates).length === 0 && !switchApplied) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
   }
 
-  const { error } = await admin
-    .from("users")
-    .update(updates)
-    .eq("id", auth.userId)
+  let error: unknown = null
+  if (Object.keys(updates).length > 0) {
+    const response = await admin
+      .from("users")
+      .update(updates)
+      .eq("id", auth.userId)
+    error = response.error
+  }
 
   if (error) {
     if (

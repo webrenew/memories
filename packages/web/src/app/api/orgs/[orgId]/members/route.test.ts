@@ -4,6 +4,7 @@ const {
   mockGetUser,
   mockSupabaseFrom,
   mockAdminFrom,
+  mockAdminRpc,
   mockAdminListUsers,
   mockAdminGetUserById,
   mockTursoExecute,
@@ -12,6 +13,7 @@ const {
   mockGetUser: vi.fn(),
   mockSupabaseFrom: vi.fn(),
   mockAdminFrom: vi.fn(),
+  mockAdminRpc: vi.fn(),
   mockAdminListUsers: vi.fn(),
   mockAdminGetUserById: vi.fn(),
   mockTursoExecute: vi.fn(),
@@ -30,6 +32,7 @@ vi.mock("@/lib/supabase/server", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
     from: mockAdminFrom,
+    rpc: mockAdminRpc,
     auth: {
       admin: {
         listUsers: mockAdminListUsers,
@@ -739,25 +742,9 @@ describe("/api/orgs/[orgId]/members PATCH", () => {
   })
 
   it("returns 500 when actor membership lookup fails", async () => {
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: { message: "DB read failed" },
-                }),
-              }),
-            }),
-          })),
-        }
-      }
-
-      return {
-        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
-      }
+    mockAdminRpc.mockResolvedValue({
+      data: null,
+      error: { message: "DB read failed" },
     })
 
     const response = await PATCH(
@@ -776,30 +763,9 @@ describe("/api/orgs/[orgId]/members PATCH", () => {
   })
 
   it("returns 500 when target membership lookup fails", async () => {
-    let membershipLookupCount = 0
-
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockImplementation(async () => {
-                  membershipLookupCount += 1
-                  if (membershipLookupCount === 1) {
-                    return { data: { role: "owner" }, error: null }
-                  }
-                  return { data: null, error: { message: "DB read failed" } }
-                }),
-              }),
-            }),
-          })),
-        }
-      }
-
-      return {
-        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
-      }
+    mockAdminRpc.mockResolvedValue({
+      data: { status: "target_not_member" },
+      error: null,
     })
 
     const response = await PATCH(
@@ -811,44 +777,16 @@ describe("/api/orgs/[orgId]/members PATCH", () => {
       { params: Promise.resolve({ orgId: "org-1" }) },
     )
 
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(404)
     await expect(response.json()).resolves.toMatchObject({
-      error: "Failed to update member role",
+      error: "User is not a member",
     })
   })
 
   it("returns 500 when role update fails", async () => {
-    let membershipLookupCount = 0
-
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockImplementation(async () => {
-                  membershipLookupCount += 1
-                  if (membershipLookupCount === 1) {
-                    return { data: { role: "owner" }, error: null }
-                  }
-                  return { data: { role: "member" }, error: null }
-                }),
-              }),
-            }),
-          })),
-          update: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({
-                error: { message: "DB write failed" },
-              }),
-            }),
-          })),
-        }
-      }
-
-      return {
-        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
-      }
+    mockAdminRpc.mockResolvedValue({
+      data: { status: "unexpected_state" },
+      error: null,
     })
 
     const response = await PATCH(

@@ -57,6 +57,25 @@ vi.mock("@/lib/env", () => ({
 
 import { POST } from "../route"
 
+function buildProvisionLockTableMock() {
+  return {
+    delete: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        lt: vi.fn().mockResolvedValue({ error: null }),
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    }),
+    insert: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({
+          data: { owner_key: "org:org-1" },
+          error: null,
+        }),
+      }),
+    }),
+  }
+}
+
 describe("/api/db/provision", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -119,6 +138,9 @@ describe("/api/db/provision", () => {
     const mockOrgEq = vi.fn().mockResolvedValue({ error: null })
     const mockOrgUpdate = vi.fn().mockReturnValue({ eq: mockOrgEq })
     mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "workspace_db_provision_locks") {
+        return buildProvisionLockTableMock()
+      }
       if (table === "organizations") {
         return { update: mockOrgUpdate }
       }
@@ -169,6 +191,9 @@ describe("/api/db/provision", () => {
     })
 
     mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "workspace_db_provision_locks") {
+        return buildProvisionLockTableMock()
+      }
       if (table === "organizations") {
         return {
           update: vi.fn().mockReturnValue({

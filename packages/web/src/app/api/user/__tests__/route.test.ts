@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const {
   mockAuthenticateRequest,
   mockAdminFrom,
+  mockAdminRpc,
   mockCheckRateLimit,
   mockCheckPreAuthApiRateLimit,
 } = vi.hoisted(() => ({
   mockAuthenticateRequest: vi.fn(),
   mockAdminFrom: vi.fn(),
+  mockAdminRpc: vi.fn(),
   mockCheckRateLimit: vi.fn(),
   mockCheckPreAuthApiRateLimit: vi.fn(),
 }))
@@ -19,6 +21,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
     from: mockAdminFrom,
+    rpc: mockAdminRpc,
   })),
 }))
 
@@ -114,20 +117,9 @@ describe("/api/user", () => {
     it("returns 403 when switching to an org the user is not a member of", async () => {
       mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
       const mockInsertSwitchEvent = vi.fn().mockResolvedValue({ error: null })
+      mockAdminRpc.mockResolvedValue({ data: "membership_denied", error: null })
 
       mockAdminFrom.mockImplementation((table: string) => {
-        if (table === "org_members") {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-                }),
-              }),
-            }),
-          }
-        }
-
         if (table === "users") {
           return {
             select: vi.fn().mockReturnValue({
@@ -162,26 +154,12 @@ describe("/api/user", () => {
       )
     })
 
-    it("returns 500 when workspace switch membership lookup fails", async () => {
+    it("returns 500 when workspace switch RPC fails", async () => {
       mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
       const mockInsertSwitchEvent = vi.fn().mockResolvedValue({ error: null })
+      mockAdminRpc.mockResolvedValue({ data: null, error: { message: "DB read failed" } })
 
       mockAdminFrom.mockImplementation((table: string) => {
-        if (table === "org_members") {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: null,
-                    error: { message: "DB read failed" },
-                  }),
-                }),
-              }),
-            }),
-          }
-        }
-
         if (table === "users") {
           return {
             select: vi.fn().mockReturnValue({
@@ -214,32 +192,18 @@ describe("/api/user", () => {
           from_org_id: null,
           to_org_id: "org-1",
           success: false,
-          error_code: "membership_lookup_failed",
+          error_code: "switch_rpc_failed",
         }),
       )
     })
 
     it("updates current_org_id when membership is valid", async () => {
       mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
-
-      const mockUpdate = vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      })
+      mockAdminRpc.mockResolvedValue({ data: "updated", error: null })
+      const mockUpdate = vi.fn()
       const mockInsertSwitchEvent = vi.fn().mockResolvedValue({ error: null })
 
       mockAdminFrom.mockImplementation((table: string) => {
-        if (table === "org_members") {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({ data: { id: "membership-1" }, error: null }),
-                }),
-              }),
-            }),
-          }
-        }
-
         if (table === "users") {
           return {
             select: vi.fn().mockReturnValue({
@@ -264,7 +228,7 @@ describe("/api/user", () => {
       expect(response.status).toBe(200)
       expect(body.ok).toBe(true)
       expect(typeof body.workspace_cache_bust_key).toBe("string")
-      expect(mockUpdate).toHaveBeenCalledWith({ current_org_id: "org-1" })
+      expect(mockUpdate).not.toHaveBeenCalled()
       expect(mockInsertSwitchEvent).toHaveBeenCalledTimes(1)
       expect(mockInsertSwitchEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -277,10 +241,9 @@ describe("/api/user", () => {
 
     it("allows clearing current_org_id", async () => {
       mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "u@example.com" })
+      mockAdminRpc.mockResolvedValue({ data: "updated", error: null })
 
-      const mockUpdate = vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      })
+      const mockUpdate = vi.fn()
       const mockInsertSwitchEvent = vi.fn().mockResolvedValue({ error: null })
 
       mockAdminFrom.mockImplementation((table: string) => {
@@ -304,7 +267,7 @@ describe("/api/user", () => {
       const body = await response.json()
       expect(response.status).toBe(200)
       expect(typeof body.workspace_cache_bust_key).toBe("string")
-      expect(mockUpdate).toHaveBeenCalledWith({ current_org_id: null })
+      expect(mockUpdate).not.toHaveBeenCalled()
       expect(mockInsertSwitchEvent).toHaveBeenCalledTimes(1)
       expect(mockInsertSwitchEvent).toHaveBeenCalledWith(
         expect.objectContaining({

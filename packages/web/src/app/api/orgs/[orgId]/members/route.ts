@@ -73,6 +73,21 @@ function buildGravatarUrl(email: string): string {
   return `https://www.gravatar.com/avatar/${hash}?d=identicon&s=96`
 }
 
+function isMissingFunctionError(error: unknown, functionName: string): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+  const fn = functionName.toLowerCase()
+
+  return (
+    message.includes(fn) &&
+    (message.includes("does not exist") ||
+      message.includes("function") ||
+      message.includes("could not find"))
+  )
+}
+
 function isMissingColumnError(error: unknown, columnName: string): boolean {
   const message =
     typeof error === "object" && error !== null && "message" in error
@@ -495,17 +510,24 @@ export async function PATCH(
   if (!parsed.success) return parsed.response
   const { userId, role } = parsed.data
 
-  // Check current user is owner or admin
-  const { data: currentMembership, error: currentMembershipError } = await supabase
-    .from("org_members")
-    .select("role")
-    .eq("org_id", orgId)
-    .eq("user_id", user.id)
-    .single()
+  const admin = createAdminClient()
+  const { data: roleUpdateResult, error: roleUpdateError } = await admin.rpc("update_org_member_role_atomic", {
+    p_org_id: orgId,
+    p_actor_user_id: user.id,
+    p_target_user_id: userId,
+    p_next_role: role,
+  })
 
-  if (currentMembershipError) {
-    console.error("Failed to verify acting membership before updating org member role:", {
-      error: currentMembershipError,
+  if (roleUpdateError) {
+    if (isMissingFunctionError(roleUpdateError, "update_org_member_role_atomic")) {
+      return NextResponse.json(
+        { error: "Member role updates are not available yet. Run the latest database migration first." },
+        { status: 503 }
+      )
+    }
+
+    console.error("Failed to update org member role atomically:", {
+      error: roleUpdateError,
       orgId,
       actorUserId: user.id,
       targetUserId: userId,
@@ -514,57 +536,45 @@ export async function PATCH(
     return NextResponse.json({ error: "Failed to update member role" }, { status: 500 })
   }
 
-  if (!currentMembership || !["owner", "admin"].includes(currentMembership.role)) {
+  const result =
+    typeof roleUpdateResult === "object" && roleUpdateResult !== null
+      ? (roleUpdateResult as { status?: string; previous_role?: string | null; updated?: boolean })
+      : null
+  const resultStatus = result?.status ?? null
+
+  if (resultStatus === "insufficient_permissions") {
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
   }
 
-  // Can't change owner's role
-  const { data: targetMembership, error: targetMembershipError } = await supabase
-    .from("org_members")
-    .select("role")
-    .eq("org_id", orgId)
-    .eq("user_id", userId)
-    .single()
-
-  if (targetMembershipError) {
-    console.error("Failed to verify target membership before updating org member role:", {
-      error: targetMembershipError,
-      orgId,
-      actorUserId: user.id,
-      targetUserId: userId,
-      targetRole: role,
-    })
-    return NextResponse.json({ error: "Failed to update member role" }, { status: 500 })
-  }
-
-  if (!targetMembership) {
+  if (resultStatus === "target_not_member") {
     return NextResponse.json({ error: "User is not a member" }, { status: 404 })
   }
 
-  if (targetMembership.role === "owner") {
+  if (resultStatus === "target_is_owner") {
     return NextResponse.json({ error: "Cannot change owner's role" }, { status: 400 })
   }
 
-  // Only owner can promote to admin
-  if (role === "admin" && currentMembership.role !== "owner") {
+  if (resultStatus === "owner_required") {
     return NextResponse.json({ error: "Only owner can promote to admin" }, { status: 403 })
   }
 
-  const { error } = await supabase
-    .from("org_members")
-    .update({ role })
-    .eq("org_id", orgId)
-    .eq("user_id", userId)
+  if (resultStatus === "invalid_role") {
+    return NextResponse.json({ error: "Invalid role" }, { status: 400 })
+  }
 
-  if (error) {
-    console.error("Failed to update org member role row:", {
-      error,
+  if (resultStatus !== "updated" && resultStatus !== "unchanged") {
+    console.error("Unexpected org member role update result:", {
       orgId,
       actorUserId: user.id,
       targetUserId: userId,
       targetRole: role,
+      result: roleUpdateResult,
     })
     return NextResponse.json({ error: "Failed to update member role" }, { status: 500 })
+  }
+
+  if (resultStatus === "unchanged") {
+    return NextResponse.json({ success: true })
   }
 
   await logOrgAuditEvent({
@@ -576,7 +586,7 @@ export async function PATCH(
     targetId: userId,
     targetLabel: userId,
     metadata: {
-      previousRole: targetMembership.role,
+      previousRole: result?.previous_role ?? null,
       nextRole: role,
     },
   })
