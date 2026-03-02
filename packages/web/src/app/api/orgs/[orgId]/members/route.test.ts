@@ -605,25 +605,9 @@ describe("/api/orgs/[orgId]/members DELETE", () => {
   })
 
   it("returns 500 when actor membership lookup fails", async () => {
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: { message: "DB read failed" },
-                }),
-              }),
-            }),
-          })),
-        }
-      }
-
-      return {
-        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
-      }
+    mockAdminRpc.mockResolvedValue({
+      data: null,
+      error: { message: "DB read failed" },
     })
 
     const response = await DELETE(
@@ -637,31 +621,10 @@ describe("/api/orgs/[orgId]/members DELETE", () => {
     })
   })
 
-  it("returns 500 when target membership lookup fails", async () => {
-    let membershipLookupCount = 0
-
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockImplementation(async () => {
-                  membershipLookupCount += 1
-                  if (membershipLookupCount === 1) {
-                    return { data: { role: "owner" }, error: null }
-                  }
-                  return { data: null, error: { message: "DB read failed" } }
-                }),
-              }),
-            }),
-          })),
-        }
-      }
-
-      return {
-        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
-      }
+  it("returns 404 when target membership is missing", async () => {
+    mockAdminRpc.mockResolvedValue({
+      data: { status: "target_not_member" },
+      error: null,
     })
 
     const response = await DELETE(
@@ -669,57 +632,16 @@ describe("/api/orgs/[orgId]/members DELETE", () => {
       { params: Promise.resolve({ orgId: "org-1" }) },
     )
 
-    expect(response.status).toBe(500)
+    expect(response.status).toBe(404)
     await expect(response.json()).resolves.toMatchObject({
-      error: "Failed to remove member",
+      error: "User is not a member",
     })
   })
 
   it("returns 500 when member deletion fails", async () => {
-    let membershipLookupCount = 0
-
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockImplementation(async () => {
-                  membershipLookupCount += 1
-                  if (membershipLookupCount === 1) {
-                    return { data: { role: "owner" }, error: null }
-                  }
-                  return { data: { role: "member" }, error: null }
-                }),
-              }),
-            }),
-          })),
-          delete: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({
-                error: { message: "DB write failed" },
-              }),
-            }),
-          })),
-        }
-      }
-
-      if (table === "organizations") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: { stripe_subscription_id: null },
-                error: null,
-              }),
-            }),
-          })),
-        }
-      }
-
-      return {
-        select: vi.fn(() => ({ eq: vi.fn(), single: vi.fn() })),
-      }
+    mockAdminRpc.mockResolvedValue({
+      data: { status: "unexpected_state" },
+      error: null,
     })
 
     const response = await DELETE(

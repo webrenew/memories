@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const {
   mockGetUser,
   mockFrom,
+  mockAdminRpc,
   mockCheckRateLimit,
 } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
   mockFrom: vi.fn(),
+  mockAdminRpc: vi.fn(),
   mockCheckRateLimit: vi.fn(),
 }))
 
@@ -24,6 +26,12 @@ vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: mockCheckRateLimit,
 }))
 
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(() => ({
+    rpc: mockAdminRpc,
+  })),
+}))
+
 import { DELETE, GET, PATCH } from "./route"
 
 describe("/api/orgs/[orgId] PATCH", () => {
@@ -34,20 +42,7 @@ describe("/api/orgs/[orgId] PATCH", () => {
   })
 
   it("blocks admins from changing domain auto-join settings", async () => {
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { role: "admin" }, error: null }),
-              }),
-            }),
-          })),
-        }
-      }
-      return {}
-    })
+    mockAdminRpc.mockResolvedValue({ data: "owner_required", error: null })
 
     const response = await PATCH(
       new Request("https://example.com/api/orgs/org-1", {
@@ -64,23 +59,10 @@ describe("/api/orgs/[orgId] PATCH", () => {
     })
   })
 
-  it("returns 500 when membership lookup fails", async () => {
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: { message: "DB read failed" },
-                }),
-              }),
-            }),
-          })),
-        }
-      }
-      return {}
+  it("returns 500 when settings RPC fails", async () => {
+    mockAdminRpc.mockResolvedValue({
+      data: null,
+      error: { message: "DB write failed" },
     })
 
     const response = await PATCH(
@@ -99,36 +81,7 @@ describe("/api/orgs/[orgId] PATCH", () => {
   })
 
   it("returns 500 when organization update fails", async () => {
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { role: "owner" }, error: null }),
-              }),
-            }),
-          })),
-        }
-      }
-
-      if (table === "organizations") {
-        return {
-          update: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: { message: "DB write failed", code: "XX000" },
-                }),
-              }),
-            }),
-          })),
-        }
-      }
-
-      return {}
-    })
+    mockAdminRpc.mockResolvedValue({ data: "unexpected_state", error: null })
 
     const response = await PATCH(
       new Request("https://example.com/api/orgs/org-1", {
@@ -146,38 +99,7 @@ describe("/api/orgs/[orgId] PATCH", () => {
   })
 
   it("requires a domain before enabling auto-join", async () => {
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { role: "owner" }, error: null }),
-              }),
-            }),
-          })),
-        }
-      }
-
-      if (table === "organizations") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: {
-                  plan: "team",
-                  domain_auto_join_enabled: false,
-                  domain_auto_join_domain: null,
-                },
-                error: null,
-              }),
-            }),
-          })),
-        }
-      }
-
-      return {}
-    })
+    mockAdminRpc.mockResolvedValue({ data: "domain_required", error: null })
 
     const response = await PATCH(
       new Request("https://example.com/api/orgs/org-1", {
@@ -195,49 +117,24 @@ describe("/api/orgs/[orgId] PATCH", () => {
   })
 
   it("normalizes the domain when owner updates settings", async () => {
-    const mockUpdate = vi.fn(() => ({
-      eq: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: {
-              id: "org-1",
-              domain_auto_join_enabled: true,
-              domain_auto_join_domain: "webrenew.io",
-            },
-            error: null,
-          }),
-        }),
-      }),
-    }))
+    mockAdminRpc.mockResolvedValue({ data: "updated", error: null })
 
     mockFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { role: "owner" }, error: null }),
-              }),
-            }),
-          })),
-        }
-      }
-
       if (table === "organizations") {
         return {
           select: vi.fn(() => ({
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
                 data: {
+                  id: "org-1",
                   plan: "team",
-                  domain_auto_join_enabled: false,
-                  domain_auto_join_domain: null,
+                  domain_auto_join_enabled: true,
+                  domain_auto_join_domain: "webrenew.io",
                 },
                 error: null,
               }),
             }),
           })),
-          update: mockUpdate,
         }
       }
 
@@ -257,58 +154,36 @@ describe("/api/orgs/[orgId] PATCH", () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockUpdate).toHaveBeenCalledWith(
+    expect(mockAdminRpc).toHaveBeenCalledWith(
+      "update_org_settings_atomic",
       expect.objectContaining({
-        domain_auto_join_enabled: true,
-        domain_auto_join_domain: "webrenew.io",
-      }),
+        p_domain_auto_join_enabled: true,
+        p_set_domain_auto_join_enabled: true,
+        p_domain_auto_join_domain: "webrenew.io",
+        p_set_domain_auto_join_domain: true,
+      })
     )
   })
 
   it("activates auto-join when saving a new domain even if enabled=false was sent", async () => {
-    const mockUpdate = vi.fn(() => ({
-      eq: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: {
-              id: "org-1",
-              domain_auto_join_enabled: true,
-              domain_auto_join_domain: "webrenew.io",
-            },
-            error: null,
-          }),
-        }),
-      }),
-    }))
+    mockAdminRpc.mockResolvedValue({ data: "updated", error: null })
 
     mockFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { role: "owner" }, error: null }),
-              }),
-            }),
-          })),
-        }
-      }
-
       if (table === "organizations") {
         return {
           select: vi.fn(() => ({
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
                 data: {
+                  id: "org-1",
                   plan: "team",
-                  domain_auto_join_enabled: false,
-                  domain_auto_join_domain: null,
+                  domain_auto_join_enabled: true,
+                  domain_auto_join_domain: "webrenew.io",
                 },
                 error: null,
               }),
             }),
           })),
-          update: mockUpdate,
         }
       }
 
@@ -328,47 +203,19 @@ describe("/api/orgs/[orgId] PATCH", () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockUpdate).toHaveBeenCalledWith(
+    expect(mockAdminRpc).toHaveBeenCalledWith(
+      "update_org_settings_atomic",
       expect.objectContaining({
-        domain_auto_join_enabled: true,
-        domain_auto_join_domain: "webrenew.io",
-      }),
+        p_domain_auto_join_enabled: false,
+        p_set_domain_auto_join_enabled: true,
+        p_domain_auto_join_domain: "webrenew.io",
+        p_set_domain_auto_join_domain: true,
+      })
     )
   })
 
   it("returns upgrade-required when enabling domain auto-join on free plan", async () => {
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { role: "owner" }, error: null }),
-              }),
-            }),
-          })),
-        }
-      }
-
-      if (table === "organizations") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: {
-                  plan: "free",
-                  domain_auto_join_enabled: false,
-                  domain_auto_join_domain: null,
-                },
-                error: null,
-              }),
-            }),
-          })),
-        }
-      }
-
-      return {}
-    })
+    mockAdminRpc.mockResolvedValue({ data: "team_plan_required", error: null })
 
     const response = await PATCH(
       new Request("https://example.com/api/orgs/org-1", {
@@ -477,23 +324,10 @@ describe("/api/orgs/[orgId] DELETE", () => {
     mockCheckRateLimit.mockResolvedValue(null)
   })
 
-  it("returns 500 when ownership lookup fails", async () => {
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: null,
-                  error: { message: "DB read failed" },
-                }),
-              }),
-            }),
-          })),
-        }
-      }
-      return {}
+  it("returns 500 when delete RPC fails", async () => {
+    mockAdminRpc.mockResolvedValue({
+      data: null,
+      error: { message: "DB read failed" },
     })
 
     const response = await DELETE(
@@ -508,34 +342,7 @@ describe("/api/orgs/[orgId] DELETE", () => {
   })
 
   it("returns 500 when organization deletion fails", async () => {
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "org_members") {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: { role: "owner" },
-                  error: null,
-                }),
-              }),
-            }),
-          })),
-        }
-      }
-
-      if (table === "organizations") {
-        return {
-          delete: vi.fn(() => ({
-            eq: vi.fn().mockResolvedValue({
-              error: { message: "DB write failed" },
-            }),
-          })),
-        }
-      }
-
-      return {}
-    })
+    mockAdminRpc.mockResolvedValue({ data: "unexpected_state", error: null })
 
     const response = await DELETE(
       new Request("https://example.com/api/orgs/org-1", { method: "DELETE" }),

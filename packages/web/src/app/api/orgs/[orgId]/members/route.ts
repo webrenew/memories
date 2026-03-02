@@ -362,6 +362,7 @@ export async function DELETE(
   }
 
   const supabase = await createClient()
+  const admin = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
@@ -371,17 +372,22 @@ export async function DELETE(
   const rateLimited = await checkRateLimit(apiRateLimit, user.id)
   if (rateLimited) return rateLimited
 
-  // Check current user's role
-  const { data: currentMembership, error: currentMembershipError } = await supabase
-    .from("org_members")
-    .select("role")
-    .eq("org_id", orgId)
-    .eq("user_id", user.id)
-    .single()
+  const { data: memberRemoveResult, error: memberRemoveError } = await admin.rpc("remove_org_member_atomic", {
+    p_org_id: orgId,
+    p_actor_user_id: user.id,
+    p_target_user_id: targetUserId,
+  })
 
-  if (currentMembershipError) {
-    console.error("Failed to verify acting membership before removing org member:", {
-      error: currentMembershipError,
+  if (memberRemoveError) {
+    if (isMissingFunctionError(memberRemoveError, "remove_org_member_atomic")) {
+      return NextResponse.json(
+        { error: "Member removal is not available yet. Run the latest database migration first." },
+        { status: 503 }
+      )
+    }
+
+    console.error("Failed to remove org member atomically:", {
+      error: memberRemoveError,
       orgId,
       actorUserId: user.id,
       targetUserId,
@@ -389,69 +395,40 @@ export async function DELETE(
     return NextResponse.json({ error: "Failed to remove member" }, { status: 500 })
   }
 
-  if (!currentMembership) {
+  const memberRemove =
+    typeof memberRemoveResult === "object" && memberRemoveResult !== null
+      ? (memberRemoveResult as { status?: string; removed_role?: string | null; removed_by_self?: boolean })
+      : null
+  const memberRemoveStatus = memberRemove?.status ?? null
+
+  if (memberRemoveStatus === "actor_not_member") {
     return NextResponse.json({ error: "Not a member of this organization" }, { status: 403 })
   }
-
-  // Get target user's membership
-  const { data: targetMembership, error: targetMembershipError } = await supabase
-    .from("org_members")
-    .select("role")
-    .eq("org_id", orgId)
-    .eq("user_id", targetUserId)
-    .single()
-
-  if (targetMembershipError) {
-    console.error("Failed to verify target membership before removing org member:", {
-      error: targetMembershipError,
+  if (memberRemoveStatus === "target_not_member") {
+    return NextResponse.json({ error: "User is not a member" }, { status: 404 })
+  }
+  if (memberRemoveStatus === "target_is_owner") {
+    return NextResponse.json({ error: "Cannot remove the organization owner" }, { status: 400 })
+  }
+  if (memberRemoveStatus === "insufficient_permissions") {
+    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
+  }
+  if (memberRemoveStatus !== "removed") {
+    console.error("Unexpected org member remove result:", {
       orgId,
       actorUserId: user.id,
       targetUserId,
+      result: memberRemoveResult,
     })
     return NextResponse.json({ error: "Failed to remove member" }, { status: 500 })
   }
 
-  if (!targetMembership) {
-    return NextResponse.json({ error: "User is not a member" }, { status: 404 })
-  }
-
-  // Can't remove the owner
-  if (targetMembership.role === "owner") {
-    return NextResponse.json({ error: "Cannot remove the organization owner" }, { status: 400 })
-  }
-
-  // Users can remove themselves, or admins/owners can remove others
-  const canRemove = 
-    targetUserId === user.id || 
-    ["owner", "admin"].includes(currentMembership.role)
-
-  if (!canRemove) {
-    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
-  }
-
-  // Get org's subscription to decrement seat
+  // Get org's subscription to decrement seat after successful member removal.
   const { data: org } = await supabase
     .from("organizations")
     .select("stripe_subscription_id")
     .eq("id", orgId)
     .single()
-
-  // Remove the member
-  const { error } = await supabase
-    .from("org_members")
-    .delete()
-    .eq("org_id", orgId)
-    .eq("user_id", targetUserId)
-
-  if (error) {
-    console.error("Failed to delete org member row:", {
-      error,
-      orgId,
-      actorUserId: user.id,
-      targetUserId,
-    })
-    return NextResponse.json({ error: "Failed to remove member" }, { status: 500 })
-  }
 
   await logOrgAuditEvent({
     client: supabase,
@@ -462,8 +439,8 @@ export async function DELETE(
     targetId: targetUserId,
     targetLabel: targetUserId,
     metadata: {
-      targetRole: targetMembership.role,
-      removedBySelf: targetUserId === user.id,
+      targetRole: memberRemove?.removed_role ?? null,
+      removedBySelf: memberRemove?.removed_by_self ?? targetUserId === user.id,
     },
   })
 
