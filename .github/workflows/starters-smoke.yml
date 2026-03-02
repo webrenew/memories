@@ -19,7 +19,7 @@ jobs:
       run:
         working-directory: examples/nextjs-starter
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v4
         with:
@@ -78,7 +78,7 @@ jobs:
       run:
         working-directory: examples/express-starter
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v4
         with:
@@ -137,7 +137,7 @@ jobs:
       run:
         working-directory: examples/python-starter
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v6
         with:
