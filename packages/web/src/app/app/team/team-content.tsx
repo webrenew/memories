@@ -412,12 +412,18 @@ export function TeamContent({
         body: JSON.stringify({ name: newOrgName.trim() }),
       })
       
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       
       if (res.ok) {
         setShowCreateOrg(false)
         setNewOrgName("")
-        router.refresh()
+        const upgradeUrl =
+          typeof data?.upgradeUrl === "string" ? data.upgradeUrl : "/app/upgrade?plan=growth&source=org-created"
+        if (organizations.length === 0) {
+          router.push(upgradeUrl)
+        } else {
+          router.refresh()
+        }
       } else {
         console.error("Failed to create organization:", data)
         setCreateError(data.error || "Failed to create organization. Please try again.")
