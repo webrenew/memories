@@ -202,11 +202,38 @@ export function getClientIp(request: Request): string {
 
 function normalizeClientIpCandidate(value: string | null | undefined): string | null {
   if (!value) return null
-  const trimmed = value.trim()
+  const trimmed = stripIpPort(value.trim())
   if (!trimmed) return null
   const mappedIpv4 = parseIpv4MappedIpv6(trimmed)
   if (mappedIpv4) return mappedIpv4
   return isValidIpAddress(trimmed) ? trimmed : null
+}
+
+function stripIpPort(value: string): string {
+  if (!value) return value
+
+  if (value.startsWith("[")) {
+    const closingBracket = value.indexOf("]")
+    if (closingBracket === -1) return value
+    const host = value.slice(1, closingBracket)
+    const suffix = value.slice(closingBracket + 1)
+    if (!suffix || /^:\d+$/.test(suffix)) {
+      return host
+    }
+    return value
+  }
+
+  const firstColon = value.indexOf(":")
+  const lastColon = value.lastIndexOf(":")
+  if (firstColon !== -1 && firstColon === lastColon) {
+    const host = value.slice(0, lastColon)
+    const port = value.slice(lastColon + 1)
+    if (/^\d+$/.test(port) && isValidIpv4(host)) {
+      return host
+    }
+  }
+
+  return value
 }
 
 function parseIpv4MappedIpv6(value: string): string | null {

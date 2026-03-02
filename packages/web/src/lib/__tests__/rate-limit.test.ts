@@ -176,4 +176,24 @@ describe("getClientIp", () => {
     })
     expect(getClientIp(request)).toBe("203.0.113.7")
   })
+
+  it("should normalize IPv4 proxy values that include a port", () => {
+    process.env.TRUST_PROXY_HEADERS = "true"
+    const request = new Request("https://example.com", {
+      headers: {
+        "x-forwarded-for": "203.0.113.7:12345",
+      },
+    })
+    expect(getClientIp(request)).toBe("203.0.113.7")
+  })
+
+  it("should normalize bracketed IPv6 proxy values that include a port", () => {
+    process.env.TRUST_PROXY_HEADERS = "true"
+    const request = new Request("https://example.com", {
+      headers: {
+        "x-forwarded-for": "[2001:db8::1]:443",
+      },
+    })
+    expect(getClientIp(request)).toBe("2001:db8::1")
+  })
 })
