@@ -7,6 +7,9 @@ import { parseBody, githubCaptureDecisionSchema } from "@/lib/validations"
 import { addMemoryPayload } from "@/lib/memory-service/mutations"
 import { ensureMemoryUserIdSchema } from "@/lib/memory-service/tools"
 
+const APPROVAL_LOCK_PREFIX = "__approval_lock__:"
+const APPROVAL_LOCK_STALE_MS = 10 * 60 * 1000
+
 interface QueueItemRow {
   id: string
   target_owner_type: "user" | "organization"
@@ -22,6 +25,8 @@ interface QueueItemRow {
   title: string | null
   content: string
   source_url: string | null
+  approved_memory_id: string | null
+  reviewed_at: string | null
   metadata: Record<string, unknown> | null
 }
 
@@ -46,6 +51,21 @@ function memoryTypeForEvent(event: QueueItemRow["source_event"]): "rule" | "deci
   return "note"
 }
 
+function buildApprovalLockToken(userId: string): string {
+  return `${APPROVAL_LOCK_PREFIX}${userId}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 10)}`
+}
+
+function isApprovalLockToken(value: string | null): value is string {
+  return typeof value === "string" && value.startsWith(APPROVAL_LOCK_PREFIX)
+}
+
+function isStaleApprovalLock(reviewedAt: string | null): boolean {
+  if (!reviewedAt) return false
+  const reviewedAtMs = Date.parse(reviewedAt)
+  if (!Number.isFinite(reviewedAtMs)) return true
+  return reviewedAtMs <= Date.now() - APPROVAL_LOCK_STALE_MS
+}
+
 async function fetchQueueItem(
   admin: ReturnType<typeof createAdminClient>,
   queueId: string
@@ -53,7 +73,7 @@ async function fetchQueueItem(
   const { data, error } = await admin
     .from("github_capture_queue")
     .select(
-      "id, target_owner_type, target_user_id, target_org_id, status, source_event, source_action, repo_full_name, project_id, actor_login, source_id, title, content, source_url, metadata"
+      "id, target_owner_type, target_user_id, target_org_id, status, source_event, source_action, repo_full_name, project_id, actor_login, source_id, title, content, source_url, approved_memory_id, reviewed_at, metadata"
     )
     .eq("id", queueId)
     .single()
@@ -160,7 +180,7 @@ export async function PATCH(
   const nowIso = new Date().toISOString()
 
   if (parsed.data.action === "reject") {
-    const { error } = await admin
+    const rejectResponse = await admin
       .from("github_capture_queue")
       .update({
         status: "rejected",
@@ -169,14 +189,41 @@ export async function PATCH(
         decision_note: parsed.data.note ?? null,
       })
       .eq("id", id)
+      .eq("status", "pending")
+      .is("approved_memory_id", null)
+      .select("id, status")
+      .maybeSingle()
 
-    if (error) {
+    if (rejectResponse.error) {
       console.error("Failed to reject capture queue item:", {
         queueId: id,
         reviewerUserId: user.id,
-        error,
+        error: rejectResponse.error,
       })
       return NextResponse.json({ error: "Failed to update capture queue item" }, { status: 500 })
+    }
+
+    if (!rejectResponse.data) {
+      const { item: latestItem, error: latestError } = await fetchQueueItem(admin, id)
+      if (latestError) {
+        console.error("Failed to read latest capture queue item after reject conflict:", {
+          queueId: id,
+          reviewerUserId: user.id,
+          error: latestError,
+        })
+        return NextResponse.json({ error: "Failed to update capture queue item" }, { status: 500 })
+      }
+
+      if (!latestItem) {
+        return NextResponse.json({ error: "Capture queue item not found" }, { status: 404 })
+      }
+
+      return NextResponse.json(
+        {
+          error: `Capture queue item is already ${latestItem.status}`,
+        },
+        { status: 409 }
+      )
     }
 
     return NextResponse.json({ ok: true, status: "rejected" })
@@ -191,8 +238,100 @@ export async function PATCH(
     )
   }
 
+  if (isApprovalLockToken(item.approved_memory_id) && !isStaleApprovalLock(item.reviewed_at)) {
+    return NextResponse.json(
+      {
+        error: "Capture queue item is currently being approved",
+      },
+      { status: 409 }
+    )
+  }
+
+  if (isApprovalLockToken(item.approved_memory_id) && isStaleApprovalLock(item.reviewed_at)) {
+    const staleLockRelease = await admin
+      .from("github_capture_queue")
+      .update({
+        reviewed_by: null,
+        reviewed_at: null,
+        decision_note: null,
+        approved_memory_id: null,
+      })
+      .eq("id", id)
+      .eq("status", "pending")
+      .eq("approved_memory_id", item.approved_memory_id)
+
+    if (staleLockRelease.error) {
+      console.error("Failed to release stale approval lock for capture queue item:", {
+        queueId: id,
+        reviewerUserId: user.id,
+        lockToken: item.approved_memory_id,
+        error: staleLockRelease.error,
+      })
+      return NextResponse.json({ error: "Failed to update capture queue item" }, { status: 500 })
+    }
+  }
+
+  const approvalLockToken = buildApprovalLockToken(user.id)
+  const claimResponse = await admin
+    .from("github_capture_queue")
+    .update({
+      reviewed_by: user.id,
+      reviewed_at: nowIso,
+      decision_note: parsed.data.note ?? null,
+      approved_memory_id: approvalLockToken,
+    })
+    .eq("id", id)
+    .eq("status", "pending")
+    .is("approved_memory_id", null)
+    .select("id")
+    .maybeSingle()
+
+  if (claimResponse.error) {
+    console.error("Failed to claim capture queue item for approval:", {
+      queueId: id,
+      reviewerUserId: user.id,
+      error: claimResponse.error,
+    })
+    return NextResponse.json({ error: "Failed to update capture queue item" }, { status: 500 })
+  }
+
+  if (!claimResponse.data) {
+    const { item: latestItem, error: latestError } = await fetchQueueItem(admin, id)
+    if (latestError) {
+      console.error("Failed to read latest capture queue item after approval claim conflict:", {
+        queueId: id,
+        reviewerUserId: user.id,
+        error: latestError,
+      })
+      return NextResponse.json({ error: "Failed to update capture queue item" }, { status: 500 })
+    }
+
+    if (!latestItem) {
+      return NextResponse.json({ error: "Capture queue item not found" }, { status: 404 })
+    }
+
+    return NextResponse.json(
+      {
+        error: `Capture queue item is already ${latestItem.status}`,
+      },
+      { status: 409 }
+    )
+  }
+
   const creds = await resolveWorkspaceCredentials(admin, item)
   if (!creds?.turso_db_url || !creds?.turso_db_token) {
+    await admin
+      .from("github_capture_queue")
+      .update({
+        reviewed_by: null,
+        reviewed_at: null,
+        decision_note: null,
+        approved_memory_id: null,
+      })
+      .eq("id", id)
+      .eq("status", "pending")
+      .eq("approved_memory_id", approvalLockToken)
+
     return NextResponse.json({ error: "Workspace database is not configured" }, { status: 409 })
   }
 
@@ -210,31 +349,53 @@ export async function PATCH(
     tags.push(`action:${item.source_action}`)
   }
 
-  const payload = await addMemoryPayload({
-    turso,
-    args: {
-      content: item.content,
-      type: memoryTypeForEvent(item.source_event),
-      tags,
-      category: "github",
-      metadata: {
-        source: "github_capture_queue",
-        queue_id: item.id,
-        source_event: item.source_event,
-        source_action: item.source_action,
-        source_id: item.source_id,
-        source_url: item.source_url,
-        actor_login: item.actor_login,
-        repo_full_name: item.repo_full_name,
-        payload: item.metadata ?? {},
+  let payload: Awaited<ReturnType<typeof addMemoryPayload>>
+  try {
+    payload = await addMemoryPayload({
+      turso,
+      args: {
+        content: item.content,
+        type: memoryTypeForEvent(item.source_event),
+        tags,
+        category: "github",
+        metadata: {
+          source: "github_capture_queue",
+          queue_id: item.id,
+          source_event: item.source_event,
+          source_action: item.source_action,
+          source_id: item.source_id,
+          source_url: item.source_url,
+          actor_login: item.actor_login,
+          repo_full_name: item.repo_full_name,
+          payload: item.metadata ?? {},
+        },
       },
-    },
-    projectId: item.project_id,
-    userId: item.target_owner_type === "user" ? item.target_user_id : null,
-    nowIso,
-  })
+      projectId: item.project_id,
+      userId: item.target_owner_type === "user" ? item.target_user_id : null,
+      nowIso,
+    })
+  } catch (memoryError) {
+    await admin
+      .from("github_capture_queue")
+      .update({
+        reviewed_by: null,
+        reviewed_at: null,
+        decision_note: null,
+        approved_memory_id: null,
+      })
+      .eq("id", id)
+      .eq("status", "pending")
+      .eq("approved_memory_id", approvalLockToken)
 
-  const { error: updateError } = await admin
+    console.error("Failed to insert memory while approving capture queue item:", {
+      queueId: id,
+      reviewerUserId: user.id,
+      error: memoryError,
+    })
+    return NextResponse.json({ error: "Failed to insert approved memory" }, { status: 500 })
+  }
+
+  const finalizeResponse = await admin
     .from("github_capture_queue")
     .update({
       status: "approved",
@@ -244,13 +405,47 @@ export async function PATCH(
       approved_memory_id: payload.data.id,
     })
     .eq("id", id)
+    .eq("status", "pending")
+    .eq("approved_memory_id", approvalLockToken)
+    .select("id")
+    .maybeSingle()
 
-  if (updateError) {
+  if (finalizeResponse.error) {
     console.error("Failed to approve capture queue item:", {
       queueId: id,
       reviewerUserId: user.id,
       approvedMemoryId: payload.data.id,
-      error: updateError,
+      error: finalizeResponse.error,
+    })
+    return NextResponse.json({ error: "Failed to update capture queue item" }, { status: 500 })
+  }
+
+  if (!finalizeResponse.data) {
+    const { item: latestItem, error: latestError } = await fetchQueueItem(admin, id)
+    if (latestError) {
+      console.error("Failed to read latest capture queue item after approval finalize conflict:", {
+        queueId: id,
+        reviewerUserId: user.id,
+        approvedMemoryId: payload.data.id,
+        error: latestError,
+      })
+      return NextResponse.json({ error: "Failed to update capture queue item" }, { status: 500 })
+    }
+
+    if (latestItem?.status === "approved" && latestItem.approved_memory_id === payload.data.id) {
+      return NextResponse.json({
+        ok: true,
+        status: "approved",
+        memory_id: payload.data.id,
+      })
+    }
+
+    console.error("Approval finalize claim lost for capture queue item:", {
+      queueId: id,
+      reviewerUserId: user.id,
+      approvedMemoryId: payload.data.id,
+      latestStatus: latestItem?.status ?? null,
+      latestApprovedMemoryId: latestItem?.approved_memory_id ?? null,
     })
     return NextResponse.json({ error: "Failed to update capture queue item" }, { status: 500 })
   }

@@ -113,8 +113,24 @@ describe("/api/github/capture/queue/[id] PATCH", () => {
   it("rejects pending user queue item", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
 
+    const mockRejectMaybeSingle = vi.fn().mockResolvedValue({
+      data: { id: "q-1", status: "rejected" },
+      error: null,
+    })
+    const mockRejectSelect = vi.fn(() => ({
+      maybeSingle: mockRejectMaybeSingle,
+    }))
+    const mockRejectIs = vi.fn(() => ({
+      select: mockRejectSelect,
+    }))
+    const mockRejectEqStatus = vi.fn(() => ({
+      is: mockRejectIs,
+    }))
+    const mockRejectEqId = vi.fn(() => ({
+      eq: mockRejectEqStatus,
+    }))
     const mockUpdate = vi.fn(() => ({
-      eq: vi.fn().mockResolvedValue({ error: null }),
+      eq: mockRejectEqId,
     }))
 
     let githubQueueReadUsed = false
@@ -141,6 +157,8 @@ describe("/api/github/capture/queue/[id] PATCH", () => {
                   title: "Issue",
                   content: "Issue content",
                   source_url: "https://github.com/webrenew/memories/issues/2",
+                  approved_memory_id: null,
+                  reviewed_at: null,
                   metadata: {},
                 },
                 error: null,
@@ -178,15 +196,32 @@ describe("/api/github/capture/queue/[id] PATCH", () => {
         decision_note: "noise",
       })
     )
+    expect(mockRejectEqId).toHaveBeenCalledWith("id", "q-1")
+    expect(mockRejectEqStatus).toHaveBeenCalledWith("status", "pending")
+    expect(mockRejectIs).toHaveBeenCalledWith("approved_memory_id", null)
   })
 
   it("returns 500 with stable error when reject update fails", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
 
+    const mockRejectMaybeSingle = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "db timeout" },
+    })
+    const mockRejectSelect = vi.fn(() => ({
+      maybeSingle: mockRejectMaybeSingle,
+    }))
+    const mockRejectIs = vi.fn(() => ({
+      select: mockRejectSelect,
+    }))
+    const mockRejectEqStatus = vi.fn(() => ({
+      is: mockRejectIs,
+    }))
+    const mockRejectEqId = vi.fn(() => ({
+      eq: mockRejectEqStatus,
+    }))
     const mockUpdate = vi.fn(() => ({
-      eq: vi.fn().mockResolvedValue({
-        error: { message: "db timeout" },
-      }),
+      eq: mockRejectEqId,
     }))
 
     let githubQueueReadUsed = false
@@ -213,6 +248,8 @@ describe("/api/github/capture/queue/[id] PATCH", () => {
                   title: "Issue",
                   content: "Issue content",
                   source_url: "https://github.com/webrenew/memories/issues/2",
+                  approved_memory_id: null,
+                  reviewed_at: null,
                   metadata: {},
                 },
                 error: null,
@@ -250,6 +287,7 @@ describe("/api/github/capture/queue/[id] PATCH", () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } })
 
     let githubQueueReadUsed = false
+    let githubQueueUpdateCount = 0
 
     mockFrom.mockImplementation((table: string) => {
       if (table === "github_capture_queue" && !githubQueueReadUsed) {
@@ -273,6 +311,8 @@ describe("/api/github/capture/queue/[id] PATCH", () => {
                   title: "Issue",
                   content: "Issue content",
                   source_url: "https://github.com/webrenew/memories/issues/2",
+                  approved_memory_id: null,
+                  reviewed_at: null,
                   metadata: {},
                 },
                 error: null,
@@ -300,11 +340,40 @@ describe("/api/github/capture/queue/[id] PATCH", () => {
       }
 
       if (table === "github_capture_queue") {
+        githubQueueUpdateCount += 1
+        if (githubQueueUpdateCount === 1) {
+          return {
+            update: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  is: vi.fn(() => ({
+                    select: vi.fn(() => ({
+                      maybeSingle: vi.fn().mockResolvedValue({
+                        data: { id: "q-1" },
+                        error: null,
+                      }),
+                    })),
+                  })),
+                })),
+              })),
+            })),
+          }
+        }
+
         return {
           update: vi.fn(() => ({
-            eq: vi.fn().mockResolvedValue({
-              error: { message: "update failed" },
-            }),
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  select: vi.fn(() => ({
+                    maybeSingle: vi.fn().mockResolvedValue({
+                      data: null,
+                      error: { message: "update failed" },
+                    }),
+                  })),
+                })),
+              })),
+            })),
           })),
         }
       }

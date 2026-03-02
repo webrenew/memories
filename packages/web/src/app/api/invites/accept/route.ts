@@ -8,6 +8,21 @@ import { parseBody, acceptInviteSchema } from "@/lib/validations"
 import { getInviteTokenCandidates } from "@/lib/team-invites"
 import { hasServiceRoleKey } from "@/lib/env"
 
+function isDuplicateMembershipError(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : ""
+  if (code === "23505") return true
+
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+      : ""
+
+  return message.includes("duplicate key")
+}
+
 // POST /api/invites/accept - Accept an invite
 export async function POST(request: Request): Promise<Response> {
   const supabase = await createClient()
@@ -78,12 +93,22 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // Check if already a member
-  const { data: existingMember } = await supabase
+  const { data: existingMember, error: existingMemberError } = await supabase
     .from("org_members")
     .select("id")
     .eq("org_id", invite.org_id)
     .eq("user_id", user.id)
-    .single()
+    .maybeSingle()
+
+  if (existingMemberError) {
+    console.error("Failed to verify existing org membership during invite accept:", {
+      inviteId: invite.id,
+      orgId: invite.org_id,
+      userId: user.id,
+      error: existingMemberError,
+    })
+    return NextResponse.json({ error: "Failed to accept invite" }, { status: 500 })
+  }
 
   if (existingMember) {
     return NextResponse.json({ error: "You are already a member of this organization" }, { status: 400 })
@@ -99,55 +124,85 @@ export async function POST(request: Request): Promise<Response> {
 
   // Mark invite as accepted FIRST to prevent race conditions
   const writeClient = adminSupabase ?? supabase
-  const { error: acceptError } = await writeClient
+  const acceptedAt = new Date().toISOString()
+  const acceptResponse = await writeClient
     .from("org_invites")
-    .update({ accepted_at: new Date().toISOString() })
+    .update({ accepted_at: acceptedAt })
     .eq("id", invite.id)
     .is("accepted_at", null) // Only update if not already accepted
+    .select("id")
+    .maybeSingle()
 
-  if (acceptError) {
-    console.error("Failed to mark invite as accepted:", acceptError)
+  if (acceptResponse.error) {
+    console.error("Failed to mark invite as accepted:", acceptResponse.error)
     return NextResponse.json({ error: "Failed to accept invite" }, { status: 500 })
   }
 
-  // Add as member
-  const { error: memberError } = await writeClient
-    .from("org_members")
-    .insert({
-      org_id: invite.org_id,
-      user_id: user.id,
-      role: invite.role,
-      invited_by: invite.invited_by,
-    })
+  const inviteAcceptedByThisRequest = Boolean(acceptResponse.data)
+  let membershipInserted = false
 
-  if (memberError) {
-    console.error("Failed to insert org member during invite accept:", {
-      inviteId: invite.id,
+  if (inviteAcceptedByThisRequest) {
+    // Add as member
+    const { error: memberError } = await writeClient
+      .from("org_members")
+      .insert({
+        org_id: invite.org_id,
+        user_id: user.id,
+        role: invite.role,
+        invited_by: invite.invited_by,
+      })
+
+    if (memberError && !isDuplicateMembershipError(memberError)) {
+      console.error("Failed to insert org member during invite accept:", {
+        inviteId: invite.id,
+        orgId: invite.org_id,
+        userId: user.id,
+        error: memberError,
+      })
+      return NextResponse.json({ error: "Failed to accept invite" }, { status: 500 })
+    }
+
+    membershipInserted = !memberError
+  } else {
+    // Another request likely consumed this invite concurrently. Treat as idempotent
+    // success only when membership now exists.
+    const { data: memberAfterConsume, error: memberAfterConsumeError } = await writeClient
+      .from("org_members")
+      .select("id")
+      .eq("org_id", invite.org_id)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    if (memberAfterConsumeError) {
+      console.error("Failed to verify membership after concurrent invite consume:", {
+        inviteId: invite.id,
+        orgId: invite.org_id,
+        userId: user.id,
+        error: memberAfterConsumeError,
+      })
+      return NextResponse.json({ error: "Failed to accept invite" }, { status: 500 })
+    }
+
+    if (!memberAfterConsume) {
+      return NextResponse.json({ error: "Invite has already been accepted" }, { status: 409 })
+    }
+  }
+
+  if (membershipInserted) {
+    await logOrgAuditEvent({
+      client: writeClient,
       orgId: invite.org_id,
-      userId: user.id,
-      error: memberError,
+      actorUserId: user.id,
+      action: "org_invite_accepted",
+      targetType: "user",
+      targetId: user.id,
+      targetLabel: invite.email,
+      metadata: {
+        inviteId: invite.id,
+        role: invite.role,
+      },
     })
-    // Rollback invite acceptance if member insert fails
-    await writeClient
-      .from("org_invites")
-      .update({ accepted_at: null })
-      .eq("id", invite.id)
-    return NextResponse.json({ error: "Failed to accept invite" }, { status: 500 })
   }
-
-  await logOrgAuditEvent({
-    client: writeClient,
-    orgId: invite.org_id,
-    actorUserId: user.id,
-    action: "org_invite_accepted",
-    targetType: "user",
-    targetId: user.id,
-    targetLabel: invite.email,
-    metadata: {
-      inviteId: invite.id,
-      role: invite.role,
-    },
-  })
 
   // Set as user's current org if they don't have one
   const { error: orgError } = await writeClient
@@ -163,23 +218,25 @@ export async function POST(request: Request): Promise<Response> {
 
   // Add seat to org subscription after membership is committed.
   // This avoids charging seats for failed invite acceptance flows.
-  try {
-    const result = await addTeamSeat({
-      orgId: org.id,
-      stripeCustomerId: org.stripe_customer_id,
-      stripeSubscriptionId: org.stripe_subscription_id,
-      billing: billing as "monthly" | "annual",
-    })
+  if (membershipInserted) {
+    try {
+      const result = await addTeamSeat({
+        orgId: org.id,
+        stripeCustomerId: org.stripe_customer_id,
+        stripeSubscriptionId: org.stripe_subscription_id,
+        billing: billing as "monthly" | "annual",
+      })
 
-    if (result.action === "created") {
-      await writeClient
-        .from("organizations")
-        .update({ stripe_subscription_id: result.subscriptionId })
-        .eq("id", org.id)
+      if (result.action === "created") {
+        await writeClient
+          .from("organizations")
+          .update({ stripe_subscription_id: result.subscriptionId })
+          .eq("id", org.id)
+      }
+    } catch (e) {
+      console.error("Failed to add team seat after invite acceptance:", e)
+      // Non-blocking: billing can reconcile from org membership.
     }
-  } catch (e) {
-    console.error("Failed to add team seat after invite acceptance:", e)
-    // Non-blocking: billing can reconcile from org membership.
   }
 
   return NextResponse.json({ 
