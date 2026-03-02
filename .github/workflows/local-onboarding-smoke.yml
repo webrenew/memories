@@ -40,7 +40,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bash .github/scripts/pnpm-install-with-retry.sh
 
       - name: Run minimal-local clean machine smoke
         run: bash .github/scripts/local-onboarding-smoke.sh
