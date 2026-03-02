@@ -59,7 +59,7 @@ describe("/api/invites/accept", () => {
     mockLogOrgAuditEvent.mockResolvedValue(undefined)
   })
 
-  it("returns 500 with stable error when member insert fails", async () => {
+  it("treats duplicate member insert as idempotent invite acceptance", async () => {
     mockGetUser.mockResolvedValue({
       data: {
         user: {
@@ -102,7 +102,14 @@ describe("/api/invites/accept", () => {
           })),
           update: vi.fn(() => ({
             eq: vi.fn().mockReturnValue({
-              is: vi.fn().mockResolvedValue({ error: null }),
+              is: vi.fn().mockReturnValue({
+                select: vi.fn(() => ({
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: { id: "invite-1" },
+                    error: null,
+                  }),
+                })),
+              }),
             }),
           })),
         }
@@ -113,7 +120,7 @@ describe("/api/invites/accept", () => {
           select: vi.fn(() => ({
             eq: vi.fn().mockReturnValue({
               eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: null, error: null }),
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
               }),
             }),
           })),
@@ -122,6 +129,16 @@ describe("/api/invites/accept", () => {
               message: "duplicate key value violates unique constraint",
             },
           }),
+        }
+      }
+
+      if (table === "users") {
+        return {
+          update: vi.fn(() => ({
+            eq: vi.fn().mockReturnValue({
+              is: vi.fn().mockResolvedValue({ error: null }),
+            }),
+          })),
         }
       }
 
@@ -143,11 +160,16 @@ describe("/api/invites/accept", () => {
       }),
     )
 
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      error: "Failed to accept invite",
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      organization: {
+        id: "org-1",
+        slug: "acme",
+      },
     })
     expect(mockLogOrgAuditEvent).not.toHaveBeenCalled()
+    expect(mockAddTeamSeat).not.toHaveBeenCalled()
   })
 
   it("returns 500 with stable error when invite lookup fails", async () => {
