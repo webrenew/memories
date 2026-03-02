@@ -35,7 +35,8 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies (retry on transient network failures)
+        run: bash .github/scripts/pnpm-install-with-retry.sh
 
       - name: Lint
         run: pnpm lint
@@ -55,7 +56,8 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies (retry on transient network failures)
+        run: bash .github/scripts/pnpm-install-with-retry.sh
 
       - name: Typecheck
         run: pnpm typecheck
@@ -75,7 +77,8 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies (retry on transient network failures)
+        run: bash .github/scripts/pnpm-install-with-retry.sh
 
       - name: Run tests
         run: pnpm test
@@ -95,7 +98,8 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies (retry on transient network failures)
+        run: bash .github/scripts/pnpm-install-with-retry.sh
 
       - name: Enforce workspace-switch p50/p95 budgets
         run: pnpm --filter @memories.sh/web test src/lib/workspace-switch-performance.test.ts
@@ -115,7 +119,8 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies (retry on transient network failures)
+        run: bash .github/scripts/pnpm-install-with-retry.sh
 
       - name: Run SDK contract snapshot tests
         run: pnpm --filter @memories.sh/web test:sdk-contracts
@@ -139,7 +144,8 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies (retry on transient network failures)
+        run: bash .github/scripts/pnpm-install-with-retry.sh
 
       - name: Build
         run: pnpm build
