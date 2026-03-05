@@ -227,6 +227,61 @@ describe("POST /api/stripe/webhook", () => {
     expect(mockOrganizationsEq).toHaveBeenCalledWith("id", "org-1")
   })
 
+  it("handles customer.subscription.created for org subscriptions", async () => {
+    mockConstructEvent.mockReturnValue({
+      id: "evt_sub_created_1",
+      created: 1_709_000_009,
+      type: "customer.subscription.created",
+      data: {
+        object: {
+          id: "sub_team_created_123",
+          customer: "cus_org_123",
+          status: "active",
+          metadata: { type: "team_seats", org_id: "org-1" },
+          items: { data: [{ price: { id: "price_team_monthly" } }] },
+        },
+      },
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockOrganizationsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscription_status: "active",
+        stripe_customer_id: "cus_org_123",
+        stripe_subscription_id: "sub_team_created_123",
+        plan: "team",
+      })
+    )
+    expect(mockOrganizationsEq).toHaveBeenCalledWith("id", "org-1")
+  })
+
+  it("supports expanded Stripe customer payloads on subscription updates", async () => {
+    mockConstructEvent.mockReturnValue({
+      id: "evt_sub_update_expanded_customer_1",
+      created: 1_709_000_010,
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub_team_123",
+          customer: { id: "cus_org_123" },
+          status: "past_due",
+          metadata: { type: "team_seats", org_id: "org-1" },
+          items: { data: [{ price: { id: "price_team_monthly" } }] },
+        },
+      },
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockOrganizationsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscription_status: "past_due",
+        stripe_customer_id: "cus_org_123",
+      })
+    )
+  })
+
   it("returns 200 for unhandled event type", async () => {
     mockConstructEvent.mockReturnValue({
       id: "evt_unhandled_1",
@@ -237,6 +292,7 @@ describe("POST /api/stripe/webhook", () => {
 
     const response = await POST(makeWebhookRequest("{}"))
     expect(response.status).toBe(200)
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 
   it("returns 200 and skips writes when event is duplicate", async () => {

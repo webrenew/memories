@@ -12,11 +12,26 @@ import {
 
 type StripeBillingPlan = "individual" | "team" | "growth"
 type WebhookScope = { type: "customer" | "organization" | "user"; key: string }
+type ManagedWebhookEventType =
+  | "checkout.session.completed"
+  | "customer.subscription.created"
+  | "customer.subscription.updated"
+  | "customer.subscription.deleted"
+  | "invoice.payment_failed"
+  | "invoice.marked_uncollectible"
 
 const MANAGED_PRICE_IDS = getStripeManagedPriceIds()
 const INDIVIDUAL_PRICE_IDS = getStripeIndividualPriceIds()
 const TEAM_PRICE_IDS = getStripeTeamSeatPriceIds()
 const GROWTH_PRICE_IDS = getStripeGrowthPriceIds()
+const MANAGED_WEBHOOK_EVENT_TYPES = new Set<ManagedWebhookEventType>([
+  "checkout.session.completed",
+  "customer.subscription.created",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+  "invoice.payment_failed",
+  "invoice.marked_uncollectible",
+])
 
 function hasManagedPrice(items: { price?: { id: string } | null }[]): boolean {
   return items.some((item) => item.price?.id && MANAGED_PRICE_IDS.has(item.price.id))
@@ -74,6 +89,18 @@ function normalizeEventCreatedAt(created: number): string {
   return new Date(created * 1000).toISOString()
 }
 
+function isManagedWebhookEventType(type: string): type is ManagedWebhookEventType {
+  return MANAGED_WEBHOOK_EVENT_TYPES.has(type as ManagedWebhookEventType)
+}
+
+function extractCustomerId(customer: Stripe.Customer | Stripe.DeletedCustomer | string | null | undefined): string | null {
+  if (typeof customer === "string") return customer
+  if (customer && typeof customer === "object" && "id" in customer && typeof customer.id === "string") {
+    return customer.id
+  }
+  return null
+}
+
 function deriveWebhookScope(event: Stripe.Event): WebhookScope | null {
   switch (event.type) {
     case "checkout.session.completed": {
@@ -88,16 +115,17 @@ function deriveWebhookScope(event: Stripe.Event): WebhookScope | null {
       if (userId) return { type: "user", key: userId }
       return null
     }
+    case "customer.subscription.created":
     case "customer.subscription.updated":
     case "customer.subscription.deleted": {
       const subscription = event.data.object as Stripe.Subscription
-      const customerId = typeof subscription.customer === "string" ? subscription.customer : null
+      const customerId = extractCustomerId(subscription.customer)
       return customerId ? { type: "customer", key: customerId } : null
     }
     case "invoice.payment_failed":
     case "invoice.marked_uncollectible": {
       const invoice = event.data.object as Stripe.Invoice
-      const customerId = typeof invoice.customer === "string" ? invoice.customer : null
+      const customerId = extractCustomerId(invoice.customer)
       return customerId ? { type: "customer", key: customerId } : null
     }
     default:
@@ -214,6 +242,10 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
+  if (!isManagedWebhookEventType(event.type)) {
+    return NextResponse.json({ received: true })
+  }
+
   const supabase = createAdminClient()
   const scope = deriveWebhookScope(event)
   const claimStatus = await claimWebhookEvent(supabase, event, scope)
@@ -274,9 +306,14 @@ export async function POST(request: Request): Promise<Response> {
       break
     }
 
+    case "customer.subscription.created":
     case "customer.subscription.updated": {
       const subscription = event.data.object
-      const customerId = subscription.customer as string
+      const customerId = extractCustomerId(subscription.customer)
+      if (!customerId) {
+        console.error("Subscription event missing customer identifier:", subscription.id)
+        break
+      }
 
       // Only act on subscriptions for our managed prices.
       if (!hasManagedPrice(subscription.items.data)) break
@@ -324,7 +361,11 @@ export async function POST(request: Request): Promise<Response> {
 
     case "customer.subscription.deleted": {
       const subscription = event.data.object
-      const customerId = subscription.customer as string
+      const customerId = extractCustomerId(subscription.customer)
+      if (!customerId) {
+        console.error("Subscription delete event missing customer identifier:", subscription.id)
+        break
+      }
 
       // Only act on subscriptions for our managed prices.
       if (!hasManagedPrice(subscription.items.data)) break
@@ -353,7 +394,11 @@ export async function POST(request: Request): Promise<Response> {
 
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice
-      const customerId = invoice.customer as string
+      const customerId = extractCustomerId(invoice.customer)
+      if (!customerId) {
+        console.error("Invoice payment_failed event missing customer identifier:", invoice.id)
+        break
+      }
       const subscriptionId = (invoice as { subscription?: string | null }).subscription
 
       // Only act on invoices for our managed prices.
@@ -392,7 +437,11 @@ export async function POST(request: Request): Promise<Response> {
 
     case "invoice.marked_uncollectible": {
       const invoice = event.data.object as Stripe.Invoice
-      const customerId = invoice.customer as string
+      const customerId = extractCustomerId(invoice.customer)
+      if (!customerId) {
+        console.error("Invoice marked_uncollectible event missing customer identifier:", invoice.id)
+        break
+      }
       const subscriptionId = (invoice as { subscription?: string | null }).subscription
 
       // Only act on invoices for our managed prices.
