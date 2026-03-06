@@ -101,11 +101,51 @@ function extractCustomerId(customer: Stripe.Customer | Stripe.DeletedCustomer | 
   return null
 }
 
+function extractExpandedSubscription(
+  subscription: Stripe.Subscription | string | null | undefined
+): Stripe.Subscription | null {
+  if (subscription && typeof subscription === "object" && "id" in subscription) {
+    return subscription
+  }
+  return null
+}
+
+function extractSubscriptionId(subscription: Stripe.Subscription | string | null | undefined): string | null {
+  if (typeof subscription === "string") return subscription
+  if (subscription && typeof subscription === "object" && "id" in subscription && typeof subscription.id === "string") {
+    return subscription.id
+  }
+  return null
+}
+
+async function resolveSubscriptionReference(
+  subscription: Stripe.Subscription | string | null | undefined,
+  context: string
+): Promise<Stripe.Subscription | null> {
+  const expandedSubscription = extractExpandedSubscription(subscription)
+  if (expandedSubscription) {
+    return expandedSubscription
+  }
+
+  const subscriptionId = extractSubscriptionId(subscription)
+  if (!subscriptionId) {
+    return null
+  }
+
+  try {
+    return await getStripe().subscriptions.retrieve(subscriptionId)
+  } catch (error) {
+    console.error(`Failed to retrieve subscription for ${context}:`, error)
+    return null
+  }
+}
+
 function deriveWebhookScope(event: Stripe.Event): WebhookScope | null {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session
-      const customerId = typeof session.customer === "string" ? session.customer : null
+      const subscription = extractExpandedSubscription(session.subscription)
+      const customerId = extractCustomerId(session.customer) ?? extractCustomerId(subscription?.customer)
       if (customerId) return { type: "customer", key: customerId }
 
       const orgId = session.metadata?.workspace_org_id
@@ -125,7 +165,9 @@ function deriveWebhookScope(event: Stripe.Event): WebhookScope | null {
     case "invoice.payment_failed":
     case "invoice.marked_uncollectible": {
       const invoice = event.data.object as Stripe.Invoice
-      const customerId = extractCustomerId(invoice.customer)
+      const invoiceSubscription = (invoice as { subscription?: Stripe.Subscription | string | null }).subscription
+      const subscription = extractExpandedSubscription(invoiceSubscription)
+      const customerId = extractCustomerId(invoice.customer) ?? extractCustomerId(subscription?.customer)
       return customerId ? { type: "customer", key: customerId } : null
     }
     default:
@@ -277,14 +319,9 @@ export async function POST(request: Request): Promise<Response> {
 
       const ownerType = session.metadata?.workspace_owner_type
       const orgId = session.metadata?.workspace_org_id
-      const sessionSubscription = session.subscription
-      const subscriptionId =
-        typeof sessionSubscription === "string"
-          ? sessionSubscription
-          : sessionSubscription && typeof sessionSubscription === "object"
-            ? sessionSubscription.id
-            : null
-      const customerId = typeof session.customer === "string" ? session.customer : null
+      const subscriptionId = extractSubscriptionId(session.subscription)
+      const expandedSubscription = extractExpandedSubscription(session.subscription)
+      const customerId = extractCustomerId(session.customer) ?? extractCustomerId(expandedSubscription?.customer)
 
       if (ownerType === "organization" && orgId) {
         ok = await updateOrgSubscriptionStatus(supabase, orgId, "active", {
@@ -394,12 +431,14 @@ export async function POST(request: Request): Promise<Response> {
 
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice
-      const customerId = extractCustomerId(invoice.customer)
+      const invoiceSubscription = (invoice as { subscription?: Stripe.Subscription | string | null }).subscription
+      const subscription = await resolveSubscriptionReference(invoiceSubscription, "invoice")
+      const customerId = extractCustomerId(invoice.customer) ?? extractCustomerId(subscription?.customer)
       if (!customerId) {
         console.error("Invoice payment_failed event missing customer identifier:", invoice.id)
         break
       }
-      const subscriptionId = (invoice as { subscription?: string | null }).subscription
+      const subscriptionId = subscription?.id ?? extractSubscriptionId(invoiceSubscription)
 
       // Only act on invoices for our managed prices.
       if (!invoice.lines?.data || !hasManagedPrice(invoice.lines.data as { price?: { id: string } | null }[])) break
@@ -407,25 +446,26 @@ export async function POST(request: Request): Promise<Response> {
       let handled = false
 
       // Check if this is for an organization subscription.
-      if (subscriptionId && typeof subscriptionId === "string") {
+      if (subscription) {
         try {
-          const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
           const orgId = subscription.metadata.org_id
           if (orgId && typeof orgId === "string") {
             const subscriptionPlan = parseMetadataBillingPlan(subscription.metadata) ??
               detectBillingPlanFromItems(subscription.items.data)
             ok = await updateOrgSubscriptionStatus(supabase, orgId, "past_due", {
               stripeCustomerId: customerId,
-              stripeSubscriptionId: subscriptionId,
+              stripeSubscriptionId: subscription.id,
               activePlan: planForActiveOrgSubscription(subscriptionPlan),
             })
             handled = true
           } else if (isTeamSubscription(subscription.metadata)) {
-            console.error("Team subscription missing org_id for invoice:", subscriptionId)
+            console.error("Team subscription missing org_id for invoice:", subscription.id)
           }
         } catch (e) {
           console.error("Failed to retrieve subscription for invoice:", e)
         }
+      } else if (subscriptionId) {
+        console.error("Invoice subscription could not be resolved:", subscriptionId)
       }
 
       // Individual subscription (only if not handled as team)
@@ -437,12 +477,14 @@ export async function POST(request: Request): Promise<Response> {
 
     case "invoice.marked_uncollectible": {
       const invoice = event.data.object as Stripe.Invoice
-      const customerId = extractCustomerId(invoice.customer)
+      const invoiceSubscription = (invoice as { subscription?: Stripe.Subscription | string | null }).subscription
+      const subscription = await resolveSubscriptionReference(invoiceSubscription, "invoice")
+      const customerId = extractCustomerId(invoice.customer) ?? extractCustomerId(subscription?.customer)
       if (!customerId) {
         console.error("Invoice marked_uncollectible event missing customer identifier:", invoice.id)
         break
       }
-      const subscriptionId = (invoice as { subscription?: string | null }).subscription
+      const subscriptionId = subscription?.id ?? extractSubscriptionId(invoiceSubscription)
 
       // Only act on invoices for our managed prices.
       if (!invoice.lines?.data || !hasManagedPrice(invoice.lines.data as { price?: { id: string } | null }[])) break
@@ -450,9 +492,8 @@ export async function POST(request: Request): Promise<Response> {
       let handled = false
 
       // Check if this is for an organization subscription.
-      if (subscriptionId && typeof subscriptionId === "string") {
+      if (subscription) {
         try {
-          const subscription = await getStripe().subscriptions.retrieve(subscriptionId)
           const orgId = subscription.metadata.org_id
           if (orgId && typeof orgId === "string") {
             const subscriptionPlan = parseMetadataBillingPlan(subscription.metadata) ??
@@ -463,11 +504,13 @@ export async function POST(request: Request): Promise<Response> {
             })
             handled = true
           } else if (isTeamSubscription(subscription.metadata)) {
-            console.error("Team subscription missing org_id for invoice:", subscriptionId)
+            console.error("Team subscription missing org_id for invoice:", subscription.id)
           }
         } catch (e) {
           console.error("Failed to retrieve subscription for invoice:", e)
         }
+      } else if (subscriptionId) {
+        console.error("Invoice subscription could not be resolved:", subscriptionId)
       }
 
       // Individual subscription (only if not handled as team)
