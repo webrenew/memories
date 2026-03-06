@@ -136,6 +136,47 @@ describe("POST /api/stripe/webhook", () => {
     })
   })
 
+  it("supports expanded Stripe customer payloads on checkout completion", async () => {
+    mockConstructEvent.mockReturnValue({
+      id: "evt_org_checkout_expanded_customer_1",
+      created: 1_709_000_001,
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_org_expanded_customer_123",
+          customer: { id: "cus_org_123" },
+          subscription: "sub_org_123",
+          metadata: {
+            workspace_owner_type: "organization",
+            workspace_org_id: "org-1",
+            supabase_user_id: "user-1",
+          },
+        },
+      },
+    })
+    mockListLineItems.mockResolvedValue({
+      data: [{ price: { id: "price_team_monthly" } }],
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockOrganizationsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripe_customer_id: "cus_org_123",
+        stripe_subscription_id: "sub_org_123",
+        subscription_status: "active",
+        plan: "team",
+      })
+    )
+    expect(mockRpc).toHaveBeenCalledWith("claim_stripe_webhook_event", {
+      p_event_id: "evt_org_checkout_expanded_customer_1",
+      p_event_type: "checkout.session.completed",
+      p_event_created_at: new Date(1_709_000_001 * 1000).toISOString(),
+      p_scope_type: "customer",
+      p_scope_key: "cus_org_123",
+    })
+  })
+
   it("updates user plan on personal checkout completion", async () => {
     mockConstructEvent.mockReturnValue({
       id: "evt_user_checkout_1",
@@ -280,6 +321,85 @@ describe("POST /api/stripe/webhook", () => {
         stripe_customer_id: "cus_org_123",
       })
     )
+  })
+
+  it("uses expanded invoice subscriptions for payment failures without Stripe re-fetch", async () => {
+    mockConstructEvent.mockReturnValue({
+      id: "evt_invoice_failed_expanded_subscription_1",
+      created: 1_709_000_011,
+      type: "invoice.payment_failed",
+      data: {
+        object: {
+          id: "in_team_failed_123",
+          customer: null,
+          subscription: {
+            id: "sub_team_123",
+            customer: "cus_org_123",
+            metadata: { type: "team_seats", org_id: "org-1" },
+            items: { data: [{ price: { id: "price_team_monthly" } }] },
+          },
+          lines: { data: [{ price: { id: "price_team_monthly" } }] },
+        },
+      },
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockRetrieveSubscription).not.toHaveBeenCalled()
+    expect(mockOrganizationsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscription_status: "past_due",
+        stripe_customer_id: "cus_org_123",
+        stripe_subscription_id: "sub_team_123",
+        plan: "past_due",
+      })
+    )
+    expect(mockRpc).toHaveBeenCalledWith("claim_stripe_webhook_event", {
+      p_event_id: "evt_invoice_failed_expanded_subscription_1",
+      p_event_type: "invoice.payment_failed",
+      p_event_created_at: new Date(1_709_000_011 * 1000).toISOString(),
+      p_scope_type: "customer",
+      p_scope_key: "cus_org_123",
+    })
+  })
+
+  it("uses expanded invoice subscriptions for uncollectible invoices without Stripe re-fetch", async () => {
+    mockConstructEvent.mockReturnValue({
+      id: "evt_invoice_uncollectible_expanded_subscription_1",
+      created: 1_709_000_012,
+      type: "invoice.marked_uncollectible",
+      data: {
+        object: {
+          id: "in_team_uncollectible_123",
+          customer: null,
+          subscription: {
+            id: "sub_team_123",
+            customer: { id: "cus_org_123" },
+            metadata: { type: "team_seats", org_id: "org-1" },
+            items: { data: [{ price: { id: "price_team_monthly" } }] },
+          },
+          lines: { data: [{ price: { id: "price_team_monthly" } }] },
+        },
+      },
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockRetrieveSubscription).not.toHaveBeenCalled()
+    expect(mockOrganizationsUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscription_status: "cancelled",
+        stripe_customer_id: "cus_org_123",
+        plan: "free",
+      })
+    )
+    expect(mockRpc).toHaveBeenCalledWith("claim_stripe_webhook_event", {
+      p_event_id: "evt_invoice_uncollectible_expanded_subscription_1",
+      p_event_type: "invoice.marked_uncollectible",
+      p_event_created_at: new Date(1_709_000_012 * 1000).toISOString(),
+      p_scope_type: "customer",
+      p_scope_key: "cus_org_123",
+    })
   })
 
   it("returns 200 for unhandled event type", async () => {
