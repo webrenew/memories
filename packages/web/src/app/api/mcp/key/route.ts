@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { NextResponse } from "next/server"
+import { parseRequestedApiKeyExpiry } from "@/lib/api-key-expiry"
 import { apiRateLimit, checkRateLimit } from "@/lib/rate-limit"
 import {
   createUserApiKey,
@@ -8,9 +9,6 @@ import {
   revokeUserApiKeys,
 } from "@/lib/mcp-api-key-store"
 
-const MAX_KEY_TTL_DAYS = 365
-const MAX_KEY_TTL_MS = MAX_KEY_TTL_DAYS * 24 * 60 * 60 * 1000
-const MIN_KEY_TTL_MS = 60 * 1000
 const LEGACY_ENDPOINT = "/api/mcp/key"
 const SUCCESSOR_ENDPOINT = "/api/sdk/v1/management/keys"
 const LEGACY_SUNSET = "Tue, 30 Jun 2026 00:00:00 GMT"
@@ -29,28 +27,6 @@ function legacyJson(body: unknown, init?: { status?: number }): NextResponse {
 function logDeprecatedAccess(method: "GET" | "POST" | "DELETE", userId?: string): void {
   const userSegment = userId ? ` (user:${userId})` : ""
   console.warn(`[DEPRECATED_ENDPOINT] ${LEGACY_ENDPOINT} ${method}${userSegment} -> use ${SUCCESSOR_ENDPOINT}`)
-}
-
-function parseRequestedExpiry(rawExpiry: unknown): { expiresAt: string } | { error: string } {
-  if (typeof rawExpiry !== "string" || rawExpiry.trim().length === 0) {
-    return { error: "expiresAt is required" }
-  }
-
-  const parsed = new Date(rawExpiry)
-  if (Number.isNaN(parsed.getTime())) {
-    return { error: "expiresAt must be a valid ISO datetime" }
-  }
-
-  const now = Date.now()
-  if (parsed.getTime() <= now + MIN_KEY_TTL_MS) {
-    return { error: "expiresAt must be at least 1 minute in the future" }
-  }
-
-  if (parsed.getTime() > now + MAX_KEY_TTL_MS) {
-    return { error: `expiresAt cannot be more than ${MAX_KEY_TTL_DAYS} days in the future` }
-  }
-
-  return { expiresAt: parsed.toISOString() }
 }
 
 // GET - Get current API key
@@ -116,7 +92,7 @@ export async function POST(request: Request): Promise<Response> {
     // Body is validated below.
   }
 
-  const expiry = parseRequestedExpiry(body.expiresAt)
+  const expiry = parseRequestedApiKeyExpiry(body.expiresAt)
   if ("error" in expiry) {
     return legacyJson({ error: expiry.error }, { status: 400 })
   }

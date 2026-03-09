@@ -5,10 +5,19 @@ import type { ReactNode } from 'react';
 import { source } from '@/lib/source';
 import Image from 'next/image';
 
+const DOCS_GRID_TEMPLATE = `"sidebar header toc"
+  "sidebar toc-popover toc"
+  "sidebar main toc" 1fr / var(--fd-sidebar-col) minmax(0, 1fr) var(--fd-toc-width)`;
+
 export default function Layout({ children }: { children: ReactNode }): React.JSX.Element {
   return (
     <RootProvider theme={{ enabled: false }}>
       <DocsLayout
+        containerProps={{
+          style: {
+            gridTemplate: DOCS_GRID_TEMPLATE,
+          },
+        }}
         tree={source.pageTree}
         nav={{
           title: (

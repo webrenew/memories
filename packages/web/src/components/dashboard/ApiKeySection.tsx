@@ -3,34 +3,17 @@
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import { Copy, RefreshCw, Trash2, Key, Eye, EyeOff, Check } from "lucide-react"
 import { TenantDatabaseMappingsSection } from "@/components/dashboard/TenantDatabaseMappingsSection"
+import {
+  defaultExpiryInputValue,
+  isoToLocalInputValue,
+  MIN_KEY_TTL_MS,
+  toDateTimeLocalValue,
+} from "@/lib/api-key-expiry"
 import { extractErrorMessage } from "@/lib/client-errors"
 import { recordClientWorkflowEvent } from "@/lib/client-workflow-debug"
 import type { WorkspacePlan } from "@/lib/workspace"
 
 const MCP_ENDPOINT = "https://memories.sh/api/mcp"
-const DEFAULT_EXPIRY_DAYS = 30
-const MIN_EXPIRY_OFFSET_MS = 60 * 1000
-
-function toDateTimeLocalValue(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  const hours = String(date.getHours()).padStart(2, "0")
-  const minutes = String(date.getMinutes()).padStart(2, "0")
-  return `${year}-${month}-${day}T${hours}:${minutes}`
-}
-
-function defaultExpiryInputValue(): string {
-  const expiry = new Date(Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
-  return toDateTimeLocalValue(expiry)
-}
-
-function isoToLocalInputValue(iso: string | null): string {
-  if (!iso) return defaultExpiryInputValue()
-  const parsed = new Date(iso)
-  if (Number.isNaN(parsed.getTime())) return defaultExpiryInputValue()
-  return toDateTimeLocalValue(parsed)
-}
 
 function formatDateTime(value: string | null): string {
   if (!value) return "Not set"
@@ -67,9 +50,10 @@ interface ApiKeySummary {
 
 interface ApiKeySectionProps {
   workspacePlan: WorkspacePlan
+  refreshNonce?: number
 }
 
-export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.Element {
+export function ApiKeySection({ workspacePlan, refreshNonce = 0 }: ApiKeySectionProps): React.JSX.Element {
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [hasKey, setHasKey] = useState(false)
   const [keys, setKeys] = useState<ApiKeySummary[]>([])
@@ -172,7 +156,7 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
 
   useEffect(() => {
     void fetchKey()
-  }, [fetchKey])
+  }, [fetchKey, refreshNonce])
 
   async function generateKey() {
     if (keyMutationInFlightRef.current) return
@@ -369,7 +353,7 @@ export function ApiKeySection({ workspacePlan }: ApiKeySectionProps): React.JSX.
   const maskedKey = apiKey ? `${apiKey.slice(0, 12)}${"*".repeat(40)}${apiKey.slice(-4)}` : ""
   const displayedKey = apiKey ? (showKey ? apiKey : maskedKey) : (keyPreview || "")
   const hasActiveKey = activeKeyCount > 0
-  const minExpiryValue = toDateTimeLocalValue(new Date(Date.now() + MIN_EXPIRY_OFFSET_MS))
+  const minExpiryValue = toDateTimeLocalValue(new Date(Date.now() + MIN_KEY_TTL_MS))
 
   if (loading && !hasKey && !apiKey) {
     return (
