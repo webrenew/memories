@@ -522,6 +522,16 @@ export async function POST(request: Request): Promise<Response> {
         })
       : await getStripe().checkout.sessions.create(sessionPayload)
 
+    if (!session.url) {
+      console.error("Stripe checkout session missing redirect URL:", {
+        ownerType: workspace.ownerType,
+        orgId: workspace.orgId ?? null,
+        requestedPlan,
+        billing,
+      })
+      return jsonError("Failed to create checkout session", 500, "CHECKOUT_SESSION_MISSING_URL")
+    }
+
     return NextResponse.json({ url: session.url })
   } catch (error) {
     console.error("Failed to create checkout session:", error)

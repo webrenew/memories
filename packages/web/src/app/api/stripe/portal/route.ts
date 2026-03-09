@@ -73,6 +73,15 @@ export async function POST(request: Request): Promise<Response> {
       return_url: `${origin}/app/billing`,
     })
 
+    if (!session.url) {
+      console.error("Stripe billing portal session missing redirect URL:", {
+        ownerType: workspace.ownerType,
+        orgId: workspace.orgId ?? null,
+        customerId,
+      })
+      return jsonError("Failed to open billing portal", 500, "BILLING_PORTAL_MISSING_URL")
+    }
+
     return NextResponse.json({ url: session.url })
   } catch (error) {
     console.error("Failed to create billing portal session:", error)
