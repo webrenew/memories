@@ -159,6 +159,12 @@ export function SdkProjectsSection({
     setCreatedKey(null)
     setCopiedKey(false)
     try {
+      const parsedExpiry = generateApiKey ? new Date(expiryInput) : null
+      if (generateApiKey && (!parsedExpiry || Number.isNaN(parsedExpiry.getTime()))) {
+        throw new Error("Expiry must be a valid date and time.")
+      }
+      const expiresAt = parsedExpiry ? parsedExpiry.toISOString() : undefined
+
       setError(null)
       const response = await fetch("/api/sdk-projects", {
         method: "POST",
@@ -168,7 +174,7 @@ export function SdkProjectsSection({
           tenantId,
           description,
           generateApiKey,
-          expiresAt: generateApiKey ? expiryInput : undefined,
+          expiresAt,
         }),
       })
       const payload = await response.json().catch(() => null)

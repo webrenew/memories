@@ -50,8 +50,8 @@ BEGIN
   ) THEN
     CREATE POLICY "Service role full access sdk_projects"
       ON public.sdk_projects
-      USING (auth.role() = 'service_role')
-      WITH CHECK (auth.role() = 'service_role');
+      USING ((SELECT auth.role()) = 'service_role')
+      WITH CHECK ((SELECT auth.role()) = 'service_role');
   END IF;
 END;
 $$;
