@@ -85,6 +85,27 @@ describe("/api/stripe/checkout", () => {
     expect(response.status).toBe(403)
   })
 
+  it("returns 400 when billing input is invalid", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "user@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "user",
+      orgId: null,
+      orgRole: null,
+      plan: "free",
+      hasDatabase: true,
+      canProvision: true,
+      canManageBilling: true,
+      turso_db_url: "libsql://user.turso.io",
+      turso_db_token: "token",
+      turso_db_name: "user-db",
+      userId: "user-1",
+    })
+
+    const response = await POST(makeRequest({ billing: "invalid" }))
+    expect(response.status).toBe(400)
+    expect(mockCheckoutSessionCreate).not.toHaveBeenCalled()
+  })
+
   it("creates org checkout session using organization customer + team metadata", async () => {
     mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "owner@example.com" })
     mockResolveWorkspaceContext.mockResolvedValue({
@@ -250,6 +271,48 @@ describe("/api/stripe/checkout", () => {
         ]),
       })
     )
+  })
+
+  it("returns 500 when Stripe checkout session has no redirect URL", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "user@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "user",
+      orgId: null,
+      orgRole: null,
+      plan: "free",
+      hasDatabase: true,
+      canProvision: true,
+      canManageBilling: true,
+      turso_db_url: "libsql://user.turso.io",
+      turso_db_token: "token",
+      turso_db_name: "user-db",
+      userId: "user-1",
+    })
+    mockCheckoutSessionCreate.mockResolvedValue({ url: null })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { stripe_customer_id: "cus_user_123", email: "user@example.com" },
+                error: null,
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    const response = await POST(makeRequest({ billing: "monthly" }))
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.code).toBe("CHECKOUT_SESSION_MISSING_URL")
   })
 
   it("returns 500 when organization customer lookup fails", async () => {

@@ -320,8 +320,13 @@ describe("checkoutSchema", () => {
     expect(result.success).toBe(true)
   })
 
-  it("should default to annual on invalid value", () => {
+  it("should reject invalid billing values", () => {
     const result = checkoutSchema.safeParse({ billing: "invalid" })
+    expect(result.success).toBe(false)
+  })
+
+  it("should default to annual when billing is omitted", () => {
+    const result = checkoutSchema.safeParse({})
     expect(result.success).toBe(true)
     if (result.success) expect(result.data.billing).toBe("annual")
   })

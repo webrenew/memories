@@ -168,6 +168,45 @@ describe("/api/stripe/portal", () => {
     )
   })
 
+  it("returns 500 when billing portal session has no redirect URL", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "user@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "user",
+      orgId: null,
+      orgRole: null,
+      plan: "pro",
+      hasDatabase: true,
+      canProvision: true,
+      canManageBilling: true,
+      turso_db_url: "libsql://user.turso.io",
+      turso_db_token: "token",
+      turso_db_name: "user-db",
+      userId: "user-1",
+    })
+    mockPortalCreate.mockResolvedValue({ url: null })
+
+    mockAdminFrom.mockImplementation((table: string) => {
+      if (table === "users") {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { stripe_customer_id: "cus_user_123" },
+                error: null,
+              }),
+            }),
+          }),
+        }
+      }
+      return {}
+    })
+
+    const response = await POST(makeRequest())
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body.code).toBe("BILLING_PORTAL_MISSING_URL")
+  })
+
   it("returns 500 when organization billing customer lookup fails", async () => {
     mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "owner@example.com" })
     mockResolveWorkspaceContext.mockResolvedValue({

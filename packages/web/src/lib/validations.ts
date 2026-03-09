@@ -99,7 +99,7 @@ export const acceptInviteSchema = z.object({
 // --- Stripe Checkout ---
 
 export const checkoutSchema = z.object({
-  billing: z.enum(["monthly", "annual"]).catch("annual"),
+  billing: z.enum(["monthly", "annual"]).default("annual"),
   plan: z.enum(["individual", "team", "growth"]).optional(),
   requestId: z.string().uuid().optional(),
 })
