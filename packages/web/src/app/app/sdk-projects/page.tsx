@@ -1,6 +1,6 @@
 import React from "react"
 import Link from "next/link"
-import { ApiKeySection } from "@/components/dashboard/ApiKeySection"
+import { SdkProjectsDashboard } from "@/components/dashboard/SdkProjectsDashboard"
 import { createClient } from "@/lib/supabase/server"
 import { resolveWorkspaceContext } from "@/lib/workspace"
 
@@ -94,7 +94,10 @@ export default async function SdkProjectsPage(): Promise<React.JSX.Element> {
         </p>
       </div>
 
-      <ApiKeySection workspacePlan={workspace?.plan ?? "free"} />
+      <SdkProjectsDashboard
+        workspacePlan={workspace?.plan ?? "free"}
+        canCreateProjects={workspace?.canProvision ?? false}
+      />
     </div>
   )
 }
