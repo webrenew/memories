@@ -34,9 +34,13 @@ vi.mock("@/lib/rate-limit", () => ({
   checkPreAuthApiRateLimit: mockCheckPreAuthApiRateLimit,
 }))
 
-vi.mock("@/lib/workspace", () => ({
-  resolveWorkspaceContext: mockResolveWorkspaceContext,
-}))
+vi.mock("@/lib/workspace", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/workspace")>()
+  return {
+    ...actual,
+    resolveWorkspaceContext: mockResolveWorkspaceContext,
+  }
+})
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
@@ -96,6 +100,55 @@ describe("/api/db/provision", () => {
     expect(response.status).toBe(401)
   })
 
+  it("returns existing URL for grandfathered free user with database", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "free@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "user",
+      userId: "user-1",
+      orgId: null,
+      orgRole: null,
+      plan: "free",
+      hasDatabase: true,
+      canProvision: true,
+      canManageBilling: true,
+      turso_db_url: "libsql://existing.turso.io",
+      turso_db_token: "existing-token",
+      turso_db_name: "existing-db",
+    })
+
+    const response = await POST(new Request("https://example.com/api/db/provision", { method: "POST" }))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.url).toBe("libsql://existing.turso.io")
+    expect(body.provisioned).toBe(false)
+    expect(mockCreateDatabase).not.toHaveBeenCalled()
+  })
+
+  it("returns 403 when workspace plan is free", async () => {
+    mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "free@example.com" })
+    mockResolveWorkspaceContext.mockResolvedValue({
+      ownerType: "user",
+      userId: "user-1",
+      orgId: null,
+      orgRole: null,
+      plan: "free",
+      hasDatabase: false,
+      canProvision: true,
+      canManageBilling: true,
+      turso_db_url: null,
+      turso_db_token: null,
+      turso_db_name: null,
+    })
+
+    const response = await POST(new Request("https://example.com/api/db/provision", { method: "POST" }))
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.code).toBe("UPGRADE_REQUIRED")
+    expect(mockCreateDatabase).not.toHaveBeenCalled()
+  })
+
   it("returns 403 when org role is member", async () => {
     mockAuthenticateRequest.mockResolvedValue({ userId: "user-1", email: "member@example.com" })
     mockResolveWorkspaceContext.mockResolvedValue({
@@ -103,7 +156,7 @@ describe("/api/db/provision", () => {
       userId: "user-1",
       orgId: "org-1",
       orgRole: "member",
-      plan: "pro",
+      plan: "individual",
       hasDatabase: false,
       canProvision: false,
       canManageBilling: false,
@@ -126,7 +179,7 @@ describe("/api/db/provision", () => {
       userId: "user-1",
       orgId: "org-1",
       orgRole: "admin",
-      plan: "pro",
+      plan: "individual",
       hasDatabase: false,
       canProvision: true,
       canManageBilling: false,
@@ -181,7 +234,7 @@ describe("/api/db/provision", () => {
       userId: "user-1",
       orgId: "org-1",
       orgRole: "admin",
-      plan: "pro",
+      plan: "individual",
       hasDatabase: false,
       canProvision: true,
       canManageBilling: false,

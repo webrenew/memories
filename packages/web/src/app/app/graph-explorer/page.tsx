@@ -2,6 +2,8 @@ import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createTurso } from "@libsql/client"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
+import { UpgradeRequiredScreen } from "@/components/dashboard/UpgradeRequiredScreen"
+import { isPaidWorkspacePlan, normalizeWorkspacePlan } from "@/lib/workspace"
 import { MemoryGraphSection } from "@/components/dashboard/MemoryGraphSection"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
 import { ensureMemoryUserIdSchema } from "@/lib/memory-service/scope"
@@ -21,6 +23,10 @@ export default async function GraphExplorerPage(): Promise<React.JSX.Element | n
 
   const context = await resolveActiveMemoryContext(supabase, user.id)
   const hasTurso = context?.turso_db_url && context?.turso_db_token
+
+  if (!hasTurso && !isPaidWorkspacePlan(normalizeWorkspacePlan(context?.plan))) {
+    return <UpgradeRequiredScreen />
+  }
 
   if (!hasTurso) {
     return <ProvisioningScreen />

@@ -2,7 +2,9 @@ import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { LazyStatsCharts } from "./stats-charts-lazy"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
+import { UpgradeRequiredScreen } from "@/components/dashboard/UpgradeRequiredScreen"
 import { resolveActiveMemoryContext } from "@/lib/active-memory-context"
+import { isPaidWorkspacePlan, normalizeWorkspacePlan } from "@/lib/workspace"
 
 export const metadata = {
   title: "Stats",
@@ -59,6 +61,10 @@ export default async function StatsPage(): Promise<React.JSX.Element | null> {
 
   const context = await resolveActiveMemoryContext(supabase, user.id)
   const hasTurso = context?.turso_db_url && context?.turso_db_token
+
+  if (!hasTurso && !isPaidWorkspacePlan(normalizeWorkspacePlan(context?.plan))) {
+    return <UpgradeRequiredScreen />
+  }
 
   if (!hasTurso) {
     return <ProvisioningScreen />
