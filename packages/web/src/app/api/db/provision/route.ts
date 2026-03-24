@@ -4,7 +4,7 @@ import { createDatabase, createDatabaseToken, deleteDatabase, initSchema } from 
 import { NextResponse } from "next/server"
 import { setTimeout as delay } from "node:timers/promises"
 import { checkPreAuthApiRateLimit, checkRateLimit, strictRateLimit } from "@/lib/rate-limit"
-import { resolveWorkspaceContext } from "@/lib/workspace"
+import { isPaidWorkspacePlan, resolveWorkspaceContext } from "@/lib/workspace"
 import { getTursoOrgSlug } from "@/lib/env"
 
 type SaveCredentialsResult =
@@ -298,6 +298,13 @@ export async function POST(request: Request): Promise<Response> {
       url: context.turso_db_url,
       provisioned: false,
     })
+  }
+
+  if (!isPaidWorkspacePlan(context.plan)) {
+    return NextResponse.json(
+      { error: "Cloud database requires a paid plan", code: "UPGRADE_REQUIRED" },
+      { status: 403 }
+    )
   }
 
   if (!context.canProvision) {

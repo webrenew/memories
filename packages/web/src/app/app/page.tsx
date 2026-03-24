@@ -2,6 +2,8 @@ import React from "react"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createTurso } from "@libsql/client"
 import { ProvisioningScreen } from "@/components/dashboard/ProvisioningScreen"
+import { UpgradeRequiredScreen } from "@/components/dashboard/UpgradeRequiredScreen"
+import { isPaidWorkspacePlan, normalizeWorkspacePlan } from "@/lib/workspace"
 import { MemoriesSection } from "@/components/dashboard/MemoriesSection"
 import { IntegrationHealthSection } from "@/components/dashboard/IntegrationHealthSection"
 import { GithubCaptureQueueSection } from "@/components/dashboard/GithubCaptureQueueSection"
@@ -47,6 +49,10 @@ export default async function MemoriesPage(): Promise<React.JSX.Element | null> 
 
   const context = await resolveActiveMemoryContext(supabase, user.id)
   const hasTurso = context?.turso_db_url && context?.turso_db_token
+
+  if (!hasTurso && !isPaidWorkspacePlan(normalizeWorkspacePlan(context?.plan))) {
+    return <UpgradeRequiredScreen />
+  }
 
   if (!hasTurso) {
     return <ProvisioningScreen />
