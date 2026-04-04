@@ -47,16 +47,16 @@
     "postinstall": "node ./postinstall.mjs"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.3.0",
-    "@libsql/client": "^0.17.0",
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@inquirer/prompts": "^8.3.2",
+    "@libsql/client": "^0.17.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@xenova/transformers": "^2.17.2",
     "boxen": "^8.0.1",
     "chalk": "^5.4.0",
     "commander": "^14.0.3",
-    "figlet": "^1.10.0",
+    "figlet": "^1.11.0",
     "gradient-string": "^3.0.0",
-    "nanoid": "^5.0.0",
+    "nanoid": "^5.1.7",
     "ora": "^9.3.0",
     "sharp": "~0.34.5",
     "yaml": "^2.6.0",
@@ -68,6 +68,6 @@
     "@types/node": "^25.2.1",
     "tsup": "^8.3.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.2"
   }
 }
