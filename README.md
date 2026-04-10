@@ -6,9 +6,12 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@memories.sh/cli"><img src="https://img.shields.io/npm/v/@memories.sh/cli?color=000&label=npm&labelColor=1a1a2e" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@memories.sh/cli"><img src="https://img.shields.io/npm/dm/@memories.sh/cli?color=000&label=downloads&labelColor=1a1a2e" alt="npm downloads"></a>
   <a href="https://github.com/webrenew/memories/actions/workflows/ci.yml"><img src="https://github.com/webrenew/memories/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/webrenew/memories/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-000?labelColor=1a1a2e" alt="License"></a>
   <a href="https://memories.sh/docs"><img src="https://img.shields.io/badge/docs-memories.sh-000?labelColor=1a1a2e" alt="Documentation"></a>
+  <a href="https://memories.sh"><img src="https://img.shields.io/badge/website-memories.sh-000?labelColor=1a1a2e" alt="Website"></a>
+  <a href="https://github.com/webrenew/memories/issues"><img src="https://img.shields.io/badge/contributions-welcome-000?labelColor=1a1a2e" alt="Contributions Welcome"></a>
 </p>
 
 <p align="center">
@@ -21,6 +24,25 @@
   <a href="https://memories.sh">Website</a> ·
   <a href="https://www.npmjs.com/package/@memories.sh/cli">npm</a>
 </p>
+
+---
+
+## Table of Contents
+
+- [Why](#why)
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Features](#features)
+- [Supported Tools](#supported-tools)
+- [Memory Types](#memory-types)
+- [Memory Segmentation Lifecycle](#memory-segmentation-lifecycle)
+- [Generation Pipeline](#generation-pipeline)
+- [MCP Server](#mcp-server-fallback)
+- [CLI Reference](#cli-reference)
+- [Ingesting Existing Rules](#ingesting-existing-rules)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
