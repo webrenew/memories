@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { NextRequest } from "next/server"
+import {
+  VALID_SDK_API_KEY as VALID_API_KEY,
+  makeSdkPostRequest as makePostRequest,
+  normalizeSdkEnvelope as normalizeEnvelope,
+} from "../../../__tests__/helpers"
 
 const {
   mockUserSelect,
@@ -70,34 +74,6 @@ vi.mock("@libsql/client", () => ({
 
 import { OPTIONS, POST } from "../route"
 
-const VALID_API_KEY = `mem_${"a".repeat(64)}`
-
-function normalizeEnvelope(body: Record<string, unknown>) {
-  return {
-    ...body,
-    meta: {
-      ...(typeof body.meta === "object" && body.meta ? body.meta : {}),
-      requestId: "<request-id>",
-      timestamp: "<timestamp>",
-    },
-  }
-}
-
-function makePostRequest(body: unknown, apiKey?: string): NextRequest {
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  }
-  if (apiKey) {
-    headers.authorization = `Bearer ${apiKey}`
-  }
-
-  return new NextRequest("https://example.com/api/sdk/v1/context/get", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  })
-}
-
 describe("/api/sdk/v1/context/get", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -155,7 +131,7 @@ describe("/api/sdk/v1/context/get", () => {
   })
 
   it("returns 401 when API key is missing", async () => {
-    const response = await POST(makePostRequest({ query: "auth" }))
+    const response = await POST(makePostRequest("/api/sdk/v1/context/get", { query: "auth" }))
 
     expect(response.status).toBe(401)
     const body = await response.json()
@@ -166,6 +142,7 @@ describe("/api/sdk/v1/context/get", () => {
   it("returns 400 for invalid request payload", async () => {
     const response = await POST(
       makePostRequest(
+        "/api/sdk/v1/context/get",
         {
           query: "auth",
           limit: -1,
@@ -183,6 +160,7 @@ describe("/api/sdk/v1/context/get", () => {
   it("returns filtered context by mode and includeRules", async () => {
     const response = await POST(
       makePostRequest(
+        "/api/sdk/v1/context/get",
         {
           query: "auth",
           mode: "working",
@@ -233,6 +211,7 @@ describe("/api/sdk/v1/context/get", () => {
   it("maps semantic strategy requests to baseline retrieval", async () => {
     const response = await POST(
       makePostRequest(
+        "/api/sdk/v1/context/get",
         {
           query: "auth",
           strategy: "semantic",
@@ -267,6 +246,7 @@ describe("/api/sdk/v1/context/get", () => {
 
     const response = await POST(
       makePostRequest(
+        "/api/sdk/v1/context/get",
         {
           query: "policy default",
           scope: {
@@ -299,6 +279,7 @@ describe("/api/sdk/v1/context/get", () => {
 
     const response = await POST(
       makePostRequest(
+        "/api/sdk/v1/context/get",
         {
           query: "auth",
           scope: {
@@ -329,6 +310,7 @@ describe("/api/sdk/v1/context/get", () => {
 
     const response = await POST(
       makePostRequest(
+        "/api/sdk/v1/context/get",
         {
           query: "auth",
           scope: {
@@ -354,6 +336,7 @@ describe("/api/sdk/v1/context/get", () => {
   it("matches sdk context success envelope contract snapshot", async () => {
     const response = await POST(
       makePostRequest(
+        "/api/sdk/v1/context/get",
         {
           query: "auth",
           scope: { userId: "end-user-1", projectId: "github.com/acme/platform" },
@@ -437,7 +420,7 @@ describe("/api/sdk/v1/context/get", () => {
   })
 
   it("matches sdk context error envelope contract snapshot", async () => {
-    const response = await POST(makePostRequest({ query: "auth", limit: -1 }, VALID_API_KEY))
+    const response = await POST(makePostRequest("/api/sdk/v1/context/get", { query: "auth", limit: -1 }, VALID_API_KEY))
     const body = (await response.json()) as Record<string, unknown>
 
     expect(normalizeEnvelope(body)).toMatchInlineSnapshot(`

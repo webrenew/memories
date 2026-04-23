@@ -132,6 +132,9 @@ can return a `session` block with `compactionRequired` and `triggerHint` so your
 before context boundaries.
 </Callout>
 
+These lifecycle hint fields are interpreted by `@memories.sh/core` when it builds context. They are
+not part of the raw `POST /api/sdk/v1/context/get` HTTP request contract.
+
 ```typescript
 import { MemoriesClient } from "@memories.sh/core"
 

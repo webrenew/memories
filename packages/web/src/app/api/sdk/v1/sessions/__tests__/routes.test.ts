@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { NextRequest } from "next/server"
+import {
+  VALID_SDK_API_KEY as VALID_API_KEY,
+  makeSdkGetRequest as makeGet,
+  makeSdkPostRequest as makePost,
+} from "../../__tests__/helpers"
 
 const {
   mockUserSelect,
@@ -76,35 +80,6 @@ import { POST as checkpointPOST } from "../checkpoint/route"
 import { POST as endPOST } from "../end/route"
 import { GET as snapshotGET } from "../[sessionId]/snapshot/route"
 import { ToolExecutionError, apiError } from "@/lib/memory-service/tools"
-
-const VALID_API_KEY = `mem_${"a".repeat(64)}`
-
-function makePost(path: string, body: unknown, apiKey?: string): NextRequest {
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  }
-  if (apiKey) {
-    headers.authorization = `Bearer ${apiKey}`
-  }
-
-  return new NextRequest(`https://example.com${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  })
-}
-
-function makeGet(path: string, apiKey?: string): NextRequest {
-  const headers: Record<string, string> = {}
-  if (apiKey) {
-    headers.authorization = `Bearer ${apiKey}`
-  }
-
-  return new NextRequest(`https://example.com${path}`, {
-    method: "GET",
-    headers,
-  })
-}
 
 describe("/api/sdk/v1/sessions/*", () => {
   beforeEach(() => {

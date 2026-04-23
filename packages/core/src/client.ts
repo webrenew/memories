@@ -185,14 +185,6 @@ export class MemoriesClient {
             strategy,
             graphDepth: input.graphDepth,
             graphLimit: input.graphLimit,
-            sessionId: input.sessionId,
-            budgetTokens: input.budgetTokens,
-            turnCount: input.turnCount,
-            turnBudget: input.turnBudget,
-            lastActivityAt: input.lastActivityAt,
-            inactivityThresholdMinutes: input.inactivityThresholdMinutes,
-            taskCompleted: input.taskCompleted,
-            includeSessionSummary: input.includeSessionSummary,
             scope: sdkScope,
           })
         : await this.callTool("get_context", {

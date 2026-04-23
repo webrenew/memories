@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
+import { jsonResponse, normalizeSdkEnvelope as normalizeEnvelope } from "../../__tests__/helpers"
 
 const {
   mockKeyGet,
@@ -34,13 +35,6 @@ import {
   GET as tenantsGet,
   POST as tenantsPost,
 } from "../tenant-overrides/route"
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
-  })
-}
 
 function sdkSuccessResponse(data: unknown, status = 200): Response {
   return jsonResponse(
@@ -82,16 +76,6 @@ function sdkErrorResponse(status: number, message: string, code = "TENANT_OVERRI
   )
 }
 
-function normalizeEnvelope(body: Record<string, unknown>) {
-  return {
-    ...body,
-    meta: {
-      ...(typeof body.meta === "object" && body.meta ? body.meta : {}),
-      requestId: "<request-id>",
-      timestamp: "<timestamp>",
-    },
-  }
-}
 
 describe("/api/sdk/v1/management/keys", () => {
   it("wraps successful key GET response in sdk envelope", async () => {

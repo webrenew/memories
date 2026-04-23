@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { NextRequest } from "next/server"
+import {
+  VALID_SDK_API_KEY as VALID_API_KEY,
+  makeSdkPostRequest as makePost,
+  normalizeSdkEnvelope as normalizeEnvelope,
+} from "../../__tests__/helpers"
 
 const {
   mockUserSelect,
@@ -114,35 +118,6 @@ import { POST as vacuumPOST } from "../vacuum/route"
 import { POST as consolidatePOST } from "../consolidate/route"
 import { GET as healthGET } from "../../health/route"
 import { ToolExecutionError, apiError } from "@/lib/memory-service/tools"
-
-const VALID_API_KEY = `mem_${"a".repeat(64)}`
-
-function normalizeEnvelope(body: Record<string, unknown>) {
-  return {
-    ...body,
-    meta: {
-      ...(typeof body.meta === "object" && body.meta ? body.meta : {}),
-      requestId: "<request-id>",
-      timestamp: "<timestamp>",
-    },
-  }
-}
-
-function makePost(path: string, body: unknown, apiKey?: string): NextRequest {
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  }
-
-  if (apiKey) {
-    headers.authorization = `Bearer ${apiKey}`
-  }
-
-  return new NextRequest(`https://example.com${path}`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  })
-}
 
 describe("/api/sdk/v1/memories/*", () => {
   beforeEach(() => {

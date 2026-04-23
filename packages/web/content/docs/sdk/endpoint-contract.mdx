@@ -199,6 +199,10 @@ If `tenantId` is omitted, the request uses the API key owner's active workspace 
 
 Retrieve context bundle (rules + memories + trace).
 
+Lifecycle hint fields used by `@memories.sh/core` such as `sessionId`, token budgets, inactivity
+thresholds, and `includeSessionSummary` are evaluated client-side. They are not part of the raw
+HTTP body contract for this endpoint.
+
 Request:
 
 ```json
