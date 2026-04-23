@@ -21,6 +21,55 @@ describe("memoriesTools", () => {
     expect(() => memoriesTools({ apiKey: "mcp_test" })).toThrow("tenantId is required")
   })
 
+  it("forwards full context input through the core client", async () => {
+    const client = createMockClient()
+    const tools = memoriesTools({
+      client: client as unknown as any,
+      tenantId: "tenant-a",
+      userId: "user-default",
+      projectId: "github.com/acme/repo",
+    })
+
+    await tools.getContext({
+      query: "auth",
+      includeRules: false,
+      includeSkillFiles: true,
+      mode: "working",
+      strategy: "hybrid",
+      graphDepth: 2,
+      graphLimit: 12,
+      sessionId: "sess_1",
+      budgetTokens: 500,
+      turnCount: 6,
+      turnBudget: 12,
+      lastActivityAt: "2026-02-26T10:00:00.000Z",
+      inactivityThresholdMinutes: 45,
+      taskCompleted: false,
+      includeSessionSummary: true,
+    })
+
+    expect(client.context.get).toHaveBeenCalledWith({
+      query: "auth",
+      includeRules: false,
+      includeSkillFiles: true,
+      projectId: "github.com/acme/repo",
+      userId: "user-default",
+      tenantId: "tenant-a",
+      mode: "working",
+      strategy: "hybrid",
+      graphDepth: 2,
+      graphLimit: 12,
+      sessionId: "sess_1",
+      budgetTokens: 500,
+      turnCount: 6,
+      turnBudget: 12,
+      lastActivityAt: "2026-02-26T10:00:00.000Z",
+      inactivityThresholdMinutes: 45,
+      taskCompleted: false,
+      includeSessionSummary: true,
+    })
+  })
+
   it("routes tool calls through the core client", async () => {
     const client = createMockClient()
     const tools = memoriesTools({ client: client as unknown as any, projectId: "github.com/acme/repo" })
@@ -32,10 +81,15 @@ describe("memoriesTools", () => {
     await tools.forgetMemory({ id: "abc123" })
     await tools.editMemory({ id: "abc123", updates: { content: "Updated" } })
 
-    expect(client.context.get).toHaveBeenCalled()
-    expect(client.memories.add).toHaveBeenCalled()
-    expect(client.memories.search).toHaveBeenCalled()
-    expect(client.memories.list).toHaveBeenCalled()
+    expect(client.context.get).toHaveBeenCalledWith({
+      query: "auth",
+      projectId: "github.com/acme/repo",
+      userId: undefined,
+      tenantId: undefined,
+    })
+    expect(client.memories.add).toHaveBeenCalledWith({ content: "Use zod", projectId: "github.com/acme/repo" })
+    expect(client.memories.search).toHaveBeenCalledWith("zod", { projectId: "github.com/acme/repo" })
+    expect(client.memories.list).toHaveBeenCalledWith({ projectId: "github.com/acme/repo" })
     expect(client.memories.forget).toHaveBeenCalledWith("abc123")
     expect(client.memories.edit).toHaveBeenCalledWith("abc123", { content: "Updated" })
   })

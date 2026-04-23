@@ -1,22 +1,11 @@
 import type { ContextGetInput, MemoryAddInput, MemoryEditInput, MemoryListOptions, MemorySearchOptions, MemoryType, BulkForgetFilter } from "@memories.sh/core"
 import { resolveClient } from "./client"
+import { resolveContextInput } from "./context-input"
 import type { MemoriesBaseOptions, MemoriesTools } from "./types"
 
 export function getContext(options: MemoriesBaseOptions = {}): MemoriesTools["getContext"] {
   const client = resolveClient(options)
-  return async (input: ContextGetInput = {}) =>
-    client.context.get({
-      query: input.query,
-      limit: input.limit,
-      includeRules: input.includeRules,
-      projectId: input.projectId ?? options.projectId,
-      userId: input.userId ?? options.userId,
-      tenantId: input.tenantId ?? options.tenantId,
-      mode: input.mode,
-      strategy: input.strategy,
-      graphDepth: input.graphDepth,
-      graphLimit: input.graphLimit,
-    })
+  return async (input: ContextGetInput = {}) => client.context.get(resolveContextInput(input, options))
 }
 
 export function storeMemory(options: MemoriesBaseOptions = {}): MemoriesTools["storeMemory"] {

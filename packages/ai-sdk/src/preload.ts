@@ -1,4 +1,5 @@
 import { resolveClient } from "./client"
+import { resolveContextInput } from "./context-input"
 import type { MemoriesBaseOptions } from "./types"
 import type { ContextGetInput, ContextResult } from "@memories.sh/core"
 
@@ -6,16 +7,18 @@ export interface PreloadContextOptions extends MemoriesBaseOptions, ContextGetIn
 
 export async function preloadContext(options: PreloadContextOptions = {}): Promise<ContextResult> {
   const client = resolveClient(options)
-  return client.context.get({
-    query: options.query,
-    limit: options.limit,
-    includeRules: options.includeRules,
-    projectId: options.projectId,
-    userId: options.userId,
-    tenantId: options.tenantId,
-    mode: options.mode,
-    strategy: options.strategy,
-    graphDepth: options.graphDepth,
-    graphLimit: options.graphLimit,
-  })
+  const {
+    client: _client,
+    apiKey: _apiKey,
+    baseUrl: _baseUrl,
+    transport: _transport,
+    fetch: _fetch,
+    headers: _headers,
+    projectId,
+    userId,
+    tenantId,
+    ...contextInput
+  } = options
+
+  return client.context.get(resolveContextInput(contextInput, { projectId, userId, tenantId }))
 }
