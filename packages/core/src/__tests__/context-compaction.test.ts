@@ -210,6 +210,7 @@ describe("context compaction integration", () => {
     expect(context.session?.sessionId).toBe("sess_123")
     expect(context.session?.compactionRequired).toBe(true)
     expect(context.session?.triggerHint).toBe("count")
+    expect(context.session?.reason).toContain("Estimated context tokens")
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const sdkBody = extractSdkBody(fetchMock)
