@@ -11,7 +11,10 @@ function extractRpcArgs(fetchMock: ReturnType<typeof vi.fn>): Record<string, unk
 
 function extractSdkBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
   const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
-  return JSON.parse((requestInit?.body as string) ?? "{}") as Record<string, unknown>
+  if (typeof requestInit?.body !== "string") {
+    throw new Error("Expected a single SDK HTTP request with a JSON body")
+  }
+  return JSON.parse(requestInit.body) as Record<string, unknown>
 }
 
 describe("context compaction integration", () => {
@@ -208,6 +211,7 @@ describe("context compaction integration", () => {
     expect(context.session?.compactionRequired).toBe(true)
     expect(context.session?.triggerHint).toBe("count")
 
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     const sdkBody = extractSdkBody(fetchMock)
     expect(sdkBody).toMatchObject({
       query: "migration",

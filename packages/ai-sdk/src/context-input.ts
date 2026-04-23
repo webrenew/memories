@@ -5,10 +5,12 @@ export function resolveContextInput(
   input: ContextGetInput = {},
   defaults: Pick<MemoriesBaseOptions, "projectId" | "userId" | "tenantId"> = {}
 ): ContextGetInput {
+  const { projectId, userId, tenantId, ...rest } = input
+
   return {
-    ...input,
-    projectId: input.projectId ?? defaults.projectId,
-    userId: input.userId ?? defaults.userId,
-    tenantId: input.tenantId ?? defaults.tenantId,
+    ...rest,
+    projectId: projectId ?? defaults.projectId,
+    userId: userId ?? defaults.userId,
+    tenantId: tenantId ?? defaults.tenantId,
   }
 }
