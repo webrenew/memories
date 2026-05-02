@@ -42,7 +42,7 @@
     "dev": "tsup --watch"
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.4.2"
   },
   "devDependencies": {
     "@types/node": "^25.2.1",
