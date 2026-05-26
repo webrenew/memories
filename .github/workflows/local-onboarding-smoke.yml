@@ -19,6 +19,9 @@ on:
       - "package.json"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: local-onboarding-smoke-${{ github.ref }}
   cancel-in-progress: true

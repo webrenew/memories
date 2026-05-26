@@ -73,7 +73,9 @@ jobs:
 
       - name: Fail when report generation detects regression or errors
         if: steps.generate.outputs.exit_code != '0'
+        env:
+          GENERATE_EXIT_CODE: ${{ steps.generate.outputs.exit_code }}
         run: |
-          echo "Rollout baseline report exited with code ${{ steps.generate.outputs.exit_code }}."
+          echo "Rollout baseline report exited with code $GENERATE_EXIT_CODE."
           echo "Treat this run as alert-worthy if regressions were detected."
           exit 1
