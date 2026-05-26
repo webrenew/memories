@@ -63,6 +63,9 @@ jobs:
 
       - name: Create fresh consumer project
         shell: bash
+        env:
+          CORE_VERSION: ${{ steps.versions.outputs.core }}
+          AI_SDK_VERSION: ${{ steps.versions.outputs.ai_sdk }}
         run: |
           set -euo pipefail
           mkdir -p canary
@@ -70,8 +73,8 @@ jobs:
           npm init -y
           npm pkg set type=module
           npm install --save-exact \
-            "@memories.sh/core@${{ steps.versions.outputs.core }}" \
-            "@memories.sh/ai-sdk@${{ steps.versions.outputs.ai_sdk }}" \
+            "@memories.sh/core@${CORE_VERSION}" \
+            "@memories.sh/ai-sdk@${AI_SDK_VERSION}" \
             "ai@^5" \
             "typescript@^5" \
             "@types/node@^22"
