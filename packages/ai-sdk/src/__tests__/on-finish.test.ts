@@ -45,4 +45,65 @@ describe("createMemoriesOnFinish", () => {
       projectId: "github.com/acme/platform",
     })
   })
+
+  it("returns early when extractMemories yields no memories", async () => {
+    const client = {
+      memories: {
+        add: vi.fn(),
+      },
+    }
+
+    const onFinish = createMemoriesOnFinish({
+      client: client as unknown as any,
+      mode: "auto-extract",
+      projectId: "github.com/acme/platform",
+      extractMemories: () => [],
+    })
+
+    await onFinish({ output: "done" })
+
+    expect(client.memories.add).not.toHaveBeenCalled()
+  })
+
+  it("returns early when no extractMemories is provided", async () => {
+    const client = {
+      memories: {
+        add: vi.fn(),
+      },
+    }
+
+    const onFinish = createMemoriesOnFinish({
+      client: client as unknown as any,
+      mode: "auto-extract",
+      projectId: "github.com/acme/platform",
+    })
+
+    await onFinish({ output: "done" })
+
+    expect(client.memories.add).not.toHaveBeenCalled()
+  })
+
+  it("preserves a per-memory projectId over the options-level scope", async () => {
+    const client = {
+      memories: {
+        add: vi.fn().mockResolvedValue({ ok: true, message: "stored", raw: "stored" }),
+      },
+    }
+
+    const onFinish = createMemoriesOnFinish({
+      client: client as unknown as any,
+      mode: "auto-extract",
+      projectId: "github.com/acme/platform",
+      extractMemories: () => [
+        { content: "Tenant override note.", projectId: "github.com/acme/tenant-override" },
+      ],
+    })
+
+    await onFinish({ output: "done" })
+
+    expect(client.memories.add).toHaveBeenCalledWith({
+      content: "Tenant override note.",
+      projectId: "github.com/acme/tenant-override",
+    })
+  })
 })
