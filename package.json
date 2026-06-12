@@ -15,7 +15,7 @@
     "overrides": {
       "rollup": ">=4.59.0",
       "protobufjs": ">=7.5.5",
-      "vite": ">=7.3.2",
+      "vite": ">=8.0.16",
       "minimatch": ">=3.1.4",
       "brace-expansion": ">=1.1.13",
       "flatted": ">=3.4.2",
