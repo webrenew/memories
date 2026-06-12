@@ -1,7 +1,8 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": ".",
+    "types": ["node"],
+    "ignoreDeprecations": "6.0",
     "paths": {
       "@memories.sh/core": ["../core/src/index.ts"]
     }
