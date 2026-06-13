@@ -8,7 +8,7 @@ Three minimal starters that demonstrate the same core flow in under 10 minutes:
 
 ## Starters
 
-- [Next.js starter](./nextjs-starter) (`next@16.1.6`)
+- [Next.js starter](./nextjs-starter) (`next@16.2.6`)
 - [Express starter](./express-starter)
 - [Python starter](./python-starter)
 
