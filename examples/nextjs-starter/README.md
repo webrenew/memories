@@ -1,4 +1,4 @@
-# Next.js Starter (`next@16.1.6`)
+# Next.js Starter (`next@16.2.6`)
 
 Minimal Next.js App Router starter that demonstrates:
 
