@@ -8,10 +8,17 @@ import {
   getStripeManagedPriceIds,
   getStripeTeamSeatPriceIds,
   getStripeWebhookSecret,
+  hasResendApiKey,
 } from "@/lib/env"
+import { sendBillingPaymentFailedEmail } from "@/lib/resend"
 
 type StripeBillingPlan = "individual" | "team" | "growth"
 type WebhookScope = { type: "customer" | "organization" | "user"; key: string }
+type BillingPaymentFailedContact = {
+  to: string
+  recipientName: string | null
+  workspaceName: string
+}
 type ManagedWebhookEventType =
   | "checkout.session.completed"
   | "customer.subscription.created"
@@ -264,6 +271,161 @@ async function updateOrgSubscriptionStatus(
   return true
 }
 
+function displayNameFromContact(contact: { email?: string | null; name?: string | null }): string | null {
+  if (contact.name?.trim()) return contact.name.trim()
+  if (!contact.email) return null
+  const [localPart] = contact.email.split("@")
+  return localPart || null
+}
+
+async function loadUserPaymentFailedContact(
+  supabase: ReturnType<typeof createAdminClient>,
+  customerId: string
+): Promise<BillingPaymentFailedContact | null> {
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("email, name")
+    .eq("stripe_customer_id", customerId)
+    .maybeSingle()
+
+  if (error) {
+    console.error("Failed to load payment-failed user contact:", { customerId, error })
+    return null
+  }
+
+  if (!user?.email) {
+    console.warn("Skipping payment-failed email because user contact is missing:", { customerId })
+    return null
+  }
+
+  return {
+    to: user.email,
+    recipientName: displayNameFromContact(user),
+    workspaceName: "your personal memories.sh workspace",
+  }
+}
+
+async function loadOrgOwnerUserId(
+  supabase: ReturnType<typeof createAdminClient>,
+  orgId: string
+): Promise<string | null> {
+  const { data: membership, error } = await supabase
+    .from("org_members")
+    .select("user_id")
+    .eq("org_id", orgId)
+    .eq("role", "owner")
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error("Failed to load payment-failed org owner membership:", { orgId, error })
+    return null
+  }
+
+  return typeof membership?.user_id === "string" ? membership.user_id : null
+}
+
+async function loadOrgPaymentFailedContact(
+  supabase: ReturnType<typeof createAdminClient>,
+  orgId: string
+): Promise<BillingPaymentFailedContact | null> {
+  const { data: org, error: orgError } = await supabase
+    .from("organizations")
+    .select("name, owner_id")
+    .eq("id", orgId)
+    .maybeSingle()
+
+  if (orgError) {
+    console.error("Failed to load payment-failed organization contact:", { orgId, error: orgError })
+    return null
+  }
+
+  const ownerUserId =
+    typeof org?.owner_id === "string" && org.owner_id.length > 0
+      ? org.owner_id
+      : await loadOrgOwnerUserId(supabase, orgId)
+
+  if (!ownerUserId) {
+    console.warn("Skipping payment-failed email because organization owner is missing:", { orgId })
+    return null
+  }
+
+  const { data: owner, error: ownerError } = await supabase
+    .from("users")
+    .select("email, name")
+    .eq("id", ownerUserId)
+    .maybeSingle()
+
+  if (ownerError) {
+    console.error("Failed to load payment-failed organization owner contact:", {
+      orgId,
+      ownerUserId,
+      error: ownerError,
+    })
+    return null
+  }
+
+  if (!owner?.email) {
+    console.warn("Skipping payment-failed email because organization owner email is missing:", {
+      orgId,
+      ownerUserId,
+    })
+    return null
+  }
+
+  return {
+    to: owner.email,
+    recipientName: displayNameFromContact(owner),
+    workspaceName: org?.name ? `${org.name} workspace` : "your organization workspace",
+  }
+}
+
+async function maybeSendPaymentFailedEmail({
+  supabase,
+  eventId,
+  customerId,
+  invoiceId,
+  orgId,
+}: {
+  supabase: ReturnType<typeof createAdminClient>
+  eventId: string
+  customerId: string
+  invoiceId: string
+  orgId: string | null
+}): Promise<void> {
+  if (!hasResendApiKey()) {
+    console.warn("Skipping payment-failed email because RESEND_API_KEY is not configured:", {
+      eventId,
+      customerId,
+      invoiceId,
+      orgId,
+    })
+    return
+  }
+
+  const contact = orgId
+    ? await loadOrgPaymentFailedContact(supabase, orgId)
+    : await loadUserPaymentFailedContact(supabase, customerId)
+
+  if (!contact) return
+
+  try {
+    await sendBillingPaymentFailedEmail({
+      ...contact,
+      invoiceId,
+      idempotencyKey: `stripe-payment-failed/${eventId}`,
+    })
+  } catch (error) {
+    console.error("Failed to send payment-failed billing email:", {
+      eventId,
+      customerId,
+      invoiceId,
+      orgId,
+      error,
+    })
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   const body = await request.text()
   const signature = request.headers.get("stripe-signature")
@@ -457,6 +619,15 @@ export async function POST(request: Request): Promise<Response> {
               stripeSubscriptionId: subscription.id,
               activePlan: planForActiveOrgSubscription(subscriptionPlan),
             })
+            if (ok) {
+              await maybeSendPaymentFailedEmail({
+                supabase,
+                eventId: event.id,
+                customerId,
+                invoiceId: invoice.id,
+                orgId,
+              })
+            }
             handled = true
           } else if (isTeamSubscription(subscription.metadata)) {
             console.error("Team subscription missing org_id for invoice:", subscription.id)
@@ -471,6 +642,15 @@ export async function POST(request: Request): Promise<Response> {
       // Individual subscription (only if not handled as team)
       if (!handled) {
         ok = await updateUserPlan(supabase, { stripe_customer_id: customerId }, { plan: "past_due" })
+        if (ok) {
+          await maybeSendPaymentFailedEmail({
+            supabase,
+            eventId: event.id,
+            customerId,
+            invoiceId: invoice.id,
+            orgId: null,
+          })
+        }
       }
       break
     }
