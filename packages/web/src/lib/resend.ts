@@ -1,6 +1,6 @@
 import { Resend } from "resend"
 import { getTeamInviteExpiryLabel } from "./team-invites"
-import { getResendApiKey, getResendFromEmail } from "@/lib/env"
+import { getAppUrl, getResendApiKey, getResendFromEmail } from "@/lib/env"
 
 let resend: Resend | null = null
 
@@ -9,6 +9,105 @@ export function getResend(): Resend {
     resend = new Resend(getResendApiKey())
   }
   return resend
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+}
+
+export async function sendBillingPaymentFailedEmail({
+  to,
+  recipientName,
+  workspaceName,
+  invoiceId,
+  idempotencyKey,
+}: {
+  to: string
+  recipientName?: string | null
+  workspaceName: string
+  invoiceId?: string | null
+  idempotencyKey: string
+}): Promise<void> {
+  const billingUrl = `${getAppUrl()}/app/billing`
+  const fromEmail = getResendFromEmail()
+  const greeting = recipientName?.trim() ? `Hi ${recipientName.trim()},` : "Hi,"
+  const invoiceLine = invoiceId ? `\n\nInvoice: ${invoiceId}` : ""
+
+  const { error } = await getResend().emails.send(
+    {
+      from: fromEmail,
+      to,
+      subject: "Action needed: update your memories.sh payment method",
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0a0a0a; color: #fafafa; margin: 0; padding: 40px 20px;">
+  <div style="max-width: 520px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 32px;">
+      <img src="https://memories.sh/memories.svg" alt="memories.sh" width="40" height="40" style="filter: invert(1);">
+    </div>
+
+    <div style="background-color: #171717; border: 1px solid #262626; padding: 32px;">
+      <h1 style="font-size: 20px; font-weight: 600; margin: 0 0 16px;">
+        Payment method needs attention
+      </h1>
+
+      <p style="color: #d4d4d8; margin: 0 0 16px; line-height: 1.6;">
+        ${escapeHtml(greeting)}
+      </p>
+
+      <p style="color: #a3a3a3; margin: 0 0 24px; line-height: 1.6;">
+        We couldn't process the latest payment for
+        <strong style="color: #fafafa;">${escapeHtml(workspaceName)}</strong>.
+        Your workspace is marked past due until the payment method is updated.
+      </p>
+
+      <a href="${escapeHtml(billingUrl)}" style="display: block; background-color: #fafafa; color: #0a0a0a; text-decoration: none; padding: 14px 24px; text-align: center; font-weight: 600; font-size: 14px;">
+        Update Payment Method
+      </a>
+
+      <p style="color: #525252; font-size: 12px; margin: 24px 0 0; line-height: 1.6;">
+        If you already updated your payment method in Stripe, you can ignore this email.
+        ${invoiceId ? `Invoice: ${escapeHtml(invoiceId)}.` : ""}
+      </p>
+    </div>
+
+    <p style="color: #525252; font-size: 12px; text-align: center; margin-top: 24px;">
+      memories.sh - Memory layer for AI coding agents
+    </p>
+  </div>
+</body>
+</html>
+      `,
+      text: `
+${greeting}
+
+We couldn't process the latest payment for ${workspaceName}. Your workspace is marked past due until the payment method is updated.
+
+Update your payment method: ${billingUrl}${invoiceLine}
+
+If you already updated your payment method in Stripe, you can ignore this email.
+      `.trim(),
+      tags: [
+        { name: "email_type", value: "billing_payment_failed" },
+        { name: "source", value: "stripe_webhook" },
+      ],
+    },
+    { idempotencyKey }
+  )
+
+  if (error) {
+    throw new Error(error.message)
+  }
 }
 
 export async function sendTeamInviteEmail({

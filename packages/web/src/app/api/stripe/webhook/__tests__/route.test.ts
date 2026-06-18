@@ -7,8 +7,15 @@ const {
   mockRpc,
   mockUsersUpdate,
   mockUsersEq,
+  mockUsersSelect,
+  mockUsersMaybeSingle,
   mockOrganizationsUpdate,
   mockOrganizationsEq,
+  mockOrganizationsSelect,
+  mockOrganizationsMaybeSingle,
+  mockOrgMembersSelect,
+  mockOrgMembersMaybeSingle,
+  mockSendBillingPaymentFailedEmail,
 } = vi.hoisted(() => ({
   mockConstructEvent: vi.fn(),
   mockListLineItems: vi.fn(),
@@ -16,9 +23,25 @@ const {
   mockRpc: vi.fn(),
   mockUsersUpdate: vi.fn(),
   mockUsersEq: vi.fn(),
+  mockUsersSelect: vi.fn(),
+  mockUsersMaybeSingle: vi.fn(),
   mockOrganizationsUpdate: vi.fn(),
   mockOrganizationsEq: vi.fn(),
+  mockOrganizationsSelect: vi.fn(),
+  mockOrganizationsMaybeSingle: vi.fn(),
+  mockOrgMembersSelect: vi.fn(),
+  mockOrgMembersMaybeSingle: vi.fn(),
+  mockSendBillingPaymentFailedEmail: vi.fn(),
 }))
+
+function createMaybeSingleBuilder(maybeSingle: () => unknown) {
+  const builder = {
+    eq: vi.fn(() => builder),
+    limit: vi.fn(() => builder),
+    maybeSingle,
+  }
+  return builder
+}
 
 vi.mock("@/lib/stripe", () => ({
   getStripe: vi.fn(() => ({
@@ -28,15 +51,22 @@ vi.mock("@/lib/stripe", () => ({
   })),
 }))
 
+vi.mock("@/lib/resend", () => ({
+  sendBillingPaymentFailedEmail: mockSendBillingPaymentFailedEmail,
+}))
+
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({
     rpc: mockRpc,
     from: vi.fn((table: string) => {
       if (table === "users") {
-        return { update: mockUsersUpdate }
+        return { update: mockUsersUpdate, select: mockUsersSelect }
       }
       if (table === "organizations") {
-        return { update: mockOrganizationsUpdate }
+        return { update: mockOrganizationsUpdate, select: mockOrganizationsSelect }
+      }
+      if (table === "org_members") {
+        return { select: mockOrgMembersSelect }
       }
       return {
         update: vi.fn().mockReturnValue({
@@ -63,11 +93,28 @@ function makeWebhookRequest(body: string, signature = "sig_test"): Request {
 describe("POST /api/stripe/webhook", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    delete process.env.RESEND_API_KEY
     mockRpc.mockResolvedValue({ data: "claimed", error: null })
     mockUsersEq.mockResolvedValue({ error: null })
     mockOrganizationsEq.mockResolvedValue({ error: null })
     mockUsersUpdate.mockReturnValue({ eq: mockUsersEq })
     mockOrganizationsUpdate.mockReturnValue({ eq: mockOrganizationsEq })
+    mockUsersMaybeSingle.mockResolvedValue({
+      data: { email: "owner@example.com", name: "Owner" },
+      error: null,
+    })
+    mockOrganizationsMaybeSingle.mockResolvedValue({
+      data: { name: "Acme", owner_id: "owner-1" },
+      error: null,
+    })
+    mockOrgMembersMaybeSingle.mockResolvedValue({
+      data: { user_id: "owner-1" },
+      error: null,
+    })
+    mockUsersSelect.mockImplementation(() => createMaybeSingleBuilder(mockUsersMaybeSingle))
+    mockOrganizationsSelect.mockImplementation(() => createMaybeSingleBuilder(mockOrganizationsMaybeSingle))
+    mockOrgMembersSelect.mockImplementation(() => createMaybeSingleBuilder(mockOrgMembersMaybeSingle))
+    mockSendBillingPaymentFailedEmail.mockResolvedValue(undefined)
     mockRetrieveSubscription.mockResolvedValue({
       id: "sub_team_123",
       metadata: { type: "team_seats", org_id: "org-1" },
@@ -361,6 +408,101 @@ describe("POST /api/stripe/webhook", () => {
       p_scope_type: "customer",
       p_scope_key: "cus_org_123",
     })
+  })
+
+  it("emails the organization owner when an organization invoice payment fails", async () => {
+    process.env.RESEND_API_KEY = "re_test"
+    mockConstructEvent.mockReturnValue({
+      id: "evt_invoice_failed_email_org_1",
+      created: 1_709_000_013,
+      type: "invoice.payment_failed",
+      data: {
+        object: {
+          id: "in_team_failed_email_123",
+          customer: null,
+          subscription: {
+            id: "sub_team_123",
+            customer: "cus_org_123",
+            metadata: { type: "team_seats", org_id: "org-1" },
+            items: { data: [{ price: { id: "price_team_monthly" } }] },
+          },
+          lines: { data: [{ price: { id: "price_team_monthly" } }] },
+        },
+      },
+    })
+    mockOrganizationsMaybeSingle.mockResolvedValue({
+      data: { name: "Acme", owner_id: "owner-1" },
+      error: null,
+    })
+    mockUsersMaybeSingle.mockResolvedValue({
+      data: { email: "owner@example.com", name: "Casey Owner" },
+      error: null,
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockSendBillingPaymentFailedEmail).toHaveBeenCalledWith({
+      to: "owner@example.com",
+      recipientName: "Casey Owner",
+      workspaceName: "Acme workspace",
+      invoiceId: "in_team_failed_email_123",
+      idempotencyKey: "stripe-payment-failed/evt_invoice_failed_email_org_1",
+    })
+  })
+
+  it("emails the paying user when a personal invoice payment fails", async () => {
+    process.env.RESEND_API_KEY = "re_test"
+    mockConstructEvent.mockReturnValue({
+      id: "evt_invoice_failed_email_user_1",
+      created: 1_709_000_014,
+      type: "invoice.payment_failed",
+      data: {
+        object: {
+          id: "in_user_failed_email_123",
+          customer: "cus_user_123",
+          subscription: null,
+          lines: { data: [{ price: { id: "price_individual_monthly" } }] },
+        },
+      },
+    })
+    mockUsersMaybeSingle.mockResolvedValue({
+      data: { email: "user@example.com", name: null },
+      error: null,
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockUsersUpdate).toHaveBeenCalledWith({ plan: "past_due" })
+    expect(mockUsersEq).toHaveBeenCalledWith("stripe_customer_id", "cus_user_123")
+    expect(mockSendBillingPaymentFailedEmail).toHaveBeenCalledWith({
+      to: "user@example.com",
+      recipientName: "user",
+      workspaceName: "your personal memories.sh workspace",
+      invoiceId: "in_user_failed_email_123",
+      idempotencyKey: "stripe-payment-failed/evt_invoice_failed_email_user_1",
+    })
+  })
+
+  it("keeps Stripe webhook processing successful when payment failure email delivery fails", async () => {
+    process.env.RESEND_API_KEY = "re_test"
+    mockSendBillingPaymentFailedEmail.mockRejectedValueOnce(new Error("resend down"))
+    mockConstructEvent.mockReturnValue({
+      id: "evt_invoice_failed_email_error_1",
+      created: 1_709_000_015,
+      type: "invoice.payment_failed",
+      data: {
+        object: {
+          id: "in_user_failed_email_error_123",
+          customer: "cus_user_123",
+          subscription: null,
+          lines: { data: [{ price: { id: "price_individual_monthly" } }] },
+        },
+      },
+    })
+
+    const response = await POST(makeWebhookRequest("{}"))
+    expect(response.status).toBe(200)
+    expect(mockSendBillingPaymentFailedEmail).toHaveBeenCalled()
   })
 
   it("uses expanded invoice subscriptions for uncollectible invoices without Stripe re-fetch", async () => {
