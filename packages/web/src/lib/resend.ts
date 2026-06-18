@@ -3,6 +3,11 @@ import { getTeamInviteExpiryLabel } from "./team-invites"
 import { getAppUrl, getResendApiKey, getResendFromEmail } from "@/lib/env"
 
 let resend: Resend | null = null
+const EMAIL_LOGO_URL = "https://memories.sh/favicon-96x96.png"
+const EMAIL_LOGO_HTML = `
+      <div style="display: inline-block; background-color: #fafafa; border-radius: 14px; padding: 10px;">
+        <img src="${EMAIL_LOGO_URL}" alt="memories.sh" width="48" height="48" style="display: block; border: 0; outline: none; text-decoration: none;">
+      </div>`
 
 export function getResend(): Resend {
   if (!resend) {
@@ -53,7 +58,7 @@ export async function sendBillingPaymentFailedEmail({
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0a0a0a; color: #fafafa; margin: 0; padding: 40px 20px;">
   <div style="max-width: 520px; margin: 0 auto;">
     <div style="text-align: center; margin-bottom: 32px;">
-      <img src="https://memories.sh/memories.svg" alt="memories.sh" width="40" height="40" style="filter: invert(1);">
+${EMAIL_LOGO_HTML}
     </div>
 
     <div style="background-color: #171717; border: 1px solid #262626; padding: 32px;">
@@ -142,7 +147,7 @@ export async function sendTeamInviteEmail({
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0a0a0a; color: #fafafa; margin: 0; padding: 40px 20px;">
   <div style="max-width: 480px; margin: 0 auto;">
     <div style="text-align: center; margin-bottom: 32px;">
-      <img src="https://memories.sh/memories.svg" alt="memories.sh" width="40" height="40" style="filter: invert(1);">
+${EMAIL_LOGO_HTML}
     </div>
     
     <div style="background-color: #171717; border: 1px solid #262626; padding: 32px;">
