@@ -47,6 +47,10 @@
       "unrs-resolver"
     ]
   },
+  "overrides": {
+    "js-yaml": "4.2.0",
+    "read-yaml-file": "2.1.0"
+  },
   "lint-staged": {
     "packages/cli/src/**/*.ts": [
       "bash -c 'cd packages/cli && npx tsc --noEmit'"
