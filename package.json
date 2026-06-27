@@ -14,11 +14,10 @@
   "pnpm": {
     "overrides": {
       "rollup": ">=4.59.0",
-      "protobufjs": "8.6.5",
+      "protobufjs": ">=7.5.5 <8",
       "@protobufjs/utf8": "1.1.1",
       "vite": ">=8.0.16",
       "esbuild": "0.28.1",
-      "minimatch": ">=3.1.4",
       "brace-expansion@^1.1.7": "1.1.15",
       "brace-expansion@^5.0.5": "5.0.6",
       "flatted": ">=3.4.2",
@@ -32,6 +31,7 @@
       "postcss": "8.5.15",
       "@opentelemetry/core": "2.8.0",
       "js-yaml": "4.3.0",
+      "read-yaml-file": "2.1.0",
       "@babel/core": "7.29.7",
       "ajv@^6.14.0": "6.15.0",
       "ajv@^8.9.0": "8.20.0",
@@ -48,7 +48,7 @@
     ]
   },
   "overrides": {
-    "js-yaml": "4.2.0",
+    "js-yaml": "4.3.0",
     "read-yaml-file": "2.1.0"
   },
   "lint-staged": {
