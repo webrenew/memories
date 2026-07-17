@@ -287,8 +287,8 @@ importers:
         specifier: ^16.10.7
         version: 16.11.5(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.4)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.25.0(react@19.2.7))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.4.3)
       fumadocs-mdx:
-        specifier: ^14.3.2
-        version: 14.3.2(@types/mdast@4.0.4)(@types/mdx@2.0.13)(@types/react@19.2.17)(fumadocs-core@16.11.5(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.4)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.25.0(react@19.2.7))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.4.3))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(vite@8.1.2(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(yaml@2.9.0))
+        specifier: ^15.0.13
+        version: 15.2.0(@types/mdast@4.0.4)(@types/mdx@2.0.13)(@types/react@19.2.17)(fumadocs-core@16.11.5(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.4)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.25.0(react@19.2.7))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.4.3))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(rolldown@1.1.3)(vite@8.1.2(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(yaml@2.9.0))
       fumadocs-ui:
         specifier: ^16.10.7
         version: 16.11.5(@types/mdx@2.0.13)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(fumadocs-core@16.11.5(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.4)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.25.0(react@19.2.7))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.4.3))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwindcss@4.3.2)
@@ -3215,6 +3215,64 @@ packages:
   '@xtuc/long@4.2.2':
     resolution: {integrity: sha512-NuHqBY1PB/D8xU6s/thBgOAiAP7HOYDQ32+BFZILJ8ivkUkAHQnWfn6WhL79Owj1qmUnoN/YPhktdIoucipkAQ==}
 
+  '@yuku-analyzer/binding-darwin-arm64@0.6.5':
+    resolution: {integrity: sha512-oFBgTfvV55+PuaIsUc+OdP468NPQqJrI96SdhZGV0yN4/O929Tp68bl4veK46HissL+1JUMa9kryYfH6+lLSjQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@yuku-analyzer/binding-darwin-x64@0.6.5':
+    resolution: {integrity: sha512-YQe7PQOr7HNXAFKQboOahJNFOI50GgzwrLFaJ4dUyqyCzyL4NvAICHEl5z/Ske9VvnUl2RUEgAIEd2k5nXpj0Q==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@yuku-analyzer/binding-freebsd-x64@0.6.5':
+    resolution: {integrity: sha512-2aeDefQD60MUySDnM4pNS+dVLe7ivdDSdv/PJX5FkqMjDVuCduysREgJTV/zGUU42++HcJi+j23m8nN2phjy2w==}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@yuku-analyzer/binding-linux-arm-gnu@0.6.5':
+    resolution: {integrity: sha512-N7Labzv83Lte08wE+5E/CTitO1qRD0STgUPSlyD32syXjpnuGkeB/iF94A7EWpMQ9lbkzyOuVTmrWgZdK/awcQ==}
+    cpu: [arm]
+    os: [linux]
+
+  '@yuku-analyzer/binding-linux-arm-musl@0.6.5':
+    resolution: {integrity: sha512-8I7ELJtXxezGmfOQGmo8Yo/twHJV8yQBAaTrEMbuYY2JKHd4hz0PhzHBK5JaZ9KsSukuwv3cSaOOn7CTIyoJzg==}
+    cpu: [arm]
+    os: [linux]
+
+  '@yuku-analyzer/binding-linux-arm64-gnu@0.6.5':
+    resolution: {integrity: sha512-Og6AWefGVC0Z42+7134LUijOA8ren8ZtNMFUK9LrXbpH/LIS8gRNaaWC9GPDpBMF184k4XXL8dvZtdSXKxBqVg==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@yuku-analyzer/binding-linux-arm64-musl@0.6.5':
+    resolution: {integrity: sha512-O8SeUDXOXvNpSVJSJt5hWNWD5nnEelZGpOzmHoYDkpHyDbNhYNCpksb70ps8n8Bz7iK9CzE+K+xhL/cEthyCqw==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@yuku-analyzer/binding-linux-x64-gnu@0.6.5':
+    resolution: {integrity: sha512-Yhm2oDerCzBhn7q2+PscKj8aWgvjvnTbRFnrmYm/TfYv47duIBvptfV0y87p0WRu27KwQ4Qp8wU9GzJzdsrh8Q==}
+    cpu: [x64]
+    os: [linux]
+
+  '@yuku-analyzer/binding-linux-x64-musl@0.6.5':
+    resolution: {integrity: sha512-YKN1a1NYkSYawl/vR8vwubbQxJneMJYvWabDG3NO2KqqD+8rmO2sb5197bVa74pcjcO97+Uie6vPg3lYSEGTMQ==}
+    cpu: [x64]
+    os: [linux]
+
+  '@yuku-analyzer/binding-win32-arm64@0.6.5':
+    resolution: {integrity: sha512-E8ua2s5IuLZNCPh73zUTrLrS4mZjF61z5yYcqRKsrQxNtO7Xz39eup0pl4U20E59xeT/X4Bmmx0mg9KrHvvn9A==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@yuku-analyzer/binding-win32-x64@0.6.5':
+    resolution: {integrity: sha512-ki4goft6xkYeDqW+//zAmm8YbyFGAYISDcX2nVQ9rsZEPud2efYT9AtOgirVmakMMogqvyaJybq8QT0y7KXKow==}
+    cpu: [x64]
+    os: [win32]
+
+  '@yuku-toolchain/types@0.5.43':
+    resolution: {integrity: sha512-kSpvPntnXw5+lYjO71ffBEnQ5ycQ74KGIYknh0TS4xeyCuBkOqxyJumxZkMhLBBUCLjDAbx2+Icnr3Zh4ftjpQ==}
+
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
@@ -4364,19 +4422,24 @@ packages:
       zod:
         optional: true
 
-  fumadocs-mdx@14.3.2:
-    resolution: {integrity: sha512-73SoZkbUuqnD91G/0zBcaQdM1TMnYw5JJzKgkGvQTiZbtLQFuWTt8/uRqnzFMuNIUu/WY9Lo9d1iZ8G+jOVieA==}
+  fumadocs-mdx@15.2.0:
+    resolution: {integrity: sha512-+yBP8QYw5wA9LF5eVdMhwbP7KT1OF4B/YfC6PZoD2jz0amZi1B+6QHTI6XoRRSTmhWrI4cL5LU1DspW0itk+NA==}
     hasBin: true
     peerDependencies:
+      '@fumadocs/satteri': 0.x.x
       '@types/mdast': '*'
       '@types/mdx': '*'
       '@types/react': '*'
-      fumadocs-core: ^15.0.0 || ^16.0.0
+      fumadocs-core: ^16.7.0
       mdast-util-directive: '*'
       next: ^15.3.0 || ^16.0.0
       react: ^19.2.0
+      rolldown: '*'
+      satteri: ^0.9.4
       vite: '>=8.0.16'
     peerDependenciesMeta:
+      '@fumadocs/satteri':
+        optional: true
       '@types/mdast':
         optional: true
       '@types/mdx':
@@ -4388,6 +4451,10 @@ packages:
       next:
         optional: true
       react:
+        optional: true
+      rolldown:
+        optional: true
+      satteri:
         optional: true
       vite:
         optional: true
@@ -5597,6 +5664,10 @@ packages:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
 
+  picomatch@4.0.5:
+    resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
+    engines: {node: '>=12'}
+
   pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
     engines: {node: '>= 6'}
@@ -6775,6 +6846,9 @@ packages:
   yoctocolors@2.1.2:
     resolution: {integrity: sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug==}
     engines: {node: '>=18'}
+
+  yuku-analyzer@0.6.5:
+    resolution: {integrity: sha512-2pMYfrjgDqTY/NOzGkcm2hUrge7GM8NeEIXTdEmuArSQU59VaH4O4ybvT7nKlbQ6I1KJdzFqVT1SdcExWgivbw==}
 
   zod-to-json-schema@3.25.2:
     resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
@@ -9569,6 +9643,41 @@ snapshots:
 
   '@xtuc/long@4.2.2': {}
 
+  '@yuku-analyzer/binding-darwin-arm64@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-darwin-x64@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-freebsd-x64@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-linux-arm-gnu@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-linux-arm-musl@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-linux-arm64-gnu@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-linux-arm64-musl@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-linux-x64-gnu@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-linux-x64-musl@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-win32-arm64@0.6.5':
+    optional: true
+
+  '@yuku-analyzer/binding-win32-x64@0.6.5':
+    optional: true
+
+  '@yuku-toolchain/types@0.5.43': {}
+
   accepts@2.0.0:
     dependencies:
       mime-types: 3.0.2
@@ -10849,7 +10958,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  fumadocs-mdx@14.3.2(@types/mdast@4.0.4)(@types/mdx@2.0.13)(@types/react@19.2.17)(fumadocs-core@16.11.5(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.4)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.25.0(react@19.2.7))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.4.3))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(vite@8.1.2(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(yaml@2.9.0)):
+  fumadocs-mdx@15.2.0(@types/mdast@4.0.4)(@types/mdx@2.0.13)(@types/react@19.2.17)(fumadocs-core@16.11.5(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.4)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.25.0(react@19.2.7))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.4.3))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(rolldown@1.1.3)(vite@8.1.2(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(yaml@2.9.0)):
     dependencies:
       '@mdx-js/mdx': 3.1.1
       '@standard-schema/spec': 1.1.0
@@ -10857,17 +10966,19 @@ snapshots:
       esbuild: 0.28.1
       estree-util-value-to-estree: 3.5.0
       fumadocs-core: 16.11.5(@mdx-js/mdx@3.1.1)(@types/estree-jsx@1.0.5)(@types/hast@3.0.4)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.25.0(react@19.2.7))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(zod@4.4.3)
-      js-yaml: 4.3.0
+      github-slugger: 2.0.0
+      magic-string: 0.30.21
       mdast-util-mdx: 3.0.0
-      mdast-util-to-markdown: 2.1.2
       picocolors: 1.1.1
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       tinyexec: 1.2.4
       tinyglobby: 0.2.17
       unified: 11.0.5
       unist-util-remove-position: 5.0.0
       unist-util-visit: 5.1.0
       vfile: 6.0.3
+      yaml: 2.9.0
+      yuku-analyzer: 0.6.5
       zod: 4.4.3
     optionalDependencies:
       '@types/mdast': 4.0.4
@@ -10875,6 +10986,7 @@ snapshots:
       '@types/react': 19.2.17
       next: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react: 19.2.7
+      rolldown: 1.1.3
       vite: 8.1.2(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
@@ -12391,6 +12503,8 @@ snapshots:
   picomatch@2.3.2: {}
 
   picomatch@4.0.4: {}
+
+  picomatch@4.0.5: {}
 
   pirates@4.0.7: {}
 
@@ -13951,6 +14065,22 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   yoctocolors@2.1.2: {}
+
+  yuku-analyzer@0.6.5:
+    dependencies:
+      '@yuku-toolchain/types': 0.5.43
+    optionalDependencies:
+      '@yuku-analyzer/binding-darwin-arm64': 0.6.5
+      '@yuku-analyzer/binding-darwin-x64': 0.6.5
+      '@yuku-analyzer/binding-freebsd-x64': 0.6.5
+      '@yuku-analyzer/binding-linux-arm-gnu': 0.6.5
+      '@yuku-analyzer/binding-linux-arm-musl': 0.6.5
+      '@yuku-analyzer/binding-linux-arm64-gnu': 0.6.5
+      '@yuku-analyzer/binding-linux-arm64-musl': 0.6.5
+      '@yuku-analyzer/binding-linux-x64-gnu': 0.6.5
+      '@yuku-analyzer/binding-linux-x64-musl': 0.6.5
+      '@yuku-analyzer/binding-win32-arm64': 0.6.5
+      '@yuku-analyzer/binding-win32-x64': 0.6.5
 
   zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:
