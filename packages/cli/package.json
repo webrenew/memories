@@ -54,7 +54,7 @@
     "boxen": "^8.0.1",
     "chalk": "^5.4.0",
     "commander": "^14.0.3",
-    "figlet": "^1.11.0",
+    "figlet": "^1.11.4",
     "gradient-string": "^3.0.0",
     "nanoid": "^5.1.7",
     "ora": "^9.4.1",
