@@ -68,6 +68,7 @@ Use this at the start of tasks to understand project conventions and recall past
       inactivity_threshold_minutes: z.number().int().positive().optional().describe("Inactivity threshold in minutes for time-trigger checks"),
       task_completed: z.boolean().optional().describe("Semantic completion hint to trigger checkpointing after task completion"),
       include_session_summary: z.boolean().optional().describe("Reserved for future snapshot/session summary hydration"),
+      project_id: z.string().optional().describe("Explicit project id to read from (e.g., github.com/org/repo). Overrides the server's auto-detected project scope."),
     },
     async ({
       query,
@@ -80,10 +81,11 @@ Use this at the start of tasks to understand project conventions and recall past
       last_activity_at,
       inactivity_threshold_minutes,
       task_completed,
+      project_id,
     }) => {
       try {
         const { rules, memories } = await getContext(query, {
-          projectId: projectId ?? undefined,
+          projectId: project_id?.trim() ? project_id.trim() : (projectId ?? undefined),
           limit,
           mode,
         });
@@ -446,14 +448,15 @@ Use category to group related memories (e.g., "api", "testing").`,
       type: z.enum(["rule", "decision", "fact", "note", "skill"]).optional().describe("Filter by a single memory type"),
       types: z.array(z.enum(["rule", "decision", "fact", "note", "skill"])).optional().describe("Filter by memory types"),
       layer: z.enum(["rule", "working", "long_term"]).optional().describe("Filter by a single memory layer"),
+      project_id: z.string().optional().describe("Explicit project id to read from (e.g., github.com/org/repo). Overrides the server's auto-detected project scope."),
     },
-    async ({ query, limit, type, types, layer }) => {
+    async ({ query, limit, type, types, layer, project_id }) => {
       try {
         const resolvedTypes = types?.length ? types : (type ? [type] : undefined);
         const layers = layer ? [layer] : undefined;
         const memories = await searchMemories(query, {
           limit,
-          projectId: projectId ?? undefined,
+          projectId: project_id?.trim() ? project_id.trim() : (projectId ?? undefined),
           types: resolvedTypes,
           layers,
         });
@@ -486,10 +489,12 @@ Use category to group related memories (e.g., "api", "testing").`,
   server.tool(
     "get_rules",
     "Get all active rules for the current project. Rules are coding standards, preferences, and constraints that should always be followed.",
-    {},
-    async () => {
+    {
+      project_id: z.string().optional().describe("Explicit project id to read from (e.g., github.com/org/repo). Overrides the server's auto-detected project scope."),
+    },
+    async ({ project_id }) => {
       try {
-        const rules = await getRules({ projectId: projectId ?? undefined });
+        const rules = await getRules({ projectId: project_id?.trim() ? project_id.trim() : (projectId ?? undefined) });
 
         if (rules.length === 0) {
           return {
@@ -530,8 +535,9 @@ Use category to group related memories (e.g., "api", "testing").`,
       type: z.enum(["rule", "decision", "fact", "note", "skill"]).optional().describe("Filter by a single memory type"),
       types: z.array(z.enum(["rule", "decision", "fact", "note", "skill"])).optional().describe("Filter by memory types"),
       layer: z.enum(["rule", "working", "long_term"]).optional().describe("Filter by a single memory layer"),
+      project_id: z.string().optional().describe("Explicit project id to read from (e.g., github.com/org/repo). Overrides the server's auto-detected project scope."),
     },
-    async ({ limit, tags, type, types, layer }) => {
+    async ({ limit, tags, type, types, layer, project_id }) => {
       try {
         const normalizedTags = Array.isArray(tags)
           ? tags
@@ -543,7 +549,7 @@ Use category to group related memories (e.g., "api", "testing").`,
         const memories = await listMemories({
           limit,
           tags: normalizedTags,
-          projectId: projectId ?? undefined,
+          projectId: project_id?.trim() ? project_id.trim() : (projectId ?? undefined),
           types: resolvedTypes,
           layers,
         });
