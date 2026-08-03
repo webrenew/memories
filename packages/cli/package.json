@@ -49,12 +49,12 @@
   "dependencies": {
     "@inquirer/prompts": "^8.5.2",
     "@libsql/client": "^0.17.4",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@xenova/transformers": "^2.17.2",
     "boxen": "^8.0.1",
     "chalk": "^5.4.0",
     "commander": "^14.0.3",
-    "figlet": "^1.11.0",
+    "figlet": "^1.11.4",
     "gradient-string": "^3.0.0",
     "nanoid": "^5.1.7",
     "ora": "^9.4.1",
@@ -68,6 +68,6 @@
     "@types/node": "^25.2.1",
     "tsup": "^8.3.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   }
 }
