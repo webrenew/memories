@@ -25,13 +25,15 @@ jobs:
         with:
           version: 10
 
+      # Node 24 (LTS) rather than 20 like the rest of CI: npm trusted publishing
+      # requires npm >= 11.5.1 on Node >= 22.14.0, and Node 24 already bundles
+      # npm 11.x. Node 20 bundles npm 10.8.2, which cannot do OIDC publishing.
+      # This only sets the toolchain that builds and publishes — the packages
+      # still declare engines.node >=20 and are still tested on 20 in ci.yml.
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
-
-      - name: Upgrade npm
-        run: npm install -g npm@latest
 
       - name: Install
         run: bash .github/scripts/pnpm-install-with-retry.sh
