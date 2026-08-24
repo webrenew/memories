@@ -8,6 +8,7 @@ process.env.MEMORIES_DATA_DIR = mkdtempSync(join(tmpdir(), "memories-test-"));
 
 import {
   addMemory,
+  updateMemory,
   searchMemories,
   listMemories,
   forgetMemory,
@@ -139,6 +140,13 @@ describe("memory", () => {
 
     const results = await searchMemories(uniqueContent);
     expect(results.length).toBe(0);
+
+    const db = await getDb();
+    const graphNode = await db.execute({
+      sql: "SELECT id FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      args: [memory.id],
+    });
+    expect(graphNode.rows).toHaveLength(0);
   });
 
   it("should hide expired working memories from read paths", async () => {
@@ -184,6 +192,49 @@ describe("memory", () => {
     });
     expect(memory.scope).toBe("project");
     expect(memory.project_id).toBe("github.com/test/repo");
+
+    const db = await getDb();
+    const graphEdges = await db.execute({
+      sql: `SELECT e.edge_type
+            FROM graph_edges e
+            JOIN graph_nodes source ON source.id = e.from_node_id
+            JOIN graph_nodes target ON target.id = e.to_node_id
+            WHERE source.node_type = 'memory'
+              AND source.node_key = ?
+              AND target.node_type = 'repo'
+              AND target.node_key = ?`,
+      args: [memory.id, "github.com/test/repo"],
+    });
+    expect(graphEdges.rows.map((row) => row.edge_type)).toContain("scoped_to");
+  });
+
+  it("should keep graph nodes current when a memory is edited", async () => {
+    const memory = await addMemory("Graph label before edit", {
+      projectId: "github.com/test/graph-edit",
+      tags: ["before-edit"],
+    });
+
+    const updated = await updateMemory(memory.id, {
+      content: "Graph label after edit",
+      tags: ["after-edit"],
+    });
+    expect(updated?.id).toBe(memory.id);
+
+    const db = await getDb();
+    const memoryNode = await db.execute({
+      sql: "SELECT label FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      args: [memory.id],
+    });
+    expect(memoryNode.rows[0]?.label).toBe("Graph label after edit");
+
+    const topics = await db.execute({
+      sql: `SELECT n.node_key
+            FROM memory_node_links l
+            JOIN graph_nodes n ON n.id = l.node_id
+            WHERE l.memory_id = ? AND n.node_type = 'topic'`,
+      args: [memory.id],
+    });
+    expect(topics.rows.map((row) => row.node_key)).toEqual(["after-edit"]);
   });
 
   it("should filter memories by scope", async () => {
@@ -212,17 +263,19 @@ describe("memory", () => {
   it("should overwrite an existing live memory when upsertKey matches", async () => {
     const upsertKey = `prefs-editor-${Date.now()}`;
     const first = await addMemory("Preferred editor: vim", {
-      global: true,
+      projectId: "github.com/test/editor",
       type: "note",
       upsertKey,
+      tags: ["vim"],
       sourceSessionId: "session-a",
       confidence: 0.6,
     });
 
     const second = await addMemory("Preferred editor: neovim", {
-      global: true,
+      projectId: "github.com/test/editor",
       type: "note",
       upsertKey,
+      tags: ["neovim"],
       sourceSessionId: "session-b",
       confidence: 0.95,
     });
@@ -232,6 +285,22 @@ describe("memory", () => {
     expect(second.upsert_key).toBe(upsertKey);
     expect(second.source_session_id).toBe("session-b");
     expect(second.confidence).toBe(0.95);
+
+    const db = await getDb();
+    const memoryNode = await db.execute({
+      sql: "SELECT label FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      args: [second.id],
+    });
+    expect(memoryNode.rows[0]?.label).toBe("Preferred editor: neovim");
+
+    const topics = await db.execute({
+      sql: `SELECT n.node_key
+            FROM memory_node_links l
+            JOIN graph_nodes n ON n.id = l.node_id
+            WHERE l.memory_id = ? AND n.node_type = 'topic'`,
+      args: [second.id],
+    });
+    expect(topics.rows.map((row) => row.node_key)).toEqual(["neovim"]);
   });
 
   it("should consolidate duplicate memories and add supersession/conflict links", async () => {

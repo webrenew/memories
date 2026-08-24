@@ -29,7 +29,7 @@ afterEach(() => {
 })
 
 describe("graph feature flags", () => {
-  it("defaults graph retrieval to true with other graph flags disabled", async () => {
+  it("defaults deterministic graph mapping and retrieval to true", async () => {
     delete process.env.GRAPH_MAPPING_ENABLED
     delete process.env.GRAPH_RETRIEVAL_ENABLED
     delete process.env.GRAPH_LLM_EXTRACTION_ENABLED
@@ -37,7 +37,7 @@ describe("graph feature flags", () => {
     delete process.env.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED
 
     const mod = await loadTypesModule()
-    expect(mod.GRAPH_MAPPING_ENABLED).toBe(false)
+    expect(mod.GRAPH_MAPPING_ENABLED).toBe(true)
     expect(mod.GRAPH_RETRIEVAL_ENABLED).toBe(true)
     expect(mod.GRAPH_LLM_EXTRACTION_ENABLED).toBe(false)
     expect(mod.GRAPH_ROLLOUT_AUTOPILOT_ENABLED).toBe(false)
@@ -59,7 +59,7 @@ describe("graph feature flags", () => {
     expect(mod.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED).toBe(true)
   })
 
-  it("falls back to false for invalid flag values", async () => {
+  it("falls back to each graph flag's safe default for invalid values", async () => {
     process.env.GRAPH_MAPPING_ENABLED = "maybe"
     process.env.GRAPH_RETRIEVAL_ENABLED = "enabled"
     process.env.GRAPH_LLM_EXTRACTION_ENABLED = "nah"
@@ -67,7 +67,7 @@ describe("graph feature flags", () => {
     process.env.GRAPH_DEFAULT_STRATEGY_AUTOPILOT_ENABLED = "enabled"
 
     const mod = await loadTypesModule()
-    expect(mod.GRAPH_MAPPING_ENABLED).toBe(false)
+    expect(mod.GRAPH_MAPPING_ENABLED).toBe(true)
     expect(mod.GRAPH_RETRIEVAL_ENABLED).toBe(true)
     expect(mod.GRAPH_LLM_EXTRACTION_ENABLED).toBe(false)
     expect(mod.GRAPH_ROLLOUT_AUTOPILOT_ENABLED).toBe(false)

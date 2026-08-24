@@ -424,7 +424,7 @@ export async function addMemoryPayload(params: {
     )
   }
 
-  const memoryId = crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+  let memoryId = crypto.randomUUID().replace(/-/g, "").slice(0, 12)
   const rawType = (args.type as string) || "note"
   const type = VALID_TYPES.has(rawType) ? rawType : "note"
   const requestedLayer = parseMemoryLayer(args)
@@ -435,27 +435,86 @@ export async function addMemoryPayload(params: {
   const paths = Array.isArray(args.paths) ? args.paths.join(",") : null
   const category = (args.category as string) || null
   const metadata = args.metadata ? JSON.stringify(args.metadata) : null
+  const upsertKey = normalizeUpsertKey(
+    typeof args.upsert_key === "string" ? args.upsert_key : undefined
+  )
+  let updatedExisting = false
+  let createdAt = nowIso
 
-  await turso.execute({
-    sql: `INSERT INTO memories (id, content, type, memory_layer, expires_at, scope, project_id, user_id, tags, paths, category, metadata, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      memoryId,
-      content,
-      type,
-      layer,
-      expiresAt,
-      scope,
-      projectId || null,
-      userId,
-      tags,
-      paths,
-      category,
-      metadata,
-      nowIso,
-      nowIso,
-    ],
-  })
+  if (upsertKey) {
+    const existing = await turso.execute({
+      sql: `SELECT id, created_at
+            FROM memories
+            WHERE scope = ?
+              AND type = ?
+              AND upsert_key = ?
+              AND deleted_at IS NULL
+              AND superseded_at IS NULL
+              AND ((project_id IS NULL AND ? IS NULL) OR project_id = ?)
+              AND ((user_id IS NULL AND ? IS NULL) OR user_id = ?)
+            LIMIT 1`,
+      args: [scope, type, upsertKey, projectId || null, projectId || null, userId, userId],
+    })
+    const existingId = existing.rows[0]?.id as string | undefined
+
+    if (existingId) {
+      memoryId = existingId
+      updatedExisting = true
+      createdAt = (existing.rows[0]?.created_at as string | null) ?? nowIso
+      await turso.execute({
+        sql: `UPDATE memories
+              SET content = ?,
+                  memory_layer = ?,
+                  expires_at = ?,
+                  tags = ?,
+                  paths = ?,
+                  category = ?,
+                  metadata = ?,
+                  last_confirmed_at = ?,
+                  updated_at = ?
+              WHERE id = ?`,
+        args: [
+          content,
+          layer,
+          expiresAt,
+          tags,
+          paths,
+          category,
+          metadata,
+          nowIso,
+          nowIso,
+          memoryId,
+        ],
+      })
+    }
+  }
+
+  if (!updatedExisting) {
+    await turso.execute({
+      sql: `INSERT INTO memories (
+              id, content, type, memory_layer, expires_at, scope, project_id, user_id,
+              tags, paths, category, metadata, upsert_key, last_confirmed_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        memoryId,
+        content,
+        type,
+        layer,
+        expiresAt,
+        scope,
+        projectId || null,
+        userId,
+        tags,
+        paths,
+        category,
+        metadata,
+        upsertKey,
+        upsertKey ? nowIso : null,
+        nowIso,
+        nowIso,
+      ],
+    })
+  }
 
   if (layer === "working") {
     await compactWorkingMemoriesForUser(turso, userId, nowIso)
@@ -487,7 +546,7 @@ export async function addMemoryPayload(params: {
         memoryId,
         content,
         modelId: embeddingModel,
-        operation: "add",
+        operation: updatedExisting ? "edit" : "add",
         nowIso,
       })
       triggerEmbeddingQueueProcessing(turso)
@@ -497,7 +556,7 @@ export async function addMemoryPayload(params: {
   }
 
   const scopeLabel = projectId ? `project:${projectId.split("/").pop()}` : "global"
-  const message = `Stored ${type} (${scopeLabel}): ${content.length > 80 ? `${content.slice(0, 80).trim()}...` : content}`
+  const message = `${updatedExisting ? "Updated" : "Stored"} ${type} (${scopeLabel}): ${content.length > 80 ? `${content.slice(0, 80).trim()}...` : content}`
 
   const memory = toStructuredMemory({
     id: memoryId,
@@ -512,7 +571,7 @@ export async function addMemoryPayload(params: {
     paths,
     category,
     metadata,
-    created_at: nowIso,
+    created_at: createdAt,
     updated_at: nowIso,
   } satisfies Partial<MemoryRow>)
 

@@ -28,6 +28,9 @@ async function setupDb(prefix: string): Promise<DbClient> {
       paths TEXT,
       category TEXT,
       metadata TEXT,
+      upsert_key TEXT,
+      superseded_at TEXT,
+      last_confirmed_at TEXT,
       deleted_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -234,6 +237,56 @@ describe("memory mutations graph integration", () => {
     expect(remainingLinks).toBe(0)
     expect(remainingEdges).toBe(0)
     expect(memoryNodeCount).toBe(0)
+  })
+
+  it("updates a durable project memory and its graph node when upsert_key matches", async () => {
+    const db = await setupDb("memories-mutations-graph-upsert")
+    const { addMemoryPayload } = await loadMutationsModule(true)
+
+    const first = await addMemoryPayload({
+      turso: db,
+      args: {
+        content: "Graph Explorer uses the original project memory.",
+        type: "decision",
+        tags: ["old-graph"],
+        upsert_key: "project.graph-explorer",
+      },
+      projectId: "github.com/webrenew/memories",
+      userId: "user-upsert",
+      nowIso: "2026-08-24T20:00:00.000Z",
+    })
+
+    const second = await addMemoryPayload({
+      turso: db,
+      args: {
+        content: "Graph Explorer stays current through MCP project-memory upserts.",
+        type: "decision",
+        tags: ["mcp", "graph"],
+        upsert_key: "project.graph-explorer",
+      },
+      projectId: "github.com/webrenew/memories",
+      userId: "user-upsert",
+      nowIso: "2026-08-24T20:05:00.000Z",
+    })
+
+    expect(second.data.id).toBe(first.data.id)
+    expect(await scalarCount(db, "SELECT COUNT(*) as count FROM memories WHERE upsert_key = ?", ["project-graph-explorer"])).toBe(1)
+
+    const memoryNode = await db.execute({
+      sql: "SELECT label FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      args: [first.data.id],
+    })
+    expect(memoryNode.rows[0]?.label).toBe("Graph Explorer stays current through MCP project-memory upserts.")
+
+    const topics = await db.execute({
+      sql: `SELECT n.node_key
+            FROM memory_node_links l
+            JOIN graph_nodes n ON n.id = l.node_id
+            WHERE l.memory_id = ? AND n.node_type = 'topic'
+            ORDER BY n.node_key`,
+      args: [first.data.id],
+    })
+    expect(topics.rows.map((row) => row.node_key)).toEqual(["graph", "mcp"])
   })
 
   it("scopes forget to working-layer memories when requested", async () => {

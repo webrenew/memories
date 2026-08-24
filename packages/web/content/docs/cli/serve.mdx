@@ -102,7 +102,7 @@ The MCP server exposes these tools:
 | Tool | Description |
 |------|-------------|
 | `get_context` | Get rules and relevant memories (primary tool) |
-| `add_memory` | Store a memory (`global: true` or `project_id` override) |
+| `add_memory` | Store or update a memory (`upsert_key` keeps durable project knowledge and its graph node current) |
 | `search_memories` | Full-text or semantic search |
 | `get_rules` | Get all active rules |
 | `list_memories` | List recent memories |
@@ -125,10 +125,13 @@ When your MCP client runs outside the target repo, pass `project_id` to force pr
   "arguments": {
     "content": "Use backoff for transient failures",
     "type": "rule",
-    "project_id": "github.com/webrenew/agent-space"
+    "project_id": "github.com/webrenew/agent-space",
+    "upsert_key": "reliability.retry-policy"
   }
 }
 ```
+
+The local MCP server materializes graph mappings for every add, upsert, edit, and forget operation. If an embedded cloud replica is configured, successful MCP mutations also trigger a best-effort sync so Graph Explorer can reflect the change without a manual `memories sync push`.
 
 Use `global: true` for global memories. Do not send both `global` and `project_id`.
 

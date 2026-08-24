@@ -90,6 +90,7 @@ describe("registerCoreTools", () => {
     expect(schemas.get("get_context")).toHaveProperty("task_completed");
     expect(schemas.get("get_context")).toHaveProperty("project_id");
     expect(schemas.get("add_memory")).toHaveProperty("layer");
+    expect(schemas.get("add_memory")).toHaveProperty("upsert_key");
     expect(schemas.get("start_session")).toHaveProperty("project_id");
     expect(schemas.get("checkpoint_session")).toHaveProperty("session_id");
     expect(schemas.get("checkpoint_session")).toHaveProperty("kind");

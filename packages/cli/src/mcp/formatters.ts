@@ -1,4 +1,6 @@
 import type { Memory, MemoryType } from "../lib/memory.js";
+import { syncDbIfConfigured } from "../lib/db.js";
+import { logger } from "../lib/logger.js";
 import {
   formatStorageWarningsForText,
   getStorageWarnings,
@@ -80,4 +82,22 @@ export async function withStorageWarnings(
   } catch {
     return result;
   }
+}
+
+/** Complete MCP write side effects without making cloud sync a write blocker. */
+export async function withMutationEffects(
+  result: ToolResponsePayload,
+  warningsOverride?: StorageWarning[],
+): Promise<ToolResponsePayload> {
+  if (!result.isError) {
+    try {
+      await syncDbIfConfigured();
+    } catch (error) {
+      logger.warn(
+        `Memory stored locally, but cloud sync did not complete: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  return withStorageWarnings(result, warningsOverride);
 }

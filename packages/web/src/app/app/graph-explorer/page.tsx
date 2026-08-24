@@ -50,7 +50,9 @@ export default async function GraphExplorerPage(): Promise<React.JSX.Element | n
       turso,
       nowIso: new Date().toISOString(),
       topNodesLimit: 10,
-      syncMappings: false,
+      // Opening Graph Explorer is also a bounded reconciliation point for
+      // memories written by older MCP/CLI versions that predate graph mapping.
+      syncMappings: true,
     })
   } catch (err) {
     console.error("Graph explorer connection error:", err)
@@ -62,7 +64,7 @@ export default async function GraphExplorerPage(): Promise<React.JSX.Element | n
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Graph Explorer</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Inspect graph rollout health and traverse node relationships.
+          Explore project memories and the repo, type, category, and topic relationships that connect them. MCP updates appear here automatically.
         </p>
       </div>
 

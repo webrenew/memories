@@ -107,6 +107,7 @@ export function setCloudMode(url: string, token: string): void {
 }
 
 let client: Client | undefined;
+const graphSchemaReadyClients = new WeakSet<Client>();
 
 export async function getDb(): Promise<Client> {
   if (client) return client;
@@ -154,6 +155,16 @@ export function resetDb(): void {
 export async function syncDb(): Promise<void> {
   const db = await getDb();
   await db.sync();
+}
+
+/** Push an embedded replica after an MCP mutation. Direct-remote and local-only
+ * clients have no sync config and are already durable at their active target. */
+export async function syncDbIfConfigured(): Promise<boolean> {
+  if (cloudCredentials) return false;
+  const sync = await readSyncConfig();
+  if (!sync) return false;
+  await syncDb();
+  return true;
 }
 
 export async function saveSyncConfig(config: SyncConfig): Promise<void> {
@@ -619,7 +630,9 @@ export async function repairFtsSchema(db: Client): Promise<void> {
   await db.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')");
 }
 
-async function ensureGraphSchema(db: Client): Promise<void> {
+export async function ensureGraphSchema(db: Client): Promise<void> {
+  if (graphSchemaReadyClients.has(db)) return;
+
   await db.execute(
     `CREATE TABLE IF NOT EXISTS graph_nodes (
       id TEXT PRIMARY KEY,
@@ -672,4 +685,5 @@ async function ensureGraphSchema(db: Client): Promise<void> {
 
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_node_links_node_id ON memory_node_links(node_id)`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_memory_node_links_memory_id ON memory_node_links(memory_id)`);
+  graphSchemaReadyClients.add(db);
 }

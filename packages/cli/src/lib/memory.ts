@@ -3,6 +3,10 @@ import { getDb } from "./db.js";
 import { getProjectId } from "./git.js";
 import { logger } from "./logger.js";
 import {
+  removeMemoryGraphMapping,
+  syncMemoryGraphMapping,
+} from "./memory-graph.js";
+import {
   appendOpenClawDailyLog,
   formatOpenClawBootstrapContext,
   isOpenClawFileModeEnabled,
@@ -449,6 +453,44 @@ function defaultLayerForType(type: MemoryType): MemoryLayer {
   return type === "rule" ? "rule" : "long_term";
 }
 
+function parseMemoryTags(tags: string | null): string[] {
+  if (!tags) return [];
+  return tags
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+async function syncMemoryGraphBestEffort(memory: Memory): Promise<void> {
+  try {
+    await syncMemoryGraphMapping({
+      id: memory.id,
+      content: memory.content,
+      type: memory.type,
+      layer: memory.memory_layer ?? defaultLayerForType(memory.type),
+      expiresAt: memory.expires_at,
+      projectId: memory.project_id,
+      userId: memory.user_id ?? null,
+      tags: parseMemoryTags(memory.tags),
+      category: memory.category,
+    });
+  } catch (error) {
+    logger.warn(
+      `Failed to sync graph mapping for memory ${memory.id}: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+}
+
+async function removeMemoryGraphBestEffort(memoryId: string): Promise<void> {
+  try {
+    await removeMemoryGraphMapping(memoryId);
+  } catch (error) {
+    logger.warn(
+      `Failed to remove graph mapping for memory ${memoryId}: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+}
+
 function buildActiveMemoryFilter(columnPrefix = ""): { clause: string; args: string[] } {
   return {
     clause: `${columnPrefix}deleted_at IS NULL AND (${columnPrefix}expires_at IS NULL OR ${columnPrefix}expires_at > ?)`,
@@ -584,12 +626,14 @@ export async function addMemory(
         ],
       });
 
-      generateEmbeddingAsync(existing.id, normalizedContent);
       const updated = await db.execute({
         sql: `SELECT * FROM memories WHERE id = ?`,
         args: [existing.id],
       });
-      return updated.rows[0] as unknown as Memory;
+      const memory = updated.rows[0] as unknown as Memory;
+      await syncMemoryGraphBestEffort(memory);
+      generateEmbeddingAsync(existing.id, normalizedContent);
+      return memory;
     }
   }
 
@@ -627,7 +671,9 @@ export async function addMemory(
     args: [id],
   });
 
-  return result.rows[0] as unknown as Memory;
+  const memory = result.rows[0] as unknown as Memory;
+  await syncMemoryGraphBestEffort(memory);
+  return memory;
 }
 
 /**
@@ -1730,7 +1776,12 @@ export async function updateMemory(
     args: [id],
   });
 
-  return result.rows[0] as unknown as Memory;
+  const memory = result.rows[0] as unknown as Memory;
+  await syncMemoryGraphBestEffort(memory);
+  if (updates.content !== undefined) {
+    generateEmbeddingAsync(id, memory.content);
+  }
+  return memory;
 }
 
 /**
@@ -1751,6 +1802,8 @@ export async function forgetMemory(id: string): Promise<boolean> {
     sql: `UPDATE memories SET deleted_at = datetime('now') WHERE id = ?`,
     args: [id],
   });
+
+  await removeMemoryGraphBestEffort(id);
 
   return true;
 }

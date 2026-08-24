@@ -207,7 +207,7 @@ Run consolidation to merge duplicates, supersede stale truths, and write consoli
 
 ## add_memory
 
-Store a new memory with optional metadata, path scoping, and categorization.
+Store a memory with optional metadata, path scoping, and categorization. For durable project knowledge, provide a stable `upsert_key`; later calls with the same scope, type, and key update the existing memory and graph node in place.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -215,6 +215,7 @@ Store a new memory with optional metadata, path scoping, and categorization.
 | `type` | `enum` | No | `rule`, `decision`, `fact`, `note`, `skill` (default: `note`) |
 | `tags` | `string[]` | No | Array of tags |
 | `project_id` | `string` | No | Optional project/repo context filter (omit for global) |
+| `upsert_key` | `string` | No | Stable key used to update the same durable memory and graph node instead of creating a duplicate |
 | `user_id` | `string` | No | End-user scope identifier inside `tenant_id` |
 | `tenant_id` | `string` | No | AI SDK Project identifier for security/database routing |
 | `paths` | `string[]` | No | Glob patterns for path-scoped rules |
@@ -227,11 +228,15 @@ Store a new memory with optional metadata, path scoping, and categorization.
   "arguments": {
     "content": "Use RESTful naming conventions for all endpoints",
     "type": "rule",
+    "project_id": "github.com/webrenew/memories",
+    "upsert_key": "api.naming-convention",
     "paths": ["src/api/**", "src/routes/**"],
     "category": "api"
   }
 }
 ```
+
+Repeating that call with updated content keeps the returned memory ID stable and refreshes its Graph Explorer label, metadata links, and traversable edges.
 
 Adding a skill:
 

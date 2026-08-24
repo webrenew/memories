@@ -640,7 +640,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
         <div>
           <h2 className="text-lg font-bold tracking-tight">Memory Graph</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Node and edge health for this workspace memory graph.
+            Project memories become connected nodes as your agents learn and update durable context.
           </p>
         </div>
         <div className="text-right space-y-2">
@@ -835,7 +835,9 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
                 <p className="text-[11px] text-muted-foreground">Click a node to explore connections</p>
               </div>
               {activeStatus.topConnectedNodes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No connected nodes yet.</p>
+                <p className="text-sm text-muted-foreground">
+                  No connected memories yet. Add a project memory through MCP to start the graph.
+                </p>
               ) : (
                 <div className="space-y-2">
                   {activeStatus.topConnectedNodes.slice(0, 6).map((node) => (
@@ -895,7 +897,7 @@ export function MemoryGraphSection({ status }: MemoryGraphSectionProps): React.J
               <div>
                 <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-muted-foreground">Graph Explorer</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Traverse adjacent edges and linked memories for a selected node. Scroll to zoom, drag to pan, and use
+                  Follow a project memory into its repo, type, category, and topics. Scroll to zoom, drag to pan, and use
                   Tab + Enter/Space to select nodes or edges.
                 </p>
               </div>

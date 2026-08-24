@@ -146,6 +146,7 @@ export function buildMiniMapViewport(viewport: GraphViewport): MiniMapViewport {
 }
 
 export const NODE_TYPE_STYLES: Record<string, { fill: string; stroke: string; text: string }> = {
+  memory: { fill: "rgba(217, 70, 239, 0.16)", stroke: "#d946ef", text: "#fae8ff" },
   repo: { fill: "rgba(56, 189, 248, 0.16)", stroke: "#38bdf8", text: "#d8f3ff" },
   topic: { fill: "rgba(16, 185, 129, 0.16)", stroke: "#10b981", text: "#dcfce7" },
   category: { fill: "rgba(245, 158, 11, 0.16)", stroke: "#f59e0b", text: "#fef3c7" },

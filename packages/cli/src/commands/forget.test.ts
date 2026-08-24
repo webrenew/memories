@@ -54,5 +54,12 @@ describe("forget", () => {
 
     expect(await getMemoryById(m1.id)).toBeNull();
     expect(await getMemoryById(m2.id)).toBeNull();
+
+    const db = await getDb();
+    const graphNodes = await db.execute({
+      sql: "SELECT node_key FROM graph_nodes WHERE node_type = 'memory' AND node_key IN (?, ?)",
+      args: [m1.id, m2.id],
+    });
+    expect(graphNodes.rows).toHaveLength(0);
   });
 });

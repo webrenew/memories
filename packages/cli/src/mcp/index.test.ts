@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { withStorageWarnings } from "./index.js";
+import { MCP_SERVER_INSTRUCTIONS, withStorageWarnings } from "./index.js";
 import type { StorageWarning } from "../lib/storage-health.js";
 
 const softDeletedWarning: StorageWarning = {
@@ -40,5 +40,13 @@ describe("withStorageWarnings", () => {
     };
     const result = await withStorageWarnings(payload, [softDeletedWarning]);
     expect(result).toEqual(payload);
+  });
+});
+
+describe("MCP server instructions", () => {
+  it("asks clients to keep durable project memories current through upserts", () => {
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("stable upsert_key");
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("Before finishing a task");
+    expect(MCP_SERVER_INSTRUCTIONS).toContain("Never store secrets");
   });
 });

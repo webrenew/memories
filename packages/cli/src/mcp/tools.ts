@@ -34,6 +34,7 @@ import {
   formatMemory,
   formatRulesSection,
   formatMemoriesSection,
+  withMutationEffects,
   withStorageWarnings,
 } from "./formatters.js";
 
@@ -395,6 +396,7 @@ Use this at the start of tasks to understand project conventions and recall past
 
 By default, memories are project-scoped when in a git repo. Use global: true for user-wide preferences.
 Use project_id to force project scope when running outside the target repository.
+Use upsert_key for durable facts, decisions, and rules that should update in place instead of creating duplicates.
 Use paths to scope rules to specific files (e.g., ["src/api/**", "**/*.test.ts"]).
 Use category to group related memories (e.g., "api", "testing").`,
     {
@@ -404,11 +406,12 @@ Use category to group related memories (e.g., "api", "testing").`,
       tags: z.array(z.string()).optional().describe("Tags to categorize the memory"),
       global: z.boolean().optional().describe("Store as global memory instead of project-scoped"),
       project_id: z.string().optional().describe("Explicit project id (e.g., github.com/org/repo)"),
+      upsert_key: z.string().optional().describe("Stable key for updating the same durable memory and graph node in place"),
       paths: z.array(z.string()).optional().describe("Glob patterns for path-scoped rules (e.g., ['src/api/**', '**/*.test.ts'])"),
       category: z.string().optional().describe("Grouping key for organizing memories (e.g., 'api', 'testing')"),
       metadata: z.record(z.string(), z.unknown()).optional().describe("Extended attributes as key-value pairs"),
     },
-    async ({ content, type, layer, tags, global: isGlobal, project_id, paths, category, metadata }) => {
+    async ({ content, type, layer, tags, global: isGlobal, project_id, upsert_key, paths, category, metadata }) => {
       try {
         const scopeOpts = resolveMemoryScopeInput({ global: isGlobal, project_id });
         const memory = await addMemory(content, {
@@ -416,12 +419,13 @@ Use category to group related memories (e.g., "api", "testing").`,
           ...scopeOpts,
           type,
           layer,
+          upsertKey: upsert_key,
           paths,
           category,
           metadata,
         });
         const typeLabel = TYPE_LABELS[memory.type];
-        return withStorageWarnings({
+        return withMutationEffects({
           content: [
             {
               type: "text",
@@ -610,7 +614,7 @@ Find the memory ID first with search_memories or list_memories.`,
         });
         if (updated) {
           const typeLabel = TYPE_LABELS[updated.type];
-          return withStorageWarnings({
+          return withMutationEffects({
             content: [{ type: "text", text: `Updated ${typeLabel} ${updated.id}: ${updated.content}` }],
           });
         }
@@ -638,7 +642,7 @@ Find the memory ID first with search_memories or list_memories.`,
       try {
         const deleted = await forgetMemory(id);
         if (deleted) {
-          return withStorageWarnings({
+          return withMutationEffects({
             content: [{ type: "text", text: `Forgot memory ${id}` }],
           });
         }
@@ -725,7 +729,7 @@ Requires at least one filter, or all:true to delete everything. Cannot combine a
 
         const ids = matches.map((m) => m.id);
         const count = await bulkForgetByIds(ids);
-        return withStorageWarnings({
+        return withMutationEffects({
           content: [{ type: "text", text: `Bulk deleted ${count} memories` }],
         });
       } catch (error) {
@@ -748,7 +752,7 @@ Requires at least one filter, or all:true to delete everything. Cannot combine a
         const message = purged > 0
           ? `Vacuumed ${purged} soft-deleted memories`
           : "No soft-deleted memories to vacuum";
-        return withStorageWarnings({
+        return withMutationEffects({
           content: [{ type: "text", text: message }],
         });
       } catch (error) {

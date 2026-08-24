@@ -11,6 +11,14 @@ import { formatMemory } from "./formatters.js";
 import { registerCoreTools } from "./tools.js";
 import { registerStreamingTools } from "./streaming-tools.js";
 
+export const MCP_SERVER_INSTRUCTIONS = [
+  "Use memories as the durable project context layer.",
+  "At the start of a task, call get_context with the active task query.",
+  "When a durable project fact, decision, rule, or workflow changes, call add_memory with a stable upsert_key so the existing memory and graph node are updated instead of duplicated.",
+  "Before finishing a task, persist any durable knowledge that changed.",
+  "Prefer project scope for repository knowledge. Never store secrets, credentials, transient logs, or speculative conclusions.",
+].join(" ");
+
 // Re-export for use by serve command
 export function setCloudCredentials(url: string, token: string): void {
   setCloudMode(url, token);
@@ -25,10 +33,13 @@ export { withStorageWarnings } from "./formatters.js";
 export async function createMcpServer(): Promise<McpServer> {
   const projectId = getProjectId();
 
-  const server = new McpServer({
-    name: "memories",
-    version: CLI_VERSION,
-  });
+  const server = new McpServer(
+    {
+      name: "memories",
+      version: CLI_VERSION,
+    },
+    { instructions: MCP_SERVER_INSTRUCTIONS },
+  );
 
   // ─── Resources ───────────────────────────────────────────────────
 

@@ -214,6 +214,14 @@ export function jsonRpcErrorResponse(id: unknown, rpcCode: number, detail: ApiEr
 }
 
 // Tool definitions
+export const MCP_SERVER_INSTRUCTIONS = [
+  "Use memories as the durable project context layer.",
+  "At the start of a task, call get_context with the active task query and project_id.",
+  "When a durable project fact, decision, rule, or workflow changes, call add_memory with project_id and a stable upsert_key so the existing memory and graph node are updated instead of duplicated.",
+  "Before finishing a task, persist any durable knowledge that changed.",
+  "Never store secrets, credentials, transient logs, or speculative conclusions.",
+].join(" ")
+
 export const TOOLS = [
   {
     name: "get_context",
@@ -257,7 +265,7 @@ export const TOOLS = [
   },
   {
     name: "add_memory",
-    description: "Store a new memory. Use type='rule' for always-active guidelines. Layer controls injection priority: rule, working, or long_term. Working memories auto-expire based on server TTL policy.",
+    description: "Store or update a memory. Use a stable upsert_key for durable project knowledge so the same memory and graph node stay current. Use type='rule' for always-active guidelines. Layer controls injection priority: rule, working, or long_term. Working memories auto-expire based on server TTL policy.",
     inputSchema: {
       type: "object",
       properties: {
@@ -265,6 +273,7 @@ export const TOOLS = [
         type: { type: "string", enum: ["rule", "decision", "fact", "note", "skill"], description: "Memory type (default: note)" },
         layer: { type: "string", enum: ["rule", "working", "long_term"], description: "Memory layer (default: rule for type=rule, otherwise long_term)" },
         project_id: { type: "string", description: "Project identifier to scope this memory to a specific project" },
+        upsert_key: { type: "string", description: "Stable key for updating the same durable memory and graph node in place" },
         user_id: { type: "string", description: "User identifier to store this memory as user-scoped data" },
         tenant_id: { type: "string", description: "Tenant identifier to route requests to a tenant-specific memory database" },
         tags: { type: "array", items: { type: "string" }, description: "Optional tags for organization and filtering" },

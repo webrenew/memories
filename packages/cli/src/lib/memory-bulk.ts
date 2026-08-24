@@ -1,5 +1,17 @@
 import { getDb } from "./db.js";
 import type { MemoryType, Memory } from "./memory.js";
+import { removeMemoryGraphMappings } from "./memory-graph.js";
+import { logger } from "./logger.js";
+
+async function removeGraphMappingsBestEffort(ids: string[]): Promise<void> {
+  try {
+    await removeMemoryGraphMappings(ids);
+  } catch (error) {
+    logger.warn(
+      `Failed to remove graph mappings for bulk memory mutation: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+}
 
 export interface BulkForgetFilter {
   types?: MemoryType[];
@@ -107,6 +119,7 @@ export async function bulkForgetByIds(ids: string[]): Promise<number> {
       args: batch,
     });
     affected += Number(result.rowsAffected ?? 0);
+    await removeGraphMappingsBestEffort(batch);
   }
 
   return affected;
@@ -118,6 +131,12 @@ export async function bulkForgetByIds(ids: string[]): Promise<number> {
  */
 export async function vacuumMemories(): Promise<number> {
   const db = await getDb();
+
+  const deletedRows = await db.execute("SELECT id FROM memories WHERE deleted_at IS NOT NULL");
+  const deletedIds = deletedRows.rows
+    .map((row) => row.id as string | null)
+    .filter((id): id is string => Boolean(id));
+  await removeGraphMappingsBestEffort(deletedIds);
 
   const [, changesResult] = await db.batch([
     { sql: `DELETE FROM memories WHERE deleted_at IS NOT NULL`, args: [] },
