@@ -161,6 +161,7 @@ async function listUnmappedMemories(turso: TursoClient): Promise<GraphSyncMemory
   const queryWithDeletedAt = {
     sql: `SELECT
             m.id,
+            m.content,
             m.type,
             m.memory_layer,
             m.expires_at,
@@ -186,6 +187,7 @@ async function listUnmappedMemories(turso: TursoClient): Promise<GraphSyncMemory
   const fallbackResult = await turso.execute({
     sql: `SELECT
             m.id,
+            m.content,
             m.type,
             m.memory_layer,
             m.expires_at,

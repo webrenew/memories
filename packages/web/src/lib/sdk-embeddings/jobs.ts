@@ -570,7 +570,7 @@ async function processSingleJob(turso: TursoClient, job: EmbeddingJobRow, nowIso
       })
     }
 
-    const graphMappingEnabled = parseBooleanFlag(process.env.GRAPH_MAPPING_ENABLED, false)
+    const graphMappingEnabled = parseBooleanFlag(process.env.GRAPH_MAPPING_ENABLED, true)
     const relationshipIssues: RelationshipSyncIssue[] = []
     if (graphMappingEnabled && memoryRow) {
       const llmExtractionEnabled = parseBooleanFlag(process.env.GRAPH_LLM_EXTRACTION_ENABLED, false)

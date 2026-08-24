@@ -3,6 +3,15 @@ title: Changelog
 description: Product and documentation updates.
 ---
 
+## August 24, 2026
+
+- Made durable MCP project memories update in place with stable `upsert_key` values across hosted and local transports.
+- Added local CLI graph materialization for memory add, upsert, edit, forget, bulk forget, and vacuum operations.
+- Connected first-class memory nodes to repo, type, owner, category, and topic nodes so Graph Explorer can traverse actual memories without waiting for optional similarity extraction.
+- Added bounded Graph Explorer reconciliation for older unmapped memories and restored content-based memory node labels during backfill.
+- Added MCP server instructions and generated skill guidance that ask agents to recall context at task start and persist changed durable project knowledge before completion.
+- Added best-effort embedded-replica sync after successful local MCP mutations so cloud Graph Explorer views refresh without a manual sync command.
+
 ## February 28, 2026
 
 - Launched segmented memory lifecycle messaging across docs and homepage:

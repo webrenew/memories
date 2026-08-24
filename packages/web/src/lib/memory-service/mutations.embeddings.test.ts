@@ -41,6 +41,9 @@ async function setupDb(prefix: string): Promise<DbClient> {
       paths TEXT,
       category TEXT,
       metadata TEXT,
+      upsert_key TEXT,
+      superseded_at TEXT,
+      last_confirmed_at TEXT,
       deleted_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -169,4 +172,3 @@ describe("memory mutations embedding queue integration", () => {
     expect(mockTriggerEmbeddingQueueProcessing).toHaveBeenCalledTimes(1)
   })
 })
-

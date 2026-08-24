@@ -137,7 +137,7 @@ Your AI assistants get access to these tools:
 | Tool | Description |
 |------|-------------|
 | `get_context` | Get rules and relevant memories for the current task |
-| `add_memory` | Store a new memory (rule, decision, fact, note, or skill) |
+| `add_memory` | Store or update a memory; stable `upsert_key` values keep durable knowledge current |
 | `search_memories` | Full-text search with BM25 ranking across memory content |
 | `list_memories` | List recent memories, optionally filtered |
 | `get_rules` | Get all active rules |
@@ -152,16 +152,20 @@ When you run local CLI MCP (`memories serve`), reminder tools are also available
 
 ### Example: Adding a memory
 
-When your AI agent learns something important, it saves it automatically:
+When your AI agent learns something durable, it saves or updates the project memory automatically:
 
 ```
 Tool: add_memory
 Arguments: {
   "content": "The API rate limit is 100 requests per minute",
   "type": "fact",
+  "project_id": "github.com/webrenew/memories",
+  "upsert_key": "api.rate-limit",
   "tags": ["api", "limits"]
 }
 ```
+
+Calling `add_memory` again with the same project, type, and `upsert_key` updates the original memory ID and refreshes the corresponding Graph Explorer node and edges.
 
 ### Example: Getting context
 

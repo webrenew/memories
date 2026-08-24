@@ -1,6 +1,24 @@
 import type { MemoryLayer, TursoClient } from "../types"
 import { extractDeterministicGraph, type GraphMemorySnapshot, type GraphNodeRef } from "./extract"
 
+type GraphExecutor = Pick<TursoClient, "execute">
+const graphWriteQueues = new WeakMap<TursoClient, Promise<void>>()
+
+async function withGraphWriteLock<T>(turso: TursoClient, operation: () => Promise<T>): Promise<T> {
+  const previous = graphWriteQueues.get(turso) ?? Promise.resolve()
+  const run = previous.catch(() => undefined).then(operation)
+  const settled = run.then(() => undefined, () => undefined)
+  graphWriteQueues.set(turso, settled)
+
+  try {
+    return await run
+  } finally {
+    if (graphWriteQueues.get(turso) === settled) {
+      graphWriteQueues.delete(turso)
+    }
+  }
+}
+
 interface GraphMemoryInput {
   id: string
   content?: string | null
@@ -49,7 +67,7 @@ function toSnapshot(input: GraphMemoryInput): GraphMemorySnapshot {
   }
 }
 
-export async function ensureGraphTables(turso: TursoClient): Promise<void> {
+export async function ensureGraphTables(turso: GraphExecutor): Promise<void> {
   await turso.execute(
     `CREATE TABLE IF NOT EXISTS graph_nodes (
       id TEXT PRIMARY KEY,
@@ -96,7 +114,7 @@ export async function ensureGraphTables(turso: TursoClient): Promise<void> {
   await turso.execute("CREATE INDEX IF NOT EXISTS idx_memory_node_links_memory_id ON memory_node_links(memory_id)")
 }
 
-async function resolveNodeId(turso: TursoClient, ref: GraphNodeRef): Promise<string | null> {
+async function resolveNodeId(turso: GraphExecutor, ref: GraphNodeRef): Promise<string | null> {
   const result = await turso.execute({
     sql: "SELECT id FROM graph_nodes WHERE node_type = ? AND node_key = ? LIMIT 1",
     args: [ref.nodeType, ref.nodeKey],
@@ -124,7 +142,7 @@ function defaultNodeMetadata(ref: GraphNodeRef): string | null {
 }
 
 async function ensureNonMemoryGraphNode(
-  turso: TursoClient,
+  turso: GraphExecutor,
   ref: GraphNodeRef,
   nowIso: string
 ): Promise<string | null> {
@@ -153,7 +171,7 @@ async function ensureNonMemoryGraphNode(
   return resolveNodeId(turso, ref)
 }
 
-async function pruneOrphanGraphNodes(turso: TursoClient): Promise<void> {
+async function pruneOrphanGraphNodes(turso: GraphExecutor): Promise<void> {
   await turso.execute(
     `DELETE FROM graph_nodes
      WHERE id NOT IN (SELECT node_id FROM memory_node_links)
@@ -166,7 +184,7 @@ function placeholders(count: number): string {
   return Array.from({ length: count }, () => "?").join(", ")
 }
 
-async function resolveMemoryNodeIds(turso: TursoClient, memoryIds: string[]): Promise<string[]> {
+async function resolveMemoryNodeIds(turso: GraphExecutor, memoryIds: string[]): Promise<string[]> {
   if (memoryIds.length === 0) return []
 
   const ids = Array.from(new Set(memoryIds.filter(Boolean)))
@@ -185,7 +203,7 @@ async function resolveMemoryNodeIds(turso: TursoClient, memoryIds: string[]): Pr
     .filter((id): id is string => Boolean(id))
 }
 
-async function removeEdgesForNodeIds(turso: TursoClient, nodeIds: string[]): Promise<void> {
+async function removeEdgesForNodeIds(turso: GraphExecutor, nodeIds: string[]): Promise<void> {
   if (nodeIds.length === 0) return
 
   const ids = Array.from(new Set(nodeIds.filter(Boolean)))
@@ -199,7 +217,10 @@ async function removeEdgesForNodeIds(turso: TursoClient, nodeIds: string[]): Pro
   })
 }
 
-export async function removeMemoryGraphMapping(turso: TursoClient, memoryId: string): Promise<void> {
+async function removeMemoryGraphMappingWithExecutor(
+  turso: GraphExecutor,
+  memoryId: string
+): Promise<void> {
   const memoryNodeIds = await resolveMemoryNodeIds(turso, [memoryId])
 
   await turso.execute({
@@ -211,30 +232,71 @@ export async function removeMemoryGraphMapping(turso: TursoClient, memoryId: str
     args: [memoryId],
   })
   await removeEdgesForNodeIds(turso, memoryNodeIds)
-  await pruneOrphanGraphNodes(turso)
+}
+
+export async function removeMemoryGraphMapping(turso: TursoClient, memoryId: string): Promise<void> {
+  await ensureGraphTables(turso)
+  return withGraphWriteLock(turso, async () => {
+    const transaction = await turso.transaction("write")
+
+    try {
+      await removeMemoryGraphMappingWithExecutor(transaction, memoryId)
+      await pruneOrphanGraphNodes(transaction)
+      await transaction.commit()
+    } catch (error) {
+      try {
+        await transaction.rollback()
+      } catch (rollbackError) {
+        console.error("Graph removal rollback failed:", rollbackError)
+      }
+      throw error
+    } finally {
+      transaction.close()
+    }
+  })
 }
 
 const GRAPH_BATCH_SIZE = 200
 
 export async function bulkRemoveMemoryGraphMappings(turso: TursoClient, memoryIds: string[]): Promise<void> {
   if (memoryIds.length === 0) return
+  await ensureGraphTables(turso)
+  return withGraphWriteLock(turso, async () => {
+    const transaction = await turso.transaction("write")
 
-  for (let i = 0; i < memoryIds.length; i += GRAPH_BATCH_SIZE) {
-    const batch = memoryIds.slice(i, i + GRAPH_BATCH_SIZE)
-    const memoryNodeIds = await resolveMemoryNodeIds(turso, batch)
-    const marker = placeholders(batch.length)
-    await turso.batch([
-      { sql: `DELETE FROM memory_node_links WHERE memory_id IN (${marker})`, args: batch },
-      { sql: `DELETE FROM graph_edges WHERE evidence_memory_id IN (${marker})`, args: batch },
-    ])
-    await removeEdgesForNodeIds(turso, memoryNodeIds)
-  }
+    try {
+      for (let i = 0; i < memoryIds.length; i += GRAPH_BATCH_SIZE) {
+        const batch = memoryIds.slice(i, i + GRAPH_BATCH_SIZE)
+        const memoryNodeIds = await resolveMemoryNodeIds(transaction, batch)
+        const marker = placeholders(batch.length)
+        await transaction.execute({
+          sql: `DELETE FROM memory_node_links WHERE memory_id IN (${marker})`,
+          args: batch,
+        })
+        await transaction.execute({
+          sql: `DELETE FROM graph_edges WHERE evidence_memory_id IN (${marker})`,
+          args: batch,
+        })
+        await removeEdgesForNodeIds(transaction, memoryNodeIds)
+      }
 
-  await pruneOrphanGraphNodes(turso)
+      await pruneOrphanGraphNodes(transaction)
+      await transaction.commit()
+    } catch (error) {
+      try {
+        await transaction.rollback()
+      } catch (rollbackError) {
+        console.error("Bulk graph removal rollback failed:", rollbackError)
+      }
+      throw error
+    } finally {
+      transaction.close()
+    }
+  })
 }
 
 export async function upsertGraphEdges(
-  turso: TursoClient,
+  turso: GraphExecutor,
   edges: GraphEdgeWrite[],
   options: { nowIso?: string } = {}
 ): Promise<void> {
@@ -304,6 +366,50 @@ export async function upsertGraphEdges(
   }
 }
 
+async function loadCurrentMemoryGraphInput(
+  turso: GraphExecutor,
+  fallback: GraphMemoryInput
+): Promise<GraphMemoryInput | null> {
+  const tableResult = await turso.execute(
+    "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'memories' LIMIT 1"
+  )
+  if (tableResult.rows.length === 0) {
+    return fallback
+  }
+
+  const result = await turso.execute({
+    sql: `SELECT id, content, type, memory_layer, expires_at, project_id, user_id, tags, category
+          FROM memories
+          WHERE id = ? AND deleted_at IS NULL
+          LIMIT 1`,
+    args: [fallback.id],
+  })
+  const row = result.rows[0]
+  if (!row) return null
+
+  const type = String(row.type ?? "note")
+  const rawLayer = row.memory_layer as string | null
+  const layer = rawLayer === "rule" || rawLayer === "working" || rawLayer === "long_term"
+    ? rawLayer
+    : type === "rule"
+      ? "rule"
+      : "long_term"
+
+  return {
+    id: String(row.id),
+    content: String(row.content ?? ""),
+    type,
+    layer,
+    expiresAt: (row.expires_at as string | null) ?? null,
+    projectId: (row.project_id as string | null) ?? null,
+    userId: (row.user_id as string | null) ?? null,
+    tags: typeof row.tags === "string"
+      ? row.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+      : [],
+    category: (row.category as string | null) ?? null,
+  }
+}
+
 export async function replaceMemorySimilarityEdges(
   turso: TursoClient,
   memoryId: string,
@@ -359,97 +465,106 @@ export async function replaceMemoryRelationshipEdges(
 
 export async function syncMemoryGraphMapping(turso: TursoClient, input: GraphMemoryInput): Promise<void> {
   await ensureGraphTables(turso)
-  const savepoint = `graph_sync_${crypto.randomUUID().replace(/-/g, "")}`
-  await turso.execute(`SAVEPOINT ${savepoint}`)
+  return withGraphWriteLock(turso, async () => {
+    const transaction = await turso.transaction("write")
 
-  try {
-    await removeMemoryGraphMapping(turso, input.id)
-
-    const nowIso = new Date().toISOString()
-    const extracted = extractDeterministicGraph(toSnapshot(input))
-    const nodeIds = new Map<string, string>()
-
-    const nodeRefKey = (ref: GraphNodeRef) => `${ref.nodeType}:${ref.nodeKey}`
-
-    for (const node of extracted.nodes) {
-      const metadata = node.metadata ? JSON.stringify(node.metadata) : null
-      await turso.execute({
-        sql: `INSERT INTO graph_nodes (id, node_type, node_key, label, metadata, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(node_type, node_key) DO UPDATE SET
-                label = excluded.label,
-                metadata = COALESCE(excluded.metadata, graph_nodes.metadata),
-                updated_at = excluded.updated_at`,
-        args: [nodeIdFallback(node), node.nodeType, node.nodeKey, node.label, metadata, nowIso, nowIso],
-      })
-
-      const resolved = await resolveNodeId(turso, node)
-      if (resolved) {
-        nodeIds.set(nodeRefKey(node), resolved)
-      }
-    }
-
-    for (const link of extracted.links) {
-      const nodeId = nodeIds.get(nodeRefKey(link.node))
-      if (!nodeId) continue
-
-      await turso.execute({
-        sql: `INSERT INTO memory_node_links (memory_id, node_id, role, created_at)
-              VALUES (?, ?, ?, ?)
-              ON CONFLICT(memory_id, node_id, role) DO UPDATE SET
-                created_at = excluded.created_at`,
-        args: [input.id, nodeId, link.role, nowIso],
-      })
-    }
-
-    for (const edge of extracted.edges) {
-      const fromNodeId = nodeIds.get(nodeRefKey(edge.from))
-      const toNodeId = nodeIds.get(nodeRefKey(edge.to))
-      if (!fromNodeId || !toNodeId) continue
-
-      await turso.execute({
-        sql: `INSERT INTO graph_edges (
-                id,
-                from_node_id,
-                to_node_id,
-                edge_type,
-                weight,
-                confidence,
-                evidence_memory_id,
-                expires_at,
-                created_at,
-                updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET
-                weight = excluded.weight,
-                confidence = excluded.confidence,
-                evidence_memory_id = excluded.evidence_memory_id,
-                expires_at = excluded.expires_at,
-                updated_at = excluded.updated_at`,
-        args: [
-          edgeId(input.id, edge.edgeType, fromNodeId, toNodeId),
-          fromNodeId,
-          toNodeId,
-          edge.edgeType,
-          edge.weight,
-          edge.confidence,
-          input.id,
-          edge.expiresAt,
-          nowIso,
-          nowIso,
-        ],
-      })
-    }
-
-    await pruneOrphanGraphNodes(turso)
-    await turso.execute(`RELEASE SAVEPOINT ${savepoint}`)
-  } catch (error) {
     try {
-      await turso.execute(`ROLLBACK TO SAVEPOINT ${savepoint}`)
-      await turso.execute(`RELEASE SAVEPOINT ${savepoint}`)
-    } catch (rollbackError) {
-      console.error("Graph sync rollback failed:", rollbackError)
+      const currentInput = await loadCurrentMemoryGraphInput(transaction, input)
+      await removeMemoryGraphMappingWithExecutor(transaction, input.id)
+
+      if (!currentInput) {
+        await pruneOrphanGraphNodes(transaction)
+        await transaction.commit()
+        return
+      }
+
+      const nowIso = new Date().toISOString()
+      const extracted = extractDeterministicGraph(toSnapshot(currentInput))
+      const nodeIds = new Map<string, string>()
+
+      const nodeRefKey = (ref: GraphNodeRef) => `${ref.nodeType}:${ref.nodeKey}`
+
+      for (const node of extracted.nodes) {
+        const metadata = node.metadata ? JSON.stringify(node.metadata) : null
+        await transaction.execute({
+          sql: `INSERT INTO graph_nodes (id, node_type, node_key, label, metadata, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(node_type, node_key) DO UPDATE SET
+                  label = excluded.label,
+                  metadata = COALESCE(excluded.metadata, graph_nodes.metadata),
+                  updated_at = excluded.updated_at`,
+          args: [nodeIdFallback(node), node.nodeType, node.nodeKey, node.label, metadata, nowIso, nowIso],
+        })
+
+        const resolved = await resolveNodeId(transaction, node)
+        if (resolved) {
+          nodeIds.set(nodeRefKey(node), resolved)
+        }
+      }
+
+      for (const link of extracted.links) {
+        const nodeId = nodeIds.get(nodeRefKey(link.node))
+        if (!nodeId) continue
+
+        await transaction.execute({
+          sql: `INSERT INTO memory_node_links (memory_id, node_id, role, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(memory_id, node_id, role) DO UPDATE SET
+                  created_at = excluded.created_at`,
+          args: [currentInput.id, nodeId, link.role, nowIso],
+        })
+      }
+
+      for (const edge of extracted.edges) {
+        const fromNodeId = nodeIds.get(nodeRefKey(edge.from))
+        const toNodeId = nodeIds.get(nodeRefKey(edge.to))
+        if (!fromNodeId || !toNodeId) continue
+
+        await transaction.execute({
+          sql: `INSERT INTO graph_edges (
+                  id,
+                  from_node_id,
+                  to_node_id,
+                  edge_type,
+                  weight,
+                  confidence,
+                  evidence_memory_id,
+                  expires_at,
+                  created_at,
+                  updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  weight = excluded.weight,
+                  confidence = excluded.confidence,
+                  evidence_memory_id = excluded.evidence_memory_id,
+                  expires_at = excluded.expires_at,
+                  updated_at = excluded.updated_at`,
+          args: [
+            edgeId(currentInput.id, edge.edgeType, fromNodeId, toNodeId),
+            fromNodeId,
+            toNodeId,
+            edge.edgeType,
+            edge.weight,
+            edge.confidence,
+            currentInput.id,
+            edge.expiresAt,
+            nowIso,
+            nowIso,
+          ],
+        })
+      }
+
+      await pruneOrphanGraphNodes(transaction)
+      await transaction.commit()
+    } catch (error) {
+      try {
+        await transaction.rollback()
+      } catch (rollbackError) {
+        console.error("Graph sync rollback failed:", rollbackError)
+      }
+      throw error
+    } finally {
+      transaction.close()
     }
-    throw error
-  }
+  })
 }

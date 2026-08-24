@@ -187,6 +187,7 @@ describe("getGraphStatusPayload", () => {
     await db.execute(
       `CREATE TABLE memories (
         id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
         type TEXT NOT NULL,
         memory_layer TEXT,
         expires_at TEXT,
@@ -202,10 +203,11 @@ describe("getGraphStatusPayload", () => {
 
     await db.execute({
       sql: `INSERT INTO memories (
-              id, type, memory_layer, expires_at, project_id, user_id, tags, category, created_at, updated_at, deleted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              id, content, type, memory_layer, expires_at, project_id, user_id, tags, category, created_at, updated_at, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         "mem-unmapped-1",
+        "Project graph memories stay current through MCP upserts.",
         "rule",
         null,
         null,
@@ -243,6 +245,12 @@ describe("getGraphStatusPayload", () => {
       args: ["mem-unmapped-1"],
     })
     expect(Number(linksResult.rows[0]?.count ?? 0)).toBeGreaterThan(0)
+
+    const memoryNodeResult = await db.execute({
+      sql: "SELECT label FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      args: ["mem-unmapped-1"],
+    })
+    expect(memoryNodeResult.rows[0]?.label).toBe("Project graph memories stay current through MCP upserts.")
   })
 
   it("can skip opportunistic mapping sync for faster read-only status", async () => {
@@ -252,6 +260,7 @@ describe("getGraphStatusPayload", () => {
     await db.execute(
       `CREATE TABLE memories (
         id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
         type TEXT NOT NULL,
         memory_layer TEXT,
         expires_at TEXT,
@@ -267,10 +276,11 @@ describe("getGraphStatusPayload", () => {
 
     await db.execute({
       sql: `INSERT INTO memories (
-              id, type, memory_layer, expires_at, project_id, user_id, tags, category, created_at, updated_at, deleted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              id, content, type, memory_layer, expires_at, project_id, user_id, tags, category, created_at, updated_at, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         "mem-unmapped-no-sync",
+        "Do not map this memory in read-only mode.",
         "rule",
         null,
         null,

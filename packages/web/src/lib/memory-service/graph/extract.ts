@@ -172,6 +172,24 @@ export function extractDeterministicGraph(snapshot: GraphMemorySnapshot): Determ
     addLink(tagNode, "tag")
   }
 
+  // Keep the memory itself in the traversable graph. memory_node_links power
+  // retrieval, but Graph Explorer renders graph_edges; without these edges a
+  // first-class memory node is effectively isolated until a similarity or LLM
+  // relationship happens to be generated.
+  addEdge(memoryNode, typeNode, "typed_as")
+  if (repoNode) {
+    addEdge(memoryNode, repoNode, "scoped_to")
+  }
+  if (userNode) {
+    addEdge(memoryNode, userNode, "owned_by")
+  }
+  if (categoryNode) {
+    addEdge(memoryNode, categoryNode, "categorized_as")
+  }
+  for (const tagNode of tagNodes) {
+    addEdge(memoryNode, tagNode, "tagged_with")
+  }
+
   if (repoNode && userNode) {
     addEdge(repoNode, userNode, "authored_by")
   }

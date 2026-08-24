@@ -213,6 +213,7 @@ describe("/api/mcp", () => {
       expect(body.result.protocolVersion).toBe("2024-11-05")
       expect(body.result.serverInfo.name).toBe("memories.sh")
       expect(body.result.capabilities.tools).toBeDefined()
+      expect(body.result.instructions).toContain("stable upsert_key")
     })
   })
 
@@ -241,6 +242,9 @@ describe("/api/mcp", () => {
       expect(toolNames).toContain("list_memories")
       expect(toolNames).toContain("bulk_forget_memories")
       expect(toolNames).toContain("vacuum_memories")
+
+      const addMemory = body.result.tools.find((tool: { name: string }) => tool.name === "add_memory")
+      expect(addMemory.inputSchema.properties.upsert_key).toBeDefined()
     })
   })
 

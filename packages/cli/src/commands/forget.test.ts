@@ -54,5 +54,40 @@ describe("forget", () => {
 
     expect(await getMemoryById(m1.id)).toBeNull();
     expect(await getMemoryById(m2.id)).toBeNull();
+
+    const db = await getDb();
+    const graphNodes = await db.execute({
+      sql: "SELECT node_key FROM graph_nodes WHERE node_type = 'memory' AND node_key IN (?, ?)",
+      args: [m1.id, m2.id],
+    });
+    expect(graphNodes.rows).toHaveLength(0);
+  });
+
+  it("should not remove bulk graph mappings when GRAPH_MAPPING_ENABLED is false", async () => {
+    const previousFlag = process.env.GRAPH_MAPPING_ENABLED;
+    delete process.env.GRAPH_MAPPING_ENABLED;
+
+    try {
+      const memory = await addMemory("Keep graph mapping during disabled bulk forget", {
+        type: "note",
+        global: true,
+      });
+      process.env.GRAPH_MAPPING_ENABLED = "false";
+
+      expect(await bulkForgetByIds([memory.id])).toBe(1);
+
+      const db = await getDb();
+      const graphNodes = await db.execute({
+        sql: "SELECT node_key FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+        args: [memory.id],
+      });
+      expect(graphNodes.rows).toHaveLength(1);
+    } finally {
+      if (previousFlag === undefined) {
+        delete process.env.GRAPH_MAPPING_ENABLED;
+      } else {
+        process.env.GRAPH_MAPPING_ENABLED = previousFlag;
+      }
+    }
   });
 });

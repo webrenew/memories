@@ -43,6 +43,17 @@ export function isDebug(): boolean {
   return !["0", "false", "off", "no", "n"].includes(normalized)
 }
 
+/** Whether deterministic memory graph writes are enabled. */
+export function isGraphMappingEnabled(): boolean {
+  const raw = process.env.GRAPH_MAPPING_ENABLED
+  if (!raw) return true
+
+  const normalized = raw.trim().toLowerCase()
+  if (["0", "false", "off", "no"].includes(normalized)) return false
+  if (["1", "true", "on", "yes"].includes(normalized)) return true
+  return true
+}
+
 /** Resolve the user's preferred text editor. */
 export function getEditor(): string {
   return process.env.EDITOR || process.env.VISUAL || "vi"

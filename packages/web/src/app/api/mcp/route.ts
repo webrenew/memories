@@ -27,6 +27,7 @@ import {
   formatSSE,
   endpointErrorResponse,
   jsonRpcErrorResponse,
+  MCP_SERVER_INSTRUCTIONS,
   TOOLS,
 } from "./mcp-route-helpers"
 
@@ -232,6 +233,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           protocolVersion: "2024-11-05",
           serverInfo: { name: "memories.sh", version: "0.6.0" },
           capabilities: { tools: {} },
+          instructions: MCP_SERVER_INSTRUCTIONS,
         }
         break
       }

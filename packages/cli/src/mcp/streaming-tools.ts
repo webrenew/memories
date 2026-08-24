@@ -8,7 +8,7 @@ import {
   getStreamState,
 } from "../lib/memory.js";
 import { resolveMemoryScopeInput } from "./scope.js";
-import { TYPE_LABELS, withStorageWarnings } from "./formatters.js";
+import { TYPE_LABELS, withMutationEffects } from "./formatters.js";
 
 // ─── Streaming Tool Registrations ─────────────────────────────────────────────
 
@@ -102,7 +102,7 @@ The stream is cleaned up after finalization.`,
         }
 
         const typeLabel = TYPE_LABELS[memory.type];
-        return withStorageWarnings({
+        return withMutationEffects({
           content: [{
             type: "text",
             text: `Created ${typeLabel} ${memory.id} from ${state?.chunkCount ?? 0} chunks (${memory.content.length} chars). Embedding generation started.`

@@ -37,6 +37,11 @@ describe("extractDeterministicGraph", () => {
     expect(roles.filter((role) => role === "tag").length).toBe(2)
 
     const edgeTypes = graph.edges.map((edge) => edge.edgeType)
+    expect(edgeTypes).toContain("typed_as")
+    expect(edgeTypes).toContain("scoped_to")
+    expect(edgeTypes).toContain("owned_by")
+    expect(edgeTypes).toContain("categorized_as")
+    expect(edgeTypes.filter((edgeType) => edgeType === "tagged_with")).toHaveLength(2)
     expect(edgeTypes).toContain("authored_by")
     expect(edgeTypes).toContain("about")
     expect(edgeTypes).toContain("mentions")
