@@ -7,7 +7,7 @@ process.env.MEMORIES_DATA_DIR = mkdtempSync(join(tmpdir(), "memories-bulk-test-"
 
 import { getDb } from "./db.js";
 import { addMemory, getMemoryById } from "./memory.js";
-import { bulkForgetByIds, findMemoriesToForget } from "./memory-bulk.js";
+import { bulkForgetByIds, findMemoriesToForget, vacuumMemories } from "./memory-bulk.js";
 
 describe("memory bulk", () => {
   beforeAll(async () => {
@@ -49,5 +49,41 @@ describe("memory bulk", () => {
     expect(count).toBe(2);
     expect(await getMemoryById(one.id)).toBeNull();
     expect(await getMemoryById(two.id)).toBeNull();
+  });
+
+  it("keeps graph mappings when the vacuum delete fails", async () => {
+    const memory = await addMemory("vacuum failure preserves graph", {
+      global: true,
+      type: "note",
+    });
+    const db = await getDb();
+    await db.execute({
+      sql: "UPDATE memories SET deleted_at = datetime('now') WHERE id = ?",
+      args: [memory.id],
+    });
+    await db.execute(`
+      CREATE TRIGGER fail_vacuum_memory_delete
+      BEFORE DELETE ON memories
+      WHEN OLD.id = '${memory.id}'
+      BEGIN
+        SELECT RAISE(FAIL, 'forced vacuum failure');
+      END;
+    `);
+
+    await expect(vacuumMemories()).rejects.toThrow("forced vacuum failure");
+
+    const remainingMemory = await db.execute({
+      sql: "SELECT id FROM memories WHERE id = ?",
+      args: [memory.id],
+    });
+    const remainingGraphNode = await db.execute({
+      sql: "SELECT id FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      args: [memory.id],
+    });
+    expect(remainingMemory.rows).toHaveLength(1);
+    expect(remainingGraphNode.rows).toHaveLength(1);
+
+    await db.execute("DROP TRIGGER fail_vacuum_memory_delete");
+    await vacuumMemories();
   });
 });

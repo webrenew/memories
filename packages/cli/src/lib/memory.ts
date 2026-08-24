@@ -663,9 +663,6 @@ export async function addMemory(
     ],
   });
 
-  // Generate embedding in background (don't block on it)
-  generateEmbeddingAsync(id, normalizedContent);
-
   const result = await db.execute({
     sql: `SELECT * FROM memories WHERE id = ?`,
     args: [id],
@@ -673,6 +670,9 @@ export async function addMemory(
 
   const memory = result.rows[0] as unknown as Memory;
   await syncMemoryGraphBestEffort(memory);
+  // Start optional embedding work only after the graph write transaction has
+  // released its lock on the local database.
+  generateEmbeddingAsync(id, normalizedContent);
   return memory;
 }
 

@@ -237,6 +237,46 @@ describe("memory", () => {
     expect(topics.rows.map((row) => row.node_key)).toEqual(["after-edit"]);
   });
 
+  it("should keep the graph aligned with the winning concurrent edit", async () => {
+    const memory = await addMemory("Concurrent graph edit seed", {
+      projectId: "github.com/test/graph-concurrency",
+      tags: ["seed"],
+    });
+
+    await Promise.all([
+      updateMemory(memory.id, {
+        content: "Concurrent graph edit alpha",
+        tags: ["alpha"],
+      }),
+      updateMemory(memory.id, {
+        content: "Concurrent graph edit beta",
+        tags: ["beta"],
+      }),
+    ]);
+
+    const db = await getDb();
+    const current = await db.execute({
+      sql: "SELECT content, tags FROM memories WHERE id = ?",
+      args: [memory.id],
+    });
+    const memoryNode = await db.execute({
+      sql: "SELECT label FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
+      args: [memory.id],
+    });
+    const topics = await db.execute({
+      sql: `SELECT n.node_key
+            FROM memory_node_links l
+            JOIN graph_nodes n ON n.id = l.node_id
+            WHERE l.memory_id = ? AND n.node_type = 'topic'`,
+      args: [memory.id],
+    });
+
+    expect(memoryNode.rows[0]?.label).toBe(current.rows[0]?.content);
+    expect(topics.rows.map((row) => row.node_key)).toEqual(
+      String(current.rows[0]?.tags ?? "").split(",").filter(Boolean),
+    );
+  });
+
   it("should not mutate graph mappings when GRAPH_MAPPING_ENABLED is false", async () => {
     const previousFlag = process.env.GRAPH_MAPPING_ENABLED;
     delete process.env.GRAPH_MAPPING_ENABLED;

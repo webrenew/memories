@@ -136,12 +136,13 @@ export async function vacuumMemories(): Promise<number> {
   const deletedIds = deletedRows.rows
     .map((row) => row.id as string | null)
     .filter((id): id is string => Boolean(id));
-  await removeGraphMappingsBestEffort(deletedIds);
 
   const [, changesResult] = await db.batch([
     { sql: `DELETE FROM memories WHERE deleted_at IS NOT NULL`, args: [] },
     { sql: `SELECT changes() as cnt`, args: [] },
   ]);
+
+  await removeGraphMappingsBestEffort(deletedIds);
 
   return Number((changesResult.rows[0] as unknown as { cnt: number }).cnt) || 0;
 }

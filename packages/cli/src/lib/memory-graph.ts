@@ -1,7 +1,24 @@
 import type { Client } from "@libsql/client";
-import { randomUUID } from "node:crypto";
 import { ensureGraphSchema, getDb } from "./db.js";
 import { isGraphMappingEnabled } from "./env.js";
+
+type GraphExecutor = Pick<Client, "execute">;
+const graphWriteQueues = new WeakMap<Client, Promise<void>>();
+
+async function withGraphWriteLock<T>(client: Client, operation: () => Promise<T>): Promise<T> {
+  const previous = graphWriteQueues.get(client) ?? Promise.resolve();
+  const run = previous.catch(() => undefined).then(operation);
+  const settled = run.then(() => undefined, () => undefined);
+  graphWriteQueues.set(client, settled);
+
+  try {
+    return await run;
+  } finally {
+    if (graphWriteQueues.get(client) === settled) {
+      graphWriteQueues.delete(client);
+    }
+  }
+}
 
 export interface MemoryGraphInput {
   id: string;
@@ -168,7 +185,7 @@ function edgeId(memoryId: string, edge: GraphEdgeCandidate): string {
   return `graph-edge:${memoryId}:${edge.edgeType}:${nodeId(edge.from)}:${nodeId(edge.to)}`;
 }
 
-async function pruneOrphanNodes(db: Client): Promise<void> {
+async function pruneOrphanNodes(db: GraphExecutor): Promise<void> {
   await db.execute(
     `DELETE FROM graph_nodes
      WHERE id NOT IN (SELECT node_id FROM memory_node_links)
@@ -177,7 +194,7 @@ async function pruneOrphanNodes(db: Client): Promise<void> {
   );
 }
 
-async function removeMemoryGraphMappingWithDb(db: Client, memoryId: string): Promise<void> {
+async function removeMemoryGraphMappingWithDb(db: GraphExecutor, memoryId: string): Promise<void> {
   const memoryNodes = await db.execute({
     sql: "SELECT id FROM graph_nodes WHERE node_type = 'memory' AND node_key = ?",
     args: [memoryId],
@@ -203,6 +220,43 @@ async function removeMemoryGraphMappingWithDb(db: Client, memoryId: string): Pro
   }
 }
 
+async function loadCurrentMemoryGraphInput(
+  db: GraphExecutor,
+  memoryId: string,
+): Promise<MemoryGraphInput | null> {
+  const result = await db.execute({
+    sql: `SELECT id, content, type, memory_layer, expires_at, project_id, user_id, tags, category
+          FROM memories
+          WHERE id = ? AND deleted_at IS NULL
+          LIMIT 1`,
+    args: [memoryId],
+  });
+  const row = result.rows[0];
+  if (!row) return null;
+
+  const type = String(row.type ?? "note");
+  const rawLayer = row.memory_layer as string | null;
+  const layer = rawLayer === "rule" || rawLayer === "working" || rawLayer === "long_term"
+    ? rawLayer
+    : type === "rule"
+      ? "rule"
+      : "long_term";
+
+  return {
+    id: String(row.id),
+    content: String(row.content ?? ""),
+    type,
+    layer,
+    expiresAt: (row.expires_at as string | null) ?? null,
+    projectId: (row.project_id as string | null) ?? null,
+    userId: (row.user_id as string | null) ?? null,
+    tags: typeof row.tags === "string"
+      ? row.tags.split(",").map((tag) => tag.trim()).filter(Boolean)
+      : [],
+    category: (row.category as string | null) ?? null,
+  };
+}
+
 export async function syncMemoryGraphMapping(
   input: MemoryGraphInput,
   db?: Client,
@@ -210,79 +264,89 @@ export async function syncMemoryGraphMapping(
   if (!isGraphMappingEnabled()) return;
   const client = db ?? (await getDb());
   await ensureGraphSchema(client);
-  const savepoint = `graph_sync_${randomUUID().replace(/-/g, "")}`;
-  await client.execute(`SAVEPOINT ${savepoint}`);
+  return withGraphWriteLock(client, async () => {
+    const transaction = await client.transaction("write");
 
-  try {
-    await removeMemoryGraphMappingWithDb(client, input.id);
-    const extracted = extractMemoryGraph(input);
-    const nowIso = new Date().toISOString();
-
-    for (const node of extracted.nodes) {
-      await client.execute({
-        sql: `INSERT INTO graph_nodes (id, node_type, node_key, label, metadata, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(node_type, node_key) DO UPDATE SET
-                label = excluded.label,
-                metadata = COALESCE(excluded.metadata, graph_nodes.metadata),
-                updated_at = excluded.updated_at`,
-        args: [
-          nodeId(node),
-          node.nodeType,
-          node.nodeKey,
-          node.label,
-          node.metadata ? JSON.stringify(node.metadata) : null,
-          nowIso,
-          nowIso,
-        ],
-      });
-    }
-
-    for (const link of extracted.links) {
-      await client.execute({
-        sql: `INSERT INTO memory_node_links (memory_id, node_id, role, created_at)
-              VALUES (?, ?, ?, ?)
-              ON CONFLICT(memory_id, node_id, role) DO UPDATE SET created_at = excluded.created_at`,
-        args: [input.id, nodeId(link.node), link.role, nowIso],
-      });
-    }
-
-    for (const edge of extracted.edges) {
-      await client.execute({
-        sql: `INSERT INTO graph_edges (
-                id, from_node_id, to_node_id, edge_type, weight, confidence,
-                evidence_memory_id, expires_at, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, 1, 1, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET
-                weight = excluded.weight,
-                confidence = excluded.confidence,
-                evidence_memory_id = excluded.evidence_memory_id,
-                expires_at = excluded.expires_at,
-                updated_at = excluded.updated_at`,
-        args: [
-          edgeId(input.id, edge),
-          nodeId(edge.from),
-          nodeId(edge.to),
-          edge.edgeType,
-          input.id,
-          edge.expiresAt,
-          nowIso,
-          nowIso,
-        ],
-      });
-    }
-
-    await pruneOrphanNodes(client);
-    await client.execute(`RELEASE SAVEPOINT ${savepoint}`);
-  } catch (error) {
     try {
-      await client.execute(`ROLLBACK TO SAVEPOINT ${savepoint}`);
-      await client.execute(`RELEASE SAVEPOINT ${savepoint}`);
-    } catch {
-      // Preserve the original graph failure.
+      const currentInput = await loadCurrentMemoryGraphInput(transaction, input.id);
+      await removeMemoryGraphMappingWithDb(transaction, input.id);
+
+      if (!currentInput) {
+        await pruneOrphanNodes(transaction);
+        await transaction.commit();
+        return;
+      }
+
+      const extracted = extractMemoryGraph(currentInput);
+      const nowIso = new Date().toISOString();
+
+      for (const node of extracted.nodes) {
+        await transaction.execute({
+          sql: `INSERT INTO graph_nodes (id, node_type, node_key, label, metadata, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(node_type, node_key) DO UPDATE SET
+                  label = excluded.label,
+                  metadata = COALESCE(excluded.metadata, graph_nodes.metadata),
+                  updated_at = excluded.updated_at`,
+          args: [
+            nodeId(node),
+            node.nodeType,
+            node.nodeKey,
+            node.label,
+            node.metadata ? JSON.stringify(node.metadata) : null,
+            nowIso,
+            nowIso,
+          ],
+        });
+      }
+
+      for (const link of extracted.links) {
+        await transaction.execute({
+          sql: `INSERT INTO memory_node_links (memory_id, node_id, role, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(memory_id, node_id, role) DO UPDATE SET created_at = excluded.created_at`,
+          args: [currentInput.id, nodeId(link.node), link.role, nowIso],
+        });
+      }
+
+      for (const edge of extracted.edges) {
+        await transaction.execute({
+          sql: `INSERT INTO graph_edges (
+                  id, from_node_id, to_node_id, edge_type, weight, confidence,
+                  evidence_memory_id, expires_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 1, 1, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  weight = excluded.weight,
+                  confidence = excluded.confidence,
+                  evidence_memory_id = excluded.evidence_memory_id,
+                  expires_at = excluded.expires_at,
+                  updated_at = excluded.updated_at`,
+          args: [
+            edgeId(currentInput.id, edge),
+            nodeId(edge.from),
+            nodeId(edge.to),
+            edge.edgeType,
+            currentInput.id,
+            edge.expiresAt,
+            nowIso,
+            nowIso,
+          ],
+        });
+      }
+
+      await pruneOrphanNodes(transaction);
+      await transaction.commit();
+    } catch (error) {
+      try {
+        await transaction.rollback();
+      } catch {
+        // Preserve the original graph failure.
+      }
+      throw error;
+    } finally {
+      transaction.close();
     }
-    throw error;
-  }
+  });
 }
 
 export async function removeMemoryGraphMapping(
@@ -292,8 +356,23 @@ export async function removeMemoryGraphMapping(
   if (!isGraphMappingEnabled()) return;
   const client = db ?? (await getDb());
   await ensureGraphSchema(client);
-  await removeMemoryGraphMappingWithDb(client, memoryId);
-  await pruneOrphanNodes(client);
+  return withGraphWriteLock(client, async () => {
+    const transaction = await client.transaction("write");
+    try {
+      await removeMemoryGraphMappingWithDb(transaction, memoryId);
+      await pruneOrphanNodes(transaction);
+      await transaction.commit();
+    } catch (error) {
+      try {
+        await transaction.rollback();
+      } catch {
+        // Preserve the original graph failure.
+      }
+      throw error;
+    } finally {
+      transaction.close();
+    }
+  });
 }
 
 export async function removeMemoryGraphMappings(
@@ -303,8 +382,23 @@ export async function removeMemoryGraphMappings(
   if (!isGraphMappingEnabled()) return;
   const client = db ?? (await getDb());
   await ensureGraphSchema(client);
-  for (const memoryId of [...new Set(memoryIds.filter(Boolean))]) {
-    await removeMemoryGraphMappingWithDb(client, memoryId);
-  }
-  await pruneOrphanNodes(client);
+  return withGraphWriteLock(client, async () => {
+    const transaction = await client.transaction("write");
+    try {
+      for (const memoryId of [...new Set(memoryIds.filter(Boolean))]) {
+        await removeMemoryGraphMappingWithDb(transaction, memoryId);
+      }
+      await pruneOrphanNodes(transaction);
+      await transaction.commit();
+    } catch (error) {
+      try {
+        await transaction.rollback();
+      } catch {
+        // Preserve the original graph failure.
+      }
+      throw error;
+    } finally {
+      transaction.close();
+    }
+  });
 }
