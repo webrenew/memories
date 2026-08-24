@@ -237,6 +237,36 @@ describe("memory", () => {
     expect(topics.rows.map((row) => row.node_key)).toEqual(["after-edit"]);
   });
 
+  it("should not mutate graph mappings when GRAPH_MAPPING_ENABLED is false", async () => {
+    const previousFlag = process.env.GRAPH_MAPPING_ENABLED;
+    delete process.env.GRAPH_MAPPING_ENABLED;
+
+    try {
+      const existing = await addMemory("Graph mapping created before kill switch", {
+        projectId: "github.com/test/graph-disabled",
+      });
+
+      process.env.GRAPH_MAPPING_ENABLED = "false";
+      const disabled = await addMemory("Graph mapping disabled", {
+        projectId: "github.com/test/graph-disabled",
+      });
+      await forgetMemory(existing.id);
+
+      const db = await getDb();
+      const nodes = await db.execute({
+        sql: "SELECT node_key FROM graph_nodes WHERE node_type = 'memory' AND node_key IN (?, ?) ORDER BY node_key",
+        args: [existing.id, disabled.id],
+      });
+      expect(nodes.rows.map((row) => row.node_key)).toEqual([existing.id]);
+    } finally {
+      if (previousFlag === undefined) {
+        delete process.env.GRAPH_MAPPING_ENABLED;
+      } else {
+        process.env.GRAPH_MAPPING_ENABLED = previousFlag;
+      }
+    }
+  });
+
   it("should filter memories by scope", async () => {
     // Add global and project memories
     await addMemory("scope-test global", { global: true, tags: ["scope-test"] });

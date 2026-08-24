@@ -1,6 +1,7 @@
 import type { Client } from "@libsql/client";
 import { randomUUID } from "node:crypto";
 import { ensureGraphSchema, getDb } from "./db.js";
+import { isGraphMappingEnabled } from "./env.js";
 
 export interface MemoryGraphInput {
   id: string;
@@ -206,6 +207,7 @@ export async function syncMemoryGraphMapping(
   input: MemoryGraphInput,
   db?: Client,
 ): Promise<void> {
+  if (!isGraphMappingEnabled()) return;
   const client = db ?? (await getDb());
   await ensureGraphSchema(client);
   const savepoint = `graph_sync_${randomUUID().replace(/-/g, "")}`;
@@ -287,6 +289,7 @@ export async function removeMemoryGraphMapping(
   memoryId: string,
   db?: Client,
 ): Promise<void> {
+  if (!isGraphMappingEnabled()) return;
   const client = db ?? (await getDb());
   await ensureGraphSchema(client);
   await removeMemoryGraphMappingWithDb(client, memoryId);
@@ -297,6 +300,7 @@ export async function removeMemoryGraphMappings(
   memoryIds: string[],
   db?: Client,
 ): Promise<void> {
+  if (!isGraphMappingEnabled()) return;
   const client = db ?? (await getDb());
   await ensureGraphSchema(client);
   for (const memoryId of [...new Set(memoryIds.filter(Boolean))]) {

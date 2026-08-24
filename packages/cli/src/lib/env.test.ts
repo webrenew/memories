@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getApiUrl, isDebug } from "./env.js";
+import { getApiUrl, isDebug, isGraphMappingEnabled } from "./env.js";
 
 const ORIGINAL_API_URL = process.env.MEMORIES_API_URL;
 const ORIGINAL_DEBUG = process.env.DEBUG;
+const ORIGINAL_GRAPH_MAPPING_ENABLED = process.env.GRAPH_MAPPING_ENABLED;
 
 afterEach(() => {
   if (ORIGINAL_API_URL === undefined) {
@@ -15,6 +16,12 @@ afterEach(() => {
     delete process.env.DEBUG;
   } else {
     process.env.DEBUG = ORIGINAL_DEBUG;
+  }
+
+  if (ORIGINAL_GRAPH_MAPPING_ENABLED === undefined) {
+    delete process.env.GRAPH_MAPPING_ENABLED;
+  } else {
+    process.env.GRAPH_MAPPING_ENABLED = ORIGINAL_GRAPH_MAPPING_ENABLED;
   }
 });
 
@@ -49,5 +56,18 @@ describe("env", () => {
       process.env.DEBUG = value;
       expect(isDebug()).toBe(true);
     }
+  });
+
+  it("defaults graph mapping on and honors explicit false values", () => {
+    delete process.env.GRAPH_MAPPING_ENABLED;
+    expect(isGraphMappingEnabled()).toBe(true);
+
+    for (const value of ["0", "false", "FALSE", "off", "no"]) {
+      process.env.GRAPH_MAPPING_ENABLED = value;
+      expect(isGraphMappingEnabled()).toBe(false);
+    }
+
+    process.env.GRAPH_MAPPING_ENABLED = "invalid";
+    expect(isGraphMappingEnabled()).toBe(true);
   });
 });
