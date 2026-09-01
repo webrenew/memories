@@ -47,7 +47,7 @@
     "postinstall": "node ./postinstall.mjs"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.5.2",
+    "@inquirer/prompts": "^8.7.0",
     "@libsql/client": "^0.17.4",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@xenova/transformers": "^2.17.2",
@@ -60,7 +60,7 @@
     "ora": "^9.4.1",
     "sharp": "~0.35.2",
     "yaml": "^2.8.3",
-    "zod": "^4.4.3"
+    "zod": "^4.5.2"
   },
   "devDependencies": {
     "@types/figlet": "^1.7.0",
