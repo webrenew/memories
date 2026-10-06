@@ -1,4 +1,5 @@
 {
+  "name": "memories",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.34.5",

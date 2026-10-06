@@ -145,7 +145,7 @@ jobs:
 
   build:
     name: Build
-    needs: [docs-guard, lint, typecheck, test, workspace-switch-budgets, sdk-contracts]
+    needs: [docs-guard, lint, typecheck, test, node20-packages, workspace-switch-budgets, sdk-contracts]
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_SUPABASE_URL: placeholder
