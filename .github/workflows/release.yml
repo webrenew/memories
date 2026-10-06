@@ -48,7 +48,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
 
       - name: Create Release PR or Publish
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
           version: pnpm version-packages
           publish: pnpm release
