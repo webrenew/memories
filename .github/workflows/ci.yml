@@ -30,12 +30,10 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies (retry on transient network failures)
@@ -51,12 +49,10 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies (retry on transient network failures)
@@ -72,12 +68,10 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies (retry on transient network failures)
@@ -86,6 +80,31 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Validate release tooling without publishing
+        run: pnpm test:release
+
+  node20-packages:
+    name: Node 20 Package Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install with supported tooling Node
+        run: bash .github/scripts/pnpm-install-with-retry.sh
+      - name: Build published packages
+        run: pnpm --filter @memories.sh/core --filter @memories.sh/ai-sdk --filter @memories.sh/cli build
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+      - name: Test published packages on Node 20
+        run: pnpm --filter @memories.sh/core --filter @memories.sh/ai-sdk --filter @memories.sh/cli test
+      - name: Smoke test CLI on Node 20
+        run: node packages/cli/dist/index.js --help
+
   workspace-switch-budgets:
     name: Workspace Switch Budgets
     runs-on: ubuntu-latest
@@ -93,12 +112,10 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies (retry on transient network failures)
@@ -114,12 +131,10 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies (retry on transient network failures)
@@ -139,12 +154,10 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies (retry on transient network failures)

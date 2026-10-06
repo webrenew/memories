@@ -22,14 +22,10 @@ jobs:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
-        with:
-          version: 10
 
-      # Node 24 (LTS) rather than 20 like the rest of CI: npm trusted publishing
-      # requires npm >= 11.5.1 on Node >= 22.14.0, and Node 24 already bundles
-      # npm 11.x. Node 20 bundles npm 10.8.2, which cannot do OIDC publishing.
-      # This only sets the toolchain that builds and publishes — the packages
-      # still declare engines.node >=20 and are still tested on 20 in ci.yml.
+      # Changesets v3 requires Node ^22.11 || ^24 || >=26. Use Node 24
+      # for tooling and trusted publishing; published packages still support
+      # Node 20, covered by the separate package compatibility job in ci.yml.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -48,12 +44,14 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
 
       - name: Create Release PR or Publish
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          version: pnpm version-packages
-          publish: pnpm release
-          title: "chore: version packages"
-          commit: "chore: version packages"
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+          pr-title: "chore: version packages"
+          commit-message: "chore: version packages"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Preserve v1's Git CLI pushes rather than switching commit/tag identity.
+          push-with-git-cli: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
