@@ -44,6 +44,10 @@ test("release action v2 and CLI v3 retain the release contract", () => {
 
 test("installs use a supported Node and the pinned pnpm with unchanged overrides", () => {
   assert.equal(manifest.packageManager, "pnpm@10.34.5")
+  assert.equal(manifest.name, "memories")
+  assert.equal(json("package-lock.json").name, manifest.name)
+  assert.equal(json("package-lock.json").packages[""].name, manifest.name)
+  assert.ok(workflow("ci").jobs.build.needs.includes("node20-packages"))
   const lock = parse(readFileSync(path.join(root, "pnpm-lock.yaml"), "utf8"))
   assert.deepEqual(lock.overrides, manifest.pnpm.overrides)
   assert.equal(lock.importers["."].devDependencies["@changesets/cli"].version, "3.0.3")
@@ -93,7 +97,7 @@ test("Changesets status/version updates a disposable monorepo without publishing
       name: "@fixture/cli", version: "1.0.0", dependencies: { "@fixture/core": "workspace:^" },
     })
     write("packages/web/package.json", { name: "@fixture/web", private: true, version: "1.0.0" })
-    symlinkSync(path.join(root, "node_modules"), path.join(dir, "node_modules"), "dir")
+    symlinkSync(path.join(root, "node_modules"), path.join(dir, "node_modules"), process.platform === "win32" ? "junction" : "dir")
     git("init", "-b", "main")
     git("add", ".")
     git("-c", "user.name=Release test", "-c", "user.email=release-test@example.invalid", "commit", "-m", "fixture")
