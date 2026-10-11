@@ -1,5 +1,9 @@
 {
-  "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
+  "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  },
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],

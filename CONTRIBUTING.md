@@ -6,8 +6,21 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 20+
-- [pnpm](https://pnpm.io/) 9+
+- [Node.js](https://nodejs.org/) 24 LTS recommended (tooling supports 22.12+, 24.x, or 26+)
+- [pnpm](https://pnpm.io/) 10.34.5, pinned in the root `packageManager` field
+
+The published CLI and SDK packages still support Node 20. The repository's
+Changesets v3 release tooling requires a newer Node version; CI tests package
+compatibility on Node 20 separately from tooling.
+
+Use `pnpm install --frozen-lockfile` for reproducible installs. After a dependency
+change, regenerate `pnpm-lock.yaml` with the pinned pnpm version and retain the
+root `pnpm.overrides` security constraints. Root tooling changes also need an
+updated `package-lock.json` (`npm install --package-lock-only --ignore-scripts`).
+
+Release validation is non-publishing: `pnpm test:release` checks the workflow
+contract and runs Changesets status/version against a disposable fixture. Never
+run `pnpm release` as a test.
 
 ### Getting Started
 
