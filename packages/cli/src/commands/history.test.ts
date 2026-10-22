@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -7,6 +7,7 @@ process.env.MEMORIES_DATA_DIR = mkdtempSync(join(tmpdir(), "memories-history-tes
 
 import { addMemory, updateMemory, getMemoryById } from "../lib/memory.js";
 import { getDb } from "../lib/db.js";
+import { revertCommand } from "./history.js";
 
 async function ensureHistoryTable(): Promise<void> {
   const db = await getDb();
@@ -90,5 +91,31 @@ describe("history", () => {
       args: ["nonexistent-id-xyz"],
     });
     expect(result.rows.length).toBe(0);
+  });
+
+  it("reverts without losing history when all writes share one millisecond", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1792710000000);
+    const output = vi.spyOn(console, "log").mockImplementation(() => {});
+    const exit = vi.spyOn(process, "exit").mockImplementation((code) => {
+      throw new Error(`Unexpected exit: ${code}`);
+    });
+    try {
+      const memory = await addMemory("Before restore", { global: true });
+      await updateMemory(memory.id, { content: "After edit" });
+      await revertCommand.parseAsync(["node", "memories", memory.id, "--to", "1"]);
+      expect(exit).not.toHaveBeenCalled();
+      expect((await getMemoryById(memory.id))?.content).toBe("Before restore");
+      const db = await getDb();
+      const history = await db.execute({
+        sql: "SELECT id FROM memory_history WHERE memory_id = ?",
+        args: [memory.id],
+      });
+      expect(history.rows).toHaveLength(3);
+      expect(new Set(history.rows.map((row) => row.id)).size).toBe(3);
+    } finally {
+      clock.mockRestore();
+      output.mockRestore();
+      exit.mockRestore();
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -235,6 +235,29 @@ describe("memory", () => {
       args: [memory.id],
     });
     expect(topics.rows.map((row) => row.node_key)).toEqual(["after-edit"]);
+  });
+
+  it("preserves every history entry when writes share one millisecond", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(1792710000000);
+    try {
+      const memory = await addMemory("History collision seed", { global: true });
+      await Promise.all([
+        updateMemory(memory.id, { content: "History collision alpha" }),
+        updateMemory(memory.id, { content: "History collision beta" }),
+      ]);
+      const db = await getDb();
+      const history = await db.execute({
+        sql: "SELECT id, change_type FROM memory_history WHERE memory_id = ?",
+        args: [memory.id],
+      });
+      expect(history.rows).toHaveLength(2);
+      expect(new Set(history.rows.map((row) => row.id)).size).toBe(2);
+      expect(history.rows.map((row) => row.change_type).sort()).toEqual([
+        "updated", "updated",
+      ]);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("should keep the graph aligned with the winning concurrent edit", async () => {

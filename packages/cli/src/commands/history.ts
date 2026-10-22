@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
+import { nanoid } from "nanoid";
 import { getDb } from "../lib/db.js";
 import * as ui from "../lib/ui.js";
 import { getMemoryById, updateMemory, type Memory } from "../lib/memory.js";
@@ -41,7 +42,7 @@ async function ensureHistoryTable(): Promise<void> {
 async function recordHistory(memory: Memory, changeType: "created" | "updated" | "deleted"): Promise<void> {
   await ensureHistoryTable();
   const db = await getDb();
-  const id = `${memory.id}-${Date.now()}`;
+  const id = `${memory.id}-${nanoid()}`;
   
   await db.execute({
     sql: `INSERT INTO memory_history (id, memory_id, content, tags, type, change_type) VALUES (?, ?, ?, ?, ?, ?)`,
