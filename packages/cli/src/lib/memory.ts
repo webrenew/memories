@@ -37,7 +37,7 @@ async function recordMemoryHistory(
     )
   `);
   
-  const historyId = `${memory.id}-${Date.now()}`;
+  const historyId = `${memory.id}-${nanoid()}`;
   await db.execute({
     sql: `INSERT INTO memory_history (id, memory_id, content, tags, type, change_type) VALUES (?, ?, ?, ?, ?, ?)`,
     args: [historyId, memory.id, memory.content, memory.tags, memory.type, changeType],
