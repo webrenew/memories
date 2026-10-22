@@ -237,7 +237,7 @@ describe("memory", () => {
     expect(topics.rows.map((row) => row.node_key)).toEqual(["after-edit"]);
   });
 
-  it("preserves every history entry when writes share one millisecond", async () => {
+  it("allocates distinct history IDs for same-millisecond edits", async () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(1792710000000);
     try {
       const memory = await addMemory("History collision seed", { global: true });

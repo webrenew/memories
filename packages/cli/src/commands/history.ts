@@ -1,9 +1,8 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { nanoid } from "nanoid";
 import { getDb } from "../lib/db.js";
 import * as ui from "../lib/ui.js";
-import { getMemoryById, updateMemory, type Memory } from "../lib/memory.js";
+import { getMemoryById, updateMemory } from "../lib/memory.js";
 
 const TYPE_ICONS: Record<string, string> = {
   rule: "📌",
@@ -39,17 +38,6 @@ async function ensureHistoryTable(): Promise<void> {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_history_memory ON memory_history(memory_id)`);
 }
 
-async function recordHistory(memory: Memory, changeType: "created" | "updated" | "deleted"): Promise<void> {
-  await ensureHistoryTable();
-  const db = await getDb();
-  const id = `${memory.id}-${nanoid()}`;
-  
-  await db.execute({
-    sql: `INSERT INTO memory_history (id, memory_id, content, tags, type, change_type) VALUES (?, ?, ?, ?, ?, ?)`,
-    args: [id, memory.id, memory.content, memory.tags, memory.type, changeType],
-  });
-}
-
 export const historyCommand = new Command("history")
   .description("View version history of a memory")
   .argument("<id>", "Memory ID")
@@ -64,10 +52,10 @@ export const historyCommand = new Command("history")
       
       // Get history
       const result = await db.execute({
-        sql: `SELECT *, ROW_NUMBER() OVER (ORDER BY changed_at ASC) as version 
+        sql: `SELECT *, ROW_NUMBER() OVER (ORDER BY changed_at ASC, rowid ASC) as version
               FROM memory_history 
               WHERE memory_id = ? 
-              ORDER BY changed_at DESC`,
+              ORDER BY changed_at DESC, rowid DESC`,
         args: [id],
       });
       
@@ -143,7 +131,7 @@ export const revertCommand = new Command("revert")
       
       // Get the specific version
       const result = await db.execute({
-        sql: `SELECT *, ROW_NUMBER() OVER (ORDER BY changed_at ASC) as version 
+        sql: `SELECT *, ROW_NUMBER() OVER (ORDER BY changed_at ASC, rowid ASC) as version
               FROM memory_history 
               WHERE memory_id = ?`,
         args: [id],
@@ -157,13 +145,7 @@ export const revertCommand = new Command("revert")
         process.exit(1);
       }
       
-      // Get current memory to record history before revert
-      const current = await getMemoryById(id);
-      if (current) {
-        await recordHistory(current, "updated");
-      }
-      
-      // Update memory with old content
+      // updateMemory records the pre-image once before applying the restore.
       const updated = await updateMemory(id, {
         content: targetEntry.content,
         tags: targetEntry.tags ? targetEntry.tags.split(",") : undefined,

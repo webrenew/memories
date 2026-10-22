@@ -7,7 +7,7 @@ process.env.MEMORIES_DATA_DIR = mkdtempSync(join(tmpdir(), "memories-history-tes
 
 import { addMemory, updateMemory, getMemoryById } from "../lib/memory.js";
 import { getDb } from "../lib/db.js";
-import { revertCommand } from "./history.js";
+import { historyCommand, revertCommand } from "./history.js";
 
 async function ensureHistoryTable(): Promise<void> {
   const db = await getDb();
@@ -93,7 +93,7 @@ describe("history", () => {
     expect(result.rows.length).toBe(0);
   });
 
-  it("reverts without losing history when all writes share one millisecond", async () => {
+  it("keeps tied history versions ordered and records a restore only once", async () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(1792710000000);
     const output = vi.spyOn(console, "log").mockImplementation(() => {});
     const exit = vi.spyOn(process, "exit").mockImplementation((code) => {
@@ -102,10 +102,21 @@ describe("history", () => {
     try {
       const memory = await addMemory("Before restore", { global: true });
       await updateMemory(memory.id, { content: "After edit" });
-      await revertCommand.parseAsync(["node", "memories", memory.id, "--to", "1"]);
-      expect(exit).not.toHaveBeenCalled();
-      expect((await getMemoryById(memory.id))?.content).toBe("Before restore");
+      await updateMemory(memory.id, { content: "After second edit" });
       const db = await getDb();
+      await db.execute({
+        sql: "UPDATE memory_history SET changed_at = '2000-01-01 00:00:00' WHERE memory_id = ?",
+        args: [memory.id],
+      });
+      await historyCommand.parseAsync(["node", "memories", memory.id, "--json"]);
+      const displayed = JSON.parse(output.mock.calls.at(-1)?.[0] as string);
+      expect(displayed.history.map((row: { version: number }) => row.version)).toEqual([2, 1]);
+      expect(displayed.history.map((row: { content: string }) => row.content)).toEqual([
+        "After edit", "Before restore",
+      ]);
+      await revertCommand.parseAsync(["node", "memories", memory.id, "--to", "2"]);
+      expect(exit).not.toHaveBeenCalled();
+      expect((await getMemoryById(memory.id))?.content).toBe("After edit");
       const history = await db.execute({
         sql: "SELECT id FROM memory_history WHERE memory_id = ?",
         args: [memory.id],
