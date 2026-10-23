@@ -110,35 +110,37 @@ test('catalog fixture inventory and bytes are pinned separately from migration h
 
 test('apply transaction requires a complete snapshot and an unapplied exact file set', async () => {
   const { buildApplyTransaction } = await import('./data-api-grants/transaction.mjs')
-  const { categories } = await import('./data-api-grants/metadata.mjs')
+  const { categories, summarize } = await import('./data-api-grants/metadata.mjs')
   const sql = await readFile(new URL('./data-api-grants/snapshot.sql', import.meta.url), 'utf8')
   const expected = Object.fromEntries([...categories, 'defaults'].map((name) => [name, []]))
   const ledger = [{ version: '20260101000000', name: 'old', statements: ['select 1;'] }]
   const migrations = [{ filename: '20261022000000_grants.sql', sql: 'grant select on public.test to anon;' }]
-  const transaction = buildApplyTransaction(sql, expected, ledger, migrations)
+  const transaction = buildApplyTransaction(sql, expected, ledger, migrations, summarize(expected))
+  assert.throws(() => buildApplyTransaction(sql, { ...expected, roles: [{ role: 'unreviewed' }] },
+    ledger, migrations, summarize(expected)), /Permission contract mismatch: roles/)
   assert.ok(transaction.startsWith('begin isolation level repeatable read;'))
   assert.equal(transaction.split('into observed\nfrom (values').length - 1, 2)
   assert.ok(transaction.includes('Production migration ledger changed'))
   assert.ok(transaction.includes('transaction rolled back'))
   assert.ok(transaction.includes('array[$migration_source$grant select'))
-  assert.throws(() => buildApplyTransaction(sql, {}, ledger, migrations), /complete production/)
-  assert.throws(() => buildApplyTransaction(sql, expected, [], migrations), /complete nonempty/)
-  assert.throws(() => buildApplyTransaction(sql, expected, ledger, []), /No reviewed/)
-  assert.throws(() => buildApplyTransaction(sql, expected, ledger, [...migrations, ...migrations]), /Duplicate reviewed/)
+  assert.throws(() => buildApplyTransaction(sql, {}, ledger, migrations, summarize(expected)), /complete production/)
+  assert.throws(() => buildApplyTransaction(sql, expected, [], migrations, summarize(expected)), /complete nonempty/)
+  assert.throws(() => buildApplyTransaction(sql, expected, ledger, [], summarize(expected)), /No reviewed/)
+  assert.throws(() => buildApplyTransaction(sql, expected, ledger, [...migrations, ...migrations], summarize(expected)), /Duplicate reviewed/)
   assert.throws(() => buildApplyTransaction(sql, expected,
-    [...ledger, { version: '20261022000000' }], migrations), /already recorded/)
+    [...ledger, { version: '20261022000000' }], migrations, summarize(expected)), /already recorded/)
   assert.throws(() => buildApplyTransaction(sql, expected, ledger,
-    [{ filename: "20261022000000_x');drop.sql", sql: 'select 1;' }]), /exact version/)
+    [{ filename: "20261022000000_x');drop.sql", sql: 'select 1;' }], summarize(expected)), /exact version/)
 })
 
 test('apply transaction dollar literals cannot be closed by captured SQL', async () => {
   const { buildApplyTransaction } = await import('./data-api-grants/transaction.mjs')
-  const { categories } = await import('./data-api-grants/metadata.mjs')
+  const { categories, summarize } = await import('./data-api-grants/metadata.mjs')
   const sql = await readFile(new URL('./data-api-grants/snapshot.sql', import.meta.url), 'utf8')
   const expected = Object.fromEntries([...categories, 'defaults'].map((name) => [name, []]))
   const source = '-- $production_grants_apply$ $reviewed_permissions$ $reviewed_ledger$ $migration_source$\nselect 1;'
   const transaction = buildApplyTransaction(sql, expected, [{ version: '20260101000000' }],
-    [{ filename: '20261022000000_safe.sql', sql: source }])
+    [{ filename: '20261022000000_safe.sql', sql: source }], summarize(expected))
   assert.ok(transaction.includes('do $production_grants_apply_$'))
   assert.ok(transaction.includes('array[$migration_source_$' + source + '$migration_source_$]'))
   assert.ok(transaction.includes('expected jsonb := $reviewed_permissions_$'))

@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, readdirSync, cpSyn
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { compareSnapshots } from './data-api-grants/metadata.mjs'
+import { compareSnapshots, summarize } from './data-api-grants/metadata.mjs'
 import { verifySecurityControls } from './data-api-grants/security-controls.mjs'
 import { assertSecurityPosture } from './data-api-grants/security-posture.mjs'
 import { assertReviewedRoleAccess } from './data-api-grants/role-access.mjs'
@@ -156,6 +156,15 @@ function proof() {
   assertReviewedRoleAccess(withBaseline, rolePlan)
   assertSnapshotContract(withBaseline, expected, join(outputDirectory, 'with-baseline.json'))
   if (config.signupTrigger) {
+    // A post-hardening partial restore must fail explicitly, before recreating
+    // any table or retired public helper. Each fixture is rolled back by psql.
+    for (const table of ['users', 'organizations', 'org_members', 'org_invites']) {
+      assert.throws(() => query(`begin; drop table public.${table} cascade;
+${recovery}`),
+        /Partial restore after helper hardening requires a separately reviewed repair/)
+    }
+    assert.deepEqual(compareSnapshots(withBaseline, capture('after-partial-restore-controls')), [],
+      'Partial-restore rejection must roll back all fixture changes')
     const hook = JSON.parse(query("select jsonb_build_object('name',tgname,'definition',pg_get_triggerdef(oid),'enabled',tgenabled) from pg_trigger where tgrelid='auth.users'::regclass and tgname='on_auth_user_created';"))
     assert.deepEqual(hook, config.signupTrigger, 'Signup trigger must match production')
     query(`begin;
@@ -187,6 +196,9 @@ function proof() {
 }
 
 function verifyAtomicApplication(expected) {
+  // Future SQL runs after this interim baseline proof and gets the final reviewed contract below.
+  const reviewed = replay.after.length ? summarize(expected)
+    : JSON.parse(readFileSync(join(root, 'scripts/data-api-grants/expected-summary.json'), 'utf8'))
   const files = [...(config.preBaselineMigrations ?? []), config.baseline]
   // Only the unique disposable database is connected here. Recreate the pending
   // ledger state without changing any application table or permission.
@@ -196,19 +208,19 @@ function verifyAtomicApplication(expected) {
   const ledger = JSON.parse(query(historySql))
   const migrations = files.map((filename) => ({ filename,
     sql: readFileSync(join(root, config.directory, filename), 'utf8') }))
-  query(buildApplyTransaction(snapshotSql, expected, ledger, migrations))
+  query(buildApplyTransaction(snapshotSql, expected, ledger, migrations, reviewed))
   assert.deepEqual(compareSnapshots(expected, capture('after-atomic-apply', false)), [], 'Atomic apply must preserve all permissions')
   const recorded = JSON.parse(query(historySql))
   assert.equal(recorded.length, ledger.length + files.length)
   const table = expected.objects.find((row) => row.kind === 'r')
   const changed = [{ filename: '20990101000000_atomic_negative.sql',
     sql: `revoke select on public."${table.name.replaceAll('"', '""')}" from anon;` }]
-  assert.throws(() => query(buildApplyTransaction(snapshotSql, expected, recorded, changed)),
+  assert.throws(() => query(buildApplyTransaction(snapshotSql, expected, recorded, changed, reviewed)),
     /Permission contract drift after migration/)
   assert.deepEqual(JSON.parse(query(historySql)), recorded, 'Failed apply must roll back its ledger entry')
   const harmless = [{ filename: '20990102000000_empty_ledger_negative.sql',
     sql: `grant select on public."${table.name.replaceAll('"', '""')}" to anon;` }]
-  const frame = buildApplyTransaction(snapshotSql, expected, recorded, harmless)
+  const frame = buildApplyTransaction(snapshotSql, expected, recorded, harmless, reviewed)
   const inRollback = frame.replace(/^begin isolation level repeatable read;/, '')
     .replace(/commit;\s*$/, 'rollback;')
   assert.throws(() => query('begin; delete from supabase_migrations.schema_migrations;\n' + inRollback),
@@ -216,7 +228,7 @@ function verifyAtomicApplication(expected) {
   assert.deepEqual(JSON.parse(query(historySql)), recorded, 'Empty-ledger guard must roll back')
   const emptySnapshot = snapshotSql.replace('left join grouped g using (category);',
     'left join grouped g using (category) where false;')
-  assert.throws(() => query(buildApplyTransaction(emptySnapshot, expected, recorded, harmless)),
+  assert.throws(() => query(buildApplyTransaction(emptySnapshot, expected, recorded, harmless, reviewed)),
     /Production permission contract changed/)
   assert.deepEqual(JSON.parse(query(historySql)), recorded, 'NULL-snapshot guard must not record a migration')
   assert.deepEqual(compareSnapshots(expected, capture('after-atomic-rollback', false)), [], 'Failed apply must roll back its ACL change')

@@ -62,6 +62,8 @@ Four original tables (users, organizations, org_members and org_invites) had no 
 
 The only pending production files are 20260202000000_recover_initial_schema.sql and 20261022233614_explicit_data_api_grants.sql. A reviewed push needs --include-all for the recovery version; it must list exactly those files.
 
+The bootstrap recovery deliberately rejects partial restores that mix missing original tables with already-hardened private helpers. It must not recreate retired public wrappers. Such a database needs a separately reviewed repair; production has all four tables and takes the unchanged path.
+
 ## Production procedure
 
 1. Review the PR, exact SQL, history manifest and successful database proof.
@@ -71,7 +73,8 @@ The only pending production files are 20260202000000_recover_initial_schema.sql 
 4. Apply only that reviewed set, recording exact versions, names and SQL in the
    migration ledger. Never reset production or replay catalog fixtures there.
    Use `transaction.mjs` to build the apply SQL from the fresh snapshot and full
-   ledger. It checks both before any SQL and checks every permission category
+   ledger. It verifies the fresh snapshot against the checked-in reviewed summary,
+   checks the full live snapshot and ledger before any SQL, and checks every permission category
    again before commit. Any drift rolls back the migrations and ledger entries.
    CI executes that transaction and proves an ACL mutation rolls back its ledger
    entry too. Empty ledgers and NULL snapshots must abort before any migration.
@@ -100,7 +103,8 @@ const migrations = [...(config.preBaselineMigrations ?? []), config.baseline].ma
   filename, sql: readFileSync(config.directory + '/' + filename, 'utf8'),
 }))
 process.stdout.write(buildApplyTransaction(readFileSync('scripts/data-api-grants/snapshot.sql', 'utf8'),
-  snapshot, ledger, migrations))
+  snapshot, ledger, migrations,
+  JSON.parse(readFileSync('scripts/data-api-grants/expected-summary.json', 'utf8'))))
 JS
 ```
 

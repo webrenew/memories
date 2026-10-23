@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { categories } from './metadata.mjs'
-import { snapshotQueryBody } from './proof-support.mjs'
+import { assertSnapshotContract, snapshotQueryBody } from './proof-support.mjs'
 
 function literal(value, tag, occupied) {
   let suffix = tag
@@ -10,9 +10,10 @@ function literal(value, tag, occupied) {
 
 // Builds one transaction from reviewed source and a fresh metadata-only snapshot.
 // A mismatch before or after any migration aborts every SQL and ledger change.
-export function buildApplyTransaction(snapshotSql, expected, ledger, migrations) {
+export function buildApplyTransaction(snapshotSql, expected, ledger, migrations, reviewedSummary) {
   assert.deepEqual(Object.keys(expected).sort(), [...categories, 'defaults'].sort(),
     'A complete production permission snapshot is required')
+  assertSnapshotContract(expected, reviewedSummary, 'Caller-supplied production snapshot')
   assert.ok(Array.isArray(ledger) && ledger.length, 'A complete nonempty migration ledger is required')
   assert.ok(Array.isArray(migrations) && migrations.length, 'No reviewed migrations supplied')
   const versions = migrations.map(({ filename }) => {

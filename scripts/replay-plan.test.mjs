@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 import { replayPlan } from './data-api-grants/replay-plan.mjs'
 import { buildApplyTransaction } from './data-api-grants/transaction.mjs'
-import { categories } from './data-api-grants/metadata.mjs'
+import { categories, summarize } from './data-api-grants/metadata.mjs'
 import { findGrantProblems } from './check-migration-grants.mjs'
 
 test('replay keeps recovery before baseline and all new SQL after it, including catalog fixtures', () => {
@@ -29,7 +29,7 @@ test('transaction uses null-safe guards and includes the snapshot body when choo
   sql = sql.replace('-- Read metadata only.', '-- $production_grants_apply$ Read metadata only.')
   const expected = Object.fromEntries([...categories, 'defaults'].map((name) => [name, []]))
   const transaction = buildApplyTransaction(sql, expected, [{ version: '20260101000000' }],
-    [{ filename: '20261022000000_safe.sql', sql: 'grant select on public.example to anon;' }])
+    [{ filename: '20261022000000_safe.sql', sql: 'grant select on public.example to anon;' }], summarize(expected))
   assert.equal(transaction.split(' is distinct from ').length - 1, 3)
   assert.ok(transaction.includes('do $production_grants_apply_$'))
   assert.ok(transaction.includes('$production_grants_apply_$;'))

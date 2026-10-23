@@ -9,6 +9,16 @@ declare
   create_org_members boolean := to_regclass('public.org_members') is null;
   create_org_invites boolean := to_regclass('public.org_invites') is null;
 begin
+  -- This is historical bootstrap recovery, not a partial-restore repair tool.
+  -- Hardened databases have private helpers and must be repaired separately;
+  -- never recreate retired public wrappers to make a mixed state proceed.
+  if (create_users or create_organizations or create_org_members or create_org_invites)
+    and ((to_regprocedure('public.get_user_org_ids(uuid)') is null
+      and to_regprocedure('private.get_user_org_ids(uuid)') is not null)
+      or (to_regprocedure('public.is_org_admin(uuid,uuid)') is null
+      and to_regprocedure('private.is_org_admin(uuid,uuid)') is not null)) then
+    raise exception 'Partial restore after helper hardening requires a separately reviewed repair; bootstrap recovery aborted';
+  end if;
   if create_users then
 CREATE TABLE IF NOT EXISTS "public"."users" (
     "id" "uuid" NOT NULL PRIMARY KEY,
