@@ -42,6 +42,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Migration grants
+        run: pnpm security:migration-grants && pnpm test:migration-grants
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest

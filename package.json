@@ -7,6 +7,9 @@
     "node": "^22.12 || ^24 || >=26"
   },
   "scripts": {
+    "security:migration-grants": "node scripts/check-migration-grants.mjs",
+    "test:migration-grants": "node --test scripts/check-migration-grants.test.mjs scripts/security-grants.test.mjs scripts/role-access.test.mjs scripts/migration-history.test.mjs",
+    "test:data-api-grants": "node scripts/test-data-api-grants.mjs",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",

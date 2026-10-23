@@ -1,0 +1,42 @@
+{
+  "objects": {
+    "rows": 21,
+    "sha256": "dc95d07f92a7975331d1440b50eb32dd53ca7a227a18026762a728aa8f94e886"
+  },
+  "relation_acl": {
+    "rows": 672,
+    "sha256": "249530ccfb0a2b93bdcf4a72dc441526692643f54f14cd00e7d24fbef9b46251"
+  },
+  "column_acl": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "effective_relations": {
+    "rows": 504,
+    "sha256": "a5b373245cf500eadec0f705aa9501281069e4e5f6d660e79c95cfe4df41c5e9"
+  },
+  "effective_columns": {
+    "rows": 3192,
+    "sha256": "c363b13567958ba4983808546455964917dd44a69fbef389c1959fafae90cc40"
+  },
+  "roles": {
+    "rows": 3,
+    "sha256": "a38877eee257d6aa579b4f10a56170f6561abb1f2e2c05cf263d547012ecd215"
+  },
+  "schema_acl": {
+    "rows": 7,
+    "sha256": "de32753f1d486eae4ba645f3e63d5c6b96f26a9334d8529d36ad2357946ff319"
+  },
+  "policies": {
+    "rows": 38,
+    "sha256": "a1ff5b467389ff29fcd80c91d684aba140f2145ace48aae85533f6cc2247f444"
+  },
+  "views": {
+    "rows": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "routines": {
+    "rows": 14,
+    "sha256": "972c3d650403cf185b13beb5b9c0de6d365d077163ca90540113a47619dea1b2"
+  }
+}
