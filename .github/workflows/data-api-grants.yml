@@ -1,0 +1,37 @@
+name: Data API grants
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-api-grants-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  grants:
+    name: Data API permission contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.120.0
+      - name: Check SQL access decisions and negative controls
+        run: node --run security:migration-grants && node --run test:migration-grants
+      - name: Verify permissions with October 30 defaults
+        run: node scripts/test-data-api-grants.mjs --snapshot-dir "$RUNNER_TEMP/data-api-grants"
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: data-api-permission-snapshots
+          path: ${{ runner.temp }}/data-api-grants/
+          retention-days: 7

@@ -1,0 +1,327 @@
+{
+  "capturedAt": "2026-10-22",
+  "entries": [
+    {
+      "version": "20260203033157",
+      "name": "add_cli_token",
+      "statementsSha256": "2bf541455e26460076fd4cbfe353ac5d0044c479d580679c52834b0531cce715",
+      "sourceFile": "supabase/migrations/20260203033157_add_cli_token.sql",
+      "sourceSha256": "de87955f7d9cc2d6f1fedaf54b83835c32c5c647ae42be5a71bef2b865e64b96"
+    },
+    {
+      "version": "20260203033716",
+      "name": "add_cli_auth_code_and_db_name",
+      "statementsSha256": "fcd42081900dc41414f5f75cf3cfa3c9415ac3c118a8db8c122a7af6e6633773",
+      "sourceFile": "supabase/migrations/20260203033716_add_cli_auth_code_and_db_name.sql",
+      "sourceSha256": "cb68473298445d4351ea7f2c980b07a2ae6da8b8eab1427faff2fa19192ae6b7"
+    },
+    {
+      "version": "20260204",
+      "name": "add_mcp_api_key",
+      "statementsSha256": "70b11a0b32dbfc575903306b89291c10e41d13c5f0f9342981486c3008516bea",
+      "sourceFile": "supabase/migrations/20260204_add_mcp_api_key.sql",
+      "sourceSha256": "6a0434428f628fda6fd9c6acab538943357a2a0d0786bb891adae5b15da31a80"
+    },
+    {
+      "version": "20260205204615",
+      "name": "add_org_members_insert_policy",
+      "statementsSha256": "9459395a69d33a34489235c0d337bf5e20aa1fa103d69213ec6ceac33dca535d",
+      "sourceFile": "supabase/migrations/20260205204615_add_org_members_insert_policy.sql",
+      "sourceSha256": "395970a16f1556ab30012aa15c43d9f99f83a931eb1c32d7d0d81758c3c641f9"
+    },
+    {
+      "version": "20260207222724",
+      "name": "add_org_owner_view_policy",
+      "statementsSha256": "08490f9a122b42c453fdad2c9eae0aea518474491012181405668eebd29741d7",
+      "sourceFile": "supabase/migrations/20260207222724_add_org_owner_view_policy.sql",
+      "sourceSha256": "2c86cdb1cf6ba03b6dfd8f0a0609404efcfca502463fdeac554b9274ad7056cc"
+    },
+    {
+      "version": "20260207223132",
+      "name": "add_org_subscription_status",
+      "statementsSha256": "ab0485f89d61f0104c31c8395be6db76a533624303c92ae19587626a61969e06",
+      "sourceFile": "supabase/migrations/20260207223132_add_org_subscription_status.sql",
+      "sourceSha256": "02d0a0d64d7fd3ed44125f4d75f17f9072bd78d6f488d04ab1f60ca7f9d7fd57"
+    },
+    {
+      "version": "20260210023753",
+      "name": "add_org_turso_columns",
+      "statementsSha256": "65f701e703e3f415fdb4671945c4d9ed82b90b478937d718f7f3e53d3d411a52",
+      "sourceFile": "supabase/migrations/20260210023753_add_org_turso_columns.sql",
+      "sourceSha256": "3f3eb190036ee83903584c7010596735cc23eb067100638f5f2dd3f64f413c87"
+    },
+    {
+      "version": "20260210132000",
+      "name": "add_org_stripe_customer_id",
+      "statementsSha256": "c23ce10f7173c76c6563d954076d05d033f9519132821efbf1cd773ca60ee320",
+      "sourceFile": "supabase/migrations/20260210132000_add_org_stripe_customer_id.sql",
+      "sourceSha256": "69d94c46285a875e0ba4ea9b64196b15735110dd9fc8e8de7023ee89363ad7d2"
+    },
+    {
+      "version": "20260210183000",
+      "name": "harden_mcp_api_keys",
+      "statementsSha256": "07d507569293b1102dda955729592db1504c1c28d55803c5a0701b0e7ffb9b8d",
+      "sourceFile": "supabase/migrations/20260210183000_harden_mcp_api_keys.sql",
+      "sourceSha256": "125f71e71e0e30344b3786581c6af092efddc418ddaa8c128f44e3d038244a98"
+    },
+    {
+      "version": "20260210220000",
+      "name": "add_sdk_tenant_databases",
+      "statementsSha256": "4a4f0bc674446a41d702470100177a887daac47c52fae5df24c03275b3089873",
+      "sourceFile": "supabase/migrations/20260210220000_add_sdk_tenant_databases.sql",
+      "sourceSha256": "cd211c0b7194c3ea8d5330d2dedc54a345fc078926de2af71263b5d5c91ce0fc"
+    },
+    {
+      "version": "20260212120000",
+      "name": "add_repo_workspace_routing_mode",
+      "statementsSha256": "a596e6764e70ee288f3ee41161154f644ca8052683b16f650aeb260b7e6a8511",
+      "sourceFile": "supabase/migrations/20260212120000_add_repo_workspace_routing_mode.sql",
+      "sourceSha256": "0cd2ee32e69db535909d949ed6081e023f552691199d982773c7cf4ce6208ff9"
+    },
+    {
+      "version": "20260212200000",
+      "name": "add_org_domain_auto_join",
+      "statementsSha256": "4512bf79fe26d060a27fef8d78cb231b5306ecffb0885caecaab4e6604c8cfb2",
+      "sourceFile": "supabase/migrations/20260212200000_add_org_domain_auto_join.sql",
+      "sourceSha256": "e831f51eaf28557f8e0715844defdb0ca4b69d08fdb78b06b8744432e3b4b3b2"
+    },
+    {
+      "version": "20260212233000",
+      "name": "add_workspace_switch_events",
+      "statementsSha256": "3dc3163143bfde5fe55c92f87134333bb2e3ce9d874a3b3895d8719a98e9204c",
+      "sourceFile": "supabase/migrations/20260212233000_add_workspace_switch_events.sql",
+      "sourceSha256": "0637e7c1c1a07329ef4a90de8a5752901b63606f2397dfd494611c19e2403878"
+    },
+    {
+      "version": "20260213001000",
+      "name": "add_github_capture_queue",
+      "statementsSha256": "95e2bae8cf196a5b8ba12885b98648ca3577c572936f9989a81e03f98b3ef475",
+      "sourceFile": "supabase/migrations/20260213001000_add_github_capture_queue.sql",
+      "sourceSha256": "3bf3c05faffd2cd1944106060af1b9a7dd48e73ea36ef81cbd112ea79d0f70ba"
+    },
+    {
+      "version": "20260213013000",
+      "name": "add_org_audit_logs",
+      "statementsSha256": "93541b0a2bab63e07f794f7bdf3bb2d8352179435ecaf953661bcad89d2a3adf",
+      "sourceFile": "supabase/migrations/20260213013000_add_org_audit_logs.sql",
+      "sourceSha256": "d7d9596711daa6001338b0c34697b459180d3b20d41f96dbf9e7f0d5da883a89"
+    },
+    {
+      "version": "20260213230000",
+      "name": "expand_github_capture_release_filters",
+      "statementsSha256": "dc3009b8a00b2b8e64e871b9aa9260601dc4460ef873fe286ee3e146d6663dc4",
+      "sourceFile": "supabase/migrations/20260213230000_expand_github_capture_release_filters.sql",
+      "sourceSha256": "b30c61b117bf4b251ee5a70b36c7a496d54f2d23f2767e26609183c931e72f8d"
+    },
+    {
+      "version": "20260214002000",
+      "name": "add_github_capture_settings",
+      "statementsSha256": "d432142494f7667666a24f02ee9b24e27a833bff92e9c92bb9222f3a682341c6",
+      "sourceFile": "supabase/migrations/20260214002000_add_github_capture_settings.sql",
+      "sourceSha256": "2c2d7e6a42c99f1fa3aa67e27ef9cfbc29503fc43df44dc5b014c3783e1848d2"
+    },
+    {
+      "version": "20260214021000",
+      "name": "add_workspace_switch_profile_events",
+      "statementsSha256": "55c5616c5ff9fce32130870e56dbdf68d98289fbf18a12d30d4b71a42aba5828",
+      "sourceFile": "supabase/migrations/20260214021000_add_workspace_switch_profile_events.sql",
+      "sourceSha256": "092ca1389c079de68f70f295766c933a82f14d73a9088c9278e00d6878da665d"
+    },
+    {
+      "version": "20260214150000",
+      "name": "add_integration_secret_refs_vault",
+      "statementsSha256": "641855cd258e99d58665bbfa2fe2dc613070d330fa3f883532ea43ea4e282618",
+      "sourceFile": "supabase/migrations/20260214150000_add_integration_secret_refs_vault.sql",
+      "sourceSha256": "8a691b7e6e619c8f89f83d2c63a9878a81b15b6061a248c8b51466fcf03157cd"
+    },
+    {
+      "version": "20260215120000",
+      "name": "add_growth_metering_and_plan_columns",
+      "statementsSha256": "2d3eb0a636a4c5385cec5e2c12a5703b68a46665da0edbd3b99991f6d3ad0bc6",
+      "sourceFile": "supabase/migrations/20260215120000_add_growth_metering_and_plan_columns.sql",
+      "sourceSha256": "4e90ed8d416c7a1f37945f2e2b0c8c9fae45dc59359f8438e245af3ffcc7d7b4"
+    },
+    {
+      "version": "20260216183000",
+      "name": "harden_rls_policy_eval_and_function_search_path",
+      "statementsSha256": "265bd5dd3fa245c1a05720b0ea478a4c6117fe0daa8dc6f805f02ac1995aaa27",
+      "sourceFile": "supabase/migrations/20260216183000_harden_rls_policy_eval_and_function_search_path.sql",
+      "sourceSha256": "ac9a2cb422f12728acada402aae29493d3bf06e4866a1908846b6584e84cb2eb"
+    },
+    {
+      "version": "20260216190000",
+      "name": "add_repo_owner_org_mappings",
+      "statementsSha256": "eae27e15844f02b711200384d1afd3d27a8af0491d1f045b52aaf2eeb2d028d8",
+      "sourceFile": "supabase/migrations/20260216190000_add_repo_owner_org_mappings.sql",
+      "sourceSha256": "2b2c4b6c01beea5633fc53ffc1e5db4c317079d93af6991119f9cac6a2d95814"
+    },
+    {
+      "version": "20260216210000",
+      "name": "add_owner_scope_key_to_sdk_tenant_databases",
+      "statementsSha256": "37915a11026d5ac16d3b4bfd2e7cecb84577050ee7cc61d081c66a385c42a615",
+      "sourceFile": "supabase/migrations/20260216210000_add_owner_scope_key_to_sdk_tenant_databases.sql",
+      "sourceSha256": "655ac44b00cfc0c68823dc902edd9e5ff3c9d34dec8671ccf7437aa3ff4c8e1c"
+    },
+    {
+      "version": "20260216223000",
+      "name": "add_tenant_mapping_source",
+      "statementsSha256": "2d1363df865b085c4e5bf3328cd227511d2c4f464e6fc4a0a56f55c5130dd519",
+      "sourceFile": "supabase/migrations/20260216223000_add_tenant_mapping_source.sql",
+      "sourceSha256": "a13c7a6308650db67df1844bf4cdcb2a5b4eb6c4604505a9a5d605f4bd046541"
+    },
+    {
+      "version": "20260217003000",
+      "name": "add_legacy_route_usage_events",
+      "statementsSha256": "5a0fb722ed147ecec269ffdf545785263ab66c37858f2004c4e363adc373f94e",
+      "sourceFile": "supabase/migrations/20260217003000_add_legacy_route_usage_events.sql",
+      "sourceSha256": "6e39d168cb025ebd56d82ec8f92fcf05f1f0c7522d142b810af5fdf88860961f"
+    },
+    {
+      "version": "20260218000100",
+      "name": "harden_cli_token_storage",
+      "statementsSha256": "b0b68718e07c3a39d01bed6f3caad9cb1a96bef0b1b2d0c13972052828b96586",
+      "sourceFile": "supabase/migrations/20260218000100_harden_cli_token_storage.sql",
+      "sourceSha256": "a80ce9ccd38de636deae9e156d9aca051cbe7a1a1d93e53bde59c3f8a247329c"
+    },
+    {
+      "version": "20260219234000",
+      "name": "add_sdk_embedding_meter_events",
+      "statementsSha256": "6c50e72e007019163a06dbe19775240e889c71ef597eae73836bbab4f25572ca",
+      "sourceFile": "supabase/migrations/20260219234000_add_sdk_embedding_meter_events.sql",
+      "sourceSha256": "efc6ef3b0fe01ecd5248d2b329851811cda17c55d03b1ebb1625a588ab262b8e"
+    },
+    {
+      "version": "20260220053000",
+      "name": "backfill_cli_token_hashes",
+      "statementsSha256": "ade42d8346e193739a3ffb555697c19e0bbd1cf0f1812794b8d58788c54601b6",
+      "sourceFile": "supabase/migrations/20260220053000_backfill_cli_token_hashes.sql",
+      "sourceSha256": "33f468565bfea1f91e3d08c38065fb594f0662c5b9532bdf5d3763a8e9395c1c"
+    },
+    {
+      "version": "20260220062000",
+      "name": "add_embedding_token_accounting_columns",
+      "statementsSha256": "effe16a43585eecfeb6c673c147aad2f1565511e52f14592dcd026fc046a903f",
+      "sourceFile": "supabase/migrations/20260220062000_add_embedding_token_accounting_columns.sql",
+      "sourceSha256": "795197945fa61eae79ba7cc904a127b24528bfb34d1da7f5afdf78bd1f761009"
+    },
+    {
+      "version": "20260221191000",
+      "name": "add_mcp_api_keys_table",
+      "statementsSha256": "87b89730b3eebcc2c8dab4f5f87892f6c68d91d828e2c3196891b5a97f4b8f9d",
+      "sourceFile": "supabase/migrations/20260221191000_add_mcp_api_keys_table.sql",
+      "sourceSha256": "958d3efc1e2c9e8792c7f3aac39b87c8a83c1960ef664919faa60ad3a0b14f0a"
+    },
+    {
+      "version": "20260302140607",
+      "name": "enable_rls_and_policies_mcp_api_keys",
+      "statementsSha256": "9f345731f85c8021a0f59afd9a33eea73ead00a1c71f96d4a705b86eebe899d6",
+      "sourceFile": "supabase/migrations/20260302140607_enable_rls_and_policies_mcp_api_keys.sql",
+      "sourceSha256": "b38fc56c96c77bc7d5ad331afa88e9ab43b3d30b74174b06b1555dd130bee46e"
+    },
+    {
+      "version": "20260302140609",
+      "name": "add_rls_policies_sdk_tenant_databases",
+      "statementsSha256": "edfa7cdc8596c2249b09cc47c1f71dbbf8b76e8fe24997b16f23de018e6d8386",
+      "sourceFile": "supabase/migrations/20260302140609_add_rls_policies_sdk_tenant_databases.sql",
+      "sourceSha256": "e5ace23ccae4ca9deee73143130e0828ab782a2f98876a00b738f19dfd20911b"
+    },
+    {
+      "version": "20260302140611",
+      "name": "add_rls_policies_workspace_switch_events",
+      "statementsSha256": "092d923f7633f43a4c4546104b1212a4f3ef173ed8587bb2422b5159b6d1b89c",
+      "sourceFile": "supabase/migrations/20260302140611_add_rls_policies_workspace_switch_events.sql",
+      "sourceSha256": "cb04ba67625c6ba6c93a33a0d6303a3166180541f0453ded82c3a490272d3367"
+    },
+    {
+      "version": "20260302141135",
+      "name": "fix_rls_initplan_auth_uid_subselect",
+      "statementsSha256": "a98a70acc588eb8b969edcc3988fa968cc4711f8a448f72d388b5fa69d3cd4e3",
+      "sourceFile": "supabase/migrations/20260302141135_fix_rls_initplan_auth_uid_subselect.sql",
+      "sourceSha256": "93057d2177e9e4e8f50edb56083dc94f4fe7bf3c8a8ada96e9e727f594b57fb2"
+    },
+    {
+      "version": "20260302141208",
+      "name": "add_missing_foreign_key_indexes",
+      "statementsSha256": "2e8df7f9872ee98a8e5aa504b8ec1e407803411b90aa096b988f4a9d3bf633f6",
+      "sourceFile": "supabase/migrations/20260302141208_add_missing_foreign_key_indexes.sql",
+      "sourceSha256": "590c0d47442004a751d8d1cefdec9475d66aa47cd8b6d30cb7dbcae4d67d3cce"
+    },
+    {
+      "version": "20260302141257",
+      "name": "drop_unused_indexes",
+      "statementsSha256": "4c902a45dda904ab644f6e7432b2feec63fa2a719c90036b499054805aa9e1c8",
+      "sourceFile": "supabase/migrations/20260302141257_drop_unused_indexes.sql",
+      "sourceSha256": "712111a698ec3a908a0e5d12d7a0df4a5886e88a91797ac74cdeefd2a5ef5da3"
+    },
+    {
+      "version": "20260302141330",
+      "name": "add_remaining_foreign_key_indexes",
+      "statementsSha256": "55a94489f3c1748a9ba9362be5bae29df6371df4e760c8dd89c33d80e944de3f",
+      "sourceFile": "supabase/migrations/20260302141330_add_remaining_foreign_key_indexes.sql",
+      "sourceSha256": "004e9410cacb9c069bb0ec05861cd0f108400466b6aa7f310d00d76a9dfcf864"
+    },
+    {
+      "version": "20260302141352",
+      "name": "consolidate_multiple_permissive_policies",
+      "statementsSha256": "02a3838fabe61ac16671d9a3a1f3b9fe3d27d96964d45d937cb0f73bac9fa1f4",
+      "sourceFile": "supabase/migrations/20260302141352_consolidate_multiple_permissive_policies.sql",
+      "sourceSha256": "e696f1cc6ac5df006bf263ae21dcb76c4c93079225c5536d15be68ddcd085485"
+    },
+    {
+      "version": "20260302181000",
+      "name": "harden_org_invite_and_slug_uniqueness",
+      "statementsSha256": "58dae260c95fda4ac18699664d7fd1a244a7b2c3c22da3d94bc85ffdfcee5678",
+      "sourceFile": "supabase/migrations/20260302181000_harden_org_invite_and_slug_uniqueness.sql",
+      "sourceSha256": "9d0128b3f5df8f3228f31eda43b560cc67568abd3daf6a8dfb118d2e90e04805"
+    },
+    {
+      "version": "20260302193000",
+      "name": "harden_workspace_switch_member_role_and_provision_lock",
+      "statementsSha256": "1bc4fa95877f596646fccf68790785a9f9fd839630e6f690ef6cf7eefb79262e",
+      "sourceFile": "supabase/migrations/20260302193000_harden_workspace_switch_member_role_and_provision_lock.sql",
+      "sourceSha256": "c9035217fd057cd99f88d9762a5f22297153c85a0af91ce1f99d012b96c9238b"
+    },
+    {
+      "version": "20260302194500",
+      "name": "add_atomic_org_member_delete_and_org_settings_delete",
+      "statementsSha256": "9e22bc132ae46b3a4003d258a151edbd78b9b1b757acdabdbfc530ec11d8107e",
+      "sourceFile": "supabase/migrations/20260302194500_add_atomic_org_member_delete_and_org_settings_delete.sql",
+      "sourceSha256": "0e4d828850190dda26bf31d59d802a22d8387ce5d25003ea1254b6ee75359cbd"
+    },
+    {
+      "version": "20260302200000",
+      "name": "add_stripe_customer_locks_and_cli_approve_guard",
+      "statementsSha256": "ba98c22510b4a6735a7af9c4a584fcdddc1016c2e8f666eac8010f35aa1d94fb",
+      "sourceFile": "supabase/migrations/20260302200000_add_stripe_customer_locks_and_cli_approve_guard.sql",
+      "sourceSha256": "e5257173e86edd5e50eb8ff302611b44af8d03138bc10477e5f70dbd8d3fa7a6"
+    },
+    {
+      "version": "20260302203000",
+      "name": "add_stripe_webhook_claim_guard",
+      "statementsSha256": "37d5a54297c49a2de45cc1af9df460f3c88fb509a9865f7b922f32dd2188219f",
+      "sourceFile": "supabase/migrations/20260302203000_add_stripe_webhook_claim_guard.sql",
+      "sourceSha256": "ead2f99e9b3735248bf7c0e2e59f9402f4c185f7a4185b9557d194a799bebb25"
+    },
+    {
+      "version": "20260304140754",
+      "name": "fix_rls_initplan_fk_indexes_dup_index",
+      "statementsSha256": "d3ba1b0c600017e72035c5e8a212a82b5de4aef9fca8ea466719b227fcf77175",
+      "sourceFile": "supabase/migrations/20260304140754_fix_rls_initplan_fk_indexes_dup_index.sql",
+      "sourceSha256": "ad2d32a0844f3f8d7baf4a4bdf7018b23e003e48e3de57d2f57f776b53d2ec1c"
+    },
+    {
+      "version": "20260309153000",
+      "name": "add_sdk_projects_table",
+      "statementsSha256": "9f0a0f1a1753c622db89d14c743a48c60a72007154c3ea152c1ff23f7c6459d8",
+      "sourceFile": "supabase/migrations/20260309153000_add_sdk_projects_table.sql",
+      "sourceSha256": "0637f154f48d6038b6f21d9a8bc392a7697376017b5f081d8d31915b47533bd9"
+    },
+    {
+      "version": "20261011015625",
+      "name": "fix_advisor_warnings_definer_rpc_and_sdk_projects",
+      "statementsSha256": "8582d03e7f84696c61be551501eb816a0b680f97abb0c22d150c41aa89974972",
+      "sourceFile": "supabase/migrations/20261011015625_fix_advisor_warnings_definer_rpc_and_sdk_projects.sql",
+      "sourceSha256": "8df81697aca3dc12fb065d2dad89f59a88d2ab9de41dab1087335ca5bf1fd35b"
+    }
+  ]
+}
