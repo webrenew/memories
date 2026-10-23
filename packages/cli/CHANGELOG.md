@@ -21,6 +21,13 @@
   - `search_memories` and `list_memories` accept `type` + `layer` while retaining `types`.
   - `list_memories.tags` accepts either string (comma-separated) or string array.
 
+## 0.7.10
+
+### Patch Changes
+
+- af2c4f1: Prevent history entry ID collisions when memory edits or restores share the same millisecond.
+  Keep tied history versions ordered and record each restore once.
+
 ## 0.7.9
 
 ### Minor Changes
