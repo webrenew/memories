@@ -22,7 +22,7 @@ export function verifySecurityControls(baseline, contract, fixture) {
   const create = view ? '' : `create view ${target} with (security_invoker=true) as select 1 as value;`
   const ownerView = fixture('owner-rights-view', `${create} alter view ${target} reset (security_invoker);`)
   assert.throws(() => assertSecurityPosture(ownerView, contract), /must use security_invoker/)
-  for (const name of contract.privateClientObjects ?? []) {
+  for (const name of contract.privateClientObjects) {
     const changed = fixture('private-client-grant', `grant select on public.${identifier(name)} to anon;`)
     assert.throws(() => assertSecurityPosture(changed, contract), /Private object must deny client privileges/)
   }

@@ -1,4 +1,5 @@
 {
+  "privateClientObjects": [],
   "writePolicies": [
     {"check_expression": "(( SELECT auth.uid() AS uid) = user_id)", "command": "ALL", "name": "github_account_links", "permissive": "PERMISSIVE", "policy": "Users can upsert own github account link", "roles": ["authenticated"], "schema": "public", "using_expression": "(( SELECT auth.uid() AS uid) = user_id)"},
     {"check_expression": "true", "command": "ALL", "name": "github_account_links", "permissive": "PERMISSIVE", "policy": "Service role full access github account links", "roles": ["service_role"], "schema": "public", "using_expression": "true"},

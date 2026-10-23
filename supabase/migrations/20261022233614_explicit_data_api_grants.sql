@@ -1,5 +1,8 @@
 -- Generated from the live production catalog on 2026-10-22.
 -- Preserve existing API-role grants, RLS and defaults; no new access is introduced.
+-- This preserves legacy Supabase defaults, rather than declaring least privilege.
+-- Existing RLS still governs row-level DML. TRUNCATE, REFERENCES, TRIGGER and
+-- MAINTAIN are not constrained by RLS. Narrowing is tracked separately in #501.
 grant DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on table "public"."github_account_links" to "anon";
 grant DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on table "public"."github_account_links" to "authenticated";
 grant DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on table "public"."github_account_links" to "service_role";

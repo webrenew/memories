@@ -3,7 +3,8 @@
 The baseline records the existing production permissions before Supabase stops
 automatically exposing new public relations on October 30, 2026. It preserves
 legacy privileges, including privileges that RLS does not constrain; it is not
-a least-privilege redesign. Narrowing that access requires separate review.
+a least-privilege redesign. Narrowing that access requires separate review:
+[memories #501](https://github.com/webrenew/memories/issues/501).
 
 ## Verification
 

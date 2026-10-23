@@ -14,7 +14,8 @@ export function assertSecurityPosture(snapshot, contract) {
   }
   assertWritePolicies(snapshot.policies, contract.writePolicies)
   assertViews(snapshot, contract.writableViews)
-  for (const name of contract.privateClientObjects ?? []) {
+  assert.ok(Array.isArray(contract.privateClientObjects), 'Explicit private-object contract required')
+  for (const name of contract.privateClientObjects) {
     const access = (snapshot.effective_relations ?? []).filter((row) => row.name === name && publicRoles.includes(row.role))
     assert.ok(access.every((row) => !row.allowed), `Private object must deny client privileges: ${name}`)
     if (snapshot.objects.some((row) => row.name === name)) {

@@ -11,7 +11,12 @@ import { assertSnapshotContract, proofDirectory, snapshotQueryBody, writeProofSn
 import { compareSnapshots, summarize } from './data-api-grants/metadata.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const contract = { writePolicies: [], writableViews: [] }
+const contract = { writePolicies: [], writableViews: [], privateClientObjects: [] }
+test('omitting the private-object decision fails closed', () => {
+  const omitted = { ...contract }
+  delete omitted.privateClientObjects
+  assert.throws(() => assertSecurityPosture(snapshot(), omitted), /Explicit private-object contract required/)
+})
 test('snapshot fixtures fail clearly when transaction wrappers change', () => {
   const valid = 'begin isolation level repeatable read read only;\nselect 1;\ncommit;'
   assert.equal(snapshotQueryBody(valid).trim(), 'select 1;')
