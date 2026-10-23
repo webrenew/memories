@@ -161,6 +161,8 @@ CREATE UNIQUE INDEX "idx_users_cli_token_hash" ON "public"."users" USING "btree"
 CREATE INDEX "idx_users_current_org_id" ON "public"."users" USING "btree" ("current_org_id");
 CREATE UNIQUE INDEX "idx_users_mcp_api_key_hash_unique" ON "public"."users" USING "btree" ("mcp_api_key_hash") WHERE ("mcp_api_key_hash" IS NOT NULL);
 CREATE OR REPLACE TRIGGER "on_users_updated" BEFORE UPDATE ON "public"."users" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+CREATE TRIGGER "on_auth_user_created" AFTER INSERT ON "auth"."users"
+  FOR EACH ROW EXECUTE FUNCTION "public"."handle_new_user"();
 ALTER TABLE ONLY "public"."users"
     ADD CONSTRAINT "users_current_org_id_fkey" FOREIGN KEY ("current_org_id") REFERENCES "public"."organizations"("id");
 ALTER TABLE ONLY "public"."users"

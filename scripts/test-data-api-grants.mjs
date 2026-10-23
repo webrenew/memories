@@ -11,6 +11,8 @@ import { assertSecurityPosture } from './data-api-grants/security-posture.mjs'
 import { assertReviewedRoleAccess } from './data-api-grants/role-access.mjs'
 import { assertRoutineAccess } from './data-api-grants/routine-access.mjs'
 import { buildApplyTransaction } from './data-api-grants/transaction.mjs'
+import { replayPlan } from './data-api-grants/replay-plan.mjs'
+import { auditMigrationGrants } from './check-migration-grants.mjs'
 import { assertSnapshotContract, parseProofArguments, proofDirectory,
   proofUsage, snapshotQueryBody, stopProofDatabase, writeProofSnapshot } from './data-api-grants/proof-support.mjs'
 
@@ -31,13 +33,16 @@ const run = (command, args, input) => execFileSync(command, args, {
 const query = (sql) => run('docker', ['exec', '-i', container, 'psql', '-U', 'postgres',
   '-d', 'postgres', '-v', 'ON_ERROR_STOP=1', '-qAt'], sql)
 const snapshot = () => JSON.parse(query(snapshotSql))
+const replay = replayPlan(config, readdirSync(join(root, config.directory)))
 let outputDirectory = scratch
 
-function capture(name) {
+function capture(name, verifyFinal = true) {
   const current = snapshot()
   writeProofSnapshot(outputDirectory, name, current)
-  assertSecurityPosture(current, security)
-  assertRoutineAccess(current, security.routineAccess)
+  if (verifyFinal) {
+    assertSecurityPosture(current, security)
+    assertRoutineAccess(current, security.routineAccess)
+  }
   return current
 }
 
@@ -74,8 +79,8 @@ enabled = false
 enabled = false
 `)
   assert.equal(config.mode, 'migrations', 'This proof replays the full migration history')
-  for (const name of readdirSync(join(root, config.directory))) {
-    if (!config.catalogFixtures && name.endsWith('.sql') && name !== config.baseline) {
+  for (const name of replay.before) {
+    if (!config.catalogFixtures) {
       cpSync(join(root, config.directory, name), join(migrations, name))
     }
   }
@@ -101,6 +106,7 @@ function verifySentinels() {
 function verifyServerRoleRecovery(baseline, artifact) {
   const table = baseline.objects.find((object) => object.kind === 'r'
     && !(config.optionalObjects ?? []).includes(object.name)
+    && artifact.includes(` on table "public"."${object.name.replaceAll('"', '""')}" to "service_role"`)
     && baseline.effective_relations.some((row) => row.name === object.name
       && row.role === 'service_role' && row.privilege === 'SELECT' && row.allowed))
   assert.ok(table, 'Expected an application table with reviewed server read access')
@@ -121,15 +127,46 @@ function proof() {
   if (config.catalogFixtures) {
     query(config.catalogFixtures.map((file) => readFileSync(join(root, file), 'utf8')).join('\n'))
   }
-  const without = capture('without-baseline')
-  assertSnapshotContract(without, { objects: expected.objects }, join(outputDirectory, 'without-baseline.json'), ['objects'])
-  assert.throws(() => assertReviewedRoleAccess(without, rolePlan), /Reviewed role access differs/,
-    'A fresh database without the baseline must lose the recorded API access')
+  const without = capture('without-baseline', false)
+  if (!replay.after.length) {
+    assertSnapshotContract(without, { objects: expected.objects }, join(outputDirectory, 'without-baseline.json'), ['objects'])
+    assert.throws(() => assertReviewedRoleAccess(without, rolePlan), /Reviewed role access differs/,
+      'A fresh database without the baseline must lose the recorded API access')
+  }
   const baselineFile = config.baselineFile ?? join(config.directory, config.baseline)
-  query(readFileSync(join(root, baselineFile), 'utf8'))
+  const artifact = readFileSync(join(root, baselineFile), 'utf8')
+  assert.ok(without.effective_relations.some((row) => row.role === 'service_role'
+    && row.privilege === 'SELECT' && !row.allowed
+    && artifact.includes(` on table "public"."${row.name.replaceAll('"', '""')}" to "service_role"`)),
+  'The missing baseline must remove a recorded server SELECT grant')
+  query(artifact)
+  const initial = capture('baseline-initial', false)
+  for (const name of config.preBaselineMigrations ?? []) query(readFileSync(join(root, config.directory, name), 'utf8'))
+  query(artifact)
+  assert.deepEqual(compareSnapshots(initial, capture('baseline-reapplied', false)), [], 'Reapplication must preserve every permission tuple')
+  verifyAtomicApplication(initial)
+  const recovery = (config.preBaselineMigrations ?? [])
+    .map((file) => readFileSync(join(root, config.directory, file), 'utf8')).join('\n')
+  for (const [index, signature] of (config.rpcRecoveryFunctions ?? []).entries()) {
+    const restored = securityFixture(`missing-rpc-recovered-${index}`, `drop function ${signature};\n${recovery}`)
+    assert.deepEqual(compareSnapshots(initial, restored), [], 'Missing RPC recovery must restore the original contract')
+  }
+  for (const name of replay.after) query(readFileSync(join(root, config.directory, name), 'utf8'))
   const withBaseline = capture('with-baseline')
   assertReviewedRoleAccess(withBaseline, rolePlan)
   assertSnapshotContract(withBaseline, expected, join(outputDirectory, 'with-baseline.json'))
+  if (config.signupTrigger) {
+    const hook = JSON.parse(query("select jsonb_build_object('name',tgname,'definition',pg_get_triggerdef(oid),'enabled',tgenabled) from pg_trigger where tgrelid='auth.users'::regclass and tgname='on_auth_user_created';"))
+    assert.deepEqual(hook, config.signupTrigger, 'Signup trigger must match production')
+    query(`begin;
+      insert into auth.users(id,email,raw_user_meta_data)
+        values ('22222222-2222-2222-2222-222222222222','grants-fixture@example.invalid','{}');
+      do $$ begin
+        if not exists (select 1 from public.users where id='22222222-2222-2222-2222-222222222222')
+          then raise exception 'Signup did not provision the public user'; end if;
+      end $$;
+      rollback;`)
+  }
   if (withBaseline.objects.some((row) => row.kind === 'S')) {
     assert.deepEqual([...new Set(withBaseline.effective_relations.filter((row) => row.kind === 'S')
       .map((row) => row.privilege))].sort(), ['SELECT', 'UPDATE', 'USAGE'],
@@ -144,13 +181,9 @@ function proof() {
   const revoked = securityFixture('rpc-execute-revoked',
     `revoke execute on function ${routineName} from PUBLIC, anon, authenticated, service_role;`)
   assert.throws(() => assertRoutineAccess(revoked, security.routineAccess), /Reviewed RPC execution differs/)
-  for (const name of config.preBaselineMigrations ?? []) query(readFileSync(join(root, config.directory, name), 'utf8'))
-  query(readFileSync(join(root, baselineFile), 'utf8'))
-  assert.deepEqual(compareSnapshots(withBaseline, capture('reapplied')), [], 'Reapplication must preserve every permission tuple')
   verifySentinels()
   verifySecurityControls(withBaseline, security, securityFixture)
   assert.deepEqual(compareSnapshots(withBaseline, capture('after-fixtures')), [], 'Fixture and sentinel checks must roll back')
-  verifyAtomicApplication(capture('before-atomic-apply'))
 }
 
 function verifyAtomicApplication(expected) {
@@ -164,7 +197,7 @@ function verifyAtomicApplication(expected) {
   const migrations = files.map((filename) => ({ filename,
     sql: readFileSync(join(root, config.directory, filename), 'utf8') }))
   query(buildApplyTransaction(snapshotSql, expected, ledger, migrations))
-  assert.deepEqual(compareSnapshots(expected, capture('after-atomic-apply')), [], 'Atomic apply must preserve all permissions')
+  assert.deepEqual(compareSnapshots(expected, capture('after-atomic-apply', false)), [], 'Atomic apply must preserve all permissions')
   const recorded = JSON.parse(query(historySql))
   assert.equal(recorded.length, ledger.length + files.length)
   const table = expected.objects.find((row) => row.kind === 'r')
@@ -173,10 +206,26 @@ function verifyAtomicApplication(expected) {
   assert.throws(() => query(buildApplyTransaction(snapshotSql, expected, recorded, changed)),
     /Permission contract drift after migration/)
   assert.deepEqual(JSON.parse(query(historySql)), recorded, 'Failed apply must roll back its ledger entry')
-  assert.deepEqual(compareSnapshots(expected, capture('after-atomic-rollback')), [], 'Failed apply must roll back its ACL change')
+  const harmless = [{ filename: '20990102000000_empty_ledger_negative.sql',
+    sql: `grant select on public."${table.name.replaceAll('"', '""')}" to anon;` }]
+  const frame = buildApplyTransaction(snapshotSql, expected, recorded, harmless)
+  const inRollback = frame.replace(/^begin isolation level repeatable read;/, '')
+    .replace(/commit;\s*$/, 'rollback;')
+  assert.throws(() => query('begin; delete from supabase_migrations.schema_migrations;\n' + inRollback),
+    /Production migration ledger changed/)
+  assert.deepEqual(JSON.parse(query(historySql)), recorded, 'Empty-ledger guard must roll back')
+  const emptySnapshot = snapshotSql.replace('left join grouped g using (category);',
+    'left join grouped g using (category) where false;')
+  assert.throws(() => query(buildApplyTransaction(emptySnapshot, expected, recorded, harmless)),
+    /Production permission contract changed/)
+  assert.deepEqual(JSON.parse(query(historySql)), recorded, 'NULL-snapshot guard must not record a migration')
+  assert.deepEqual(compareSnapshots(expected, capture('after-atomic-rollback', false)), [], 'Failed apply must roll back its ACL change')
 }
 
 function verifyRoleQueries(snapshot) {
+  // PL/pgSQL SELECT INTO assigns variables; it cannot create a missing table.
+  assert.throws(() => query('do $$ begin select 1 as value into public.grants_not_a_table; end $$;'),
+    /not a known variable/)
   for (const object of snapshot.objects.filter((row) => row.kind !== 'S')) {
     const name = `"${object.schema.replaceAll('"', '""')}"."${object.name.replaceAll('"', '""')}"`
     for (const role of ['anon', 'authenticated', 'service_role']) {
@@ -211,6 +260,7 @@ try {
     process.stdout.write(proofUsage)
   } else {
     outputDirectory = proofDirectory(options.snapshotDirectory, scratch)
+    assert.deepEqual((await auditMigrationGrants(root)).errors, [], 'Source audit must pass before replay')
     prepare()
     lifecycle.startAttempted = true
     try {

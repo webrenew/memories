@@ -32,6 +32,7 @@ function assertPublicRole(snapshot, name) {
   assert.ok(role, `Missing public API role: ${name}`)
   assert.equal(role.bypass_rls, false, `${name} must not bypass RLS`)
   assert.equal(role.superuser, false, `${name} must not be a superuser`)
+  assert.equal(role.can_login, false, `${name} must not log in directly`)
   assert.deepEqual(role.inherited, [], `${name} must not inherit unreviewed role access`)
 }
 

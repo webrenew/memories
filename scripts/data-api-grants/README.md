@@ -74,7 +74,7 @@ The only pending production files are 20260202000000_recover_initial_schema.sql 
    ledger. It checks both before any SQL and checks every permission category
    again before commit. Any drift rolls back the migrations and ledger entries.
    CI executes that transaction and proves an ACL mutation rolls back its ledger
-   entry too. This is required even for CMSTABLE's catalog-based proof.
+   entry too. Empty ledgers and NULL snapshots must abort before any migration.
 5. Compare complete sorted tuples before and after. Only the ledger may change.
 6. Merge only after reviewer approval and green CI, then verify the production
    deployment and representative application reads.
@@ -82,4 +82,31 @@ The only pending production files are 20260202000000_recover_initial_schema.sql 
 Use inspect.mjs summary/grants/compare with private snapshot files. Raw catalogs
 and database credentials belong outside Git. Do not refresh expected digests to
 make unexplained differences pass.
+
+For a runnable build command, save the fresh snapshot and a JSON array of full
+ledger rows outside Git, then run from the repository root:
+
+```sh
+umask 077
+node --input-type=module - /private/tmp/before.json /private/tmp/ledger.json > /private/tmp/reviewed-apply.sql <<'JS'
+import { readFileSync } from 'node:fs'
+import { buildApplyTransaction } from './scripts/data-api-grants/transaction.mjs'
+const [snapshotFile, ledgerFile] = process.argv.slice(2)
+const raw = JSON.parse(readFileSync(snapshotFile, 'utf8'))
+const snapshot = raw.rows?.[0]?.snapshot ?? raw.snapshot ?? raw
+const ledger = JSON.parse(readFileSync(ledgerFile, 'utf8'))
+const config = JSON.parse(readFileSync('scripts/migration-grants.config.json', 'utf8'))
+const migrations = [...(config.preBaselineMigrations ?? []), config.baseline].map(filename => ({
+  filename, sql: readFileSync(config.directory + '/' + filename, 'utf8'),
+}))
+process.stdout.write(buildApplyTransaction(readFileSync('scripts/data-api-grants/snapshot.sql', 'utf8'),
+  snapshot, ledger, migrations))
+JS
+```
+
+This prepares SQL only. Submit it only after reviewing the exact file set and
+confirming the correct live project, current commit, ledger and snapshot.
+Later migrations always replay after the baseline in CI, including catalog-fixture
+proofs; the baseline is never reapplied over a later intentional privilege change.
+
 

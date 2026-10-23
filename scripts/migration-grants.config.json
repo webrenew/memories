@@ -56,5 +56,10 @@
   "dateVersions": false,
   "preBaselineMigrations": [
     "20260202000000_recover_initial_schema.sql"
-  ]
+  ],
+  "signupTrigger": {
+    "definition": "CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION handle_new_user()",
+    "enabled": "O",
+    "name": "on_auth_user_created"
+  }
 }

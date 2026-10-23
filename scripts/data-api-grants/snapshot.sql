@@ -6,7 +6,7 @@ with objects as (
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relkind in ('r','p','f','v','m','S')
 ), api_roles as (
-  select oid, rolname, rolinherit, rolbypassrls, rolsuper
+  select oid, rolname, rolinherit, rolbypassrls, rolsuper, rolcanlogin
   from pg_roles where rolname in ('anon','authenticated','service_role')
 ), relation_acl as (
   select o.nspname as schema, o.relname as name, o.relkind as kind,
@@ -50,6 +50,7 @@ with objects as (
   where o.relkind <> 'S' and col.attnum > 0 and not col.attisdropped
 ), roles as (
   select r.rolname as role, r.rolinherit as inherit, r.rolbypassrls as bypass_rls,
+    r.rolcanlogin as can_login,
     r.rolsuper as superuser, has_schema_privilege(r.oid, 'public', 'USAGE') as schema_usage,
     array(select p.rolname from pg_roles p where p.oid <> r.oid
       and pg_has_role(r.oid, p.oid, 'USAGE') order by p.rolname collate "C") as inherited

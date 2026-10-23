@@ -83,9 +83,15 @@ async function migrationProblems(repoRoot, config) {
   const errors = [...missingFiles(names, config), ...invalidPins, ...results.flatMap((result) => result.errors)]
   // Old date-only files can share a date. Only exact, immutable historical
   // pins receive that exception; new duplicate versions still fail.
-  const versions = names.filter((name) => !Object.hasOwn(config.historical, name))
-    .map((name) => migrationVersion(name, config)).filter(Boolean)
-  if (new Set(versions).size !== versions.length) errors.push('duplicate migration versions')
+  const versions = new Map()
+  for (const name of names) {
+    const version = migrationVersion(name, config)
+    if (version) versions.set(version, [...(versions.get(version) ?? []), name])
+  }
+  for (const group of versions.values()) {
+    const historicalDates = group.every((name) => Object.hasOwn(config.historical, name) && /^\d{8}_/.test(name))
+    if (group.length > 1 && !historicalDates) errors.push('duplicate migration versions')
+  }
   return { errors, checkedCount: results.reduce((sum, result) => sum + result.checked, 0) }
 }
 

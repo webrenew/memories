@@ -43,7 +43,7 @@ function snapshot() {
     objects: [{ schema: 'public', name: 'records', kind: 'r', owner: 'postgres', rls: true },
       { schema: 'public', name: 'report', kind: 'v', owner: 'postgres', rls: false }],
     roles: ['anon', 'authenticated', 'service_role'].map((role) => ({ role,
-      bypass_rls: role === 'service_role', superuser: false, inherited: [] })),
+      bypass_rls: role === 'service_role', superuser: false, can_login: false, inherited: [] })),
     policies: [{ schema: 'public', name: 'records', policy: 'read_rows', command: 'SELECT',
       roles: ['public'], permissive: 'PERMISSIVE', using_expression: 'true', check_expression: null }],
     views: [{ schema: 'public', name: 'report', owner: 'postgres', options: ['security_invoker=true'],
@@ -87,7 +87,7 @@ test('reviewed writes retain exact roles, conditions, command and permissiveness
 })
 
 test('public API roles cannot bypass RLS, inherit privileges or own tables', () => {
-  for (const change of [{ bypass_rls: true }, { superuser: true }, { inherited: ['postgres'] }]) {
+  for (const change of [{ bypass_rls: true }, { superuser: true }, { can_login: true }, { inherited: ['postgres'] }]) {
     const actual = snapshot()
     Object.assign(actual.roles[0], change)
     assert.throws(() => assertSecurityPosture(actual, contract))

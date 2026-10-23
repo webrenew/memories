@@ -27,7 +27,7 @@ export function buildApplyTransaction(snapshotSql, expected, ledger, migrations)
   const body = snapshotQueryBody(snapshotSql)
     .replace(' as snapshot\nfrom (values', ' into observed\nfrom (values')
   assert.ok(body.includes(' into observed\nfrom (values'), 'Snapshot query output changed')
-  const content = JSON.stringify(expected) + JSON.stringify(ledger) + migrations.map((row) => row.sql).join('\n')
+  const content = body + JSON.stringify(expected) + JSON.stringify(ledger) + migrations.map((row) => row.sql).join('\n')
   let outer = 'production_grants_apply'
   while (content.includes('$' + outer + '$')) outer += '_'
   const sql = [
@@ -42,9 +42,9 @@ export function buildApplyTransaction(snapshotSql, expected, ledger, migrations)
     '  actual_history jsonb;',
     'begin',
     body,
-    "if observed <> expected then raise exception 'Production permission contract changed; no migration applied'; end if;",
+    "if observed is distinct from expected then raise exception 'Production permission contract changed; no migration applied'; end if;",
     'select jsonb_agg(to_jsonb(m) order by version) into actual_history from supabase_migrations.schema_migrations m;',
-    "if actual_history <> expected_history then raise exception 'Production migration ledger changed; no migration applied'; end if;",
+    "if actual_history is distinct from expected_history then raise exception 'Production migration ledger changed; no migration applied'; end if;",
   ]
   for (const [index, migration] of migrations.entries()) {
     assert.ok(migration.sql.trim(), 'Empty reviewed migration')
@@ -54,7 +54,7 @@ export function buildApplyTransaction(snapshotSql, expected, ledger, migrations)
       + version + "','" + name + "',array[" + literal(migration.sql, 'migration_source', content) + ']);')
   }
   sql.push(body,
-    "if observed <> expected then raise exception 'Permission contract drift after migration; transaction rolled back'; end if;",
+    "if observed is distinct from expected then raise exception 'Permission contract drift after migration; transaction rolled back'; end if;",
     'end;', '$' + outer + '$;', 'commit;', '')
   return sql.join('\n')
 }

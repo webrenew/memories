@@ -179,7 +179,9 @@ function nextvalSequences(statement, problems) {
 }
 
 function defaultGrantProblems(statement, problems) {
-  if (!isWord(statement[0], 'alter') || !isWord(statement[1], 'default')) return
+  const start = statement.findIndex((token, index) => isWord(token, 'alter') && isWord(statement[index + 1], 'default'))
+  if (start < 0) return
+  statement = statement.slice(start)
   const grant = statement.findIndex((token) => isWord(token, 'grant'))
   const on = statement.findIndex((token) => isWord(token, 'on'))
   if (grant < 0 || !['tables', 'sequences'].includes(statement[on + 1]?.value)) return
@@ -285,7 +287,9 @@ function hasDynamicExecute(tokens) {
 }
 
 function inspectRoutineBodies(statement, problems) {
-  if (!isRoutine(statement)) return
+  const start = statement.findIndex((token, index) => isWord(token, 'create') && isRoutine(statement.slice(index)))
+  if (start < 0) return
+  statement = statement.slice(start)
   const as = statement.findIndex((token) => isWord(token, 'as'))
   if (as < 0) return
   const body = statement[as + 1]
