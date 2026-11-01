@@ -56,7 +56,7 @@
     "commander": "^14.0.3",
     "figlet": "^1.11.4",
     "gradient-string": "^3.0.0",
-    "nanoid": "^5.1.7",
+    "nanoid": "^6.0.2",
     "ora": "^9.4.1",
     "sharp": "~0.35.2",
     "yaml": "^2.8.3",
